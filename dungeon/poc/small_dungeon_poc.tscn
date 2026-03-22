@@ -1,0 +1,223 @@
+[gd_scene load_steps=9 format=3 uid="uid://small_dungeon_poc_scene"]
+
+[ext_resource type="Script" path="res://dungeon/poc/small_dungeon_poc.gd" id="1_script"]
+[ext_resource type="PackedScene" path="res://dungeon/rooms/base/room_base.tscn" id="2_room"]
+[ext_resource type="PackedScene" path="res://player.tscn" id="3_player"]
+[ext_resource type="PackedScene" path="res://player_visual.tscn" id="4_player_visual"]
+
+[sub_resource type="RectangleShape2D" id="1_blocker_shape"]
+size = Vector2(1, 8)
+
+[sub_resource type="RectangleShape2D" id="2_trigger_shape"]
+size = Vector2(24, 24)
+
+[sub_resource type="RectangleShape2D" id="3_portal_shape"]
+size = Vector2(5, 5)
+
+[sub_resource type="StandardMaterial3D" id="4_portal_mat"]
+albedo_color = Color(1, 0.55, 0.15, 1)
+
+[sub_resource type="CylinderMesh" id="5_portal_mesh"]
+material = SubResource("4_portal_mat")
+top_radius = 2.0
+bottom_radius = 2.0
+height = 1.2
+
+[node name="SmallDungeonPOC" type="Node"]
+script = ExtResource("1_script")
+
+[node name="GameWorld2D" type="Node2D" parent="."]
+
+[node name="Rooms" type="Node2D" parent="GameWorld2D"]
+
+[node name="EntranceRoom" parent="GameWorld2D/Rooms" instance=ExtResource("2_room")]
+room_id = "room_entrance_poc_small_01"
+size_class = "small"
+room_type = "safe"
+room_size_tiles = Vector2i(10, 10)
+room_tags = PackedStringArray("safe", "poc")
+allowed_connection_types = PackedStringArray("corridor", "connector")
+
+[node name="TransitionRoomA" parent="GameWorld2D/Rooms" instance=ExtResource("2_room")]
+position = Vector2(30, 0)
+room_id = "room_transition_poc_a_01"
+size_class = "small"
+room_type = "connector"
+room_size_tiles = Vector2i(10, 6)
+room_tags = PackedStringArray("connector", "corridor", "poc")
+allowed_connection_types = PackedStringArray("safe", "arena", "connector")
+
+[node name="CombatRoom" parent="GameWorld2D/Rooms" instance=ExtResource("2_room")]
+position = Vector2(69, 0)
+room_id = "room_combat_poc_medium_01"
+size_class = "medium"
+room_type = "arena"
+room_size_tiles = Vector2i(16, 16)
+room_tags = PackedStringArray("arena", "combat", "poc")
+allowed_connection_types = PackedStringArray("connector", "corridor")
+
+[node name="TransitionRoomB" parent="GameWorld2D/Rooms" instance=ExtResource("2_room")]
+position = Vector2(108, 0)
+room_id = "room_transition_poc_b_01"
+size_class = "small"
+room_type = "connector"
+room_size_tiles = Vector2i(10, 6)
+room_tags = PackedStringArray("connector", "corridor", "poc")
+allowed_connection_types = PackedStringArray("arena", "boss", "connector", "treasure")
+
+[node name="BossRoom" parent="GameWorld2D/Rooms" instance=ExtResource("2_room")]
+position = Vector2(159, 0)
+room_id = "room_boss_poc_large_01"
+size_class = "arena"
+room_type = "boss"
+room_size_tiles = Vector2i(24, 24)
+room_tags = PackedStringArray("boss", "arena", "poc")
+allowed_connection_types = PackedStringArray("connector")
+min_difficulty_tier = 4
+max_difficulty_tier = 8
+
+[node name="BranchTransitionRoom" parent="GameWorld2D/Rooms" instance=ExtResource("2_room")]
+position = Vector2(108, -24)
+room_id = "room_transition_poc_branch_01"
+size_class = "small"
+room_type = "connector"
+room_size_tiles = Vector2i(6, 10)
+room_tags = PackedStringArray("connector", "corridor", "poc")
+allowed_connection_types = PackedStringArray("connector", "treasure")
+
+[node name="TreasureRoom" parent="GameWorld2D/Rooms" instance=ExtResource("2_room")]
+position = Vector2(108, -54)
+room_id = "room_treasure_poc_small_01"
+size_class = "small"
+room_type = "treasure"
+room_size_tiles = Vector2i(10, 10)
+room_tags = PackedStringArray("treasure", "poc")
+allowed_connection_types = PackedStringArray("connector")
+
+[node name="Markers" type="Node2D" parent="GameWorld2D"]
+
+[node name="PlayerSpawnMarker" type="Marker2D" parent="GameWorld2D/Markers"]
+position = Vector2(0, 0)
+
+[node name="EntranceExitMarker" type="Marker2D" parent="GameWorld2D/Markers"]
+position = Vector2(15, 0)
+
+[node name="TreasureChestMarker" type="Marker2D" parent="GameWorld2D/Markers"]
+position = Vector2(108, -54)
+
+[node name="BossSpawnMarker" type="Marker2D" parent="GameWorld2D/Markers"]
+position = Vector2(159, 0)
+
+[node name="WorldBounds" type="StaticBody2D" parent="GameWorld2D"]
+collision_layer = 4
+collision_mask = 0
+
+[node name="DoorBlockers" type="Node2D" parent="GameWorld2D"]
+
+[node name="CombatDoorWest" type="StaticBody2D" parent="GameWorld2D/DoorBlockers"]
+position = Vector2(45, 0)
+collision_layer = 4
+collision_mask = 0
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="GameWorld2D/DoorBlockers/CombatDoorWest"]
+shape = SubResource("1_blocker_shape")
+disabled = true
+
+[node name="CombatDoorEast" type="StaticBody2D" parent="GameWorld2D/DoorBlockers"]
+position = Vector2(93, 0)
+collision_layer = 4
+collision_mask = 0
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="GameWorld2D/DoorBlockers/CombatDoorEast"]
+shape = SubResource("1_blocker_shape")
+disabled = true
+
+[node name="BossDoorWest" type="StaticBody2D" parent="GameWorld2D/DoorBlockers"]
+position = Vector2(123, 0)
+collision_layer = 4
+collision_mask = 0
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="GameWorld2D/DoorBlockers/BossDoorWest"]
+shape = SubResource("1_blocker_shape")
+disabled = true
+
+[node name="Triggers" type="Node2D" parent="GameWorld2D"]
+
+[node name="CombatRoomTrigger" type="Area2D" parent="GameWorld2D/Triggers"]
+position = Vector2(69, 0)
+collision_layer = 0
+collision_mask = 1
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="GameWorld2D/Triggers/CombatRoomTrigger"]
+shape = SubResource("2_trigger_shape")
+
+[node name="BossRoomTrigger" type="Area2D" parent="GameWorld2D/Triggers"]
+position = Vector2(159, 0)
+collision_layer = 0
+collision_mask = 1
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="GameWorld2D/Triggers/BossRoomTrigger"]
+shape = SubResource("2_trigger_shape")
+
+[node name="BossExitPortal" type="Area2D" parent="GameWorld2D/Triggers"]
+position = Vector2(183, 0)
+collision_layer = 0
+collision_mask = 1
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="GameWorld2D/Triggers/BossExitPortal"]
+shape = SubResource("3_portal_shape")
+
+[node name="Player" parent="GameWorld2D" instance=ExtResource("3_player")]
+position = Vector2(0, 0)
+
+[node name="VisualWorld3D" type="Node3D" parent="."]
+
+[node name="RoomVisuals" type="Node3D" parent="VisualWorld3D"]
+
+[node name="DoorVisuals" type="Node3D" parent="VisualWorld3D"]
+
+[node name="BossPortalMarker" type="MeshInstance3D" parent="VisualWorld3D"]
+position = Vector3(183, 0.3, 0)
+mesh = SubResource("5_portal_mesh")
+
+[node name="DirectionalLight3D" type="DirectionalLight3D" parent="VisualWorld3D"]
+transform = Transform3D(0.5, -0.777049, 0.382355, 0, 0.441506, 0.897258, -0.866025, -0.448629, 0.220753, 0, 28, 24)
+shadow_enabled = true
+shadow_bias = 0.04
+shadow_blur = 1.5
+directional_shadow_max_distance = 260.0
+
+[node name="PlayerVisual" parent="VisualWorld3D" instance=ExtResource("4_player_visual")]
+
+[node name="CameraPivot" type="Marker3D" parent="VisualWorld3D"]
+transform = Transform3D(1, 0, 0, 0, 0.707107, 0.707107, 0, -0.707107, 0.707107, 90, 0, -6)
+
+[node name="Camera" type="Camera3D" parent="VisualWorld3D/CameraPivot"]
+transform = Transform3D(1, 0, 0, 0, 1, -2.98023e-08, 0, 2.98023e-08, 1, 0, 0, 150)
+projection = 1
+current = true
+size = 120.0
+far = 500.0
+
+[node name="CombatClearTimer" type="Timer" parent="."]
+wait_time = 2.0
+one_shot = true
+
+[node name="BossClearTimer" type="Timer" parent="."]
+wait_time = 3.0
+one_shot = true
+
+[node name="CanvasLayer" type="CanvasLayer" parent="."]
+
+[node name="InfoLabel" type="Label" parent="CanvasLayer"]
+offset_left = 10.0
+offset_top = 10.0
+offset_right = 700.0
+offset_bottom = 80.0
+text = "Small dungeon POC loaded."
+
+[connection signal="timeout" from="CombatClearTimer" to="." method="_on_combat_clear_timer_timeout"]
+[connection signal="timeout" from="BossClearTimer" to="." method="_on_boss_clear_timer_timeout"]
+[connection signal="body_entered" from="GameWorld2D/Triggers/CombatRoomTrigger" to="." method="_on_combat_room_trigger_body_entered"]
+[connection signal="body_entered" from="GameWorld2D/Triggers/BossRoomTrigger" to="." method="_on_boss_room_trigger_body_entered"]
+[connection signal="body_entered" from="GameWorld2D/Triggers/BossExitPortal" to="." method="_on_boss_exit_portal_body_entered"]
