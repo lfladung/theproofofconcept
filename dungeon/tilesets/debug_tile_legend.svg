@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="96" viewBox="0 0 800 96">
+  <rect x="0" y="0" width="160" height="96" fill="#ffffff" stroke="#111111" stroke-width="2"/>
+  <text x="80" y="52" font-size="20" text-anchor="middle" font-family="Arial" fill="#111111">GROUND</text>
+
+  <rect x="160" y="0" width="160" height="96" fill="#785033" stroke="#111111" stroke-width="2"/>
+  <text x="240" y="52" font-size="20" text-anchor="middle" font-family="Arial" fill="#ffffff">WALL</text>
+
+  <rect x="320" y="0" width="160" height="96" fill="#ffdd1a" stroke="#111111" stroke-width="2"/>
+  <text x="400" y="52" font-size="20" text-anchor="middle" font-family="Arial" fill="#111111">TRAP</text>
+
+  <rect x="480" y="0" width="160" height="96" fill="#9d42dc" stroke="#111111" stroke-width="2"/>
+  <text x="560" y="52" font-size="20" text-anchor="middle" font-family="Arial" fill="#ffffff">DOOR</text>
+
+  <rect x="640" y="0" width="160" height="96" fill="#ff8f26" stroke="#111111" stroke-width="2"/>
+  <text x="720" y="52" font-size="20" text-anchor="middle" font-family="Arial" fill="#111111">STAIRS</text>
+</svg>

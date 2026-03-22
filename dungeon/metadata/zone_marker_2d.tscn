@@ -1,0 +1,16 @@
+[gd_scene format=3 uid="uid://zone_marker_2d_scene"]
+
+[ext_resource type="Script" path="res://dungeon/metadata/zone_marker_2d.gd" id="1_zone_script"]
+
+[sub_resource type="RectangleShape2D" id="1_zone_rect"]
+size = Vector2(64, 64)
+
+[node name="ZoneMarker2D" type="Area2D"]
+collision_layer = 0
+collision_mask = 0
+monitoring = false
+monitorable = false
+script = ExtResource("1_zone_script")
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="."]
+shape = SubResource("1_zone_rect")

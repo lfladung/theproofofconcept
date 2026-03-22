@@ -1,0 +1,71 @@
+[gd_scene format=3 uid="uid://room_base_template_scene"]
+
+[ext_resource type="Script" path="res://dungeon/rooms/base/room_base.gd" id="1_room_script"]
+[ext_resource type="PackedScene" path="res://dungeon/rooms/base/door_socket_2d.tscn" id="2_socket_scene"]
+[ext_resource type="PackedScene" path="res://dungeon/metadata/zone_marker_2d.tscn" id="3_zone_scene"]
+
+[node name="RoomRoot" type="Node2D"]
+script = ExtResource("1_room_script")
+
+[node name="Layout" type="Node2D" parent="."]
+
+[node name="TileFloor" type="TileMapLayer" parent="Layout"]
+
+[node name="TileWalls" type="TileMapLayer" parent="Layout"]
+
+[node name="TileHazards" type="TileMapLayer" parent="Layout"]
+
+[node name="TileDeco" type="TileMapLayer" parent="Layout"]
+
+[node name="Sockets" type="Node2D" parent="."]
+
+[node name="DoorSocket_N_1" parent="Sockets" instance=ExtResource("2_socket_scene")]
+position = Vector2(0, -384)
+direction = "north"
+width_tiles = 1
+
+[node name="DoorSocket_S_1" parent="Sockets" instance=ExtResource("2_socket_scene")]
+position = Vector2(0, 384)
+direction = "south"
+width_tiles = 1
+
+[node name="DoorSocket_W_1" parent="Sockets" instance=ExtResource("2_socket_scene")]
+position = Vector2(-384, 0)
+direction = "west"
+width_tiles = 1
+
+[node name="DoorSocket_E_1" parent="Sockets" instance=ExtResource("2_socket_scene")]
+position = Vector2(384, 0)
+direction = "east"
+width_tiles = 1
+
+[node name="Zones" type="Node2D" parent="."]
+
+[node name="EnemySpawnZone_Default_01" parent="Zones" instance=ExtResource("3_zone_scene")]
+position = Vector2(-160, 0)
+zone_type = "enemy_spawn"
+zone_role = &"melee"
+
+[node name="PropZone_Default_01" parent="Zones" instance=ExtResource("3_zone_scene")]
+position = Vector2(160, 0)
+zone_type = "prop_placement"
+zone_role = &"filler"
+
+[node name="EncounterTrigger_Default_01" parent="Zones" instance=ExtResource("3_zone_scene")]
+position = Vector2(0, 0)
+zone_type = "encounter_trigger"
+zone_role = &"entry"
+
+[node name="LootMarker_Default_01" parent="Zones" instance=ExtResource("3_zone_scene")]
+position = Vector2(0, 160)
+zone_type = "loot_marker"
+zone_role = &"main"
+
+[node name="NavBoundary_Default_01" parent="Zones" instance=ExtResource("3_zone_scene")]
+position = Vector2(0, 0)
+zone_type = "nav_boundary"
+zone_role = &"room_walkable"
+
+[node name="Gameplay" type="Node2D" parent="."]
+
+[node name="Visual3DProxy" type="Node3D" parent="."]

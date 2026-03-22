@@ -1,0 +1,6 @@
+[gd_scene format=3 uid="uid://door_socket_2d_scene"]
+
+[ext_resource type="Script" path="res://dungeon/rooms/base/door_socket_2d.gd" id="1_socket_script"]
+
+[node name="DoorSocket2D" type="Marker2D"]
+script = ExtResource("1_socket_script")
