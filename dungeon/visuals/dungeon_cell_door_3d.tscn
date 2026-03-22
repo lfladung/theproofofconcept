@@ -1,0 +1,18 @@
+[gd_scene format=3 uid="uid://ikqp75olbmnq"]
+
+[ext_resource type="PackedScene" uid="uid://ckipskinnnf45" path="res://art/Meshy_AI_stylized_door_frame_0322221133_texture.glb" id="1_frame"]
+[ext_resource type="PackedScene" uid="uid://osjofa2tyd5w" path="res://art/Meshy_AI_Weathered_Cell_Door_0322220554_texture.glb" id="2_cell"]
+[ext_resource type="Script" uid="uid://e3swcy6sd5rq" path="res://dungeon/visuals/dungeon_cell_door_3d.gd" id="3_script"]
+
+[node name="DungeonCellDoor3D" type="Node3D" unique_id=1251516793]
+script = ExtResource("3_script")
+
+[node name="Content" type="Node3D" parent="." unique_id=135439045]
+transform = Transform3D(0, 0, 2.2, 0, 2.2, 0, -2.2, 0, 0, 0, -0.12, 0)
+
+[node name="DoorFrame" parent="Content" unique_id=377709133 instance=ExtResource("1_frame")]
+
+[node name="HingePivot" type="Node3D" parent="Content" unique_id=799590252]
+
+[node name="CellDoor" parent="Content/HingePivot" unique_id=1088732810 instance=ExtResource("2_cell")]
+transform = Transform3D(0.75000006, 0, 0, 0, 0.75000006, 0, 0, 0, 0.75000006, 0, -1.8626451e-08, 0)

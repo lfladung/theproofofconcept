@@ -2,20 +2,20 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://52w43fromj4o"
-path.s3tc="res://.godot/imported/Meshy_AI_stylized_low_poly_dun_0322213130_texture_0.jpg-c48b1065a5ea25140724665b651adcb3.s3tc.ctex"
+uid="uid://cm8hchvvsebcq"
+path.s3tc="res://.godot/imported/Meshy_AI_stylized_arrow_tower_0322220212_texture_2.jpg-c29067172a357e839be2c36f542460f0.s3tc.ctex"
 metadata={
 "imported_formats": ["s3tc_bptc"],
 "vram_texture": true
 }
 generator_parameters={
-"md5": "fc5ff95ff1d64e331c2c968b432a36a2"
+"md5": "b113ea09a3b024241da6cdc8d4862536"
 }
 
 [deps]
 
-source_file="res://art/Meshy_AI_stylized_low_poly_dun_0322213130_texture_0.jpg"
-dest_files=["res://.godot/imported/Meshy_AI_stylized_low_poly_dun_0322213130_texture_0.jpg-c48b1065a5ea25140724665b651adcb3.s3tc.ctex"]
+source_file="res://art/Meshy_AI_stylized_arrow_tower_0322220212_texture_2.jpg"
+dest_files=["res://.godot/imported/Meshy_AI_stylized_arrow_tower_0322220212_texture_2.jpg-c29067172a357e839be2c36f542460f0.s3tc.ctex"]
 
 [params]
 
@@ -25,12 +25,12 @@ compress/lossy_quality=0.7
 compress/uastc_level=0
 compress/rdo_quality_loss=0.0
 compress/hdr_compression=1
-compress/normal_map=0
+compress/normal_map=1
 compress/channel_pack=0
 mipmaps/generate=true
 mipmaps/limit=-1
-roughness/mode=0
-roughness/src_normal=""
+roughness/mode=1
+roughness/src_normal="res://art/Meshy_AI_stylized_arrow_tower_0322220212_texture_2.jpg"
 process/channel_remap/red=0
 process/channel_remap/green=1
 process/channel_remap/blue=2

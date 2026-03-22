@@ -14,8 +14,7 @@ const MOB_SCENE := preload("res://mob.tscn")
 const SPAWN_POINT_SCENE := preload("res://dungeon/modules/encounter/enemy_spawn_point_2d.tscn")
 const SPAWN_VOLUME_SCENE := preload("res://dungeon/modules/encounter/enemy_spawn_volume_2d.tscn")
 const ROOM_TRIGGER_SCENE := preload("res://dungeon/modules/encounter/room_encounter_trigger_2d.tscn")
-const DOOR_UNLOCKED_VISUAL_COLOR := Color(0.62, 0.26, 0.86, 1.0)
-const DOOR_LOCKED_VISUAL_COLOR := Color.BLACK
+const DUNGEON_CELL_DOOR_SCENE := preload("res://dungeon/visuals/dungeon_cell_door_3d.tscn")
 ## Matches DoorBlockers / door sockets: slab half-width 1.5, centers on X as placed in the POC scene.
 const _DOOR_SLAB_HALF := 1.5
 const _COMBAT_DOOR_X_W := 67.5
@@ -47,8 +46,8 @@ var _combat_started := false
 var _combat_cleared := false
 var _boss_started := false
 var _boss_cleared := false
-var _combat_door_visual_west: MeshInstance3D
-var _combat_door_visual_east: MeshInstance3D
+var _combat_door_visual_west: DungeonCellDoor3D
+var _combat_door_visual_east: DungeonCellDoor3D
 var _encounter_active: Dictionary = {}
 var _encounter_completed: Dictionary = {}
 var _encounter_mobs: Dictionary = {}
@@ -62,7 +61,7 @@ func _ready() -> void:
 	_build_room_debug_visuals()
 	_spawn_encounter_modules()
 	_spawn_entrance_exit_markers()
-	_set_combat_doors_locked(false)
+	_set_combat_doors_locked(false, false)
 	_set_boss_entry_locked(false)
 	_boss_exit_portal.monitoring = false
 	_boss_exit_portal.monitorable = false
@@ -261,6 +260,7 @@ func _build_room_debug_visuals() -> void:
 		child.queue_free()
 	for child in _door_visuals.get_children():
 		child.queue_free()
+	var door_specs_by_key: Dictionary = {}
 	for room in _rooms_root.get_children():
 		if room is not RoomBase:
 			continue
@@ -272,8 +272,35 @@ func _build_room_debug_visuals() -> void:
 		for socket in r.get_all_sockets():
 			if socket.connector_type == &"inactive":
 				continue
-			_spawn_standard_door_piece(r.global_position + socket.position, socket.width_tiles)
-			_add_door_visual(r.global_position + socket.position)
+			var world_pos := r.global_position + socket.position
+			var dir_key := String(socket.direction)
+			var combat_visuals := r.name == &"CombatRoom" and (dir_key == "west" or dir_key == "east")
+			var key := "%s:%s" % [int(roundf(world_pos.x * 100.0)), int(roundf(world_pos.y * 100.0))]
+			if not door_specs_by_key.has(key):
+				door_specs_by_key[key] = {
+					"world_pos": world_pos,
+					"wall_direction": dir_key,
+					"use_combat_lock_visuals": combat_visuals,
+					"width_tiles": socket.width_tiles,
+				}
+			elif combat_visuals and not bool((door_specs_by_key[key] as Dictionary).get("use_combat_lock_visuals", false)):
+				# Shared openings are discovered from both adjacent rooms; prefer combat-room metadata.
+				var existing := door_specs_by_key[key] as Dictionary
+				existing["world_pos"] = world_pos
+				existing["wall_direction"] = dir_key
+				existing["use_combat_lock_visuals"] = true
+				existing["width_tiles"] = socket.width_tiles
+				door_specs_by_key[key] = existing
+
+	for key in door_specs_by_key.keys():
+		var spec := door_specs_by_key[key] as Dictionary
+		var door_pos := spec["world_pos"] as Vector2
+		_spawn_standard_door_piece(door_pos, int(spec.get("width_tiles", 1)))
+		_add_cell_door_3d(
+			door_pos,
+			String(spec.get("wall_direction", "west")),
+			bool(spec.get("use_combat_lock_visuals", false))
+		)
 
 	_assign_combat_door_visual_refs()
 
@@ -284,25 +311,47 @@ func _assign_combat_door_visual_refs() -> void:
 	var cr := _rooms_root.get_node_or_null("CombatRoom") as RoomBase
 	if cr == null:
 		return
-	for child in _door_visuals.get_children():
-		if not child is MeshInstance3D:
+	var west_world := Vector2.ZERO
+	var east_world := Vector2.ZERO
+	var has_w := false
+	var has_e := false
+	for s in cr.get_all_sockets():
+		if s.connector_type == &"inactive":
 			continue
-		var mi := child as MeshInstance3D
-		var flat := Vector2(mi.global_position.x, mi.global_position.z)
-		for s in cr.get_all_sockets():
-			if s.connector_type == &"inactive":
-				continue
-			var dir_key := String(s.direction)
-			if dir_key != "west" and dir_key != "east":
-				continue
-			var socket_world := cr.global_position + s.position
-			if flat.distance_to(socket_world) > 1.0:
-				continue
-			if dir_key == "west":
-				_combat_door_visual_west = mi
-			else:
-				_combat_door_visual_east = mi
-			break
+		var d := String(s.direction)
+		var sp := cr.global_position + s.position
+		if d == "west":
+			west_world = sp
+			has_w = true
+		elif d == "east":
+			east_world = sp
+			has_e = true
+	var best_w: DungeonCellDoor3D = null
+	var best_e: DungeonCellDoor3D = null
+	var best_dw := 1.0e12
+	var best_de := 1.0e12
+	for child in _door_visuals.get_children():
+		if not child is DungeonCellDoor3D:
+			continue
+		var asm := child as DungeonCellDoor3D
+		if not asm.use_combat_lock_visuals:
+			continue
+		var flat := Vector2(asm.global_position.x, asm.global_position.z)
+		if has_w:
+			var dw := flat.distance_to(west_world)
+			if dw < best_dw:
+				best_dw = dw
+				best_w = asm
+		if has_e:
+			var de := flat.distance_to(east_world)
+			if de < best_de:
+				best_de = de
+				best_e = asm
+	const _MAX_SOCK_MATCH := 2.0
+	if has_w and best_w != null and best_dw < _MAX_SOCK_MATCH:
+		_combat_door_visual_west = best_w
+	if has_e and best_e != null and best_de < _MAX_SOCK_MATCH:
+		_combat_door_visual_east = best_e
 
 
 func _add_room_floor_visual(rect: Rect2, color: Color, label_text: String) -> void:
@@ -325,17 +374,13 @@ func _add_room_floor_visual(rect: Rect2, color: Color, label_text: String) -> vo
 	_room_visuals.add_child(label)
 
 
-func _add_door_visual(world_pos: Vector2) -> MeshInstance3D:
-	var mi := MeshInstance3D.new()
-	var bm := BoxMesh.new()
-	bm.size = Vector3(3.0, 0.6, 3.0)
-	var mat := StandardMaterial3D.new()
-	mat.albedo_color = DOOR_UNLOCKED_VISUAL_COLOR
-	mi.mesh = bm
-	mi.material_override = mat
-	mi.position = Vector3(world_pos.x, -0.15, world_pos.y)
-	_door_visuals.add_child(mi)
-	return mi
+func _add_cell_door_3d(world_pos: Vector2, wall_direction: String, use_combat_lock_visuals: bool) -> DungeonCellDoor3D:
+	var door := DUNGEON_CELL_DOOR_SCENE.instantiate() as DungeonCellDoor3D
+	door.use_combat_lock_visuals = use_combat_lock_visuals
+	door.configure_for_socket(wall_direction)
+	door.position = Vector3(world_pos.x, 0.0, world_pos.y)
+	_door_visuals.add_child(door)
+	return door
 
 
 func _color_for_room_type(room_type: String) -> Color:
@@ -350,11 +395,10 @@ func _color_for_room_type(room_type: String) -> Color:
 			return Color(1.0, 1.0, 1.0, 1.0)
 
 
-func _set_combat_doors_locked(locked: bool) -> void:
-	var door_color := DOOR_LOCKED_VISUAL_COLOR if locked else DOOR_UNLOCKED_VISUAL_COLOR
-	for door_mi in [_combat_door_visual_west, _combat_door_visual_east]:
-		if door_mi != null and door_mi.material_override is StandardMaterial3D:
-			(door_mi.material_override as StandardMaterial3D).albedo_color = door_color
+func _set_combat_doors_locked(locked: bool, animate: bool = true) -> void:
+	for asm in [_combat_door_visual_west, _combat_door_visual_east]:
+		if asm != null:
+			asm.set_combat_locked(locked, animate)
 
 
 func _set_boss_entry_locked(_locked: bool) -> void:

@@ -1,8 +1,8 @@
-[gd_scene load_steps=9 format=3 uid="uid://small_dungeon_poc_scene"]
+[gd_scene format=3 uid="uid://dk3ryqsnd1kxj"]
 
-[ext_resource type="Script" path="res://dungeon/poc/small_dungeon_poc.gd" id="1_script"]
+[ext_resource type="Script" uid="uid://b5tbqbpc6hk1r" path="res://dungeon/poc/small_dungeon_poc.gd" id="1_script"]
 [ext_resource type="PackedScene" path="res://dungeon/rooms/base/room_base.tscn" id="2_room"]
-[ext_resource type="PackedScene" path="res://player.tscn" id="3_player"]
+[ext_resource type="PackedScene" uid="uid://ceuu150fmggvr" path="res://player.tscn" id="3_player"]
 [ext_resource type="PackedScene" path="res://player_visual.tscn" id="4_player_visual"]
 
 [sub_resource type="RectangleShape2D" id="1_blocker_shape"]
@@ -23,199 +23,177 @@ top_radius = 3.0
 bottom_radius = 3.0
 height = 1.8
 
-[node name="SmallDungeonPOC" type="Node"]
+[node name="SmallDungeonPOC" type="Node" unique_id=1819195424]
 script = ExtResource("1_script")
 
-[node name="GameWorld2D" type="Node2D" parent="."]
+[node name="GameWorld2D" type="Node2D" parent="." unique_id=1498394627]
 
-[node name="Rooms" type="Node2D" parent="GameWorld2D"]
+[node name="Rooms" type="Node2D" parent="GameWorld2D" unique_id=1307954293]
 
-[node name="EntranceRoom" parent="GameWorld2D/Rooms" instance=ExtResource("2_room")]
+[node name="EntranceRoom" parent="GameWorld2D/Rooms" unique_id=1139811431 instance=ExtResource("2_room")]
 room_id = "room_entrance_poc_small_01"
 size_class = "small"
 room_type = "safe"
 room_size_tiles = Vector2i(15, 15)
-room_tags = PackedStringArray("safe", "poc")
-allowed_connection_types = PackedStringArray("corridor", "connector")
 
-[node name="TransitionRoomA" parent="GameWorld2D/Rooms" instance=ExtResource("2_room")]
+[node name="TransitionRoomA" parent="GameWorld2D/Rooms" unique_id=1839917590 instance=ExtResource("2_room")]
 position = Vector2(45, 0)
 room_id = "room_transition_poc_a_01"
 size_class = "small"
 room_type = "connector"
 room_size_tiles = Vector2i(15, 9)
-room_tags = PackedStringArray("connector", "corridor", "poc")
-allowed_connection_types = PackedStringArray("safe", "arena", "connector")
 
-[node name="CombatRoom" parent="GameWorld2D/Rooms" instance=ExtResource("2_room")]
+[node name="CombatRoom" parent="GameWorld2D/Rooms" unique_id=1487576338 instance=ExtResource("2_room")]
 position = Vector2(103.5, 0)
 room_id = "room_combat_poc_medium_01"
-size_class = "medium"
-room_type = "arena"
-room_size_tiles = Vector2i(24, 24)
-room_tags = PackedStringArray("arena", "combat", "poc")
-allowed_connection_types = PackedStringArray("connector", "corridor")
 
-[node name="TransitionRoomB" parent="GameWorld2D/Rooms" instance=ExtResource("2_room")]
+[node name="TransitionRoomB" parent="GameWorld2D/Rooms" unique_id=922690738 instance=ExtResource("2_room")]
 position = Vector2(162, 0)
 room_id = "room_transition_poc_b_01"
 size_class = "small"
 room_type = "connector"
 room_size_tiles = Vector2i(15, 9)
-room_tags = PackedStringArray("connector", "corridor", "poc")
-allowed_connection_types = PackedStringArray("arena", "boss", "connector", "treasure")
 
-[node name="BossRoom" parent="GameWorld2D/Rooms" instance=ExtResource("2_room")]
+[node name="BossRoom" parent="GameWorld2D/Rooms" unique_id=1683146615 instance=ExtResource("2_room")]
 position = Vector2(238.5, 0)
 room_id = "room_boss_poc_large_01"
 size_class = "arena"
 room_type = "boss"
 room_size_tiles = Vector2i(36, 36)
-room_tags = PackedStringArray("boss", "arena", "poc")
-allowed_connection_types = PackedStringArray("connector")
 min_difficulty_tier = 4
 max_difficulty_tier = 8
 
-[node name="BranchTransitionRoom" parent="GameWorld2D/Rooms" instance=ExtResource("2_room")]
+[node name="BranchTransitionRoom" parent="GameWorld2D/Rooms" unique_id=1312850844 instance=ExtResource("2_room")]
 position = Vector2(162, -36)
 room_id = "room_transition_poc_branch_01"
 size_class = "small"
 room_type = "connector"
 room_size_tiles = Vector2i(9, 15)
-room_tags = PackedStringArray("connector", "corridor", "poc")
-allowed_connection_types = PackedStringArray("connector", "treasure")
 
-[node name="TreasureRoom" parent="GameWorld2D/Rooms" instance=ExtResource("2_room")]
+[node name="TreasureRoom" parent="GameWorld2D/Rooms" unique_id=2126859021 instance=ExtResource("2_room")]
 position = Vector2(162, -81)
 room_id = "room_treasure_poc_small_01"
 size_class = "small"
 room_type = "treasure"
 room_size_tiles = Vector2i(15, 15)
-room_tags = PackedStringArray("treasure", "poc")
-allowed_connection_types = PackedStringArray("connector")
 
-[node name="Markers" type="Node2D" parent="GameWorld2D"]
+[node name="Markers" type="Node2D" parent="GameWorld2D" unique_id=2083069729]
 
-[node name="PlayerSpawnMarker" type="Marker2D" parent="GameWorld2D/Markers"]
-position = Vector2(0, 0)
+[node name="PlayerSpawnMarker" type="Marker2D" parent="GameWorld2D/Markers" unique_id=736233013]
 
-[node name="EntranceExitMarker" type="Marker2D" parent="GameWorld2D/Markers"]
+[node name="EntranceExitMarker" type="Marker2D" parent="GameWorld2D/Markers" unique_id=2141879454]
 position = Vector2(22.5, 0)
 
-[node name="TreasureChestMarker" type="Marker2D" parent="GameWorld2D/Markers"]
+[node name="TreasureChestMarker" type="Marker2D" parent="GameWorld2D/Markers" unique_id=261027504]
 position = Vector2(162, -81)
 
-[node name="BossSpawnMarker" type="Marker2D" parent="GameWorld2D/Markers"]
+[node name="BossSpawnMarker" type="Marker2D" parent="GameWorld2D/Markers" unique_id=20167]
 position = Vector2(238.5, 0)
 
-[node name="WorldBounds" type="StaticBody2D" parent="GameWorld2D"]
+[node name="WorldBounds" type="StaticBody2D" parent="GameWorld2D" unique_id=343378645]
 collision_layer = 4
 collision_mask = 0
 
-[node name="PieceInstances" type="Node2D" parent="GameWorld2D"]
+[node name="PieceInstances" type="Node2D" parent="GameWorld2D" unique_id=54085437]
 
-[node name="EncounterModules" type="Node2D" parent="GameWorld2D"]
+[node name="EncounterModules" type="Node2D" parent="GameWorld2D" unique_id=1229464178]
 
-[node name="DoorBlockers" type="Node2D" parent="GameWorld2D"]
+[node name="DoorBlockers" type="Node2D" parent="GameWorld2D" unique_id=275211307]
 
-[node name="CombatDoorWest" type="StaticBody2D" parent="GameWorld2D/DoorBlockers"]
+[node name="CombatDoorWest" type="StaticBody2D" parent="GameWorld2D/DoorBlockers" unique_id=749963222]
 position = Vector2(67.5, 0)
 collision_layer = 4
 collision_mask = 0
 
-[node name="CollisionShape2D" type="CollisionShape2D" parent="GameWorld2D/DoorBlockers/CombatDoorWest"]
+[node name="CollisionShape2D" type="CollisionShape2D" parent="GameWorld2D/DoorBlockers/CombatDoorWest" unique_id=1663636022]
 shape = SubResource("1_blocker_shape")
 disabled = true
 
-[node name="CombatDoorEast" type="StaticBody2D" parent="GameWorld2D/DoorBlockers"]
+[node name="CombatDoorEast" type="StaticBody2D" parent="GameWorld2D/DoorBlockers" unique_id=1153590590]
 position = Vector2(139.5, 0)
 collision_layer = 4
 collision_mask = 0
 
-[node name="CollisionShape2D" type="CollisionShape2D" parent="GameWorld2D/DoorBlockers/CombatDoorEast"]
+[node name="CollisionShape2D" type="CollisionShape2D" parent="GameWorld2D/DoorBlockers/CombatDoorEast" unique_id=1853167697]
 shape = SubResource("1_blocker_shape")
 disabled = true
 
-[node name="BossDoorWest" type="StaticBody2D" parent="GameWorld2D/DoorBlockers"]
+[node name="BossDoorWest" type="StaticBody2D" parent="GameWorld2D/DoorBlockers" unique_id=1513726368]
 position = Vector2(184.5, 0)
 collision_layer = 4
 collision_mask = 0
 
-[node name="CollisionShape2D" type="CollisionShape2D" parent="GameWorld2D/DoorBlockers/BossDoorWest"]
+[node name="CollisionShape2D" type="CollisionShape2D" parent="GameWorld2D/DoorBlockers/BossDoorWest" unique_id=2130524684]
 shape = SubResource("1_blocker_shape")
 disabled = true
 
-[node name="Triggers" type="Node2D" parent="GameWorld2D"]
+[node name="Triggers" type="Node2D" parent="GameWorld2D" unique_id=1359446832]
 
-[node name="CombatRoomTrigger" type="Area2D" parent="GameWorld2D/Triggers"]
+[node name="CombatRoomTrigger" type="Area2D" parent="GameWorld2D/Triggers" unique_id=1658684851]
 position = Vector2(103.5, 0)
 collision_layer = 0
-collision_mask = 1
 
-[node name="CollisionShape2D" type="CollisionShape2D" parent="GameWorld2D/Triggers/CombatRoomTrigger"]
+[node name="CollisionShape2D" type="CollisionShape2D" parent="GameWorld2D/Triggers/CombatRoomTrigger" unique_id=745955174]
 shape = SubResource("2_trigger_shape")
 
-[node name="BossRoomTrigger" type="Area2D" parent="GameWorld2D/Triggers"]
+[node name="BossRoomTrigger" type="Area2D" parent="GameWorld2D/Triggers" unique_id=1759746473]
 position = Vector2(238.5, 0)
 collision_layer = 0
-collision_mask = 1
 
-[node name="CollisionShape2D" type="CollisionShape2D" parent="GameWorld2D/Triggers/BossRoomTrigger"]
+[node name="CollisionShape2D" type="CollisionShape2D" parent="GameWorld2D/Triggers/BossRoomTrigger" unique_id=236153300]
 shape = SubResource("2_trigger_shape")
 
-[node name="BossExitPortal" type="Area2D" parent="GameWorld2D/Triggers"]
+[node name="BossExitPortal" type="Area2D" parent="GameWorld2D/Triggers" unique_id=678500418]
 position = Vector2(292.5, 0)
 collision_layer = 0
-collision_mask = 1
 
-[node name="CollisionShape2D" type="CollisionShape2D" parent="GameWorld2D/Triggers/BossExitPortal"]
+[node name="CollisionShape2D" type="CollisionShape2D" parent="GameWorld2D/Triggers/BossExitPortal" unique_id=1062829729]
 shape = SubResource("3_portal_shape")
 
-[node name="Player" parent="GameWorld2D" instance=ExtResource("3_player")]
-position = Vector2(0, 0)
+[node name="Player" parent="GameWorld2D" unique_id=878726991 instance=ExtResource("3_player")]
 
-[node name="VisualWorld3D" type="Node3D" parent="."]
+[node name="VisualWorld3D" type="Node3D" parent="." unique_id=1041216798]
 
-[node name="RoomVisuals" type="Node3D" parent="VisualWorld3D"]
+[node name="RoomVisuals" type="Node3D" parent="VisualWorld3D" unique_id=982553453]
 
-[node name="WallVisuals" type="Node3D" parent="VisualWorld3D"]
+[node name="WallVisuals" type="Node3D" parent="VisualWorld3D" unique_id=2087244001]
 
-[node name="DoorVisuals" type="Node3D" parent="VisualWorld3D"]
+[node name="DoorVisuals" type="Node3D" parent="VisualWorld3D" unique_id=802855327]
 
-[node name="BossPortalMarker" type="MeshInstance3D" parent="VisualWorld3D"]
-position = Vector3(292.5, 0.45, 0)
+[node name="BossPortalMarker" type="MeshInstance3D" parent="VisualWorld3D" unique_id=647552028]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 292.5, 0.45, 0)
 mesh = SubResource("5_portal_mesh")
 
-[node name="DirectionalLight3D" type="DirectionalLight3D" parent="VisualWorld3D"]
+[node name="DirectionalLight3D" type="DirectionalLight3D" parent="VisualWorld3D" unique_id=393589882]
 transform = Transform3D(0.5, -0.777049, 0.382355, 0, 0.441506, 0.897258, -0.866025, -0.448629, 0.220753, 0, 28, 24)
 shadow_enabled = true
 shadow_bias = 0.04
 shadow_blur = 1.5
 directional_shadow_max_distance = 260.0
 
-[node name="PlayerVisual" parent="VisualWorld3D" instance=ExtResource("4_player_visual")]
+[node name="PlayerVisual" parent="VisualWorld3D" unique_id=656060275 instance=ExtResource("4_player_visual")]
 
-[node name="CameraPivot" type="Marker3D" parent="VisualWorld3D"]
+[node name="CameraPivot" type="Marker3D" parent="VisualWorld3D" unique_id=241736285]
 transform = Transform3D(1, 0, 0, 0, 0.707107, 0.707107, 0, -0.707107, 0.707107, 90, 0, -6)
 
-[node name="Camera" type="Camera3D" parent="VisualWorld3D/CameraPivot"]
+[node name="Camera" type="Camera3D" parent="VisualWorld3D/CameraPivot" unique_id=1268741589]
 transform = Transform3D(1, 0, 0, 0, 1, -2.98023e-08, 0, 2.98023e-08, 1, 0, 0, 150)
 projection = 1
 current = true
 size = 50.0
 far = 500.0
 
-[node name="CombatClearTimer" type="Timer" parent="."]
+[node name="CombatClearTimer" type="Timer" parent="." unique_id=441281477]
 wait_time = 2.0
 one_shot = true
 
-[node name="BossClearTimer" type="Timer" parent="."]
+[node name="BossClearTimer" type="Timer" parent="." unique_id=323678642]
 wait_time = 3.0
 one_shot = true
 
-[node name="CanvasLayer" type="CanvasLayer" parent="."]
+[node name="CanvasLayer" type="CanvasLayer" parent="." unique_id=1607185268]
 
-[node name="InfoLabel" type="Label" parent="CanvasLayer"]
+[node name="InfoLabel" type="Label" parent="CanvasLayer" unique_id=1402382916]
 offset_left = 10.0
 offset_top = 10.0
 offset_right = 700.0
