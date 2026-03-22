@@ -6,6 +6,7 @@
 [ext_resource type="FontFile" uid="uid://cyxhh7ddkn62q" path="res://fonts/Montserrat-Medium.ttf" id="4_font"]
 [ext_resource type="Script" uid="uid://bq4lq2wbf1rkc" path="res://score_label.gd" id="5_score"]
 [ext_resource type="PackedScene" path="res://player_visual.tscn" id="6_pvis"]
+[ext_resource type="PackedScene" uid="uid://health_bar_ui" path="res://health_bar.tscn" id="7_health"]
 
 [sub_resource type="RectangleShape2D" id="Rect_wall_s"]
 size = Vector2(62, 0.6)
@@ -167,6 +168,8 @@ theme = SubResource("Theme_score")
 theme_override_colors/font_color = Color(0, 0, 0, 1)
 text = "Score: 0"
 script = ExtResource("5_score")
+
+[node name="HealthBar" parent="CanvasLayer/UserInterface" unique_id=1892345601 instance=ExtResource("7_health")]
 
 [node name="Retry" type="ColorRect" parent="CanvasLayer/UserInterface" unique_id=1497156876]
 visible = false

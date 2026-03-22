@@ -1,0 +1,58 @@
+[gd_scene load_steps=2 format=3 uid="uid://health_bar_ui"]
+
+[ext_resource type="Script" path="res://health_bar.gd" id="1_hb"]
+
+[node name="HealthBar" type="Control"]
+custom_minimum_size = Vector2(208, 36)
+layout_mode = 3
+anchors_preset = 1
+anchor_left = 1.0
+anchor_right = 1.0
+offset_left = -220.0
+offset_right = -12.0
+offset_top = 12.0
+offset_bottom = 48.0
+grow_horizontal = 0
+grow_vertical = 0
+mouse_filter = 2
+script = ExtResource("1_hb")
+
+[node name="Frame" type="ColorRect" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+color = Color(0, 0, 0, 1)
+
+[node name="Inner" type="Control" parent="Frame"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = 2.0
+offset_top = 2.0
+offset_right = -2.0
+offset_bottom = -2.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+
+[node name="Red" type="ColorRect" parent="Frame/Inner"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+color = Color(0.78, 0.12, 0.1, 1)
+
+[node name="Green" type="ColorRect" parent="Frame/Inner"]
+layout_mode = 0
+offset_right = 4.0
+offset_bottom = 4.0
+mouse_filter = 2
+color = Color(0.2, 0.75, 0.28, 1)
