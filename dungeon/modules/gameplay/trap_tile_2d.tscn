@@ -1,0 +1,22 @@
+[gd_scene load_steps=3 format=3 uid="uid://trap_tile_2d_scene"]
+
+[ext_resource type="Script" path="res://dungeon/modules/gameplay/trap_tile_2d.gd" id="1_script"]
+
+[sub_resource type="RectangleShape2D" id="1_rect"]
+size = Vector2(6, 6)
+
+[node name="TrapTile2D" type="Node2D"]
+script = ExtResource("1_script")
+
+[node name="Visual" type="Polygon2D" parent="."]
+z_index = 1
+color = Color(1, 0.89, 0.1, 0.92)
+polygon = PackedVector2Array(-3, -3, 3, -3, 3, 3, -3, 3)
+
+[node name="Hurtbox" type="Area2D" parent="."]
+collision_layer = 0
+collision_mask = 1
+monitoring = true
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="Hurtbox"]
+shape = SubResource("1_rect")

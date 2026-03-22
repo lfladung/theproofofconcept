@@ -3,6 +3,8 @@ extends CharacterBody2D
 
 signal squashed
 
+const DROPPED_COIN_SCENE := preload("res://dungeon/modules/gameplay/dropped_coin.tscn")
+
 @export var min_speed := 10.0
 @export var max_speed := 18.0
 ## Feet-to-ground mob; stomp when player.height exceeds this while falling.
@@ -126,7 +128,19 @@ func squash() -> void:
 		return
 	_squash_applied = true
 	squashed.emit()
+	_spawn_dropped_coin()
 	queue_free()
+
+
+func _spawn_dropped_coin() -> void:
+	var parent := get_parent()
+	if parent == null:
+		return
+	var coin := DROPPED_COIN_SCENE.instantiate() as Node2D
+	if coin == null:
+		return
+	parent.add_child(coin)
+	coin.global_position = global_position
 
 
 func _on_visible_on_screen_notifier_screen_exited() -> void:

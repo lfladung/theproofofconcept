@@ -69,7 +69,6 @@ func _on_mob_timer_timeout() -> void:
 	var mob: Node = mob_scene.instantiate()
 	mob.configure_spawn(spawn_pt.global_position, ppos)
 	$GameWorld2D.add_child(mob)
-	mob.squashed.connect($CanvasLayer/UserInterface/ScoreLabel._on_mob_squashed)
 
 
 func _on_player_hit() -> void:

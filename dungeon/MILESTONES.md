@@ -38,12 +38,12 @@ This file tracks milestone goals for the dungeon architecture and procedural con
   - encounter boundaries lock/unlock from live enemy state
   - boss exit portal now unlocks after actual boss encounter clear
 
-## Next Milestone Goals
+- [x] Milestone 4: Gameplay object MVP
+  - `TreasureChest2D` + `KeyPickup2D` modules; treasure room chest drops a key pickup
+  - `LockedDoorPiece2D` optional `key_id` + unlock volume; branch↔treasure door keyed in `small_dungeon_poc`
+  - `TrapTile2D` damage-over-time while standing on tile (cooldown), placed in treasure room
 
-- [ ] Milestone 4: Gameplay object MVP
-  - chest marker/object
-  - key pickup and lock-key linkage
-  - trap tile gameplay behavior
+## Next Milestone Goals
 
 - [ ] Milestone 5: Procedural assembly v1
   - room catalog loading from metadata
