@@ -37,7 +37,7 @@ signal health_changed(current: int, max_health: int)
 @export var hitbox_debug_circle_segments := 40
 @export var dodge_speed := 36.0
 @export var dodge_duration := 0.16
-@export var dodge_cooldown := 2.0
+@export var dodge_cooldown := 0.25
 
 @onready var _visual: Node3D = get_node_or_null("../../VisualWorld3D/PlayerVisual") as Node3D
 @onready var _body_shape: CollisionShape2D = $CollisionShape2D

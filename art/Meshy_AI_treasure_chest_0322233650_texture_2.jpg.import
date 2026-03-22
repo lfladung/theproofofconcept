@@ -2,20 +2,20 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://wemirb8swc0e"
-path.s3tc="res://.godot/imported/Meshy_AI_spike_trap_0322233059_texture_0.jpg-32edd5a15d17debdebb9bd7effa71fe0.s3tc.ctex"
+uid="uid://dhlb2vqyqr5vg"
+path.s3tc="res://.godot/imported/Meshy_AI_treasure_chest_0322233650_texture_2.jpg-dd0c60bff75a65d8b0301188c601032d.s3tc.ctex"
 metadata={
 "imported_formats": ["s3tc_bptc"],
 "vram_texture": true
 }
 generator_parameters={
-"md5": "6bfe9c1812f7e78f124e45f4991e97ec"
+"md5": "edc88fad1500fdd9d4360d1a61a2a70c"
 }
 
 [deps]
 
-source_file="res://art/Meshy_AI_spike_trap_0322233059_texture_0.jpg"
-dest_files=["res://.godot/imported/Meshy_AI_spike_trap_0322233059_texture_0.jpg-32edd5a15d17debdebb9bd7effa71fe0.s3tc.ctex"]
+source_file="res://art/Meshy_AI_treasure_chest_0322233650_texture_2.jpg"
+dest_files=["res://.godot/imported/Meshy_AI_treasure_chest_0322233650_texture_2.jpg-dd0c60bff75a65d8b0301188c601032d.s3tc.ctex"]
 
 [params]
 
@@ -25,12 +25,12 @@ compress/lossy_quality=0.7
 compress/uastc_level=0
 compress/rdo_quality_loss=0.0
 compress/hdr_compression=1
-compress/normal_map=0
+compress/normal_map=1
 compress/channel_pack=0
 mipmaps/generate=true
 mipmaps/limit=-1
-roughness/mode=0
-roughness/src_normal=""
+roughness/mode=1
+roughness/src_normal="res://art/Meshy_AI_treasure_chest_0322233650_texture_2.jpg"
 process/channel_remap/red=0
 process/channel_remap/green=1
 process/channel_remap/blue=2

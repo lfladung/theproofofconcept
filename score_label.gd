@@ -9,7 +9,7 @@ func _ready() -> void:
 
 func add_score(amount: int = 1) -> void:
 	score += amount
-	text = "Score: %s" % score
+	text = "Coins: %s" % score
 
 
 func _on_mob_squashed() -> void:

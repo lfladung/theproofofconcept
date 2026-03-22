@@ -90,7 +90,7 @@ loop = false
 [node name="VisualWorld3D" type="Node3D" parent="." unique_id=642074585]
 
 [node name="GroundDecor" type="Node3D" parent="VisualWorld3D" unique_id=848535774]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -1, 0)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -1.5, 0)
 
 [node name="GroundMesh" type="MeshInstance3D" parent="VisualWorld3D/GroundDecor" unique_id=376513642]
 mesh = SubResource("BoxMesh_ground")
@@ -157,16 +157,24 @@ grow_vertical = 2
 mouse_filter = 2
 theme = SubResource("Theme_ui")
 
-[node name="ScoreLabel" type="Label" parent="CanvasLayer/UserInterface" unique_id=518873321]
+[node name="CoinCounter" type="Label" parent="CanvasLayer/UserInterface" unique_id=518873321]
 layout_mode = 1
-anchors_preset = 15
+anchors_preset = 3
+anchor_left = 1.0
+anchor_top = 1.0
 anchor_right = 1.0
 anchor_bottom = 1.0
-grow_horizontal = 2
-grow_vertical = 2
+offset_left = -196.0
+offset_top = -44.0
+offset_right = -14.0
+offset_bottom = -10.0
+grow_horizontal = 0
+grow_vertical = 0
 theme = SubResource("Theme_score")
 theme_override_colors/font_color = Color(0, 0, 0, 1)
-text = "Score: 0"
+horizontal_alignment = 2
+vertical_alignment = 2
+text = "Coins: 0"
 script = ExtResource("5_score")
 
 [node name="HealthBar" parent="CanvasLayer/UserInterface" unique_id=1892345601 instance=ExtResource("7_health")]

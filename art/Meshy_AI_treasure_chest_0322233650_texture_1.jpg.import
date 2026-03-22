@@ -2,20 +2,20 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://wemirb8swc0e"
-path.s3tc="res://.godot/imported/Meshy_AI_spike_trap_0322233059_texture_0.jpg-32edd5a15d17debdebb9bd7effa71fe0.s3tc.ctex"
+uid="uid://djgcxh6pfakq2"
+path.s3tc="res://.godot/imported/Meshy_AI_treasure_chest_0322233650_texture_1.jpg-b439e0f05e37d7492208ae68846139d2.s3tc.ctex"
 metadata={
 "imported_formats": ["s3tc_bptc"],
 "vram_texture": true
 }
 generator_parameters={
-"md5": "6bfe9c1812f7e78f124e45f4991e97ec"
+"md5": "57b4e5b49443be0b100d3ac0e38a5ab3"
 }
 
 [deps]
 
-source_file="res://art/Meshy_AI_spike_trap_0322233059_texture_0.jpg"
-dest_files=["res://.godot/imported/Meshy_AI_spike_trap_0322233059_texture_0.jpg-32edd5a15d17debdebb9bd7effa71fe0.s3tc.ctex"]
+source_file="res://art/Meshy_AI_treasure_chest_0322233650_texture_1.jpg"
+dest_files=["res://.godot/imported/Meshy_AI_treasure_chest_0322233650_texture_1.jpg-b439e0f05e37d7492208ae68846139d2.s3tc.ctex"]
 
 [params]
 

@@ -3,7 +3,9 @@ extends Node
 const WALL_THICKNESS := 1.0
 const ROOM_HEIGHT := 0.4
 const WALL_VISUAL_HEIGHT := 3.0
-const WALL_VISUAL_BASE_Y := -0.5
+## Top surface of the textured floor slabs (everything below world y=0 so the walk plane at y=0 stays clear).
+const FLOOR_SLAB_TOP_Y := -0.5
+const WALL_VISUAL_BASE_Y := FLOOR_SLAB_TOP_Y
 const LABEL_SCALE := 0.2
 const CAMERA_LERP_SPEED := 8.0
 ## ARPG-style diagonal view (yaw) + look-down pitch; applied in _ready().
@@ -24,6 +26,16 @@ const STYLIZED_WALL_3D_SCENE := preload("res://art/Meshy_AI_stylized_wall_032222
 const FLOOR_WALL_ALBEDO_TEXTURE := preload("res://art/Meshy_AI_stylized_wall_0322224805_texture_0.jpg")
 ## World units per texture repeat on floors (matches 3×3 room tiles).
 const FLOOR_TEXTURE_TILE_WORLD := 3.0
+const _TREASURE_TRAP_POSITIONS: Array[Vector2] = [
+	Vector2(150.0, -72.0),
+	Vector2(174.0, -88.0),
+	Vector2(156.0, -94.0),
+]
+## Combat room (center ~103.5, 0); clear of west/east doors and encounter trigger center.
+const _COMBAT_TRAP_POSITIONS: Array[Vector2] = [
+	Vector2(88.0, -20.0),
+	Vector2(120.0, 18.0),
+]
 ## Matches DoorBlockers / door sockets: slab half-width 1.5, centers on X as placed in the POC scene.
 const _DOOR_SLAB_HALF := 1.5
 const _COMBAT_DOOR_X_W := 67.5
@@ -48,7 +60,7 @@ const _BOSS_W_EXT_X := 182.0
 @onready var _door_visuals: Node3D = $VisualWorld3D/DoorVisuals
 @onready var _camera_pivot: Marker3D = $VisualWorld3D/CameraPivot
 @onready var _player: CharacterBody2D = $GameWorld2D/Player
-@onready var _info_label: Label = $CanvasLayer/InfoLabel
+@onready var _info_label: Label = $CanvasLayer/UI/InfoLabel
 @onready var _boss_exit_portal: Area2D = $GameWorld2D/Triggers/BossExitPortal
 
 var _combat_started := false
@@ -472,14 +484,15 @@ func _add_room_floor_visual(rect: Rect2, color: Color, label_text: String) -> vo
 	mat.uv1_scale = Vector3(rect.size.x / tile, rect.size.y / tile, 1.0)
 	mesh.material_override = mat
 	mesh.mesh = bm
-	mesh.position = Vector3(rect.position.x + rect.size.x * 0.5, ROOM_HEIGHT * 0.5 - 0.5, rect.position.y + rect.size.y * 0.5)
+	var floor_center_y := FLOOR_SLAB_TOP_Y - ROOM_HEIGHT * 0.5
+	mesh.position = Vector3(rect.position.x + rect.size.x * 0.5, floor_center_y, rect.position.y + rect.size.y * 0.5)
 	_room_visuals.add_child(mesh)
 
 	var label := Label3D.new()
 	label.text = label_text
 	label.billboard = BaseMaterial3D.BILLBOARD_ENABLED
 	label.modulate = Color.BLACK
-	label.position = Vector3(mesh.position.x, 1.4, mesh.position.z)
+	label.position = Vector3(mesh.position.x, FLOOR_SLAB_TOP_Y + 1.85, mesh.position.z)
 	label.scale = Vector3.ONE * LABEL_SCALE
 	_room_visuals.add_child(label)
 
@@ -488,7 +501,7 @@ func _add_cell_door_3d(world_pos: Vector2, wall_direction: String, use_combat_lo
 	var door := DUNGEON_CELL_DOOR_SCENE.instantiate() as DungeonCellDoor3D
 	door.use_combat_lock_visuals = use_combat_lock_visuals
 	door.configure_for_socket(wall_direction)
-	door.position = Vector3(world_pos.x, 0.0, world_pos.y)
+	door.position = Vector3(world_pos.x, FLOOR_SLAB_TOP_Y, world_pos.y)
 	_door_visuals.add_child(door)
 	return door
 
@@ -584,14 +597,24 @@ func _spawn_gameplay_objects() -> void:
 		if chest:
 			chest.name = "TreasureChestPOC"
 			chest.coin_count = 10
+			# Chest GLB pivot sits low — lift well above sunken floor.
+			chest.mesh_ground_y = maxf(1.2, FLOOR_SLAB_TOP_Y + 1.7)
 			chest.position = chest_marker.position
 			_piece_instances_root.add_child(chest)
-	for trap_pos in [Vector2(150.0, -72.0), Vector2(174.0, -88.0), Vector2(156.0, -94.0)]:
-		var trap := TRAP_TILE_SCENE.instantiate() as TrapTile2D
-		if trap:
-			trap.name = "TrapTile_%s_%s" % [int(trap_pos.x), int(trap_pos.y)]
-			trap.position = trap_pos
-			_piece_instances_root.add_child(trap)
+	for trap_pos in _TREASURE_TRAP_POSITIONS:
+		_spawn_trap_tile_at(trap_pos)
+	for trap_pos in _COMBAT_TRAP_POSITIONS:
+		_spawn_trap_tile_at(trap_pos)
+
+
+func _spawn_trap_tile_at(world_pos: Vector2) -> void:
+	var trap := TRAP_TILE_SCENE.instantiate() as TrapTile2D
+	if trap == null:
+		return
+	trap.name = "TrapTile_%s_%s" % [int(world_pos.x), int(world_pos.y)]
+	trap.mesh_ground_y = FLOOR_SLAB_TOP_Y + 0.22
+	trap.position = world_pos
+	_piece_instances_root.add_child(trap)
 
 
 func _spawn_entrance_exit_markers() -> void:

@@ -4,6 +4,8 @@
 [ext_resource type="PackedScene" path="res://dungeon/rooms/base/room_base.tscn" id="2_room"]
 [ext_resource type="PackedScene" uid="uid://ceuu150fmggvr" path="res://player.tscn" id="3_player"]
 [ext_resource type="PackedScene" path="res://player_visual.tscn" id="4_player_visual"]
+[ext_resource type="PackedScene" path="res://health_bar.tscn" id="5_health_bar"]
+[ext_resource type="Script" uid="uid://bq4lq2wbf1rkc" path="res://score_label.gd" id="6_coin_counter"]
 
 [sub_resource type="RectangleShape2D" id="1_blocker_shape"]
 size = Vector2(3, 6)
@@ -27,6 +29,7 @@ height = 1.8
 script = ExtResource("1_script")
 
 [node name="GameWorld2D" type="Node2D" parent="." unique_id=1498394627]
+visible = false
 
 [node name="Rooms" type="Node2D" parent="GameWorld2D" unique_id=1307954293]
 
@@ -174,8 +177,7 @@ directional_shadow_max_distance = 260.0
 [node name="PlayerVisual" parent="VisualWorld3D" unique_id=656060275 instance=ExtResource("4_player_visual")]
 
 [node name="CameraPivot" type="Marker3D" parent="VisualWorld3D" unique_id=241736285]
-position = Vector3(90, 0, -6)
-rotation_degrees = Vector3(-44, 40, 0)
+transform = Transform3D(0.76604444, -0.4465178, 0.46238267, 0, 0.7193398, 0.6946584, -0.6427876, -0.5321392, 0.55104625, 90, 0, -6)
 
 [node name="Camera" type="Camera3D" parent="VisualWorld3D/CameraPivot" unique_id=1268741589]
 transform = Transform3D(1, 0, 0, 0, 1, -2.98023e-08, 0, 2.98023e-08, 1, 0, 0, 150)
@@ -194,7 +196,39 @@ one_shot = true
 
 [node name="CanvasLayer" type="CanvasLayer" parent="." unique_id=1607185268]
 
-[node name="InfoLabel" type="Label" parent="CanvasLayer" unique_id=1402382916]
+[node name="UI" type="Control" parent="CanvasLayer" unique_id=1607185269]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+
+[node name="HealthBar" parent="CanvasLayer/UI" unique_id=1607185270 instance=ExtResource("5_health_bar")]
+
+[node name="CoinCounter" type="Label" parent="CanvasLayer/UI" unique_id=1607185271]
+layout_mode = 1
+anchors_preset = 3
+anchor_left = 1.0
+anchor_top = 1.0
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = -196.0
+offset_top = -44.0
+offset_right = -14.0
+offset_bottom = -10.0
+grow_horizontal = 0
+grow_vertical = 0
+theme_override_colors/font_color = Color(0, 0, 0, 1)
+theme_override_font_sizes/font_size = 22
+text = "Coins: 0"
+horizontal_alignment = 2
+vertical_alignment = 2
+script = ExtResource("6_coin_counter")
+
+[node name="InfoLabel" type="Label" parent="CanvasLayer/UI" unique_id=1402382916]
+layout_mode = 1
 offset_left = 10.0
 offset_top = 10.0
 offset_right = 700.0

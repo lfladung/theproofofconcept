@@ -1,19 +1,32 @@
-[gd_scene load_steps=3 format=3 uid="uid://treasure_chest_2d_scene"]
+[gd_scene load_steps=4 format=3 uid="uid://treasure_chest_2d_scene"]
 
 [ext_resource type="Script" path="res://dungeon/modules/gameplay/treasure_chest_2d.gd" id="1_script"]
 
-[sub_resource type="RectangleShape2D" id="1_rect"]
+[sub_resource type="RectangleShape2D" id="1_rect_solid"]
 size = Vector2(8, 6)
 
-[node name="TreasureChest2D" type="Area2D"]
-collision_layer = 0
-collision_mask = 1
-monitoring = true
+[sub_resource type="RectangleShape2D" id="2_rect_trigger"]
+size = Vector2(10.5, 7.5)
+
+[node name="TreasureChest2D" type="Node2D"]
 script = ExtResource("1_script")
 
 [node name="Visual" type="Polygon2D" parent="."]
 color = Color(0.55, 0.35, 0.18, 1)
 polygon = PackedVector2Array(-4, -2, 4, -2, 4, 2, -4, 2)
 
-[node name="CollisionShape2D" type="CollisionShape2D" parent="."]
-shape = SubResource("1_rect")
+[node name="Solid" type="StaticBody2D" parent="."]
+collision_layer = 4
+collision_mask = 0
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="Solid"]
+shape = SubResource("1_rect_solid")
+
+[node name="OpenTrigger" type="Area2D" parent="."]
+collision_layer = 0
+collision_mask = 1
+monitoring = true
+monitorable = false
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="OpenTrigger"]
+shape = SubResource("2_rect_trigger")

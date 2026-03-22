@@ -23,6 +23,9 @@ var _pickup_after_ms: int = 0
 var _spin := 0.0
 var _collected := false
 var _setup_done := false
+var _chest_center_2d := Vector2.ZERO
+var _bias_jump_outward := false
+var _chest_kick_scale := 1.0
 
 
 ## VisualWorld3D is a sibling of GameWorld2D under the scene root — not a child of GameWorld2D.
@@ -51,12 +54,33 @@ func _ready() -> void:
 	call_deferred(&"_deferred_setup_drop")
 
 
+## Call before `add_child` / setting position when spawning from a chest so the hop continues outward.
+## `kick_scale` scales the extra planar kick (1.0 = legacy chest strength; use ~0.5 for shorter tosses).
+func bias_jump_away_from(world_origin_2d: Vector2, kick_scale: float = 1.0) -> void:
+	_bias_jump_outward = true
+	_chest_center_2d = world_origin_2d
+	_chest_kick_scale = kick_scale
+
+
 ## Runs after the spawner sets our global_position (mob sets it after add_child).
 func _deferred_setup_drop() -> void:
 	if not is_inside_tree():
 		return
 	_start_2d = global_position
-	var kick := Vector2.from_angle(randf() * TAU) * randf_range(PLANAR_KICK_MIN, PLANAR_KICK_MAX)
+	var kick: Vector2
+	if _bias_jump_outward:
+		var away := _start_2d - _chest_center_2d
+		if away.length_squared() < 0.25:
+			away = Vector2(1.0, 0.0)
+		var dir := away.normalized()
+		var tang := Vector2(-dir.y, dir.x)
+		var ks := _chest_kick_scale
+		kick = (
+			dir * randf_range(PLANAR_KICK_MIN + 2.2, PLANAR_KICK_MAX + 4.0) * ks
+			+ tang * randf_range(-2.0, 2.0) * ks
+		)
+	else:
+		kick = Vector2.from_angle(randf() * TAU) * randf_range(PLANAR_KICK_MIN, PLANAR_KICK_MAX)
 	_end_2d = _start_2d + kick
 
 	_vw = _find_visual_world(self)
