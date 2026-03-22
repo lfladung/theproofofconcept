@@ -7,6 +7,10 @@ class_name DungeonCellDoor3D
 @onready var _door_frame: Node = $Content/DoorFrame
 
 @export var open_angle_deg: float = 78.0
+## Door assembly fit controls (applied at runtime so tuning always takes effect).
+@export var content_scale_xz: float = 2.2
+@export var content_scale_y: float = 1.6
+@export var content_y_offset: float = -0.45
 ## Small shift along Content Z to separate panel from frame after hinge fit.
 @export var door_panel_depth: float = 0.035
 ## Purple/black tint and swing for combat room doors only; other rooms keep mesh textures.
@@ -25,6 +29,7 @@ var _wall_direction: String = "west"
 
 
 func _ready() -> void:
+	_apply_content_fit()
 	_prep_cell_for_alignment()
 	_suppress_redundant_cell_door_subtrees()
 	_suppress_redundant_cell_door_meshes()
@@ -56,6 +61,7 @@ func configure_for_socket(wall_direction: String) -> void:
 			_swing_sign = 1.0
 	_open_rotation_y = deg_to_rad(open_angle_deg) * _swing_sign
 	if is_node_ready():
+		_apply_content_fit()
 		_prep_cell_for_alignment()
 		_suppress_redundant_cell_door_subtrees()
 		_suppress_redundant_cell_door_meshes()
@@ -65,6 +71,14 @@ func configure_for_socket(wall_direction: String) -> void:
 			set_combat_locked(false, false)
 		else:
 			_hinge.rotation.y = _open_rotation_y
+
+
+func _apply_content_fit() -> void:
+	if _content == null:
+		return
+	_content.rotation_degrees = Vector3(0.0, 90.0, 0.0)
+	_content.scale = Vector3(content_scale_xz, content_scale_y, content_scale_xz)
+	_content.position = Vector3(0.0, content_y_offset, 0.0)
 
 
 func set_combat_locked(locked: bool, animate: bool = true) -> void:

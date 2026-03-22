@@ -62,7 +62,12 @@ func _rebuild_piece_geometry() -> void:
 		Vector2(-half.x, half.y),
 	])
 	if _collision and _collision.shape is RectangleShape2D:
-		(_collision.shape as RectangleShape2D).size = size
+		var rect := _collision.shape as RectangleShape2D
+		if not rect.resource_local_to_scene:
+			rect = rect.duplicate()
+			rect.resource_local_to_scene = true
+			_collision.shape = rect
+		rect.size = size
 
 
 func _update_blocking_state() -> void:

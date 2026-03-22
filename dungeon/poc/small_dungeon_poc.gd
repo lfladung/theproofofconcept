@@ -15,6 +15,7 @@ const SPAWN_POINT_SCENE := preload("res://dungeon/modules/encounter/enemy_spawn_
 const SPAWN_VOLUME_SCENE := preload("res://dungeon/modules/encounter/enemy_spawn_volume_2d.tscn")
 const ROOM_TRIGGER_SCENE := preload("res://dungeon/modules/encounter/room_encounter_trigger_2d.tscn")
 const DUNGEON_CELL_DOOR_SCENE := preload("res://dungeon/visuals/dungeon_cell_door_3d.tscn")
+const STYLIZED_WALL_3D_SCENE := preload("res://art/Meshy_AI_stylized_wall_0322224805_texture.glb")
 ## Matches DoorBlockers / door sockets: slab half-width 1.5, centers on X as placed in the POC scene.
 const _DOOR_SLAB_HALF := 1.5
 const _COMBAT_DOOR_X_W := 67.5
@@ -53,6 +54,9 @@ var _encounter_completed: Dictionary = {}
 var _encounter_mobs: Dictionary = {}
 var _spawn_points_by_encounter: Dictionary = {}
 var _spawn_volumes_by_encounter: Dictionary = {}
+var _wall_visual_prefab_ready := false
+var _wall_visual_prefab_has_mesh := false
+var _wall_visual_prefab_aabb := AABB()
 
 
 func _ready() -> void:
@@ -229,9 +233,11 @@ func _add_wall_piece(position_2d: Vector2, size_2d: Vector2) -> void:
 		return
 	wall_piece.name = "WallPiece_%s_%s" % [position_2d.x, position_2d.y]
 	wall_piece.tile_size = Vector2i(1, 1)
+	var desired_x := maxf(0.01, size_2d.x)
+	var desired_y := maxf(0.01, size_2d.y)
 	wall_piece.footprint_tiles = Vector2i(
-		maxi(1, int(roundf(size_2d.x))),
-		maxi(1, int(roundf(size_2d.y)))
+		maxi(1, int(roundf(desired_x))),
+		maxi(1, int(roundf(desired_y)))
 	)
 	wall_piece.blocks_movement = true
 	wall_piece.walkable = false
@@ -240,6 +246,34 @@ func _add_wall_piece(position_2d: Vector2, size_2d: Vector2) -> void:
 
 
 func _add_wall_visual(position_2d: Vector2, size_2d: Vector2) -> void:
+	_ensure_wall_visual_prefab_metrics()
+	if _wall_visual_prefab_has_mesh:
+		var src := _wall_visual_prefab_aabb
+		var tiles_x := maxi(1, int(roundf(size_2d.x)))
+		var tiles_z := maxi(1, int(roundf(size_2d.y)))
+		var module_x := size_2d.x / float(tiles_x)
+		var module_z := size_2d.y / float(tiles_z)
+		var sx := module_x / maxf(0.01, src.size.x)
+		var sy := WALL_VISUAL_HEIGHT / maxf(0.01, src.size.y)
+		var sz := module_z / maxf(0.01, src.size.z)
+		var src_center := src.get_center()
+		var base_x := position_2d.x - size_2d.x * 0.5 + module_x * 0.5
+		var base_z := position_2d.y - size_2d.y * 0.5 + module_z * 0.5
+		var world_y := WALL_VISUAL_BASE_Y - src.position.y * sy
+		for ix in range(tiles_x):
+			for iz in range(tiles_z):
+				var wall_node := STYLIZED_WALL_3D_SCENE.instantiate() as Node3D
+				if wall_node == null:
+					continue
+				wall_node.scale = Vector3(sx, sy, sz)
+				wall_node.position = Vector3(
+					base_x + float(ix) * module_x - src_center.x * sx,
+					world_y,
+					base_z + float(iz) * module_z - src_center.z * sz
+				)
+				_wall_visuals.add_child(wall_node)
+		return
+
 	var wall_mesh := MeshInstance3D.new()
 	var box := BoxMesh.new()
 	box.size = Vector3(size_2d.x, WALL_VISUAL_HEIGHT, size_2d.y)
@@ -253,6 +287,64 @@ func _add_wall_visual(position_2d: Vector2, size_2d: Vector2) -> void:
 		position_2d.y
 	)
 	_wall_visuals.add_child(wall_mesh)
+
+
+func _ensure_wall_visual_prefab_metrics() -> void:
+	if _wall_visual_prefab_ready:
+		return
+	_wall_visual_prefab_ready = true
+	var sample := STYLIZED_WALL_3D_SCENE.instantiate() as Node3D
+	if sample == null:
+		return
+	var aabb := _merged_mesh_aabb_in_root_space(sample)
+	if aabb.size.length_squared() > 1e-8:
+		_wall_visual_prefab_aabb = aabb
+		_wall_visual_prefab_has_mesh = true
+	sample.free()
+
+
+func _merged_mesh_aabb_in_root_space(root: Node3D) -> AABB:
+	var merged := AABB()
+	var any := false
+	for n in root.find_children("*", "MeshInstance3D", true, false):
+		if not n is MeshInstance3D:
+			continue
+		var mi := n as MeshInstance3D
+		if mi.mesh == null:
+			continue
+		var root_to_mesh := root.global_transform.affine_inverse() * mi.global_transform
+		var aabb := _transform_aabb_to_space(root_to_mesh, mi.mesh.get_aabb())
+		if not any:
+			merged = aabb
+			any = true
+		else:
+			merged = merged.merge(aabb)
+	return merged if any else AABB()
+
+
+static func _transform_aabb_to_space(xf: Transform3D, aabb: AABB) -> AABB:
+	var p := aabb.position
+	var s := aabb.size
+	var corners: Array[Vector3] = [
+		Vector3(p.x, p.y, p.z),
+		Vector3(p.x + s.x, p.y, p.z),
+		Vector3(p.x, p.y + s.y, p.z),
+		Vector3(p.x, p.y, p.z + s.z),
+		Vector3(p.x + s.x, p.y + s.y, p.z),
+		Vector3(p.x + s.x, p.y, p.z + s.z),
+		Vector3(p.x, p.y + s.y, p.z + s.z),
+		Vector3(p.x + s.x, p.y + s.y, p.z + s.z),
+	]
+	var out := AABB()
+	var first := true
+	for c in corners:
+		var wc := xf * c
+		if first:
+			out = AABB(wc, Vector3.ZERO)
+			first = false
+		else:
+			out = out.expand(wc)
+	return out
 
 
 func _build_room_debug_visuals() -> void:
