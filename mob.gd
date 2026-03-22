@@ -18,10 +18,7 @@ var _has_spawn: bool = false
 var _move_speed := 12.0
 var _repath_time_remaining := 0.0
 var _target_player: Node2D
-var _debug_frame_count := 0
 @onready var _nav_agent: NavigationAgent2D = $NavigationAgent2D
-
-const DEBUG_LOG_PATH := "C:/git/3d_squash_the_creeps_starter/debug-ed27e6.log"
 
 
 func configure_spawn(start_position: Vector2, player_position: Vector2) -> void:
@@ -48,19 +45,6 @@ func _ready() -> void:
 		_nav_agent.path_desired_distance = 0.75
 		_nav_agent.target_desired_distance = stop_distance
 		_nav_agent.avoidance_enabled = false
-	# #region agent log
-	_debug_log(
-		"post-fix",
-		"H1",
-		"mob.gd:_ready",
-		"mob_ready_state",
-		{
-			"has_spawn": _has_spawn,
-			"target_player_found": _target_player != null,
-			"nav_agent_found": _nav_agent != null,
-		}
-	)
-	# #endregion
 	if _has_spawn:
 		set_deferred(&"collision_layer", 2)
 	else:
@@ -74,25 +58,9 @@ func _exit_tree() -> void:
 
 
 func _physics_process(delta: float) -> void:
-	_debug_frame_count += 1
 	_update_chase_velocity(delta)
 	move_and_slide()
 	_sync_visual_from_body()
-	if _debug_frame_count <= 8:
-		# #region agent log
-		_debug_log(
-			"post-fix",
-			"H5",
-			"mob.gd:_physics_process",
-			"mob_physics_tick",
-			{
-				"frame": _debug_frame_count,
-				"velocity": {"x": velocity.x, "y": velocity.y},
-				"global_position": {"x": global_position.x, "y": global_position.y},
-				"move_speed": _move_speed,
-			}
-		)
-		# #endregion
 
 
 func _sync_visual_from_body() -> void:
@@ -111,19 +79,6 @@ func _apply_spawn(start_position: Vector2, player_position: Vector2) -> void:
 	var to_player := player_position - start_position
 	velocity = to_player.normalized() * _move_speed if to_player.length_squared() > 0.01 else Vector2.ZERO
 	_sync_visual_anim_speed(random_speed)
-	# #region agent log
-	_debug_log(
-		"post-fix",
-		"H4",
-		"mob.gd:_apply_spawn",
-		"spawn_velocity_initialized",
-		{
-			"random_speed": random_speed,
-			"distance_to_player": to_player.length(),
-			"initial_velocity": {"x": velocity.x, "y": velocity.y},
-		}
-	)
-	# #endregion
 
 
 func _update_chase_velocity(delta: float) -> void:
@@ -131,16 +86,6 @@ func _update_chase_velocity(delta: float) -> void:
 		_target_player = get_tree().get_first_node_in_group(&"player") as Node2D
 		if _target_player == null:
 			velocity = Vector2.ZERO
-			# #region agent log
-			if _debug_frame_count <= 8:
-				_debug_log(
-					"post-fix",
-					"H1",
-					"mob.gd:_update_chase_velocity",
-					"missing_player_target",
-					{"frame": _debug_frame_count}
-				)
-			# #endregion
 			return
 	_repath_time_remaining = maxf(0.0, _repath_time_remaining - delta)
 	if _nav_agent and _repath_time_remaining <= 0.0:
@@ -156,84 +101,15 @@ func _update_chase_velocity(delta: float) -> void:
 			# Navigation can return current position when no path is baked; fall back to direct chase.
 			var to_player_fallback := _target_player.global_position - global_position
 			desired = to_player_fallback.normalized() if to_player_fallback.length_squared() > 0.001 else Vector2.ZERO
-		if _debug_frame_count <= 8:
-			# #region agent log
-			_debug_log(
-				"post-fix",
-				"H2",
-				"mob.gd:_update_chase_velocity",
-				"nav_branch",
-				{
-					"frame": _debug_frame_count,
-					"next_pos": {"x": next_pos.x, "y": next_pos.y},
-					"desired": {"x": desired.x, "y": desired.y},
-				}
-			)
-			# #endregion
 	else:
 		var to_player := _target_player.global_position - global_position
 		desired = to_player.normalized() if to_player.length_squared() > 0.001 else Vector2.ZERO
-		if _debug_frame_count <= 8:
-			# #region agent log
-			_debug_log(
-				"post-fix",
-				"H2",
-				"mob.gd:_update_chase_velocity",
-				"direct_branch",
-				{
-					"frame": _debug_frame_count,
-					"to_player_len": to_player.length(),
-					"desired": {"x": desired.x, "y": desired.y},
-				}
-			)
-			# #endregion
 	var distance_to_player := global_position.distance_to(_target_player.global_position)
 	if distance_to_player <= stop_distance:
 		velocity = Vector2.ZERO
 	else:
 		velocity = desired * _move_speed
-	if _debug_frame_count <= 8:
-		# #region agent log
-		_debug_log(
-			"post-fix",
-			"H3",
-			"mob.gd:_update_chase_velocity",
-			"post_chase_velocity",
-			{
-				"frame": _debug_frame_count,
-				"distance_to_player": distance_to_player,
-				"stop_distance": stop_distance,
-				"velocity": {"x": velocity.x, "y": velocity.y},
-			}
-		)
-		# #endregion
 	_sync_visual_anim_speed()
-
-
-func _debug_log(
-	run_id: String,
-	hypothesis_id: String,
-	location: String,
-	message: String,
-	data: Dictionary
-) -> void:
-	var payload := {
-		"sessionId": "ed27e6",
-		"runId": run_id,
-		"hypothesisId": hypothesis_id,
-		"location": location,
-		"message": message,
-		"data": data,
-		"timestamp": Time.get_unix_time_from_system(),
-	}
-	var file := FileAccess.open(DEBUG_LOG_PATH, FileAccess.READ_WRITE)
-	if file == null:
-		file = FileAccess.open(DEBUG_LOG_PATH, FileAccess.WRITE)
-	if file == null:
-		return
-	file.seek_end()
-	file.store_line(JSON.stringify(payload))
-	file.close()
 
 
 func _sync_visual_anim_speed(for_speed: float = -1.0) -> void:

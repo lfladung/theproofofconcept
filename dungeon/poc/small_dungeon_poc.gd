@@ -14,7 +14,21 @@ const MOB_SCENE := preload("res://mob.tscn")
 const SPAWN_POINT_SCENE := preload("res://dungeon/modules/encounter/enemy_spawn_point_2d.tscn")
 const SPAWN_VOLUME_SCENE := preload("res://dungeon/modules/encounter/enemy_spawn_volume_2d.tscn")
 const ROOM_TRIGGER_SCENE := preload("res://dungeon/modules/encounter/room_encounter_trigger_2d.tscn")
-const ARENA_BOUNDARY_SCENE := preload("res://dungeon/modules/encounter/arena_boundary_piece_2d.tscn")
+const DOOR_UNLOCKED_VISUAL_COLOR := Color(0.62, 0.26, 0.86, 1.0)
+const DOOR_LOCKED_VISUAL_COLOR := Color.BLACK
+## Matches DoorBlockers / door sockets: slab half-width 1.5, centers on X as placed in the POC scene.
+const _DOOR_SLAB_HALF := 1.5
+const _COMBAT_DOOR_X_W := 67.5
+const _COMBAT_DOOR_X_E := 139.5
+const _BOSS_DOOR_X_W := 184.5
+## Only clamp bodies in the vertical doorway strip (opening is 6 units tall, ±3).
+const _DOOR_CLAMP_Y_EXT := 3.51
+const _PLAYER_CLAMP_R := 1.2676448
+const _MOB_CLAMP_R := 1.15
+## Do not pull actors far outside the door (other rooms).
+const _W_EXT_X := 65.0
+const _E_EXT_X := 143.0
+const _BOSS_W_EXT_X := 182.0
 
 @onready var _world_bounds: StaticBody2D = $GameWorld2D/WorldBounds
 @onready var _rooms_root: Node2D = $GameWorld2D/Rooms
@@ -33,9 +47,8 @@ var _combat_started := false
 var _combat_cleared := false
 var _boss_started := false
 var _boss_cleared := false
-var _combat_boundary_west: ArenaBoundaryPiece2D
-var _combat_boundary_east: ArenaBoundaryPiece2D
-var _boss_boundary_west: ArenaBoundaryPiece2D
+var _combat_door_visual_west: MeshInstance3D
+var _combat_door_visual_east: MeshInstance3D
 var _encounter_active: Dictionary = {}
 var _encounter_completed: Dictionary = {}
 var _encounter_mobs: Dictionary = {}
@@ -48,7 +61,6 @@ func _ready() -> void:
 	_build_world_bounds()
 	_build_room_debug_visuals()
 	_spawn_encounter_modules()
-	_spawn_runtime_encounter_boundaries()
 	_spawn_entrance_exit_markers()
 	_set_combat_doors_locked(false)
 	_set_boss_entry_locked(false)
@@ -64,6 +76,10 @@ func _process(delta: float) -> void:
 	var target := Vector3(_player.global_position.x, _camera_pivot.global_position.y, _player.global_position.y)
 	_camera_pivot.global_position = _camera_pivot.global_position.lerp(target, clampf(delta * CAMERA_LERP_SPEED, 0.0, 1.0))
 	_refresh_encounter_state()
+
+
+func _physics_process(_delta: float) -> void:
+	_apply_hard_door_clamps()
 
 
 func _configure_room_metadata() -> void:
@@ -259,6 +275,35 @@ func _build_room_debug_visuals() -> void:
 			_spawn_standard_door_piece(r.global_position + socket.position, socket.width_tiles)
 			_add_door_visual(r.global_position + socket.position)
 
+	_assign_combat_door_visual_refs()
+
+
+func _assign_combat_door_visual_refs() -> void:
+	_combat_door_visual_west = null
+	_combat_door_visual_east = null
+	var cr := _rooms_root.get_node_or_null("CombatRoom") as RoomBase
+	if cr == null:
+		return
+	for child in _door_visuals.get_children():
+		if not child is MeshInstance3D:
+			continue
+		var mi := child as MeshInstance3D
+		var flat := Vector2(mi.global_position.x, mi.global_position.z)
+		for s in cr.get_all_sockets():
+			if s.connector_type == &"inactive":
+				continue
+			var dir_key := String(s.direction)
+			if dir_key != "west" and dir_key != "east":
+				continue
+			var socket_world := cr.global_position + s.position
+			if flat.distance_to(socket_world) > 1.0:
+				continue
+			if dir_key == "west":
+				_combat_door_visual_west = mi
+			else:
+				_combat_door_visual_east = mi
+			break
+
 
 func _add_room_floor_visual(rect: Rect2, color: Color, label_text: String) -> void:
 	var mesh := MeshInstance3D.new()
@@ -280,16 +325,17 @@ func _add_room_floor_visual(rect: Rect2, color: Color, label_text: String) -> vo
 	_room_visuals.add_child(label)
 
 
-func _add_door_visual(world_pos: Vector2) -> void:
+func _add_door_visual(world_pos: Vector2) -> MeshInstance3D:
 	var mi := MeshInstance3D.new()
 	var bm := BoxMesh.new()
 	bm.size = Vector3(3.0, 0.6, 3.0)
 	var mat := StandardMaterial3D.new()
-	mat.albedo_color = Color(0.62, 0.26, 0.86, 1.0)
-	bm.material = mat
+	mat.albedo_color = DOOR_UNLOCKED_VISUAL_COLOR
 	mi.mesh = bm
+	mi.material_override = mat
 	mi.position = Vector3(world_pos.x, -0.15, world_pos.y)
 	_door_visuals.add_child(mi)
+	return mi
 
 
 func _color_for_room_type(room_type: String) -> Color:
@@ -305,15 +351,64 @@ func _color_for_room_type(room_type: String) -> Color:
 
 
 func _set_combat_doors_locked(locked: bool) -> void:
-	if _combat_boundary_west:
-		_combat_boundary_west.set_active(locked)
-	if _combat_boundary_east:
-		_combat_boundary_east.set_active(locked)
+	var door_color := DOOR_LOCKED_VISUAL_COLOR if locked else DOOR_UNLOCKED_VISUAL_COLOR
+	for door_mi in [_combat_door_visual_west, _combat_door_visual_east]:
+		if door_mi != null and door_mi.material_override is StandardMaterial3D:
+			(door_mi.material_override as StandardMaterial3D).albedo_color = door_color
 
 
-func _set_boss_entry_locked(locked: bool) -> void:
-	if _boss_boundary_west:
-		_boss_boundary_west.set_active(locked)
+func _set_boss_entry_locked(_locked: bool) -> void:
+	# Boss west blocking uses _apply_hard_door_clamps while the boss encounter is active.
+	pass
+
+
+func _apply_hard_door_clamps() -> void:
+	if bool(_encounter_active.get(&"combat", false)):
+		_clamp_combat_doors(_player, _PLAYER_CLAMP_R)
+		for n in get_tree().get_nodes_in_group(&"mob"):
+			if n is CharacterBody2D:
+				_clamp_combat_doors(n as CharacterBody2D, _MOB_CLAMP_R)
+	if bool(_encounter_active.get(&"boss", false)):
+		_clamp_boss_west_door(_player, _PLAYER_CLAMP_R)
+		for n in get_tree().get_nodes_in_group(&"mob"):
+			if n is CharacterBody2D:
+				_clamp_boss_west_door(n as CharacterBody2D, _MOB_CLAMP_R)
+
+
+func _clamp_combat_doors(body: CharacterBody2D, radius: float) -> void:
+	if body == null:
+		return
+	var p := body.global_position
+	var v := body.velocity
+	var changed := false
+	if absf(p.y) <= _DOOR_CLAMP_Y_EXT:
+		var w_lim := _COMBAT_DOOR_X_W + _DOOR_SLAB_HALF + radius
+		if p.x < w_lim and p.x > _W_EXT_X:
+			p.x = w_lim
+			v.x = maxf(0.0, v.x)
+			changed = true
+		var e_lim := _COMBAT_DOOR_X_E - _DOOR_SLAB_HALF - radius
+		if p.x > e_lim and p.x < _E_EXT_X:
+			p.x = e_lim
+			v.x = minf(0.0, v.x)
+			changed = true
+	if changed:
+		body.global_position = p
+		body.velocity = v
+
+
+func _clamp_boss_west_door(body: CharacterBody2D, radius: float) -> void:
+	if body == null:
+		return
+	var p := body.global_position
+	if absf(p.y) > _DOOR_CLAMP_Y_EXT:
+		return
+	var inner_lim := _BOSS_DOOR_X_W + _DOOR_SLAB_HALF + radius
+	if p.x < inner_lim and p.x > _BOSS_W_EXT_X:
+		body.global_position = Vector2(inner_lim, p.y)
+		var v := body.velocity
+		v.x = maxf(0.0, v.x)
+		body.velocity = v
 
 
 func _spawn_standard_door_piece(world_pos: Vector2, width_tiles: int) -> void:
@@ -326,25 +421,6 @@ func _spawn_standard_door_piece(world_pos: Vector2, width_tiles: int) -> void:
 	door_piece.walkable = true
 	door_piece.position = world_pos
 	_piece_instances_root.add_child(door_piece)
-
-
-func _spawn_runtime_encounter_boundaries() -> void:
-	_combat_boundary_west = _spawn_arena_boundary_piece(Vector2(67.5, 0), 2, "CombatBoundaryWestPiece")
-	_combat_boundary_east = _spawn_arena_boundary_piece(Vector2(139.5, 0), 2, "CombatBoundaryEastPiece")
-	_boss_boundary_west = _spawn_arena_boundary_piece(Vector2(184.5, 0), 2, "BossBoundaryWestPiece")
-
-
-func _spawn_arena_boundary_piece(world_pos: Vector2, width_tiles: int, node_name: String) -> ArenaBoundaryPiece2D:
-	var boundary_piece := ARENA_BOUNDARY_SCENE.instantiate() as ArenaBoundaryPiece2D
-	if boundary_piece == null:
-		return null
-	boundary_piece.name = node_name
-	boundary_piece.tile_size = Vector2i(3, 3)
-	boundary_piece.footprint_tiles = Vector2i(maxi(1, width_tiles), 1)
-	boundary_piece.position = world_pos
-	boundary_piece.set_active(false)
-	_piece_instances_root.add_child(boundary_piece)
-	return boundary_piece
 
 
 func _spawn_entrance_exit_markers() -> void:
@@ -372,12 +448,22 @@ func _spawn_encounter_modules() -> void:
 	_spawn_encounter_trigger(Vector2(103.5, 0), &"combat", "CombatEncounterTrigger")
 	_spawn_encounter_trigger(Vector2(238.5, 0), &"boss", "BossEncounterTrigger")
 
-	for point_pos in [Vector2(93, -18), Vector2(93, 18), Vector2(114, -18), Vector2(114, 18)]:
+	# Combat room center is (103.5, 0) with half extents ~36x36; bias points toward corners.
+	for point_pos in [
+		Vector2(73.5, -30),
+		Vector2(73.5, 30),
+		Vector2(133.5, -30),
+		Vector2(133.5, 30),
+	]:
 		_spawn_enemy_spawn_point(point_pos, &"combat")
-	_spawn_enemy_spawn_volume(Vector2(103.5, 0), Vector2(48, 36), &"combat")
+	# Keep spawn-volume support, but place volumes near corners to preserve corner-biased spawns.
+	_spawn_enemy_spawn_volume(Vector2(78, -27), Vector2(18, 14), &"combat")
+	_spawn_enemy_spawn_volume(Vector2(129, 27), Vector2(18, 14), &"combat")
 
-	_spawn_enemy_spawn_point(Vector2(238.5, 0), &"boss")
-	_spawn_enemy_spawn_volume(Vector2(238.5, 0), Vector2(54, 54), &"boss")
+	# Boss room center is (238.5, 0) with half extents ~54x54; spawn near opposite corners.
+	_spawn_enemy_spawn_point(Vector2(196.5, -42), &"boss")
+	_spawn_enemy_spawn_point(Vector2(280.5, 42), &"boss")
+	_spawn_enemy_spawn_volume(Vector2(196.5, 42), Vector2(20, 16), &"boss")
 
 
 func _spawn_encounter_trigger(position_2d: Vector2, encounter_id: StringName, node_name: String) -> void:

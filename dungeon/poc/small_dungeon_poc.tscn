@@ -6,7 +6,7 @@
 [ext_resource type="PackedScene" path="res://player_visual.tscn" id="4_player_visual"]
 
 [sub_resource type="RectangleShape2D" id="1_blocker_shape"]
-size = Vector2(1, 8)
+size = Vector2(3, 6)
 
 [sub_resource type="RectangleShape2D" id="2_trigger_shape"]
 size = Vector2(36, 36)

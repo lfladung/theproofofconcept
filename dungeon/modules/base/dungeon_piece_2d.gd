@@ -68,5 +68,5 @@ func _rebuild_piece_geometry() -> void:
 func _update_blocking_state() -> void:
 	if _body == null or _collision == null:
 		return
-	_body.process_mode = Node.PROCESS_MODE_DISABLED if not blocks_movement else Node.PROCESS_MODE_INHERIT
+	# Toggle shape only; disabling StaticBody2D.process_mode can desync 2D physics queries/collision.
 	_collision.disabled = not blocks_movement
