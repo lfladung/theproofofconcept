@@ -16,9 +16,66 @@ signal hit
 ## Max planar center distance for a kill; filters spurious Area2D body_entered at large separation.
 @export var mob_kill_max_planar_dist := 3.25
 
+## Melee hit box along planar facing: [inner, inner + depth] × width (centered).
+@export var melee_inner := 0.6
+@export var melee_depth := 3.375
+@export var melee_width := 3.3
+## Ground Y for debug mesh (XZ play plane ↔ 3D).
+@export var melee_debug_ground_y := 0.04
+@export var show_melee_hit_debug := true
+## Y offset on XZ plane for body collision overlays (below melee quad so layers read clearly).
+@export var hitbox_debug_ground_y := 0.028
+@export var show_player_hitbox_debug := true
+@export var show_mob_hitbox_debug := true
+@export var hitbox_debug_circle_segments := 40
+
 @onready var _visual: Node3D = get_node_or_null("../../VisualWorld3D/PlayerVisual") as Node3D
+@onready var _body_shape: CollisionShape2D = $CollisionShape2D
 
 var vertical_velocity := 0.0
+## Last planar facing (2D x,y ↔ 3D x,z); default “forward” for attacks when idle.
+var _facing_planar := Vector2(0.0, -1.0)
+
+var _melee_debug_mi: MeshInstance3D
+var _melee_debug_mat: StandardMaterial3D
+var _player_hitbox_mi: MeshInstance3D
+var _player_hitbox_mat: StandardMaterial3D
+var _mob_hitboxes_mi: MeshInstance3D
+var _mob_hitbox_mat: StandardMaterial3D
+
+
+func _ready() -> void:
+	var vw := get_node_or_null("../../VisualWorld3D") as Node3D
+	if vw:
+		_melee_debug_mi = MeshInstance3D.new()
+		_melee_debug_mi.name = &"MeleeHitDebugMesh"
+		_melee_debug_mat = StandardMaterial3D.new()
+		_melee_debug_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		_melee_debug_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+		_melee_debug_mat.albedo_color = Color(1.0, 0.35, 0.08, 0.42)
+		_melee_debug_mat.cull_mode = BaseMaterial3D.CULL_DISABLED
+		_melee_debug_mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		vw.add_child(_melee_debug_mi)
+
+		_player_hitbox_mi = MeshInstance3D.new()
+		_player_hitbox_mi.name = &"PlayerHitboxDebugMesh"
+		_player_hitbox_mat = StandardMaterial3D.new()
+		_player_hitbox_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		_player_hitbox_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+		_player_hitbox_mat.albedo_color = Color(0.55, 0.98, 0.62, 0.48)
+		_player_hitbox_mat.cull_mode = BaseMaterial3D.CULL_DISABLED
+		_player_hitbox_mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		vw.add_child(_player_hitbox_mi)
+
+		_mob_hitboxes_mi = MeshInstance3D.new()
+		_mob_hitboxes_mi.name = &"MobHitboxesDebugMesh"
+		_mob_hitbox_mat = StandardMaterial3D.new()
+		_mob_hitbox_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		_mob_hitbox_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+		_mob_hitbox_mat.albedo_color = Color(1.0, 0.52, 0.12, 0.48)
+		_mob_hitbox_mat.cull_mode = BaseMaterial3D.CULL_DISABLED
+		_mob_hitboxes_mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		vw.add_child(_mob_hitboxes_mi)
 
 
 func _mouse_steering_active() -> bool:
@@ -45,6 +102,147 @@ func _mouse_planar_world() -> Vector2:
 	return Vector2(hit.x, hit.z)
 
 
+func _update_facing_planar(direction: Vector2) -> void:
+	var f := direction
+	if f.length_squared() <= 1e-6 and _mouse_steering_active():
+		var t := _mouse_planar_world() - global_position
+		if t.length_squared() > 0.01:
+			f = t.normalized()
+	if f.length_squared() > 1e-6:
+		_facing_planar = f.normalized()
+
+
+func _planar_point_in_melee_hit(mob_pos: Vector2) -> bool:
+	var f := _facing_planar
+	var r := Vector2(-f.y, f.x)
+	var v := mob_pos - global_position
+	var along := v.dot(f)
+	var lateral := v.dot(r)
+	var half_w := melee_width * 0.5
+	return along >= melee_inner and along <= melee_inner + melee_depth and absf(lateral) <= half_w
+
+
+func _squash_mobs_in_melee_hit() -> void:
+	for node in get_tree().get_nodes_in_group(&"mob"):
+		if not node is CharacterBody2D or not node.has_method(&"squash"):
+			continue
+		var mob := node as CharacterBody2D
+		if _planar_point_in_melee_hit(mob.global_position):
+			mob.squash()
+
+
+func _rebuild_melee_debug_mesh() -> void:
+	if _melee_debug_mi == null:
+		return
+	_melee_debug_mi.visible = true
+	var f2 := _facing_planar
+	var p0 := global_position
+	var f3 := Vector3(f2.x, 0.0, f2.y)
+	var r3 := Vector3(-f3.z, 0.0, f3.x)
+	var origin3 := Vector3(p0.x, melee_debug_ground_y, p0.y)
+	var half_w := melee_width * 0.5
+	var near_o := f3 * melee_inner
+	var far_o := f3 * (melee_inner + melee_depth)
+	var c0 := origin3 + near_o + r3 * (-half_w)
+	var c1 := origin3 + near_o + r3 * half_w
+	var c2 := origin3 + far_o + r3 * half_w
+	var c3 := origin3 + far_o + r3 * (-half_w)
+	var imm := ImmediateMesh.new()
+	imm.surface_begin(Mesh.PRIMITIVE_TRIANGLES, _melee_debug_mat)
+	var up := Vector3.UP
+	for v in [c0, c1, c2, c0, c2, c3]:
+		imm.surface_set_normal(up)
+		imm.surface_add_vertex(v)
+	imm.surface_end()
+	_melee_debug_mi.mesh = imm
+
+
+func _append_circle_fan_xz(
+	imm: ImmediateMesh, mat: Material, center2: Vector2, radius: float, ground_y: float, segments: int
+) -> void:
+	if radius <= 0.0 or segments < 3:
+		return
+	imm.surface_begin(Mesh.PRIMITIVE_TRIANGLES, mat)
+	var up := Vector3.UP
+	var c := Vector3(center2.x, ground_y, center2.y)
+	for i in range(segments):
+		var a0 := TAU * float(i) / float(segments)
+		var a1 := TAU * float(i + 1) / float(segments)
+		var e0 := Vector3(center2.x + cos(a0) * radius, ground_y, center2.y + sin(a0) * radius)
+		var e1 := Vector3(center2.x + cos(a1) * radius, ground_y, center2.y + sin(a1) * radius)
+		for v in [c, e0, e1]:
+			imm.surface_set_normal(up)
+			imm.surface_add_vertex(v)
+	imm.surface_end()
+
+
+func _rebuild_player_hitbox_debug() -> void:
+	if _player_hitbox_mi == null:
+		return
+	if not show_player_hitbox_debug:
+		_player_hitbox_mi.visible = false
+		return
+	_player_hitbox_mi.visible = true
+	var radius := 0.792278
+	var center2 := global_position
+	if _body_shape:
+		center2 = _body_shape.global_position
+		if _body_shape.shape is CircleShape2D:
+			radius = (_body_shape.shape as CircleShape2D).radius
+	var imm := ImmediateMesh.new()
+	_append_circle_fan_xz(
+		imm,
+		_player_hitbox_mat,
+		center2,
+		radius,
+		hitbox_debug_ground_y,
+		maxi(3, hitbox_debug_circle_segments)
+	)
+	_player_hitbox_mi.mesh = imm
+
+
+func _rebuild_mob_hitboxes_debug() -> void:
+	if _mob_hitboxes_mi == null:
+		return
+	if not show_mob_hitbox_debug:
+		_mob_hitboxes_mi.visible = false
+		return
+	var gy := hitbox_debug_ground_y
+	var up := Vector3.UP
+	var verts: PackedVector3Array = PackedVector3Array()
+	for node in get_tree().get_nodes_in_group(&"mob"):
+		var cs := node.get_node_or_null("CollisionShape2D") as CollisionShape2D
+		if cs == null:
+			continue
+		var sh := cs.shape
+		if sh is RectangleShape2D:
+			var rect := sh as RectangleShape2D
+			var hw := rect.size.x * 0.5
+			var hh := rect.size.y * 0.5
+			var xf := cs.global_transform
+			var g0: Vector2 = xf * Vector2(-hw, -hh)
+			var g1: Vector2 = xf * Vector2(hw, -hh)
+			var g2: Vector2 = xf * Vector2(hw, hh)
+			var g3: Vector2 = xf * Vector2(-hw, hh)
+			var p0 := Vector3(g0.x, gy, g0.y)
+			var p1 := Vector3(g1.x, gy, g1.y)
+			var p2 := Vector3(g2.x, gy, g2.y)
+			var p3 := Vector3(g3.x, gy, g3.y)
+			verts.append_array([p0, p1, p2, p0, p2, p3])
+	if verts.is_empty():
+		_mob_hitboxes_mi.mesh = null
+		_mob_hitboxes_mi.visible = false
+		return
+	var imm := ImmediateMesh.new()
+	imm.surface_begin(Mesh.PRIMITIVE_TRIANGLES, _mob_hitbox_mat)
+	for k in range(verts.size()):
+		imm.surface_set_normal(up)
+		imm.surface_add_vertex(verts[k])
+	imm.surface_end()
+	_mob_hitboxes_mi.visible = true
+	_mob_hitboxes_mi.mesh = imm
+
+
 func _physics_process(delta: float) -> void:
 	var direction := Vector2.ZERO
 	if _mouse_steering_active():
@@ -52,6 +250,8 @@ func _physics_process(delta: float) -> void:
 		var to_target := target - global_position
 		if to_target.length_squared() > 0.01:
 			direction = to_target.normalized()
+
+	_update_facing_planar(direction)
 
 	var planar_speed := 0.0
 	if direction != Vector2.ZERO:
@@ -76,15 +276,31 @@ func _physics_process(delta: float) -> void:
 
 	if _visual:
 		_visual.global_position = Vector3(global_position.x, height, global_position.y)
-		if direction != Vector2.ZERO:
-			_visual.rotation.y = atan2(direction.x, direction.y)
+		_visual.rotation.y = atan2(_facing_planar.x, _facing_planar.y)
 		if _visual.has_method(&"set_locomotion_from_planar_speed"):
 			_visual.set_locomotion_from_planar_speed(planar_speed, speed)
 		if _visual.has_method(&"set_jump_tilt"):
 			_visual.set_jump_tilt(vertical_velocity, jump_impulse)
 
-	if Input.is_action_just_pressed(&"player_attack") and _visual and _visual.has_method(&"try_play_attack"):
-		_visual.try_play_attack()
+	if Input.is_action_just_pressed(&"melee_attack"):
+		if _visual and _visual.has_method(&"try_play_attack"):
+			_visual.try_play_attack()
+		_squash_mobs_in_melee_hit()
+
+	if show_melee_hit_debug:
+		_rebuild_melee_debug_mesh()
+	elif _melee_debug_mi:
+		_melee_debug_mi.visible = false
+
+	if show_player_hitbox_debug:
+		_rebuild_player_hitbox_debug()
+	elif _player_hitbox_mi:
+		_player_hitbox_mi.visible = false
+
+	if show_mob_hitbox_debug:
+		_rebuild_mob_hitboxes_debug()
+	elif _mob_hitboxes_mi:
+		_mob_hitboxes_mi.visible = false
 
 
 func _try_stomp_from_above() -> void:
@@ -108,8 +324,18 @@ func _try_stomp_from_above() -> void:
 
 
 func die() -> void:
+	_free_world_debug_meshes()
 	hit.emit()
 	queue_free()
+
+
+func _free_world_debug_meshes() -> void:
+	for mi in [_melee_debug_mi, _player_hitbox_mi, _mob_hitboxes_mi]:
+		if mi != null and is_instance_valid(mi):
+			mi.queue_free()
+	_melee_debug_mi = null
+	_player_hitbox_mi = null
+	_mob_hitboxes_mi = null
 
 
 func _on_mob_detector_body_entered(body: Node2D) -> void:

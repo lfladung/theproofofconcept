@@ -1,6 +1,6 @@
 extends Node3D
 
-## Drives Meshy locomotion clips; optional attack on player_attack.
+## Drives Meshy locomotion clips; melee attack animation via try_play_attack().
 
 @export var walk_speed_threshold := 8.0
 
