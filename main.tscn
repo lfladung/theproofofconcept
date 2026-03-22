@@ -1,18 +1,28 @@
-[gd_scene load_steps=16 format=3 uid="uid://2wap0283yk0r"]
+[gd_scene load_steps=19 format=3 uid="uid://2wap0283yk0r"]
 
 [ext_resource type="Script" uid="uid://cc8n3086pvl18" path="res://main.gd" id="1_h2yge"]
 [ext_resource type="PackedScene" uid="uid://ceuu150fmggvr" path="res://player.tscn" id="2_player"]
 [ext_resource type="PackedScene" uid="uid://defdm2qdva75q" path="res://mob.tscn" id="3_mob"]
 [ext_resource type="FontFile" uid="uid://cyxhh7ddkn62q" path="res://fonts/Montserrat-Medium.ttf" id="4_font"]
 [ext_resource type="Script" uid="uid://bq4lq2wbf1rkc" path="res://score_label.gd" id="5_score"]
+[ext_resource type="PackedScene" uid="uid://bqj8m2k4player_visual" path="res://player_visual.tscn" id="6_pvis"]
 
-[sub_resource type="BoxShape3D" id="BoxShape3D_ground"]
-size = Vector3(60, 2, 60)
+[sub_resource type="RectangleShape2D" id="Rect_wall_s"]
+size = Vector2(62, 0.6)
+
+[sub_resource type="RectangleShape2D" id="Rect_wall_n"]
+size = Vector2(62, 0.6)
+
+[sub_resource type="RectangleShape2D" id="Rect_wall_w"]
+size = Vector2(0.6, 62)
+
+[sub_resource type="RectangleShape2D" id="Rect_wall_e"]
+size = Vector2(0.6, 62)
+
+[sub_resource type="Curve2D" id="Curve2D_spawn"]
 
 [sub_resource type="BoxMesh" id="BoxMesh_ground"]
 size = Vector3(60, 2, 60)
-
-[sub_resource type="WorldBoundaryShape3D" id="WorldBoundaryShape3D_wall"]
 
 [sub_resource type="ProceduralSkyMaterial" id="ProceduralSkyMaterial_sky"]
 sky_horizon_color = Color(0.64625, 0.65575, 0.67075, 1)
@@ -34,13 +44,6 @@ material = SubResource("StandardMaterial3D_cylinder")
 radial_segments = 24
 rings = 1
 
-[sub_resource type="Curve3D" id="Curve3D_spawn"]
-_data = {
-"points": PackedVector3Array(0, 0, 0, 0, 0, 0, 14, 0, -15, 0, 0, 0, 0, 0, 0, -13, 0, -15, 0, 0, 0, 0, 0, 0, -13, 0, 16, 0, 0, 0, 0, 0, 0, 14, 0, 16, 0, 0, 0, 0, 0, 0, 14, 0, -15),
-"tilts": PackedFloat32Array(0, 0, 0, 0, 0)
-}
-point_count = 5
-
 [sub_resource type="Theme" id="Theme_ui"]
 default_font = ExtResource("4_font")
 
@@ -52,39 +55,48 @@ default_font_size = 22
 script = ExtResource("1_h2yge")
 mob_scene = ExtResource("3_mob")
 
-[node name="Ground" type="StaticBody3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -1, 0)
+[node name="GameWorld2D" type="Node2D" parent="."]
+
+[node name="WorldBounds" type="StaticBody2D" parent="GameWorld2D"]
 collision_layer = 4
 collision_mask = 0
 
-[node name="CollisionShape" type="CollisionShape3D" parent="Ground"]
-shape = SubResource("BoxShape3D_ground")
+[node name="WallSouth" type="CollisionShape2D" parent="GameWorld2D/WorldBounds"]
+position = Vector2(0, -30.4)
+shape = SubResource("Rect_wall_s")
 
-[node name="MeshInstance" type="MeshInstance3D" parent="Ground"]
+[node name="WallNorth" type="CollisionShape2D" parent="GameWorld2D/WorldBounds"]
+position = Vector2(0, 30.4)
+shape = SubResource("Rect_wall_n")
+
+[node name="WallWest" type="CollisionShape2D" parent="GameWorld2D/WorldBounds"]
+position = Vector2(-30.4, 0)
+shape = SubResource("Rect_wall_w")
+
+[node name="WallEast" type="CollisionShape2D" parent="GameWorld2D/WorldBounds"]
+position = Vector2(30.4, 0)
+shape = SubResource("Rect_wall_e")
+
+[node name="SpawnPath2D" type="Path2D" parent="GameWorld2D"]
+curve = SubResource("Curve2D_spawn")
+
+[node name="SpawnLocation" type="PathFollow2D" parent="GameWorld2D/SpawnPath2D"]
+rotation_mode = 1
+cubic_interp = false
+loop = false
+
+[node name="Player" parent="GameWorld2D" instance=ExtResource("2_player")]
+position = Vector2(0, 0)
+
+[node name="VisualWorld3D" type="Node3D" parent="."]
+
+[node name="GroundDecor" type="Node3D" parent="VisualWorld3D"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -1, 0)
+
+[node name="GroundMesh" type="MeshInstance3D" parent="VisualWorld3D/GroundDecor"]
 mesh = SubResource("BoxMesh_ground")
 
-[node name="Walls" type="StaticBody3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 5)
-collision_layer = 4
-collision_mask = 0
-
-[node name="CollisionShape3D" type="CollisionShape3D" parent="Walls"]
-transform = Transform3D(1, 0, 0, 0, 1.31134e-07, 1, 0, -1, 1.31134e-07, 0, 10, 11)
-shape = SubResource("WorldBoundaryShape3D_wall")
-
-[node name="CollisionShape3D2" type="CollisionShape3D" parent="Walls"]
-transform = Transform3D(-4.37114e-08, 1, -1.31134e-07, 0, 1.31134e-07, 1, 1, 4.37114e-08, -5.73206e-15, -13, 10, -4.76837e-07)
-shape = SubResource("WorldBoundaryShape3D_wall")
-
-[node name="CollisionShape3D3" type="CollisionShape3D" parent="Walls"]
-transform = Transform3D(4.37114e-08, -1, 2.18557e-07, 3.82137e-15, -2.18557e-07, -1, 1, 4.37114e-08, -5.73206e-15, 14, 10, -4.76837e-07)
-shape = SubResource("WorldBoundaryShape3D_wall")
-
-[node name="CollisionShape3D4" type="CollisionShape3D" parent="Walls"]
-transform = Transform3D(1, 5.96046e-08, -1.42109e-14, 3.82137e-15, -2.18557e-07, -1, -5.96046e-08, 1, -2.18557e-07, 9.53674e-07, 10, -20)
-shape = SubResource("WorldBoundaryShape3D_wall")
-
-[node name="DirectionalLight3D" type="DirectionalLight3D" parent="."]
+[node name="DirectionalLight3D" type="DirectionalLight3D" parent="VisualWorld3D"]
 transform = Transform3D(0.5, -0.777049, 0.382355, 0, 0.441506, 0.897258, -0.866025, -0.448629, 0.220753, 0, 12.5592, 14.7757)
 shadow_enabled = true
 shadow_bias = 0.04
@@ -93,50 +105,40 @@ directional_shadow_mode = 0
 directional_shadow_fade_start = 1.0
 directional_shadow_max_distance = 40.0
 
-[node name="WorldEnvironment" type="WorldEnvironment" parent="."]
+[node name="WorldEnvironment" type="WorldEnvironment" parent="VisualWorld3D"]
 environment = SubResource("Environment_main")
 
-[node name="Player" parent="." instance=ExtResource("2_player")]
+[node name="PlayerVisual" parent="VisualWorld3D" instance=ExtResource("6_pvis")]
 
-[node name="CameraPivot" type="Marker3D" parent="."]
+[node name="CameraPivot" type="Marker3D" parent="VisualWorld3D"]
 transform = Transform3D(1, 0, 0, 0, 0.707107, 0.707107, 0, -0.707107, 0.707107, 0.183514, 0, 0)
 
-[node name="Camera" type="Camera3D" parent="CameraPivot"]
+[node name="Camera" type="Camera3D" parent="VisualWorld3D/CameraPivot"]
 transform = Transform3D(1, 0, 0, 0, 1, -2.98023e-08, 0, 2.98023e-08, 1, 0, 9.53674e-07, 19)
 projection = 1
 fov = 48.6
-size = 24.0
-far = 40.0
+size = 34.0
+far = 50.0
 current = true
 
-[node name="Cylinders" type="Node3D" parent="."]
+[node name="Cylinders" type="Node3D" parent="VisualWorld3D"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 8, 0, 0)
 
-[node name="MeshInstance" type="MeshInstance3D" parent="Cylinders"]
+[node name="MeshInstance" type="MeshInstance3D" parent="VisualWorld3D/Cylinders"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 6, 1, -15)
 mesh = SubResource("CylinderMesh_marker")
 
-[node name="MeshInstance3" type="MeshInstance3D" parent="Cylinders"]
+[node name="MeshInstance3" type="MeshInstance3D" parent="VisualWorld3D/Cylinders"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -21, 1, -15)
 mesh = SubResource("CylinderMesh_marker")
 
-[node name="MeshInstance2" type="MeshInstance3D" parent="Cylinders"]
+[node name="MeshInstance2" type="MeshInstance3D" parent="VisualWorld3D/Cylinders"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -21, 1, 16)
 mesh = SubResource("CylinderMesh_marker")
 
-[node name="MeshInstance4" type="MeshInstance3D" parent="Cylinders"]
+[node name="MeshInstance4" type="MeshInstance3D" parent="VisualWorld3D/Cylinders"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 6, 1, 16)
 mesh = SubResource("CylinderMesh_marker")
-
-[node name="SpawnPath" type="Path3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1, 0)
-curve = SubResource("Curve3D_spawn")
-
-[node name="SpawnLocation" type="PathFollow3D" parent="SpawnPath"]
-transform = Transform3D(-4.3711346e-08, 0, 0.999999, 0, 1, 0, -0.999999, 0, -4.3711346e-08, 14, 0, -15)
-rotation_mode = 1
-cubic_interp = false
-loop = false
 
 [node name="MobTimer" type="Timer" parent="."]
 wait_time = 0.5
@@ -192,5 +194,5 @@ grow_horizontal = 2
 grow_vertical = 2
 text = "Press Enter to Retry"
 
-[connection signal="hit" from="Player" to="." method="_on_player_hit"]
+[connection signal="hit" from="GameWorld2D/Player" to="." method="_on_player_hit"]
 [connection signal="timeout" from="MobTimer" to="." method="_on_mob_timer_timeout"]
