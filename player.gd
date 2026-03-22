@@ -35,6 +35,9 @@ signal health_changed(current: int, max_health: int)
 @export var show_player_hitbox_debug := true
 @export var show_mob_hitbox_debug := true
 @export var hitbox_debug_circle_segments := 40
+@export var dodge_speed := 36.0
+@export var dodge_duration := 0.16
+@export var dodge_cooldown := 2.0
 
 @onready var _visual: Node3D = get_node_or_null("../../VisualWorld3D/PlayerVisual") as Node3D
 @onready var _body_shape: CollisionShape2D = $CollisionShape2D
@@ -51,6 +54,9 @@ var _player_hitbox_mi: MeshInstance3D
 var _player_hitbox_mat: StandardMaterial3D
 var _mob_hitboxes_mi: MeshInstance3D
 var _mob_hitbox_mat: StandardMaterial3D
+var _dodge_time_remaining := 0.0
+var _dodge_cooldown_remaining := 0.0
+var _dodge_direction := Vector2.ZERO
 
 
 func _ready() -> void:
@@ -312,8 +318,21 @@ func _physics_process(delta: float) -> void:
 
 	_update_facing_planar(direction)
 
+	_dodge_cooldown_remaining = maxf(0.0, _dodge_cooldown_remaining - delta)
+	if _dodge_time_remaining > 0.0:
+		_dodge_time_remaining = maxf(0.0, _dodge_time_remaining - delta)
+	elif Input.is_action_just_pressed(&"dodge") and _dodge_cooldown_remaining <= 0.0:
+		_dodge_direction = _facing_planar.normalized()
+		if _dodge_direction.length_squared() <= 1e-6:
+			_dodge_direction = Vector2(0.0, -1.0)
+		_dodge_time_remaining = dodge_duration
+		_dodge_cooldown_remaining = dodge_cooldown
+
 	var planar_speed := 0.0
-	if direction != Vector2.ZERO:
+	if _dodge_time_remaining > 0.0:
+		velocity = _dodge_direction * dodge_speed
+		planar_speed = dodge_speed
+	elif direction != Vector2.ZERO:
 		velocity = direction * speed
 		planar_speed = speed
 	else:

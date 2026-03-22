@@ -209,18 +209,18 @@ Generation logic, room catalog loading, and fully data-driven runtime assembly c
   - Instantiates `RoomBase`.
   - Adds a small-room world boundary and a playable `Player`.
   - Uses the milestone debug color language in 3D placeholders:
-    - white ground
-    - brown walls
-    - yellow trap tile
-    - purple doorway
-    - orange stairs marker
+	- white ground
+	- brown walls
+	- yellow trap tile
+	- purple doorway
+	- orange stairs marker
 
 - `res://dungeon/poc/small_dungeon_poc.tscn`
   - Multi-room dungeon POC that includes baseline room types:
-    - entrance room
-    - transition corridors between main rooms
-    - combat room (lock/unlock proof without enemy spawning)
-    - treasure dead-end room (chest marker)
-    - boss room (completion portal after simulated clear)
+	- entrance room
+	- transition corridors between main rooms
+	- combat room (lock/unlock proof without enemy spawning)
+	- treasure dead-end room (chest marker)
+	- boss room (completion portal after simulated clear)
   - Uses `RoomBase` instances and runtime boundary generation from socket openings.
   - Includes player-follow camera and explicit brown wall visuals for all boundary colliders.
