@@ -39,8 +39,8 @@ This file tracks milestone goals for the dungeon architecture and procedural con
   - boss exit portal now unlocks after actual boss encounter clear
 
 - [x] Milestone 4: Gameplay object MVP
-  - `TreasureChest2D` + `KeyPickup2D` modules; treasure room chest drops a key pickup
-  - `LockedDoorPiece2D` optional `key_id` + unlock volume; branch↔treasure door keyed in `small_dungeon_poc`
+  - `TreasureChest2D` spews `DroppedCoin` pickups; `KeyPickup2D` + keyed `LockedDoorPiece2D` remain for other rooms
+  - `small_dungeon_poc` treasure branch uses a normal door; chest drops 10 coins
   - `TrapTile2D` damage-over-time while standing on tile (cooldown), placed in treasure room
 
 ## Next Milestone Goals

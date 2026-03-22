@@ -17,11 +17,9 @@ const MOB_SCENE := preload("res://mob.tscn")
 const SPAWN_POINT_SCENE := preload("res://dungeon/modules/encounter/enemy_spawn_point_2d.tscn")
 const SPAWN_VOLUME_SCENE := preload("res://dungeon/modules/encounter/enemy_spawn_volume_2d.tscn")
 const ROOM_TRIGGER_SCENE := preload("res://dungeon/modules/encounter/room_encounter_trigger_2d.tscn")
-const DOOR_LOCKED_SCENE := preload("res://dungeon/modules/connectivity/door_locked_2d.tscn")
 const TREASURE_CHEST_SCENE := preload("res://dungeon/modules/gameplay/treasure_chest_2d.tscn")
 const TRAP_TILE_SCENE := preload("res://dungeon/modules/gameplay/trap_tile_2d.tscn")
 const DUNGEON_CELL_DOOR_SCENE := preload("res://dungeon/visuals/dungeon_cell_door_3d.tscn")
-const BRANCH_TREASURE_KEY_ID := &"branch_treasure"
 const STYLIZED_WALL_3D_SCENE := preload("res://art/Meshy_AI_stylized_wall_0322224805_texture.glb")
 const FLOOR_WALL_ALBEDO_TEXTURE := preload("res://art/Meshy_AI_stylized_wall_0322224805_texture_0.jpg")
 ## World units per texture repeat on floors (matches 3×3 room tiles).
@@ -67,12 +65,9 @@ var _spawn_volumes_by_encounter: Dictionary = {}
 var _wall_visual_prefab_ready := false
 var _wall_visual_prefab_has_mesh := false
 var _wall_visual_prefab_aabb := AABB()
-## Keys held by the player (Milestone 4 — lock/key linkage).
-var _player_keys: Dictionary = {}
 
 
 func _ready() -> void:
-	add_to_group(&"dungeon_gameplay_host")
 	_camera_pivot.rotation_degrees = Vector3(CAMERA_DIAG_PITCH_DEG, CAMERA_DIAG_YAW_DEG, 0.0)
 	_configure_room_metadata()
 	_build_world_bounds()
@@ -85,7 +80,7 @@ func _ready() -> void:
 	_boss_exit_portal.monitoring = false
 	_boss_exit_portal.monitorable = false
 	($VisualWorld3D/BossPortalMarker as MeshInstance3D).visible = false
-	_info_label.text = "Explore: main line to boss, or branch north for treasure (chest key opens the branch door). Watch for floor traps."
+	_info_label.text = "Explore: main line to boss, or branch north for treasure (chest drops coins). Watch for floor traps."
 
 
 func _process(delta: float) -> void:
@@ -385,10 +380,6 @@ func _build_room_debug_visuals() -> void:
 			var world_pos := r.global_position + socket.position
 			var dir_key := String(socket.direction)
 			var combat_visuals := r.name == &"CombatRoom" and (dir_key == "west" or dir_key == "east")
-			var use_key_locked := (
-				(r.name == &"BranchTransitionRoom" and dir_key == "north")
-				or (r.name == &"TreasureRoom" and dir_key == "south")
-			)
 			var dk := "%s:%s" % [int(roundf(world_pos.x * 100.0)), int(roundf(world_pos.y * 100.0))]
 			if not door_specs_by_key.has(dk):
 				door_specs_by_key[dk] = {
@@ -396,8 +387,6 @@ func _build_room_debug_visuals() -> void:
 					"wall_direction": dir_key,
 					"use_combat_lock_visuals": combat_visuals,
 					"width_tiles": socket.width_tiles,
-					"use_key_locked": use_key_locked,
-					"key_id": BRANCH_TREASURE_KEY_ID if use_key_locked else &"",
 				}
 			else:
 				var existing := door_specs_by_key[dk] as Dictionary
@@ -407,20 +396,12 @@ func _build_room_debug_visuals() -> void:
 					existing["wall_direction"] = dir_key
 					existing["use_combat_lock_visuals"] = true
 					existing["width_tiles"] = socket.width_tiles
-				if use_key_locked:
-					existing["use_key_locked"] = true
-					existing["key_id"] = BRANCH_TREASURE_KEY_ID
 				door_specs_by_key[dk] = existing
 
 	for dk in door_specs_by_key.keys():
 		var spec := door_specs_by_key[dk] as Dictionary
 		var door_pos := spec["world_pos"] as Vector2
-		if bool(spec.get("use_key_locked", false)):
-			_spawn_locked_door_piece(
-				door_pos, int(spec.get("width_tiles", 1)), spec.get("key_id", &"") as StringName
-			)
-		else:
-			_spawn_standard_door_piece(door_pos, int(spec.get("width_tiles", 1)))
+		_spawn_standard_door_piece(door_pos, int(spec.get("width_tiles", 1)))
 		_add_cell_door_3d(
 			door_pos,
 			String(spec.get("wall_direction", "west")),
@@ -596,25 +577,13 @@ func _spawn_standard_door_piece(world_pos: Vector2, width_tiles: int) -> void:
 	_piece_instances_root.add_child(door_piece)
 
 
-func _spawn_locked_door_piece(world_pos: Vector2, width_tiles: int, key_id: StringName) -> void:
-	var door_piece := DOOR_LOCKED_SCENE.instantiate() as LockedDoorPiece2D
-	if door_piece == null:
-		return
-	door_piece.tile_size = Vector2i(3, 3)
-	door_piece.footprint_tiles = Vector2i(maxi(1, width_tiles), 1)
-	door_piece.position = world_pos
-	door_piece.key_id = key_id
-	door_piece.locked = true
-	_piece_instances_root.add_child(door_piece)
-
-
 func _spawn_gameplay_objects() -> void:
 	var chest_marker := $GameWorld2D/Markers/TreasureChestMarker as Marker2D
 	if chest_marker:
 		var chest := TREASURE_CHEST_SCENE.instantiate() as TreasureChest2D
 		if chest:
 			chest.name = "TreasureChestPOC"
-			chest.key_id = BRANCH_TREASURE_KEY_ID
+			chest.coin_count = 10
 			chest.position = chest_marker.position
 			_piece_instances_root.add_child(chest)
 	for trap_pos in [Vector2(150.0, -72.0), Vector2(174.0, -88.0), Vector2(156.0, -94.0)]:
@@ -623,22 +592,6 @@ func _spawn_gameplay_objects() -> void:
 			trap.name = "TrapTile_%s_%s" % [int(trap_pos.x), int(trap_pos.y)]
 			trap.position = trap_pos
 			_piece_instances_root.add_child(trap)
-
-
-func register_player_key(id: StringName) -> void:
-	if id == &"":
-		return
-	_player_keys[id] = true
-	_info_label.text = "Key acquired. Use it at the treasure-branch door."
-
-
-func try_unlock_keyed_door(id: StringName, consume: bool) -> bool:
-	if id == &"" or not bool(_player_keys.get(id, false)):
-		return false
-	if consume:
-		_player_keys.erase(id)
-	_info_label.text = "Treasure door unlocked."
-	return true
 
 
 func _spawn_entrance_exit_markers() -> void:
