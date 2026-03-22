@@ -114,6 +114,8 @@ collision_mask = 0
 
 [node name="PieceInstances" type="Node2D" parent="GameWorld2D"]
 
+[node name="EncounterModules" type="Node2D" parent="GameWorld2D"]
+
 [node name="DoorBlockers" type="Node2D" parent="GameWorld2D"]
 
 [node name="CombatDoorWest" type="StaticBody2D" parent="GameWorld2D/DoorBlockers"]
@@ -220,8 +222,4 @@ offset_right = 700.0
 offset_bottom = 80.0
 text = "Small dungeon POC loaded."
 
-[connection signal="timeout" from="CombatClearTimer" to="." method="_on_combat_clear_timer_timeout"]
-[connection signal="timeout" from="BossClearTimer" to="." method="_on_boss_clear_timer_timeout"]
-[connection signal="body_entered" from="GameWorld2D/Triggers/CombatRoomTrigger" to="." method="_on_combat_room_trigger_body_entered"]
-[connection signal="body_entered" from="GameWorld2D/Triggers/BossRoomTrigger" to="." method="_on_boss_room_trigger_body_entered"]
 [connection signal="body_entered" from="GameWorld2D/Triggers/BossExitPortal" to="." method="_on_boss_exit_portal_body_entered"]

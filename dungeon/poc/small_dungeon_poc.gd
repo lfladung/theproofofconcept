@@ -8,40 +8,47 @@ const LABEL_SCALE := 0.2
 const CAMERA_LERP_SPEED := 8.0
 const WALL_PIECE_SCENE := preload("res://dungeon/modules/structure/wall_segment_2d.tscn")
 const DOOR_STANDARD_SCENE := preload("res://dungeon/modules/connectivity/door_standard_2d.tscn")
-const DOOR_LOCKED_SCENE := preload("res://dungeon/modules/connectivity/door_locked_2d.tscn")
 const ENTRANCE_MARKER_SCENE := preload("res://dungeon/modules/connectivity/entrance_marker_2d.tscn")
 const EXIT_MARKER_SCENE := preload("res://dungeon/modules/connectivity/exit_marker_2d.tscn")
+const MOB_SCENE := preload("res://mob.tscn")
+const SPAWN_POINT_SCENE := preload("res://dungeon/modules/encounter/enemy_spawn_point_2d.tscn")
+const SPAWN_VOLUME_SCENE := preload("res://dungeon/modules/encounter/enemy_spawn_volume_2d.tscn")
+const ROOM_TRIGGER_SCENE := preload("res://dungeon/modules/encounter/room_encounter_trigger_2d.tscn")
+const ARENA_BOUNDARY_SCENE := preload("res://dungeon/modules/encounter/arena_boundary_piece_2d.tscn")
 
 @onready var _world_bounds: StaticBody2D = $GameWorld2D/WorldBounds
 @onready var _rooms_root: Node2D = $GameWorld2D/Rooms
 @onready var _piece_instances_root: Node2D = $GameWorld2D/PieceInstances
+@onready var _encounter_modules_root: Node2D = $GameWorld2D/EncounterModules
 @onready var _visual_world: Node3D = $VisualWorld3D
 @onready var _room_visuals: Node3D = $VisualWorld3D/RoomVisuals
 @onready var _wall_visuals: Node3D = $VisualWorld3D/WallVisuals
 @onready var _door_visuals: Node3D = $VisualWorld3D/DoorVisuals
 @onready var _camera_pivot: Marker3D = $VisualWorld3D/CameraPivot
 @onready var _player: CharacterBody2D = $GameWorld2D/Player
-@onready var _combat_clear_timer: Timer = $CombatClearTimer
-@onready var _boss_clear_timer: Timer = $BossClearTimer
 @onready var _info_label: Label = $CanvasLayer/InfoLabel
-@onready var _combat_trigger: Area2D = $GameWorld2D/Triggers/CombatRoomTrigger
-@onready var _boss_trigger: Area2D = $GameWorld2D/Triggers/BossRoomTrigger
 @onready var _boss_exit_portal: Area2D = $GameWorld2D/Triggers/BossExitPortal
 
 var _combat_started := false
 var _combat_cleared := false
 var _boss_started := false
 var _boss_cleared := false
-var _combat_door_west: LockedDoorPiece2D
-var _combat_door_east: LockedDoorPiece2D
-var _boss_door_west: LockedDoorPiece2D
+var _combat_boundary_west: ArenaBoundaryPiece2D
+var _combat_boundary_east: ArenaBoundaryPiece2D
+var _boss_boundary_west: ArenaBoundaryPiece2D
+var _encounter_active: Dictionary = {}
+var _encounter_completed: Dictionary = {}
+var _encounter_mobs: Dictionary = {}
+var _spawn_points_by_encounter: Dictionary = {}
+var _spawn_volumes_by_encounter: Dictionary = {}
 
 
 func _ready() -> void:
 	_configure_room_metadata()
 	_build_world_bounds()
 	_build_room_debug_visuals()
-	_spawn_runtime_lock_doors()
+	_spawn_encounter_modules()
+	_spawn_runtime_encounter_boundaries()
 	_spawn_entrance_exit_markers()
 	_set_combat_doors_locked(false)
 	_set_boss_entry_locked(false)
@@ -56,6 +63,7 @@ func _process(delta: float) -> void:
 		return
 	var target := Vector3(_player.global_position.x, _camera_pivot.global_position.y, _player.global_position.y)
 	_camera_pivot.global_position = _camera_pivot.global_position.lerp(target, clampf(delta * CAMERA_LERP_SPEED, 0.0, 1.0))
+	_refresh_encounter_state()
 
 
 func _configure_room_metadata() -> void:
@@ -105,6 +113,8 @@ func _build_world_bounds() -> void:
 	for child in _world_bounds.get_children():
 		child.queue_free()
 	for child in _piece_instances_root.get_children():
+		child.queue_free()
+	for child in _encounter_modules_root.get_children():
 		child.queue_free()
 	for child in _wall_visuals.get_children():
 		child.queue_free()
@@ -295,15 +305,15 @@ func _color_for_room_type(room_type: String) -> Color:
 
 
 func _set_combat_doors_locked(locked: bool) -> void:
-	if _combat_door_west:
-		_combat_door_west.set_locked(locked)
-	if _combat_door_east:
-		_combat_door_east.set_locked(locked)
+	if _combat_boundary_west:
+		_combat_boundary_west.set_active(locked)
+	if _combat_boundary_east:
+		_combat_boundary_east.set_active(locked)
 
 
 func _set_boss_entry_locked(locked: bool) -> void:
-	if _boss_door_west:
-		_boss_door_west.set_locked(locked)
+	if _boss_boundary_west:
+		_boss_boundary_west.set_active(locked)
 
 
 func _spawn_standard_door_piece(world_pos: Vector2, width_tiles: int) -> void:
@@ -318,22 +328,23 @@ func _spawn_standard_door_piece(world_pos: Vector2, width_tiles: int) -> void:
 	_piece_instances_root.add_child(door_piece)
 
 
-func _spawn_runtime_lock_doors() -> void:
-	_combat_door_west = _spawn_locked_door_piece(Vector2(67.5, 0), 2, "CombatDoorWestPiece")
-	_combat_door_east = _spawn_locked_door_piece(Vector2(139.5, 0), 2, "CombatDoorEastPiece")
-	_boss_door_west = _spawn_locked_door_piece(Vector2(184.5, 0), 2, "BossDoorWestPiece")
+func _spawn_runtime_encounter_boundaries() -> void:
+	_combat_boundary_west = _spawn_arena_boundary_piece(Vector2(67.5, 0), 2, "CombatBoundaryWestPiece")
+	_combat_boundary_east = _spawn_arena_boundary_piece(Vector2(139.5, 0), 2, "CombatBoundaryEastPiece")
+	_boss_boundary_west = _spawn_arena_boundary_piece(Vector2(184.5, 0), 2, "BossBoundaryWestPiece")
 
 
-func _spawn_locked_door_piece(world_pos: Vector2, width_tiles: int, node_name: String) -> LockedDoorPiece2D:
-	var locked_piece := DOOR_LOCKED_SCENE.instantiate() as LockedDoorPiece2D
-	if locked_piece == null:
+func _spawn_arena_boundary_piece(world_pos: Vector2, width_tiles: int, node_name: String) -> ArenaBoundaryPiece2D:
+	var boundary_piece := ARENA_BOUNDARY_SCENE.instantiate() as ArenaBoundaryPiece2D
+	if boundary_piece == null:
 		return null
-	locked_piece.name = node_name
-	locked_piece.tile_size = Vector2i(3, 3)
-	locked_piece.footprint_tiles = Vector2i(maxi(1, width_tiles), 1)
-	locked_piece.position = world_pos
-	_piece_instances_root.add_child(locked_piece)
-	return locked_piece
+	boundary_piece.name = node_name
+	boundary_piece.tile_size = Vector2i(3, 3)
+	boundary_piece.footprint_tiles = Vector2i(maxi(1, width_tiles), 1)
+	boundary_piece.position = world_pos
+	boundary_piece.set_active(false)
+	_piece_instances_root.add_child(boundary_piece)
+	return boundary_piece
 
 
 func _spawn_entrance_exit_markers() -> void:
@@ -351,37 +362,167 @@ func _spawn_entrance_exit_markers() -> void:
 		_piece_instances_root.add_child(exit_marker)
 
 
-func _on_combat_room_trigger_body_entered(body: Node2D) -> void:
-	if _combat_started or not body.is_in_group(&"player"):
+func _spawn_encounter_modules() -> void:
+	_spawn_points_by_encounter.clear()
+	_spawn_volumes_by_encounter.clear()
+	_encounter_active = {&"combat": false, &"boss": false}
+	_encounter_completed = {&"combat": false, &"boss": false}
+	_encounter_mobs = {&"combat": [], &"boss": []}
+
+	_spawn_encounter_trigger(Vector2(103.5, 0), &"combat", "CombatEncounterTrigger")
+	_spawn_encounter_trigger(Vector2(238.5, 0), &"boss", "BossEncounterTrigger")
+
+	for point_pos in [Vector2(93, -18), Vector2(93, 18), Vector2(114, -18), Vector2(114, 18)]:
+		_spawn_enemy_spawn_point(point_pos, &"combat")
+	_spawn_enemy_spawn_volume(Vector2(103.5, 0), Vector2(48, 36), &"combat")
+
+	_spawn_enemy_spawn_point(Vector2(238.5, 0), &"boss")
+	_spawn_enemy_spawn_volume(Vector2(238.5, 0), Vector2(54, 54), &"boss")
+
+
+func _spawn_encounter_trigger(position_2d: Vector2, encounter_id: StringName, node_name: String) -> void:
+	var trigger := ROOM_TRIGGER_SCENE.instantiate() as RoomEncounterTrigger2D
+	if trigger == null:
 		return
+	trigger.name = node_name
+	trigger.encounter_id = encounter_id
+	trigger.position = position_2d
+	trigger.encounter_triggered.connect(_on_encounter_triggered)
+	_encounter_modules_root.add_child(trigger)
+
+
+func _spawn_enemy_spawn_point(position_2d: Vector2, encounter_id: StringName) -> void:
+	var point := SPAWN_POINT_SCENE.instantiate() as EnemySpawnPoint2D
+	if point == null:
+		return
+	point.encounter_id = encounter_id
+	point.position = position_2d
+	_encounter_modules_root.add_child(point)
+	if not _spawn_points_by_encounter.has(encounter_id):
+		_spawn_points_by_encounter[encounter_id] = []
+	var points: Array = _spawn_points_by_encounter[encounter_id] as Array
+	points.append(point)
+	_spawn_points_by_encounter[encounter_id] = points
+
+
+func _spawn_enemy_spawn_volume(position_2d: Vector2, size_2d: Vector2, encounter_id: StringName) -> void:
+	var volume := SPAWN_VOLUME_SCENE.instantiate() as EnemySpawnVolume2D
+	if volume == null:
+		return
+	volume.encounter_id = encounter_id
+	volume.position = position_2d
+	volume.size = size_2d
+	_encounter_modules_root.add_child(volume)
+	if not _spawn_volumes_by_encounter.has(encounter_id):
+		_spawn_volumes_by_encounter[encounter_id] = []
+	var volumes: Array = _spawn_volumes_by_encounter[encounter_id] as Array
+	volumes.append(volume)
+	_spawn_volumes_by_encounter[encounter_id] = volumes
+
+
+func _on_encounter_triggered(encounter_id: StringName) -> void:
+	if bool(_encounter_active.get(encounter_id, false)) or bool(_encounter_completed.get(encounter_id, false)):
+		return
+	match String(encounter_id):
+		"combat":
+			_start_combat_encounter()
+		"boss":
+			_start_boss_encounter()
+
+
+func _start_combat_encounter() -> void:
 	_combat_started = true
+	_encounter_active[&"combat"] = true
 	_set_combat_doors_locked(true)
-	_info_label.text = "Combat room locked. Simulating clear trigger..."
-	_combat_clear_timer.start()
+	_info_label.text = "Combat started. Clear all enemies to unlock."
+	_spawn_encounter_wave(&"combat", 6, 1.0)
 
 
-func _on_combat_clear_timer_timeout() -> void:
-	_combat_cleared = true
-	_set_combat_doors_locked(false)
-	_info_label.text = "Combat room cleared. Doors unlocked."
-
-
-func _on_boss_room_trigger_body_entered(body: Node2D) -> void:
-	if _boss_started or not body.is_in_group(&"player"):
-		return
+func _start_boss_encounter() -> void:
 	_boss_started = true
+	_encounter_active[&"boss"] = true
 	_set_boss_entry_locked(true)
-	_info_label.text = "Boss room engaged. Simulating boss completion..."
-	_boss_clear_timer.start()
+	_info_label.text = "Boss encounter started. Defeat all enemies."
+	_spawn_encounter_wave(&"boss", 2, 1.25)
 
 
-func _on_boss_clear_timer_timeout() -> void:
-	_boss_cleared = true
-	_set_boss_entry_locked(false)
-	_boss_exit_portal.monitoring = true
-	_boss_exit_portal.monitorable = true
-	($VisualWorld3D/BossPortalMarker as MeshInstance3D).visible = true
-	_info_label.text = "Boss defeated. Exit portal is active."
+func _spawn_encounter_wave(encounter_id: StringName, total_count: int, speed_multiplier: float) -> void:
+	var spawned := 0
+	var points: Array = _spawn_points_by_encounter.get(encounter_id, []) as Array
+	var volumes: Array = _spawn_volumes_by_encounter.get(encounter_id, []) as Array
+	var player_pos := _player.global_position
+	for point_node in points:
+		if spawned >= total_count:
+			break
+		if point_node is EnemySpawnPoint2D:
+			var point := point_node as EnemySpawnPoint2D
+			_spawn_encounter_mob(encounter_id, point.get_spawn_position(), player_pos, speed_multiplier)
+			spawned += 1
+	while spawned < total_count:
+		if volumes.is_empty():
+			break
+		var volume_idx := randi() % volumes.size()
+		var volume := volumes[volume_idx] as EnemySpawnVolume2D
+		_spawn_encounter_mob(encounter_id, volume.sample_spawn_position(), player_pos, speed_multiplier)
+		spawned += 1
+
+
+func _spawn_encounter_mob(
+	encounter_id: StringName, spawn_position: Vector2, target_position: Vector2, speed_multiplier: float
+) -> void:
+	var mob := MOB_SCENE.instantiate() as CreepMob
+	if mob == null:
+		return
+	mob.min_speed *= speed_multiplier
+	mob.max_speed *= speed_multiplier
+	mob.configure_spawn(spawn_position, target_position)
+	$GameWorld2D.add_child(mob)
+	if not _encounter_mobs.has(encounter_id):
+		_encounter_mobs[encounter_id] = []
+	var mobs: Array = _encounter_mobs[encounter_id] as Array
+	mobs.append(mob)
+	_encounter_mobs[encounter_id] = mobs
+	mob.tree_exited.connect(func() -> void: _on_encounter_mob_removed(encounter_id, mob), CONNECT_ONE_SHOT)
+
+
+func _on_encounter_mob_removed(encounter_id: StringName, mob: CreepMob) -> void:
+	if not _encounter_mobs.has(encounter_id):
+		return
+	var mobs: Array = _encounter_mobs[encounter_id] as Array
+	mobs.erase(mob)
+	_encounter_mobs[encounter_id] = mobs
+
+
+func _refresh_encounter_state() -> void:
+	for encounter_key in _encounter_active.keys():
+		var encounter_id := encounter_key as StringName
+		if not bool(_encounter_active[encounter_id]):
+			continue
+		var mobs: Array = _encounter_mobs.get(encounter_id, []) as Array
+		var alive: Array = []
+		for mob in mobs:
+			if is_instance_valid(mob):
+				alive.append(mob)
+		_encounter_mobs[encounter_id] = alive
+		if alive.is_empty():
+			_complete_encounter(encounter_id)
+
+
+func _complete_encounter(encounter_id: StringName) -> void:
+	_encounter_active[encounter_id] = false
+	_encounter_completed[encounter_id] = true
+	match String(encounter_id):
+		"combat":
+			_combat_cleared = true
+			_set_combat_doors_locked(false)
+			_info_label.text = "Combat room cleared. Doors unlocked."
+		"boss":
+			_boss_cleared = true
+			_set_boss_entry_locked(false)
+			_boss_exit_portal.monitoring = true
+			_boss_exit_portal.monitorable = true
+			($VisualWorld3D/BossPortalMarker as MeshInstance3D).visible = true
+			_info_label.text = "Boss defeated. Exit portal is active."
 
 
 func _on_boss_exit_portal_body_entered(body: Node2D) -> void:
