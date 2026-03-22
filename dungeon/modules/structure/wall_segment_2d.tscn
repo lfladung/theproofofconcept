@@ -1,0 +1,12 @@
+[gd_scene format=3 uid="uid://wall_segment_piece_scene"]
+
+[ext_resource type="PackedScene" path="res://dungeon/modules/base/dungeon_piece_2d.tscn" id="1_base"]
+
+[node name="WallSegment2D" instance=ExtResource("1_base")]
+piece_id = &"wall_segment"
+piece_category = &"structure"
+footprint_tiles = Vector2i(2, 1)
+display_color = Color(0.47, 0.31, 0.20, 1)
+walkable = false
+blocks_movement = true
+tags = PackedStringArray("mvp", "wall", "boundary")

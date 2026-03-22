@@ -1,0 +1,13 @@
+[gd_scene load_steps=2 format=3 uid="uid://door_locked_piece_scene"]
+
+[ext_resource type="PackedScene" path="res://dungeon/modules/base/dungeon_piece_2d.tscn" id="1_base"]
+[ext_resource type="Script" path="res://dungeon/modules/connectivity/locked_door_piece_2d.gd" id="2_locked_script"]
+
+[node name="DoorLocked2D" instance=ExtResource("1_base")]
+script = ExtResource("2_locked_script")
+piece_id = &"door_locked"
+piece_category = &"connectivity"
+footprint_tiles = Vector2i(2, 1)
+walkable = false
+blocks_movement = true
+tags = PackedStringArray("mvp", "door", "locked", "connector")

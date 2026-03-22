@@ -1,0 +1,11 @@
+[gd_scene format=3 uid="uid://pit_tile_piece_scene"]
+
+[ext_resource type="PackedScene" path="res://dungeon/modules/base/dungeon_piece_2d.tscn" id="1_base"]
+
+[node name="PitTile2D" instance=ExtResource("1_base")]
+piece_id = &"pit_tile"
+piece_category = &"structure"
+display_color = Color(0.1, 0.1, 0.1, 1)
+walkable = false
+blocks_movement = true
+tags = PackedStringArray("mvp", "pit", "void")

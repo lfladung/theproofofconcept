@@ -1,0 +1,14 @@
+[gd_scene load_steps=2 format=3 uid="uid://entrance_marker_piece_scene"]
+
+[ext_resource type="Script" path="res://dungeon/modules/connectivity/connector_marker_2d.gd" id="1_marker_script"]
+
+[node name="EntranceMarker2D" type="Marker2D"]
+script = ExtResource("1_marker_script")
+marker_kind = "entrance"
+direction = "east"
+marker_color = Color(0.62, 0.26, 0.86, 1)
+connection_tag = &"entrance"
+
+[node name="Visual" type="Polygon2D" parent="."]
+color = Color(0.62, 0.26, 0.86, 1)
+polygon = PackedVector2Array(0, -2.5, 2.5, 0, 0, 2.5, -2.5, 0)

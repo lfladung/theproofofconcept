@@ -101,6 +101,12 @@ Mental model: every room is a self-contained gameplay cartridge.
   - Base reusable room scene contract and door socket scene.
 - `res://dungeon/metadata/`
   - Reusable metadata markers for generation and encounter logic.
+- `res://dungeon/modules/base/`
+  - Shared reusable module piece base scene/script.
+- `res://dungeon/modules/structure/`
+  - MVP structural pieces (floor/wall/corner/pit/ramp).
+- `res://dungeon/modules/connectivity/`
+  - MVP connectivity pieces (door/locked door/entrance/exit).
 - `res://dungeon/tilesets/`
   - Dummy color-coded assets for graybox authoring.
 
@@ -149,6 +155,7 @@ Legend texture:
 - Rooms: `room_<category>_<theme>_<size>_<variant>.tscn`
 - Sockets: `DoorSocket_<Direction>_<Width>`
 - Zones: `<ZoneType>_<Role>_<Index>`
+- Pieces: `<piece_name>_2d.tscn`
 
 ## Enforcement in Code
 
@@ -200,6 +207,23 @@ Milestone 2 (validated POC integration):
 - runtime boundary + visual wall generation from sockets
 - room progression gating (combat lock/clear, boss completion portal)
 - player-follow camera framing focused on current-room readability
+
+Original milestone map #2 (MVP structural + connectivity pack):
+- structural pieces:
+  - `floor_tile_2d.tscn`
+  - `wall_segment_2d.tscn`
+  - `corner_wall_2d.tscn`
+  - `pit_tile_2d.tscn`
+  - `ramp_tile_2d.tscn`
+- connectivity pieces:
+  - `door_standard_2d.tscn`
+  - `door_locked_2d.tscn`
+  - `entrance_marker_2d.tscn`
+  - `exit_marker_2d.tscn`
+- locked door runtime API:
+  - `lock()`
+  - `unlock()`
+  - `set_locked(value: bool)`
 
 Generation logic, room catalog loading, and fully data-driven runtime assembly continue in later milestones.
 

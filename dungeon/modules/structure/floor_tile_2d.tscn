@@ -1,0 +1,11 @@
+[gd_scene format=3 uid="uid://floor_tile_piece_scene"]
+
+[ext_resource type="PackedScene" path="res://dungeon/modules/base/dungeon_piece_2d.tscn" id="1_base"]
+
+[node name="FloorTile2D" instance=ExtResource("1_base")]
+piece_id = &"floor_tile"
+piece_category = &"structure"
+display_color = Color(1, 1, 1, 1)
+walkable = true
+blocks_movement = false
+tags = PackedStringArray("mvp", "floor", "walkable")

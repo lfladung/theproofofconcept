@@ -1,0 +1,11 @@
+[gd_scene format=3 uid="uid://corner_wall_piece_scene"]
+
+[ext_resource type="PackedScene" path="res://dungeon/modules/base/dungeon_piece_2d.tscn" id="1_base"]
+
+[node name="CornerWall2D" instance=ExtResource("1_base")]
+piece_id = &"corner_wall"
+piece_category = &"structure"
+display_color = Color(0.47, 0.31, 0.20, 1)
+walkable = false
+blocks_movement = true
+tags = PackedStringArray("mvp", "wall", "corner")
