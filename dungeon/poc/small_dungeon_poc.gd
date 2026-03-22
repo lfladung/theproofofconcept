@@ -6,6 +6,9 @@ const WALL_VISUAL_HEIGHT := 3.0
 const WALL_VISUAL_BASE_Y := -0.5
 const LABEL_SCALE := 0.2
 const CAMERA_LERP_SPEED := 8.0
+## ARPG-style diagonal view (yaw) + look-down pitch; applied in _ready().
+const CAMERA_DIAG_PITCH_DEG := -44.0
+const CAMERA_DIAG_YAW_DEG := 40.0
 const WALL_PIECE_SCENE := preload("res://dungeon/modules/structure/wall_segment_2d.tscn")
 const DOOR_STANDARD_SCENE := preload("res://dungeon/modules/connectivity/door_standard_2d.tscn")
 const ENTRANCE_MARKER_SCENE := preload("res://dungeon/modules/connectivity/entrance_marker_2d.tscn")
@@ -16,6 +19,9 @@ const SPAWN_VOLUME_SCENE := preload("res://dungeon/modules/encounter/enemy_spawn
 const ROOM_TRIGGER_SCENE := preload("res://dungeon/modules/encounter/room_encounter_trigger_2d.tscn")
 const DUNGEON_CELL_DOOR_SCENE := preload("res://dungeon/visuals/dungeon_cell_door_3d.tscn")
 const STYLIZED_WALL_3D_SCENE := preload("res://art/Meshy_AI_stylized_wall_0322224805_texture.glb")
+const FLOOR_WALL_ALBEDO_TEXTURE := preload("res://art/Meshy_AI_stylized_wall_0322224805_texture_0.jpg")
+## World units per texture repeat on floors (matches 3×3 room tiles).
+const FLOOR_TEXTURE_TILE_WORLD := 3.0
 ## Matches DoorBlockers / door sockets: slab half-width 1.5, centers on X as placed in the POC scene.
 const _DOOR_SLAB_HALF := 1.5
 const _COMBAT_DOOR_X_W := 67.5
@@ -60,6 +66,7 @@ var _wall_visual_prefab_aabb := AABB()
 
 
 func _ready() -> void:
+	_camera_pivot.rotation_degrees = Vector3(CAMERA_DIAG_PITCH_DEG, CAMERA_DIAG_YAW_DEG, 0.0)
 	_configure_room_metadata()
 	_build_world_bounds()
 	_build_room_debug_visuals()
@@ -358,7 +365,10 @@ func _build_room_debug_visuals() -> void:
 			continue
 		var r := room as RoomBase
 		var rect_local := r.get_room_rect_world()
-		var rect := Rect2(rect_local.position + r.global_position, rect_local.size)
+		# Match _add_room_boundary: walls are centered on global_position with half-extents size*0.5.
+		# Using rect_local.position + global would offset floors for odd tile counts (asymmetric tile rect).
+		var half := rect_local.size * 0.5
+		var rect := Rect2(r.global_position - half, rect_local.size)
 		var color := _color_for_room_type(r.room_type)
 		_add_room_floor_visual(rect, color, r.name + " (" + r.room_type.to_upper() + ")")
 		for socket in r.get_all_sockets():
@@ -451,8 +461,12 @@ func _add_room_floor_visual(rect: Rect2, color: Color, label_text: String) -> vo
 	var bm := BoxMesh.new()
 	bm.size = Vector3(rect.size.x, ROOM_HEIGHT, rect.size.y)
 	var mat := StandardMaterial3D.new()
+	mat.albedo_texture = FLOOR_WALL_ALBEDO_TEXTURE
 	mat.albedo_color = color
-	bm.material = mat
+	mat.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS
+	var tile := maxf(0.01, FLOOR_TEXTURE_TILE_WORLD)
+	mat.uv1_scale = Vector3(rect.size.x / tile, rect.size.y / tile, 1.0)
+	mesh.material_override = mat
 	mesh.mesh = bm
 	mesh.position = Vector3(rect.position.x + rect.size.x * 0.5, ROOM_HEIGHT * 0.5 - 0.5, rect.position.y + rect.size.y * 0.5)
 	_room_visuals.add_child(mesh)
