@@ -153,6 +153,7 @@ offset_right = 8.0
 offset_bottom = 6.0
 grow_horizontal = 2
 grow_vertical = 2
+mouse_filter = 2
 theme = SubResource("Theme_ui")
 
 [node name="ScoreLabel" type="Label" parent="CanvasLayer/UserInterface" unique_id=518873321]

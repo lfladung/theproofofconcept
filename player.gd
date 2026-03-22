@@ -21,20 +21,40 @@ signal hit
 var vertical_velocity := 0.0
 
 
+func _mouse_steering_active() -> bool:
+	if not Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT):
+		return false
+	# Don't steal movement when a Control is under the cursor (e.g. game-over overlay).
+	return get_viewport().gui_get_hovered_control() == null
+
+
+## Screen mouse → GameWorld2D plane (same coords as global_position: x, y ↔ 3D x, z).
+func _mouse_planar_world() -> Vector2:
+	var cam := get_viewport().get_camera_3d()
+	if cam == null:
+		return global_position
+	var mouse := get_viewport().get_mouse_position()
+	var from := cam.project_ray_origin(mouse)
+	var dir := cam.project_ray_normal(mouse)
+	if absf(dir.y) < 1e-5:
+		return global_position
+	var t := -from.y / dir.y
+	if t < 0.0:
+		return global_position
+	var hit := from + dir * t
+	return Vector2(hit.x, hit.z)
+
+
 func _physics_process(delta: float) -> void:
 	var direction := Vector2.ZERO
-	if Input.is_action_pressed(&"move_right"):
-		direction.x += 1.0
-	if Input.is_action_pressed(&"move_left"):
-		direction.x -= 1.0
-	if Input.is_action_pressed(&"move_back"):
-		direction.y += 1.0
-	if Input.is_action_pressed(&"move_forward"):
-		direction.y -= 1.0
+	if _mouse_steering_active():
+		var target := _mouse_planar_world()
+		var to_target := target - global_position
+		if to_target.length_squared() > 0.01:
+			direction = to_target.normalized()
 
 	var planar_speed := 0.0
 	if direction != Vector2.ZERO:
-		direction = direction.normalized()
 		velocity = direction * speed
 		planar_speed = speed
 	else:
