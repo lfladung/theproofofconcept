@@ -11,12 +11,14 @@ All new dungeon rooms must follow these rules. This is the source of truth for r
 1. Grid compliance
    - Room dimensions align to a global tile grid.
    - Width/height use standardized sizes (default set: `10`, `16`, `24`, `32` tiles).
+   - POC validated scaled profile also supported: `9`, `15`, `24`, `36` tiles.
    - Player footprint is treated as `1x1` tile baseline.
    - Door sockets align to grid centers.
 2. Closed boundary
    - Rooms are enclosed by walls or void boundaries.
    - Open edges are allowed only at explicit door sockets.
    - Player exits only through defined connectors.
+   - Boundary colliders must have matching visual walls (brown) for readability.
 3. Door socket standardization
    - Cardinal sockets (`north`, `south`, `east`, `west`) are required for horizontal connectivity.
    - Socket width follows corridor standards.
@@ -60,6 +62,7 @@ All new dungeon rooms must follow these rules. This is the source of truth for r
    - Walkable vs blocked areas are obvious.
    - Major hazards are visually clear.
    - Exits are readable at a glance.
+   - Room boundaries should always be visually readable (brown wall standard in graybox).
 12. Combat rhythm rule
    - Small: quick skirmish
    - Medium: tactical combat
@@ -160,14 +163,45 @@ Legend texture:
 
 Authoring workflow: duplicate `room_base.tscn`, set metadata first, then paint/layout content until all rule warnings are resolved.
 
+## Validated Milestone Baseline
+
+The small dungeon POC is now considered the first validated end-to-end room framework milestone for this project.
+
+What is validated:
+- room taxonomy integration: `safe`, `connector`, `arena`, `treasure`, `boss`
+- mandatory transition pacing: connector room between major rooms
+- socket-driven wall segmentation and enclosed boundaries
+- combat self-containment flow (lock on entry, unlock on clear simulation)
+- boss progression gate (engage, clear simulation, exit portal activation)
+- camera follow behavior for room-centric navigation readability
+- explicit wall visuals for every collision boundary (brown)
+
+Validated room chain:
+- entrance -> transition -> combat -> transition -> boss
+- optional treasure branch via connector
+
+Validated scale profile:
+- all POC rooms are authored at `1.5x` of the original draft sizes
+- this profile is accepted as a standard room-size set for future content packs
+
+Design policy moving forward:
+- new dungeon content should inherit these validated behaviors unless a room explicitly documents an intentional exception
+- new milestones should extend from this baseline, not replace it
+
 ## Current Scope
 
-Milestone 1 provides the modular skeleton only:
+Milestone 1:
 - room composition contract
 - reusable socket and zone marker scenes
 - shared constants and color legend
 
-Generation logic, room catalog loading, and runtime assembly are implemented in later milestones.
+Milestone 2 (validated POC integration):
+- multi-room base taxonomy proof (`entrance`, `transition`, `combat`, `treasure`, `boss`)
+- runtime boundary + visual wall generation from sockets
+- room progression gating (combat lock/clear, boss completion portal)
+- player-follow camera framing focused on current-room readability
+
+Generation logic, room catalog loading, and fully data-driven runtime assembly continue in later milestones.
 
 ## POC Scene
 
@@ -175,17 +209,18 @@ Generation logic, room catalog loading, and runtime assembly are implemented in 
   - Instantiates `RoomBase`.
   - Adds a small-room world boundary and a playable `Player`.
   - Uses the milestone debug color language in 3D placeholders:
-	- white ground
-	- brown walls
-	- yellow trap tile
-	- purple doorway
-	- orange stairs marker
+    - white ground
+    - brown walls
+    - yellow trap tile
+    - purple doorway
+    - orange stairs marker
 
 - `res://dungeon/poc/small_dungeon_poc.tscn`
   - Multi-room dungeon POC that includes baseline room types:
-	- entrance room
-	- transition corridors between main rooms
-	- combat room (lock/unlock proof without enemy spawning)
-	- treasure dead-end room (chest marker)
-	- boss room (completion portal after simulated clear)
+    - entrance room
+    - transition corridors between main rooms
+    - combat room (lock/unlock proof without enemy spawning)
+    - treasure dead-end room (chest marker)
+    - boss room (completion portal after simulated clear)
   - Uses `RoomBase` instances and runtime boundary generation from socket openings.
+  - Includes player-follow camera and explicit brown wall visuals for all boundary colliders.
