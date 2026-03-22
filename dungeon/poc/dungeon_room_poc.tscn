@@ -5,19 +5,19 @@
 [ext_resource type="PackedScene" path="res://player_visual.tscn" id="3_pvis"]
 
 [sub_resource type="RectangleShape2D" id="1_wall_nw_shape"]
-size = Vector2(160, 16)
+size = Vector2(11, 1)
 
 [sub_resource type="RectangleShape2D" id="2_wall_ne_shape"]
-size = Vector2(160, 16)
+size = Vector2(11, 1)
 
 [sub_resource type="RectangleShape2D" id="3_wall_s_shape"]
-size = Vector2(384, 16)
+size = Vector2(26, 1)
 
 [sub_resource type="RectangleShape2D" id="4_wall_w_shape"]
-size = Vector2(16, 384)
+size = Vector2(1, 26)
 
 [sub_resource type="RectangleShape2D" id="5_wall_e_shape"]
-size = Vector2(16, 384)
+size = Vector2(1, 26)
 
 [sub_resource type="StandardMaterial3D" id="6_floor_mat"]
 albedo_color = Color(1, 1, 1, 1)
@@ -36,33 +36,33 @@ albedo_color = Color(1, 0.560784, 0.14902, 1)
 
 [sub_resource type="BoxMesh" id="11_floor_mesh"]
 material = SubResource("6_floor_mat")
-size = Vector3(384, 2, 384)
+size = Vector3(26, 1, 26)
 
 [sub_resource type="BoxMesh" id="12_wall_long_mesh"]
 material = SubResource("7_wall_mat")
-size = Vector3(384, 8, 16)
+size = Vector3(26, 4, 1)
 
 [sub_resource type="BoxMesh" id="13_wall_side_mesh"]
 material = SubResource("7_wall_mat")
-size = Vector3(16, 8, 384)
+size = Vector3(1, 4, 26)
 
 [sub_resource type="BoxMesh" id="14_wall_short_mesh"]
 material = SubResource("7_wall_mat")
-size = Vector3(160, 8, 16)
+size = Vector3(11, 4, 1)
 
 [sub_resource type="BoxMesh" id="15_trap_mesh"]
 material = SubResource("8_trap_mat")
-size = Vector3(64, 0.8, 64)
+size = Vector3(4, 0.4, 4)
 
 [sub_resource type="BoxMesh" id="16_door_mesh"]
 material = SubResource("9_door_mat")
-size = Vector3(64, 2, 16)
+size = Vector3(4, 1, 1)
 
 [sub_resource type="CylinderMesh" id="17_stairs_mesh"]
 material = SubResource("10_stairs_mat")
-top_radius = 16.0
-bottom_radius = 16.0
-height = 2.0
+top_radius = 1.4
+bottom_radius = 1.4
+height = 0.8
 
 [node name="DungeonRoomPOC" type="Node"]
 
@@ -71,27 +71,28 @@ height = 2.0
 [node name="Room" parent="GameWorld2D" instance=ExtResource("1_room")]
 room_id = "room_combat_debug_small_01"
 size_class = "small"
-room_size_tiles = Vector2i(12, 12)
+tile_size = Vector2i(2, 2)
+room_size_tiles = Vector2i(13, 13)
 allowed_rotations = PackedInt32Array(0, 90, 180, 270)
 room_tags = PackedStringArray("poc", "debug", "combat")
 
 [node name="DoorSocket_N_1" parent="GameWorld2D/Room/Sockets"]
-position = Vector2(0, -192)
+position = Vector2(0, -12)
 direction = "north"
 width_tiles = 2
 
 [node name="DoorSocket_S_1" parent="GameWorld2D/Room/Sockets"]
-position = Vector2(0, 192)
+position = Vector2(0, 12)
 direction = "south"
 width_tiles = 1
 
 [node name="DoorSocket_W_1" parent="GameWorld2D/Room/Sockets"]
-position = Vector2(-192, 0)
+position = Vector2(-12, 0)
 direction = "west"
 width_tiles = 1
 
 [node name="DoorSocket_E_1" parent="GameWorld2D/Room/Sockets"]
-position = Vector2(192, 0)
+position = Vector2(12, 0)
 direction = "east"
 width_tiles = 1
 
@@ -100,27 +101,27 @@ collision_layer = 4
 collision_mask = 0
 
 [node name="WallNorthLeft" type="CollisionShape2D" parent="GameWorld2D/WorldBounds"]
-position = Vector2(-112, -200)
+position = Vector2(-7.5, -13)
 shape = SubResource("1_wall_nw_shape")
 
 [node name="WallNorthRight" type="CollisionShape2D" parent="GameWorld2D/WorldBounds"]
-position = Vector2(112, -200)
+position = Vector2(7.5, -13)
 shape = SubResource("2_wall_ne_shape")
 
 [node name="WallSouth" type="CollisionShape2D" parent="GameWorld2D/WorldBounds"]
-position = Vector2(0, 200)
+position = Vector2(0, 13)
 shape = SubResource("3_wall_s_shape")
 
 [node name="WallWest" type="CollisionShape2D" parent="GameWorld2D/WorldBounds"]
-position = Vector2(-200, 0)
+position = Vector2(-13, 0)
 shape = SubResource("4_wall_w_shape")
 
 [node name="WallEast" type="CollisionShape2D" parent="GameWorld2D/WorldBounds"]
-position = Vector2(200, 0)
+position = Vector2(13, 0)
 shape = SubResource("5_wall_e_shape")
 
 [node name="Player" parent="GameWorld2D" instance=ExtResource("2_player")]
-position = Vector2(0, 48)
+position = Vector2(0, 3)
 
 [node name="VisualWorld3D" type="Node3D" parent="."]
 
@@ -133,63 +134,63 @@ mesh = SubResource("11_floor_mesh")
 [node name="Walls3D" type="Node3D" parent="VisualWorld3D"]
 
 [node name="WallNorthLeft3D" type="MeshInstance3D" parent="VisualWorld3D/Walls3D"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -112, 4, -200)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -7.5, 2, -13)
 mesh = SubResource("14_wall_short_mesh")
 
 [node name="WallNorthRight3D" type="MeshInstance3D" parent="VisualWorld3D/Walls3D"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 112, 4, -200)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 7.5, 2, -13)
 mesh = SubResource("14_wall_short_mesh")
 
 [node name="WallSouth3D" type="MeshInstance3D" parent="VisualWorld3D/Walls3D"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 4, 200)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 2, 13)
 mesh = SubResource("12_wall_long_mesh")
 
 [node name="WallWest3D" type="MeshInstance3D" parent="VisualWorld3D/Walls3D"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -200, 4, 0)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -13, 2, 0)
 mesh = SubResource("13_wall_side_mesh")
 
 [node name="WallEast3D" type="MeshInstance3D" parent="VisualWorld3D/Walls3D"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 200, 4, 0)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 13, 2, 0)
 mesh = SubResource("13_wall_side_mesh")
 
 [node name="DoorMarker3D" type="MeshInstance3D" parent="VisualWorld3D"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.2, -200)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.6, -13)
 mesh = SubResource("16_door_mesh")
 
 [node name="TrapTile3D" type="MeshInstance3D" parent="VisualWorld3D"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -64, 0.4, 16)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -4, 0.2, 2)
 mesh = SubResource("15_trap_mesh")
 
 [node name="StairsMarker3D" type="MeshInstance3D" parent="VisualWorld3D"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 128, 1, 128)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 7, 0.4, 7)
 mesh = SubResource("17_stairs_mesh")
 
 [node name="LabelGround" type="Label3D" parent="VisualWorld3D"]
-transform = Transform3D(1.2, 0, 0, 0, 1.2, 0, 0, 0, 1.2, -140, 0.3, 120)
+transform = Transform3D(0.25, 0, 0, 0, 0.25, 0, 0, 0, 0.25, -8, 0.4, 8)
 text = "GROUND (WHITE)"
 billboard = 1
 modulate = Color(0, 0, 0, 1)
 
 [node name="LabelWall" type="Label3D" parent="VisualWorld3D"]
-transform = Transform3D(1.2, 0, 0, 0, 1.2, 0, 0, 0, 1.2, 0, 9.5, 200)
+transform = Transform3D(0.25, 0, 0, 0, 0.25, 0, 0, 0, 0.25, 0, 4.8, 13)
 text = "WALL (BROWN)"
 billboard = 1
 modulate = Color(1, 1, 1, 1)
 
 [node name="LabelDoor" type="Label3D" parent="VisualWorld3D"]
-transform = Transform3D(1.2, 0, 0, 0, 1.2, 0, 0, 0, 1.2, 0, 5.5, -200)
+transform = Transform3D(0.25, 0, 0, 0, 0.25, 0, 0, 0, 0.25, 0, 3.5, -13)
 text = "DOOR/EXIT (PURPLE)"
 billboard = 1
 modulate = Color(1, 1, 1, 1)
 
 [node name="LabelTrap" type="Label3D" parent="VisualWorld3D"]
-transform = Transform3D(1.2, 0, 0, 0, 1.2, 0, 0, 0, 1.2, -64, 3.0, 16)
+transform = Transform3D(0.25, 0, 0, 0, 0.25, 0, 0, 0, 0.25, -4, 1.8, 2)
 text = "TRAP (YELLOW)"
 billboard = 1
 modulate = Color(0, 0, 0, 1)
 
 [node name="LabelStairs" type="Label3D" parent="VisualWorld3D"]
-transform = Transform3D(1.2, 0, 0, 0, 1.2, 0, 0, 0, 1.2, 128, 4, 128)
+transform = Transform3D(0.25, 0, 0, 0, 0.25, 0, 0, 0, 0.25, 7, 2.4, 7)
 text = "STAIRS (ORANGE)"
 billboard = 1
 modulate = Color(0, 0, 0, 1)
@@ -201,7 +202,7 @@ shadow_bias = 0.04
 shadow_blur = 1.5
 directional_shadow_mode = 0
 directional_shadow_fade_start = 1.0
-directional_shadow_max_distance = 80.0
+directional_shadow_max_distance = 40.0
 
 [node name="PlayerVisual" parent="VisualWorld3D" instance=ExtResource("3_pvis")]
 
@@ -209,11 +210,11 @@ directional_shadow_max_distance = 80.0
 transform = Transform3D(1, 0, 0, 0, 0.707107, 0.707107, 0, -0.707107, 0.707107, 0, 0, 0)
 
 [node name="Camera" type="Camera3D" parent="VisualWorld3D/CameraPivot"]
-transform = Transform3D(1, 0, 0, 0, 1, -2.98023e-08, 0, 2.98023e-08, 1, 0, 0, 300)
+transform = Transform3D(1, 0, 0, 0, 1, -2.98023e-08, 0, 2.98023e-08, 1, 0, 0, 30)
 projection = 1
 current = true
-size = 250.0
-far = 1200.0
+size = 20.0
+far = 120.0
 
 [node name="CanvasLayer" type="CanvasLayer" parent="."]
 

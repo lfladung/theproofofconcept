@@ -59,8 +59,8 @@ Generation logic, room catalog loading, and runtime assembly are implemented in 
   - Instantiates `RoomBase`.
   - Adds a small-room world boundary and a playable `Player`.
   - Uses the milestone debug color language in 3D placeholders:
-    - white ground
-    - brown walls
-    - yellow trap tile
-    - purple doorway
-    - orange stairs marker
+	- white ground
+	- brown walls
+	- yellow trap tile
+	- purple doorway
+	- orange stairs marker
