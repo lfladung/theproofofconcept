@@ -6,9 +6,15 @@ const WALL_VISUAL_HEIGHT := 3.0
 const WALL_VISUAL_BASE_Y := -0.5
 const LABEL_SCALE := 0.2
 const CAMERA_LERP_SPEED := 8.0
+const WALL_PIECE_SCENE := preload("res://dungeon/modules/structure/wall_segment_2d.tscn")
+const DOOR_STANDARD_SCENE := preload("res://dungeon/modules/connectivity/door_standard_2d.tscn")
+const DOOR_LOCKED_SCENE := preload("res://dungeon/modules/connectivity/door_locked_2d.tscn")
+const ENTRANCE_MARKER_SCENE := preload("res://dungeon/modules/connectivity/entrance_marker_2d.tscn")
+const EXIT_MARKER_SCENE := preload("res://dungeon/modules/connectivity/exit_marker_2d.tscn")
 
 @onready var _world_bounds: StaticBody2D = $GameWorld2D/WorldBounds
 @onready var _rooms_root: Node2D = $GameWorld2D/Rooms
+@onready var _piece_instances_root: Node2D = $GameWorld2D/PieceInstances
 @onready var _visual_world: Node3D = $VisualWorld3D
 @onready var _room_visuals: Node3D = $VisualWorld3D/RoomVisuals
 @onready var _wall_visuals: Node3D = $VisualWorld3D/WallVisuals
@@ -26,12 +32,17 @@ var _combat_started := false
 var _combat_cleared := false
 var _boss_started := false
 var _boss_cleared := false
+var _combat_door_west: LockedDoorPiece2D
+var _combat_door_east: LockedDoorPiece2D
+var _boss_door_west: LockedDoorPiece2D
 
 
 func _ready() -> void:
 	_configure_room_metadata()
 	_build_world_bounds()
 	_build_room_debug_visuals()
+	_spawn_runtime_lock_doors()
+	_spawn_entrance_exit_markers()
 	_set_combat_doors_locked(false)
 	_set_boss_entry_locked(false)
 	_boss_exit_portal.monitoring = false
@@ -92,6 +103,8 @@ func _set_room_sockets_for_layout(room: RoomBase) -> void:
 
 func _build_world_bounds() -> void:
 	for child in _world_bounds.get_children():
+		child.queue_free()
+	for child in _piece_instances_root.get_children():
 		child.queue_free()
 	for child in _wall_visuals.get_children():
 		child.queue_free()
@@ -181,13 +194,24 @@ func _segments_from_openings(min_value: float, max_value: float, openings: Array
 
 
 func _add_wall_shape(position_2d: Vector2, size_2d: Vector2) -> void:
-	var cs := CollisionShape2D.new()
-	cs.position = position_2d
-	var shape := RectangleShape2D.new()
-	shape.size = size_2d
-	cs.shape = shape
-	_world_bounds.add_child(cs)
+	_add_wall_piece(position_2d, size_2d)
 	_add_wall_visual(position_2d, size_2d)
+
+
+func _add_wall_piece(position_2d: Vector2, size_2d: Vector2) -> void:
+	var wall_piece := WALL_PIECE_SCENE.instantiate() as DungeonPiece2D
+	if wall_piece == null:
+		return
+	wall_piece.name = "WallPiece_%s_%s" % [position_2d.x, position_2d.y]
+	wall_piece.tile_size = Vector2i(1, 1)
+	wall_piece.footprint_tiles = Vector2i(
+		maxi(1, int(roundf(size_2d.x))),
+		maxi(1, int(roundf(size_2d.y)))
+	)
+	wall_piece.blocks_movement = true
+	wall_piece.walkable = false
+	wall_piece.position = position_2d
+	_piece_instances_root.add_child(wall_piece)
 
 
 func _add_wall_visual(position_2d: Vector2, size_2d: Vector2) -> void:
@@ -222,6 +246,7 @@ func _build_room_debug_visuals() -> void:
 		for socket in r.get_all_sockets():
 			if socket.connector_type == &"inactive":
 				continue
+			_spawn_standard_door_piece(r.global_position + socket.position, socket.width_tiles)
 			_add_door_visual(r.global_position + socket.position)
 
 
@@ -270,12 +295,60 @@ func _color_for_room_type(room_type: String) -> Color:
 
 
 func _set_combat_doors_locked(locked: bool) -> void:
-	($GameWorld2D/DoorBlockers/CombatDoorWest/CollisionShape2D as CollisionShape2D).disabled = not locked
-	($GameWorld2D/DoorBlockers/CombatDoorEast/CollisionShape2D as CollisionShape2D).disabled = not locked
+	if _combat_door_west:
+		_combat_door_west.set_locked(locked)
+	if _combat_door_east:
+		_combat_door_east.set_locked(locked)
 
 
 func _set_boss_entry_locked(locked: bool) -> void:
-	($GameWorld2D/DoorBlockers/BossDoorWest/CollisionShape2D as CollisionShape2D).disabled = not locked
+	if _boss_door_west:
+		_boss_door_west.set_locked(locked)
+
+
+func _spawn_standard_door_piece(world_pos: Vector2, width_tiles: int) -> void:
+	var door_piece := DOOR_STANDARD_SCENE.instantiate() as DungeonPiece2D
+	if door_piece == null:
+		return
+	door_piece.tile_size = Vector2i(3, 3)
+	door_piece.footprint_tiles = Vector2i(maxi(1, width_tiles), 1)
+	door_piece.blocks_movement = false
+	door_piece.walkable = true
+	door_piece.position = world_pos
+	_piece_instances_root.add_child(door_piece)
+
+
+func _spawn_runtime_lock_doors() -> void:
+	_combat_door_west = _spawn_locked_door_piece(Vector2(67.5, 0), 2, "CombatDoorWestPiece")
+	_combat_door_east = _spawn_locked_door_piece(Vector2(139.5, 0), 2, "CombatDoorEastPiece")
+	_boss_door_west = _spawn_locked_door_piece(Vector2(184.5, 0), 2, "BossDoorWestPiece")
+
+
+func _spawn_locked_door_piece(world_pos: Vector2, width_tiles: int, node_name: String) -> LockedDoorPiece2D:
+	var locked_piece := DOOR_LOCKED_SCENE.instantiate() as LockedDoorPiece2D
+	if locked_piece == null:
+		return null
+	locked_piece.name = node_name
+	locked_piece.tile_size = Vector2i(3, 3)
+	locked_piece.footprint_tiles = Vector2i(maxi(1, width_tiles), 1)
+	locked_piece.position = world_pos
+	_piece_instances_root.add_child(locked_piece)
+	return locked_piece
+
+
+func _spawn_entrance_exit_markers() -> void:
+	var entrance_pos := ($GameWorld2D/Markers/PlayerSpawnMarker as Marker2D).position
+	var exit_pos := ($GameWorld2D/Triggers/BossExitPortal as Area2D).position
+	var entrance_marker := ENTRANCE_MARKER_SCENE.instantiate() as ConnectorMarker2D
+	if entrance_marker:
+		entrance_marker.name = "EntranceMarkerPiece"
+		entrance_marker.position = entrance_pos
+		_piece_instances_root.add_child(entrance_marker)
+	var exit_marker := EXIT_MARKER_SCENE.instantiate() as ConnectorMarker2D
+	if exit_marker:
+		exit_marker.name = "ExitMarkerPiece"
+		exit_marker.position = exit_pos
+		_piece_instances_root.add_child(exit_marker)
 
 
 func _on_combat_room_trigger_body_entered(body: Node2D) -> void:

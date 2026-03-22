@@ -248,3 +248,8 @@ Generation logic, room catalog loading, and fully data-driven runtime assembly c
 	- boss room (completion portal after simulated clear)
   - Uses `RoomBase` instances and runtime boundary generation from socket openings.
   - Includes player-follow camera and explicit brown wall visuals for all boundary colliders.
+  - Wired to reusable module pieces for runtime assembly:
+    - wall segments (`wall_segment_2d`)
+    - standard door connectors (`door_standard_2d`)
+    - lockable progression doors (`door_locked_2d`)
+    - entrance/exit markers (`entrance_marker_2d`, `exit_marker_2d`)
