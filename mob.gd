@@ -55,7 +55,9 @@ func _sync_visual_from_body() -> void:
 	if _visual == null:
 		return
 	_visual.global_position = Vector3(global_position.x, 0.0, global_position.y)
-	_visual.rotation.y = rotation
+	# Match PlayerVisual: 2D (x, y) plane maps to 3D XZ; Godot2D Node2D.rotation ≠ this heading.
+	if velocity.length_squared() > 0.0001:
+		_visual.rotation.y = atan2(velocity.x, velocity.y) + PI
 
 
 func _apply_spawn(start_position: Vector2, player_position: Vector2) -> void:
