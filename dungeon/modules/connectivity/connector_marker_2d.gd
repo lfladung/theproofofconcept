@@ -17,8 +17,10 @@ var direction := "east"
 func _ready() -> void:
 	if _visual:
 		_visual.color = marker_color
+	if Engine.is_editor_hint():
+		set_process(true)
 
 
-func _notification(what: int) -> void:
-	if what == NOTIFICATION_EDITOR_PROPERTY_CHANGED and _visual:
+func _process(_delta: float) -> void:
+	if Engine.is_editor_hint() and _visual:
 		_visual.color = marker_color

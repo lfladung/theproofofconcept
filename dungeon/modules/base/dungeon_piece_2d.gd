@@ -20,9 +20,10 @@ func _ready() -> void:
 	_rebuild_piece_geometry()
 	_update_blocking_state()
 	if Engine.is_editor_hint():
-		return
-	add_to_group(&"dungeon_piece")
-	add_to_group(piece_category)
+		set_process(true)
+	else:
+		add_to_group(&"dungeon_piece")
+		add_to_group(piece_category)
 
 
 func get_world_size() -> Vector2:
@@ -41,8 +42,8 @@ func _validate_properties() -> void:
 	tile_size.y = maxi(1, tile_size.y)
 
 
-func _notification(what: int) -> void:
-	if what == NOTIFICATION_EDITOR_PROPERTY_CHANGED:
+func _process(_delta: float) -> void:
+	if Engine.is_editor_hint():
 		_rebuild_piece_geometry()
 		_update_blocking_state()
 
