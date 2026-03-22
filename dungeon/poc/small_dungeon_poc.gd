@@ -45,7 +45,7 @@ func _configure_room_metadata() -> void:
 
 
 func _set_room_sockets_for_layout(room: RoomBase) -> void:
-	var openings_by_room := {
+	var openings_by_room: Dictionary = {
 		"EntranceRoom": {"east": 2},
 		"TransitionRoomA": {"west": 2, "east": 2},
 		"CombatRoom": {"west": 2, "east": 2},
@@ -54,7 +54,7 @@ func _set_room_sockets_for_layout(room: RoomBase) -> void:
 		"BranchTransitionRoom": {"south": 2, "north": 2},
 		"TreasureRoom": {"south": 2},
 	}
-	var configured := openings_by_room.get(room.name, {})
+	var configured: Dictionary = openings_by_room.get(room.name, {}) as Dictionary
 	for socket in room.get_all_sockets():
 		var width_tiles := int(configured.get(socket.direction, 0))
 		if width_tiles <= 0:
@@ -91,7 +91,7 @@ func _add_room_boundary(room: RoomBase) -> void:
 	var half_w := rect_local.size.x * 0.5
 	var half_h := rect_local.size.y * 0.5
 	var center := room.global_position
-	var openings := {
+	var openings: Dictionary = {
 		"north": [],
 		"south": [],
 		"east": [],
@@ -108,10 +108,10 @@ func _add_room_boundary(room: RoomBase) -> void:
 				openings[socket.direction].append({"offset": socket.position.y, "width": width_world})
 			_:
 				pass
-	_add_horizontal_wall_segments(center, -half_h, half_w, openings["north"])
-	_add_horizontal_wall_segments(center, half_h, half_w, openings["south"])
-	_add_vertical_wall_segments(center, -half_w, half_h, openings["west"])
-	_add_vertical_wall_segments(center, half_w, half_h, openings["east"])
+	_add_horizontal_wall_segments(center, -half_h, half_w, openings["north"] as Array)
+	_add_horizontal_wall_segments(center, half_h, half_w, openings["south"] as Array)
+	_add_vertical_wall_segments(center, -half_w, half_h, openings["west"] as Array)
+	_add_vertical_wall_segments(center, half_w, half_h, openings["east"] as Array)
 
 
 func _add_horizontal_wall_segments(

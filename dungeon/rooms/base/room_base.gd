@@ -186,7 +186,7 @@ func _validate_traversable_space_contract() -> void:
 
 
 func _validate_gameplay_zoning_contract() -> void:
-	var seen := {}
+	var seen: Dictionary = {}
 	for zone in get_zone_markers():
 		seen[zone.zone_type] = true
 	for required_type in ["enemy_spawn", "prop_placement", "encounter_trigger"]:

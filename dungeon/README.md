@@ -183,9 +183,9 @@ Generation logic, room catalog loading, and runtime assembly are implemented in 
 
 - `res://dungeon/poc/small_dungeon_poc.tscn`
   - Multi-room dungeon POC that includes baseline room types:
-    - entrance room
-    - transition corridors between main rooms
-    - combat room (lock/unlock proof without enemy spawning)
-    - treasure dead-end room (chest marker)
-    - boss room (completion portal after simulated clear)
+	- entrance room
+	- transition corridors between main rooms
+	- combat room (lock/unlock proof without enemy spawning)
+	- treasure dead-end room (chest marker)
+	- boss room (completion portal after simulated clear)
   - Uses `RoomBase` instances and runtime boundary generation from socket openings.
