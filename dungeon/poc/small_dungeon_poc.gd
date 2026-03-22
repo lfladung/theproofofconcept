@@ -2,13 +2,19 @@ extends Node
 
 const WALL_THICKNESS := 1.0
 const ROOM_HEIGHT := 0.4
+const WALL_VISUAL_HEIGHT := 3.0
+const WALL_VISUAL_BASE_Y := -0.5
 const LABEL_SCALE := 0.2
+const CAMERA_LERP_SPEED := 8.0
 
 @onready var _world_bounds: StaticBody2D = $GameWorld2D/WorldBounds
 @onready var _rooms_root: Node2D = $GameWorld2D/Rooms
 @onready var _visual_world: Node3D = $VisualWorld3D
 @onready var _room_visuals: Node3D = $VisualWorld3D/RoomVisuals
+@onready var _wall_visuals: Node3D = $VisualWorld3D/WallVisuals
 @onready var _door_visuals: Node3D = $VisualWorld3D/DoorVisuals
+@onready var _camera_pivot: Marker3D = $VisualWorld3D/CameraPivot
+@onready var _player: CharacterBody2D = $GameWorld2D/Player
 @onready var _combat_clear_timer: Timer = $CombatClearTimer
 @onready var _boss_clear_timer: Timer = $BossClearTimer
 @onready var _info_label: Label = $CanvasLayer/InfoLabel
@@ -34,13 +40,20 @@ func _ready() -> void:
 	_info_label.text = "Explore: Entrance -> Transition -> Combat -> Transition -> Boss. Branch north for Treasure."
 
 
+func _process(delta: float) -> void:
+	if _player == null or _camera_pivot == null:
+		return
+	var target := Vector3(_player.global_position.x, _camera_pivot.global_position.y, _player.global_position.y)
+	_camera_pivot.global_position = _camera_pivot.global_position.lerp(target, clampf(delta * CAMERA_LERP_SPEED, 0.0, 1.0))
+
+
 func _configure_room_metadata() -> void:
 	for room in _rooms_root.get_children():
 		if room is not RoomBase:
 			continue
 		var r := room as RoomBase
 		r.tile_size = Vector2i(3, 3)
-		r.standard_room_sizes = PackedInt32Array([6, 10, 16, 24, 32])
+		r.standard_room_sizes = PackedInt32Array([9, 15, 24, 36])
 		_set_room_sockets_for_layout(r)
 
 
@@ -79,6 +92,8 @@ func _set_room_sockets_for_layout(room: RoomBase) -> void:
 
 func _build_world_bounds() -> void:
 	for child in _world_bounds.get_children():
+		child.queue_free()
+	for child in _wall_visuals.get_children():
 		child.queue_free()
 	for room in _rooms_root.get_children():
 		if room is not RoomBase:
@@ -172,6 +187,23 @@ func _add_wall_shape(position_2d: Vector2, size_2d: Vector2) -> void:
 	shape.size = size_2d
 	cs.shape = shape
 	_world_bounds.add_child(cs)
+	_add_wall_visual(position_2d, size_2d)
+
+
+func _add_wall_visual(position_2d: Vector2, size_2d: Vector2) -> void:
+	var wall_mesh := MeshInstance3D.new()
+	var box := BoxMesh.new()
+	box.size = Vector3(size_2d.x, WALL_VISUAL_HEIGHT, size_2d.y)
+	var mat := StandardMaterial3D.new()
+	mat.albedo_color = Color(0.47, 0.31, 0.20, 1.0)
+	box.material = mat
+	wall_mesh.mesh = box
+	wall_mesh.position = Vector3(
+		position_2d.x,
+		WALL_VISUAL_BASE_Y + WALL_VISUAL_HEIGHT * 0.5,
+		position_2d.y
+	)
+	_wall_visuals.add_child(wall_mesh)
 
 
 func _build_room_debug_visuals() -> void:

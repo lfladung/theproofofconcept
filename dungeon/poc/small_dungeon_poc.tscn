@@ -9,19 +9,19 @@
 size = Vector2(1, 8)
 
 [sub_resource type="RectangleShape2D" id="2_trigger_shape"]
-size = Vector2(24, 24)
+size = Vector2(36, 36)
 
 [sub_resource type="RectangleShape2D" id="3_portal_shape"]
-size = Vector2(5, 5)
+size = Vector2(7.5, 7.5)
 
 [sub_resource type="StandardMaterial3D" id="4_portal_mat"]
 albedo_color = Color(1, 0.55, 0.15, 1)
 
 [sub_resource type="CylinderMesh" id="5_portal_mesh"]
 material = SubResource("4_portal_mat")
-top_radius = 2.0
-bottom_radius = 2.0
-height = 1.2
+top_radius = 3.0
+bottom_radius = 3.0
+height = 1.8
 
 [node name="SmallDungeonPOC" type="Node"]
 script = ExtResource("1_script")
@@ -34,63 +34,63 @@ script = ExtResource("1_script")
 room_id = "room_entrance_poc_small_01"
 size_class = "small"
 room_type = "safe"
-room_size_tiles = Vector2i(10, 10)
+room_size_tiles = Vector2i(15, 15)
 room_tags = PackedStringArray("safe", "poc")
 allowed_connection_types = PackedStringArray("corridor", "connector")
 
 [node name="TransitionRoomA" parent="GameWorld2D/Rooms" instance=ExtResource("2_room")]
-position = Vector2(30, 0)
+position = Vector2(45, 0)
 room_id = "room_transition_poc_a_01"
 size_class = "small"
 room_type = "connector"
-room_size_tiles = Vector2i(10, 6)
+room_size_tiles = Vector2i(15, 9)
 room_tags = PackedStringArray("connector", "corridor", "poc")
 allowed_connection_types = PackedStringArray("safe", "arena", "connector")
 
 [node name="CombatRoom" parent="GameWorld2D/Rooms" instance=ExtResource("2_room")]
-position = Vector2(69, 0)
+position = Vector2(103.5, 0)
 room_id = "room_combat_poc_medium_01"
 size_class = "medium"
 room_type = "arena"
-room_size_tiles = Vector2i(16, 16)
+room_size_tiles = Vector2i(24, 24)
 room_tags = PackedStringArray("arena", "combat", "poc")
 allowed_connection_types = PackedStringArray("connector", "corridor")
 
 [node name="TransitionRoomB" parent="GameWorld2D/Rooms" instance=ExtResource("2_room")]
-position = Vector2(108, 0)
+position = Vector2(162, 0)
 room_id = "room_transition_poc_b_01"
 size_class = "small"
 room_type = "connector"
-room_size_tiles = Vector2i(10, 6)
+room_size_tiles = Vector2i(15, 9)
 room_tags = PackedStringArray("connector", "corridor", "poc")
 allowed_connection_types = PackedStringArray("arena", "boss", "connector", "treasure")
 
 [node name="BossRoom" parent="GameWorld2D/Rooms" instance=ExtResource("2_room")]
-position = Vector2(159, 0)
+position = Vector2(238.5, 0)
 room_id = "room_boss_poc_large_01"
 size_class = "arena"
 room_type = "boss"
-room_size_tiles = Vector2i(24, 24)
+room_size_tiles = Vector2i(36, 36)
 room_tags = PackedStringArray("boss", "arena", "poc")
 allowed_connection_types = PackedStringArray("connector")
 min_difficulty_tier = 4
 max_difficulty_tier = 8
 
 [node name="BranchTransitionRoom" parent="GameWorld2D/Rooms" instance=ExtResource("2_room")]
-position = Vector2(108, -24)
+position = Vector2(162, -36)
 room_id = "room_transition_poc_branch_01"
 size_class = "small"
 room_type = "connector"
-room_size_tiles = Vector2i(6, 10)
+room_size_tiles = Vector2i(9, 15)
 room_tags = PackedStringArray("connector", "corridor", "poc")
 allowed_connection_types = PackedStringArray("connector", "treasure")
 
 [node name="TreasureRoom" parent="GameWorld2D/Rooms" instance=ExtResource("2_room")]
-position = Vector2(108, -54)
+position = Vector2(162, -81)
 room_id = "room_treasure_poc_small_01"
 size_class = "small"
 room_type = "treasure"
-room_size_tiles = Vector2i(10, 10)
+room_size_tiles = Vector2i(15, 15)
 room_tags = PackedStringArray("treasure", "poc")
 allowed_connection_types = PackedStringArray("connector")
 
@@ -100,13 +100,13 @@ allowed_connection_types = PackedStringArray("connector")
 position = Vector2(0, 0)
 
 [node name="EntranceExitMarker" type="Marker2D" parent="GameWorld2D/Markers"]
-position = Vector2(15, 0)
+position = Vector2(22.5, 0)
 
 [node name="TreasureChestMarker" type="Marker2D" parent="GameWorld2D/Markers"]
-position = Vector2(108, -54)
+position = Vector2(162, -81)
 
 [node name="BossSpawnMarker" type="Marker2D" parent="GameWorld2D/Markers"]
-position = Vector2(159, 0)
+position = Vector2(238.5, 0)
 
 [node name="WorldBounds" type="StaticBody2D" parent="GameWorld2D"]
 collision_layer = 4
@@ -115,7 +115,7 @@ collision_mask = 0
 [node name="DoorBlockers" type="Node2D" parent="GameWorld2D"]
 
 [node name="CombatDoorWest" type="StaticBody2D" parent="GameWorld2D/DoorBlockers"]
-position = Vector2(45, 0)
+position = Vector2(67.5, 0)
 collision_layer = 4
 collision_mask = 0
 
@@ -124,7 +124,7 @@ shape = SubResource("1_blocker_shape")
 disabled = true
 
 [node name="CombatDoorEast" type="StaticBody2D" parent="GameWorld2D/DoorBlockers"]
-position = Vector2(93, 0)
+position = Vector2(139.5, 0)
 collision_layer = 4
 collision_mask = 0
 
@@ -133,7 +133,7 @@ shape = SubResource("1_blocker_shape")
 disabled = true
 
 [node name="BossDoorWest" type="StaticBody2D" parent="GameWorld2D/DoorBlockers"]
-position = Vector2(123, 0)
+position = Vector2(184.5, 0)
 collision_layer = 4
 collision_mask = 0
 
@@ -144,7 +144,7 @@ disabled = true
 [node name="Triggers" type="Node2D" parent="GameWorld2D"]
 
 [node name="CombatRoomTrigger" type="Area2D" parent="GameWorld2D/Triggers"]
-position = Vector2(69, 0)
+position = Vector2(103.5, 0)
 collision_layer = 0
 collision_mask = 1
 
@@ -152,7 +152,7 @@ collision_mask = 1
 shape = SubResource("2_trigger_shape")
 
 [node name="BossRoomTrigger" type="Area2D" parent="GameWorld2D/Triggers"]
-position = Vector2(159, 0)
+position = Vector2(238.5, 0)
 collision_layer = 0
 collision_mask = 1
 
@@ -160,7 +160,7 @@ collision_mask = 1
 shape = SubResource("2_trigger_shape")
 
 [node name="BossExitPortal" type="Area2D" parent="GameWorld2D/Triggers"]
-position = Vector2(183, 0)
+position = Vector2(292.5, 0)
 collision_layer = 0
 collision_mask = 1
 
@@ -174,10 +174,12 @@ position = Vector2(0, 0)
 
 [node name="RoomVisuals" type="Node3D" parent="VisualWorld3D"]
 
+[node name="WallVisuals" type="Node3D" parent="VisualWorld3D"]
+
 [node name="DoorVisuals" type="Node3D" parent="VisualWorld3D"]
 
 [node name="BossPortalMarker" type="MeshInstance3D" parent="VisualWorld3D"]
-position = Vector3(183, 0.3, 0)
+position = Vector3(292.5, 0.45, 0)
 mesh = SubResource("5_portal_mesh")
 
 [node name="DirectionalLight3D" type="DirectionalLight3D" parent="VisualWorld3D"]
@@ -196,7 +198,7 @@ transform = Transform3D(1, 0, 0, 0, 0.707107, 0.707107, 0, -0.707107, 0.707107, 
 transform = Transform3D(1, 0, 0, 0, 1, -2.98023e-08, 0, 2.98023e-08, 1, 0, 0, 150)
 projection = 1
 current = true
-size = 120.0
+size = 50.0
 far = 500.0
 
 [node name="CombatClearTimer" type="Timer" parent="."]
