@@ -52,3 +52,15 @@ Milestone 1 provides the modular skeleton only:
 - shared constants and color legend
 
 Generation logic, room catalog loading, and runtime assembly are implemented in later milestones.
+
+## POC Scene
+
+- `res://dungeon/poc/dungeon_room_poc.tscn`
+  - Instantiates `RoomBase`.
+  - Adds a small-room world boundary and a playable `Player`.
+  - Uses the milestone debug color language in 3D placeholders:
+    - white ground
+    - brown walls
+    - yellow trap tile
+    - purple doorway
+    - orange stairs marker
