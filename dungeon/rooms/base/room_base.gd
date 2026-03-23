@@ -34,7 +34,9 @@ var origin_mode := "center"
 func _ready() -> void:
 	add_to_group(&"room")
 	_apply_layer_z_index()
-	_validate_room_rules()
+	# These are authoring-time contract checks; keep runtime logs clean.
+	if Engine.is_editor_hint():
+		_validate_room_rules()
 
 
 func get_all_sockets() -> Array[DoorSocket2D]:
@@ -62,7 +64,10 @@ func get_zone_markers() -> Array[ZoneMarker2D]:
 
 
 func get_room_rect_tiles() -> Rect2i:
-	var half_size := room_size_tiles / 2
+	var half_size := Vector2i(
+		floori(float(room_size_tiles.x) * 0.5),
+		floori(float(room_size_tiles.y) * 0.5)
+	)
 	return Rect2i(-half_size, room_size_tiles)
 
 

@@ -5,15 +5,8 @@ signal health_changed(current: int, max_health: int)
 
 ## Horizontal speed (matches former 3D XZ plane).
 @export var speed := 14.0
-@export var jump_impulse := 20.0
-@export var bounce_impulse := 16.0
-@export var fall_acceleration := 75.0
-## Altitude of feet above the ground plane (jump); not CharacterBody2D.position.y.
+## Feet stay grounded in this combat milestone.
 @export var height := 0.0
-## 2D radius used for stomp proximity vs mob origin.
-@export var stomp_radius := 2.2
-## Ignore MobDetector kills while feet are above this height.
-@export var mob_detector_safe_height := 2.3
 ## Max planar center distance for a kill; filters spurious Area2D body_entered at large separation.
 @export var mob_kill_max_planar_dist := 6.5
 @export var max_health := 100
@@ -25,8 +18,12 @@ signal health_changed(current: int, max_health: int)
 
 ## Melee hit box along planar facing: starts just outside body circle, then depth × width (centered).
 @export var melee_start_beyond_body := 0.03
-@export var melee_depth := 3.375
-@export var melee_width := 3.3
+@export var melee_depth := 6.0
+@export var melee_width := 6.0
+@export var attack_hitbox_visual_duration := 0.2
+@export var melee_attack_cooldown := 0.5
+@export var melee_attack_damage := 25
+@export var melee_knockback_strength := 11.0
 ## Ground Y for debug mesh (XZ play plane ↔ 3D).
 @export var melee_debug_ground_y := 0.04
 @export var show_melee_hit_debug := true
@@ -37,12 +34,11 @@ signal health_changed(current: int, max_health: int)
 @export var hitbox_debug_circle_segments := 40
 @export var dodge_speed := 36.0
 @export var dodge_duration := 0.16
-@export var dodge_cooldown := 0.25
+@export var dodge_cooldown := 0.05
 
 @onready var _visual: Node3D = get_node_or_null("../../VisualWorld3D/PlayerVisual") as Node3D
 @onready var _body_shape: CollisionShape2D = $CollisionShape2D
 
-var vertical_velocity := 0.0
 var health: int = 100
 var _invuln_time_remaining := 0.0
 ## Last planar facing (2D x,y ↔ 3D x,z); default “forward” for attacks when idle.
@@ -57,6 +53,9 @@ var _mob_hitbox_mat: StandardMaterial3D
 var _dodge_time_remaining := 0.0
 var _dodge_cooldown_remaining := 0.0
 var _dodge_direction := Vector2.ZERO
+var _is_dead := false
+var _attack_hitbox_visual_time_remaining := 0.0
+var _melee_attack_cooldown_remaining := 0.0
 
 
 func _ready() -> void:
@@ -97,7 +96,7 @@ func _ready() -> void:
 
 
 func take_damage(amount: int) -> void:
-	if amount <= 0 or health <= 0:
+	if amount <= 0 or health <= 0 or _is_dead:
 		return
 	if _invuln_time_remaining > 0.0:
 		return
@@ -122,7 +121,7 @@ func _update_invulnerability_flash_visual() -> void:
 	if _visual == null:
 		return
 	var ms := maxi(1, int(roundf(hit_flash_blink_interval * 1000.0)))
-	var opaque := (Time.get_ticks_msec() / ms) % 2 == 0
+	var opaque := int(floor(float(Time.get_ticks_msec()) / float(ms))) % 2 == 0
 	_set_mesh_instances_transparency(_visual, 0.0 if opaque else hit_flash_transparency)
 
 
@@ -151,8 +150,8 @@ func _mouse_planar_world() -> Vector2:
 	var t := -from.y / dir.y
 	if t < 0.0:
 		return global_position
-	var hit := from + dir * t
-	return Vector2(hit.x, hit.z)
+	var hit_pos := from + dir * t
+	return Vector2(hit_pos.x, hit_pos.z)
 
 
 func _update_facing_planar(direction: Vector2) -> void:
@@ -188,11 +187,12 @@ func _planar_point_in_melee_hit(mob_pos: Vector2) -> bool:
 
 func _squash_mobs_in_melee_hit() -> void:
 	for node in get_tree().get_nodes_in_group(&"mob"):
-		if not node is CharacterBody2D or not node.has_method(&"squash"):
+		if not node is CharacterBody2D:
 			continue
 		var mob := node as CharacterBody2D
 		if _planar_point_in_melee_hit(mob.global_position):
-			mob.squash()
+			if mob.has_method(&"take_hit"):
+				mob.call(&"take_hit", melee_attack_damage, _facing_planar, melee_knockback_strength)
 
 
 func _rebuild_melee_debug_mesh() -> void:
@@ -309,6 +309,8 @@ func _rebuild_mob_hitboxes_debug() -> void:
 
 
 func _physics_process(delta: float) -> void:
+	if _is_dead:
+		return
 	var direction := Vector2.ZERO
 	if _mouse_steering_active():
 		var target := _mouse_planar_world()
@@ -317,6 +319,7 @@ func _physics_process(delta: float) -> void:
 			direction = to_target.normalized()
 
 	_update_facing_planar(direction)
+	_melee_attack_cooldown_remaining = maxf(0.0, _melee_attack_cooldown_remaining - delta)
 
 	_dodge_cooldown_remaining = maxf(0.0, _dodge_cooldown_remaining - delta)
 	if _dodge_time_remaining > 0.0:
@@ -338,34 +341,26 @@ func _physics_process(delta: float) -> void:
 	else:
 		velocity = Vector2.ZERO
 
-	if height <= 0.001 and Input.is_action_just_pressed(&"jump"):
-		vertical_velocity = jump_impulse
-
-	vertical_velocity -= fall_acceleration * delta
-	height += vertical_velocity * delta
-	if height <= 0.0:
-		height = 0.0
-		if vertical_velocity < 0.0:
-			vertical_velocity = 0.0
-
 	move_and_slide()
-
-	_try_stomp_from_above()
 
 	if _visual:
 		_visual.global_position = Vector3(global_position.x, height, global_position.y)
 		_visual.rotation.y = atan2(_facing_planar.x, _facing_planar.y)
 		if _visual.has_method(&"set_locomotion_from_planar_speed"):
 			_visual.set_locomotion_from_planar_speed(planar_speed, speed)
-		if _visual.has_method(&"set_jump_tilt"):
-			_visual.set_jump_tilt(vertical_velocity, jump_impulse)
 
-	if Input.is_action_just_pressed(&"melee_attack"):
+	if Input.is_action_just_pressed(&"melee_attack") and _melee_attack_cooldown_remaining <= 0.0:
 		if _visual and _visual.has_method(&"try_play_attack"):
 			_visual.try_play_attack()
 		_squash_mobs_in_melee_hit()
+		_melee_attack_cooldown_remaining = melee_attack_cooldown
+		_attack_hitbox_visual_time_remaining = maxf(
+			_attack_hitbox_visual_time_remaining,
+			attack_hitbox_visual_duration
+		)
 
-	if show_melee_hit_debug:
+	_attack_hitbox_visual_time_remaining = maxf(0.0, _attack_hitbox_visual_time_remaining - delta)
+	if show_melee_hit_debug and _attack_hitbox_visual_time_remaining > 0.0:
 		_rebuild_melee_debug_mesh()
 	elif _melee_debug_mi:
 		_melee_debug_mi.visible = false
@@ -388,30 +383,39 @@ func _physics_process(delta: float) -> void:
 			_update_invulnerability_flash_visual()
 
 
-func _try_stomp_from_above() -> void:
-	if vertical_velocity > 0.0:
-		return
-	for node in get_tree().get_nodes_in_group(&"mob"):
-		if not node is CharacterBody2D or not node.has_method(&"squash"):
-			continue
-		var mob := node as CharacterBody2D
-		if global_position.distance_to(mob.global_position) > stomp_radius:
-			continue
-		var top_h: float = 1.0
-		var st: Variant = mob.get(&"stomp_top_height")
-		if st != null:
-			top_h = float(st)
-		if height < top_h + 0.05:
-			continue
-		mob.squash()
-		vertical_velocity = bounce_impulse
-		break
-
-
 func die() -> void:
+	_is_dead = true
+	velocity = Vector2.ZERO
+	height = 0.0
+	_dodge_time_remaining = 0.0
+	_dodge_cooldown_remaining = 0.0
+	_invuln_time_remaining = 0.0
+	if _body_shape != null:
+		_body_shape.disabled = true
 	_free_world_debug_meshes()
+	_reset_player_visual_transparency()
 	hit.emit()
-	queue_free()
+
+
+func reset_for_retry(world_pos: Vector2) -> void:
+	_is_dead = false
+	heal_to_full()
+	global_position = world_pos
+	velocity = Vector2.ZERO
+	height = 0.0
+	_invuln_time_remaining = 0.0
+	_dodge_time_remaining = 0.0
+	_dodge_cooldown_remaining = 0.0
+	if _body_shape != null:
+		_body_shape.disabled = false
+	_reset_player_visual_transparency()
+	if _visual != null:
+		_visual.global_position = Vector3(global_position.x, height, global_position.y)
+
+
+func heal_to_full() -> void:
+	health = max_health
+	health_changed.emit(health, max_health)
 
 
 func _free_world_debug_meshes() -> void:
@@ -427,7 +431,7 @@ func _on_mob_detector_body_entered(body: Node2D) -> void:
 	# Only creeps kill the player; avoids spurious Area2D overlaps (e.g. parent body quirks).
 	if body == null or body == self or not body.is_in_group(&"mob"):
 		return
-	if height >= mob_detector_safe_height:
+	if body.has_method(&"can_contact_damage") and not bool(body.call(&"can_contact_damage")):
 		return
 	var planar_d := body.global_position.distance_to(global_position)
 	if planar_d > mob_kill_max_planar_dist:

@@ -45,12 +45,18 @@ This file tracks milestone goals for the dungeon architecture and procedural con
 
 ## Next Milestone Goals
 
-- [ ] Milestone 5: Procedural assembly v1
+- [x] Milestone 5: Procedural assembly v1
   - room catalog loading from metadata
   - socket-based room graph generation
   - overlap validation + connectivity checks
 
-- [ ] Milestone 6: Biome/theme pipeline
+- [ ] Milestone 6: Combat readability + attack telegraph overhaul
+  - remove player jump flow; map right-click to melee attack
+  - mobs move at 0.75x prior speed and stop within 1 tile before attacking
+  - 0.5s telegraph arrow (hollow black outline, red fill) before dash strike
+  - dash hitbox damage only while the strike executes
+
+- [ ] Future enhancement: Biome/theme pipeline
   - swappable tile/material sets
   - hazard/prop pool variation by biome
   - lighting/fog/atmosphere presets

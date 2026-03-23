@@ -54,6 +54,13 @@ func _ready() -> void:
 	call_deferred(&"_deferred_setup_drop")
 
 
+func _exit_tree() -> void:
+	# Ensure floor-regeneration cleanup removes the detached 3D coin mesh too.
+	if _visual != null and is_instance_valid(_visual):
+		_visual.queue_free()
+		_visual = null
+
+
 ## Call before `add_child` / setting position when spawning from a chest so the hop continues outward.
 ## `kick_scale` scales the extra planar kick (1.0 = legacy chest strength; use ~0.5 for shorter tosses).
 func bias_jump_away_from(world_origin_2d: Vector2, kick_scale: float = 1.0) -> void:
@@ -109,8 +116,9 @@ func _deferred_setup_drop() -> void:
 
 	_pickup_area.collision_layer = 0
 	_pickup_area.collision_mask = 1
-	_pickup_area.monitoring = false
-	_pickup_shape.disabled = true
+	_pickup_area.set_deferred("monitoring", false)
+	_pickup_area.set_deferred("monitorable", false)
+	_pickup_shape.set_deferred("disabled", true)
 	_setup_done = true
 
 
@@ -147,8 +155,9 @@ func _land() -> void:
 
 func _enable_pickup() -> void:
 	_pickup_enabled = true
-	_pickup_shape.disabled = false
-	_pickup_area.monitoring = true
+	_pickup_shape.set_deferred("disabled", false)
+	_pickup_area.set_deferred("monitoring", true)
+	_pickup_area.set_deferred("monitorable", true)
 	call_deferred(&"_try_pickup_overlapping_player")
 
 

@@ -98,11 +98,14 @@ func _on_open_trigger_body_entered(body: Node2D) -> void:
 		return
 	_opened = true
 	if _solid_shape != null:
-		_solid_shape.disabled = true
+		_solid_shape.set_deferred("disabled", true)
+	if _open_trigger != null:
+		_open_trigger.set_deferred("monitoring", false)
+		_open_trigger.set_deferred("monitorable", false)
 	if _visual:
 		_visual.color = open_color
 	opened.emit()
-	_spew_coins()
+	call_deferred("_spew_coins")
 
 
 func _spew_forward_dir() -> Vector2:
@@ -117,8 +120,7 @@ func _spew_forward_dir() -> Vector2:
 
 
 func _spew_coins() -> void:
-	var parent := get_parent()
-	if parent == null:
+	if get_parent() == null:
 		return
 	var n := maxi(0, coin_count)
 	if n <= 0:
@@ -133,11 +135,18 @@ func _spew_coins() -> void:
 		var dir := Vector2.from_angle(ang)
 		var rad := randf_range(spew_radius_min, spew_radius_max)
 		var offset := dir * rad
-		var coin := DROPPED_COIN_SCENE.instantiate() as DroppedCoin
-		if coin == null:
-			continue
-		coin.bias_jump_away_from(global_position, 0.5)
-		parent.add_child(coin)
-		coin.global_position = global_position + offset
+		call_deferred("_spawn_coin_deferred", global_position + offset, global_position)
 		if i < n - 1:
 			await get_tree().create_timer(spew_interval_sec).timeout
+
+
+func _spawn_coin_deferred(spawn_pos: Vector2, chest_origin: Vector2) -> void:
+	var parent := get_parent()
+	if parent == null:
+		return
+	var coin := DROPPED_COIN_SCENE.instantiate() as DroppedCoin
+	if coin == null:
+		return
+	coin.bias_jump_away_from(chest_origin, 0.5)
+	parent.add_child(coin)
+	coin.global_position = spawn_pos

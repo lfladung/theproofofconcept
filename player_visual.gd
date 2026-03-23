@@ -110,7 +110,7 @@ func try_play_attack() -> void:
 	if anim_res == null:
 		_attack_playing = false
 		return
-	var len := anim_res.length
-	await get_tree().create_timer(len / maxf(_anim.speed_scale, 0.01)).timeout
+	var anim_len := anim_res.length
+	await get_tree().create_timer(anim_len / maxf(_anim.speed_scale, 0.01)).timeout
 	_attack_playing = false
 	_play_locomotion(false, 1.0)

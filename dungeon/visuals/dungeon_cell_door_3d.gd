@@ -248,10 +248,10 @@ func _hide_static_panel_meshes_in_frame_if_overlapping() -> void:
 		if den < 1e-8:
 			continue
 		var ratio := inter_v / den
-		var hide := ratio > 0.30
+		var should_hide := ratio > 0.30
 		if frame_meshes.size() < 2:
-			hide = ratio > 0.52
-		if hide:
+			should_hide = ratio > 0.52
+		if should_hide:
 			mi.visible = false
 
 

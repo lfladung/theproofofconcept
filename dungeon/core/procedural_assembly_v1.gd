@@ -87,7 +87,8 @@ func assemble_from_socket_graph(
 	var overlap_errors: PackedStringArray = _validate_no_overlaps(_placed_rooms(by_name, placed))
 	for msg in overlap_errors:
 		errors.append(msg)
-	for msg in _validate_connectivity(by_name, placed, start_room_name, links):
+	var connectivity_errors: PackedStringArray = _validate_connectivity(by_name, placed, start_room_name, links)
+	for msg in connectivity_errors:
 		errors.append(msg)
 	return {
 		"ok": errors.is_empty(),
@@ -95,7 +96,7 @@ func assemble_from_socket_graph(
 		"catalog": catalog,
 		"placed_count": placed.size(),
 		"total_rooms": by_name.size(),
-	}
+}
 
 
 func _room_metadata(room: RoomBase) -> Dictionary:
