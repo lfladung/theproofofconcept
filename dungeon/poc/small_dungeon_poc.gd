@@ -49,6 +49,14 @@ const _MOB_CLAMP_R := 1.15
 const _W_EXT_X := 65.0
 const _E_EXT_X := 143.0
 const _BOSS_W_EXT_X := 182.0
+const _ROOM_GRAPH_LINKS: Array[Dictionary] = [
+	{"from": "EntranceRoom", "to": "TransitionRoomA", "from_dir": "east"},
+	{"from": "TransitionRoomA", "to": "CombatRoom", "from_dir": "east"},
+	{"from": "CombatRoom", "to": "TransitionRoomB", "from_dir": "east"},
+	{"from": "TransitionRoomB", "to": "BossRoom", "from_dir": "east"},
+	{"from": "TransitionRoomB", "to": "BranchTransitionRoom", "from_dir": "north"},
+	{"from": "BranchTransitionRoom", "to": "TreasureRoom", "from_dir": "north"},
+]
 
 @onready var _world_bounds: StaticBody2D = $GameWorld2D/WorldBounds
 @onready var _rooms_root: Node2D = $GameWorld2D/Rooms
@@ -82,6 +90,7 @@ var _wall_visual_prefab_aabb := AABB()
 func _ready() -> void:
 	_camera_pivot.rotation_degrees = Vector3(CAMERA_DIAG_PITCH_DEG, CAMERA_DIAG_YAW_DEG, 0.0)
 	_configure_room_metadata()
+	_assemble_rooms_procedurally()
 	_build_world_bounds()
 	_build_room_debug_visuals()
 	_spawn_gameplay_objects()
@@ -115,6 +124,19 @@ func _configure_room_metadata() -> void:
 		r.tile_size = Vector2i(3, 3)
 		r.standard_room_sizes = PackedInt32Array([9, 15, 24, 36])
 		_set_room_sockets_for_layout(r)
+
+
+func _assemble_rooms_procedurally() -> void:
+	var assembler: ProceduralAssemblyV1 = ProceduralAssemblyV1.new()
+	var result: Dictionary = assembler.assemble_from_socket_graph(_rooms_root, &"EntranceRoom", _ROOM_GRAPH_LINKS)
+	if bool(result.get("ok", false)):
+		var placed: int = int(result.get("placed_count", 0))
+		var total: int = int(result.get("total_rooms", 0))
+		print("Milestone 5: procedural assembly ready (%s/%s rooms connected)." % [placed, total])
+		return
+	var errs: PackedStringArray = result.get("errors", PackedStringArray()) as PackedStringArray
+	for e in errs:
+		push_warning("Milestone 5 assembly: %s" % e)
 
 
 func _set_room_sockets_for_layout(room: RoomBase) -> void:
