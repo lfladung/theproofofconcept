@@ -56,7 +56,7 @@ size = Vector3(4, 0.4, 4)
 
 [sub_resource type="BoxMesh" id="16_door_mesh"]
 material = SubResource("9_door_mat")
-size = Vector3(4, 1, 1)
+size = Vector3(8, 2, 2)
 
 [sub_resource type="CylinderMesh" id="17_stairs_mesh"]
 material = SubResource("10_stairs_mat")
@@ -79,7 +79,7 @@ room_tags = PackedStringArray("poc", "debug", "combat")
 [node name="DoorSocket_N_1" parent="GameWorld2D/Room/Sockets"]
 position = Vector2(0, -12)
 direction = "north"
-width_tiles = 2
+width_tiles = 4
 
 [node name="DoorSocket_S_1" parent="GameWorld2D/Room/Sockets"]
 position = Vector2(0, 12)

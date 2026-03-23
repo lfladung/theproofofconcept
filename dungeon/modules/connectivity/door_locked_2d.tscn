@@ -7,7 +7,7 @@
 script = ExtResource("2_locked_script")
 piece_id = &"door_locked"
 piece_category = &"connectivity"
-footprint_tiles = Vector2i(2, 1)
+footprint_tiles = Vector2i(4, 1)
 walkable = false
 blocks_movement = true
 tags = PackedStringArray("mvp", "door", "locked", "connector")

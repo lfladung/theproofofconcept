@@ -8,11 +8,11 @@ class_name DungeonCellDoor3D
 
 @export var open_angle_deg: float = 78.0
 ## Door assembly fit controls (applied at runtime so tuning always takes effect).
-@export var content_scale_xz: float = 2.2
-@export var content_scale_y: float = 1.6
-@export var content_y_offset: float = -0.45
+@export var content_scale_xz: float = 4.4
+@export var content_scale_y: float = 3.2
+@export var content_y_offset: float = -0.9
 ## Small shift along Content Z to separate panel from frame after hinge fit.
-@export var door_panel_depth: float = 0.035
+@export var door_panel_depth: float = 0.07
 ## Purple/black tint and swing for combat room doors only; other rooms keep mesh textures.
 @export var use_combat_lock_visuals: bool = true
 ## Disabled by default because it can hide a one-mesh frame asset.
@@ -221,6 +221,10 @@ func _apply_hinge_alignment() -> void:
 		zpush = -door_panel_depth
 	hinge_pos += Vector3(0, 0, zpush)
 	_hinge.position = hinge_pos
+	# XZ hinge math places the mesh center at the Content origin on Y, so half the panel sits below the sill.
+	# Shift the whole pivot subtree up so the bottom of the merged panel meets y=0 in Content space.
+	var panel_h := maxf(aabb.size.y, 1e-6)
+	_hinge.position.y += panel_h * 0.5
 
 
 func _hide_static_panel_meshes_in_frame_if_overlapping() -> void:

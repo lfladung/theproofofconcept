@@ -4,7 +4,7 @@ class_name TreasureChest2D
 signal opened
 
 const DROPPED_COIN_SCENE := preload("res://dungeon/modules/gameplay/dropped_coin.tscn")
-const _DEFAULT_CHEST_MESH := preload("res://art/Meshy_AI_treasure_chest_0322233650_texture.glb")
+const _DEFAULT_CHEST_MESH := preload("res://art/treasure_chest_texture.glb")
 
 @export var coin_count := 10
 ## Spawn distance in front of the chest (world units); keep min large enough to clear the solid body.
@@ -16,7 +16,7 @@ const _DEFAULT_CHEST_MESH := preload("res://art/Meshy_AI_treasure_chest_03222336
 @export var spew_front_cone_deg := 14.0
 @export var closed_color := Color(0.55, 0.35, 0.18, 1.0)
 @export var open_color := Color(0.42, 0.38, 0.32, 1.0)
-## Optional override; defaults to `Meshy_AI_treasure_chest_0322233650_texture.glb`.
+## Optional override; defaults to `treasure_chest_texture.glb`.
 @export var chest_3d_scene: PackedScene
 ## World Y for the chest model root (GLB pivot is often low — raise until the body clears the floor).
 @export var mesh_ground_y := 1.05
@@ -27,6 +27,7 @@ const _DEFAULT_CHEST_MESH := preload("res://art/Meshy_AI_treasure_chest_03222336
 @onready var _visual: Polygon2D = $Visual
 
 var _opened := false
+var _spew_started := false
 var _chest_3d: Node3D
 
 
@@ -120,6 +121,9 @@ func _spew_forward_dir() -> Vector2:
 
 
 func _spew_coins() -> void:
+	if _spew_started:
+		return
+	_spew_started = true
 	if get_parent() == null:
 		return
 	var n := maxi(0, coin_count)

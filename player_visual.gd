@@ -4,8 +4,8 @@ extends Node3D
 
 @export var walk_speed_threshold := 8.0
 
-const _RUN_GLB := "res://art/Meshy_AI_Cute_chibi_fantasy_kn_biped_Animation_Running_withSkin.glb"
-const _ATK_GLB := "res://art/Meshy_AI_Cute_chibi_fantasy_kn_biped_Animation_Attack_withSkin.glb"
+const _RUN_GLB := "res://art/Cute_chibi_fantasy_kn_biped_Animation_Running_withSkin.glb"
+const _ATK_GLB := "res://art/Cute_chibi_fantasy_kn_biped_Animation_Attack_withSkin.glb"
 
 var _anim: AnimationPlayer
 var _attack_playing: bool = false

@@ -23,26 +23,21 @@ const ROOM_TRIGGER_SCENE := preload("res://dungeon/modules/encounter/room_encoun
 const TREASURE_CHEST_SCENE := preload("res://dungeon/modules/gameplay/treasure_chest_2d.tscn")
 const TRAP_TILE_SCENE := preload("res://dungeon/modules/gameplay/trap_tile_2d.tscn")
 const DUNGEON_CELL_DOOR_SCENE := preload("res://dungeon/visuals/dungeon_cell_door_3d.tscn")
-const STYLIZED_WALL_3D_SCENE := preload("res://art/Meshy_AI_stylized_wall_0322224805_texture.glb")
-const FLOOR_WALL_ALBEDO_TEXTURE := preload("res://art/Meshy_AI_stylized_wall_0322224805_texture_0.jpg")
+const STYLIZED_WALL_3D_SCENE := preload("res://art/stylized_wall_texture.glb")
+const FLOOR_WALL_ALBEDO_TEXTURE := preload("res://art/stylized_wall_texture_0.jpg")
 ## World units per texture repeat on floors (matches 3×3 room tiles).
 const FLOOR_TEXTURE_TILE_WORLD := 3.0
-const _TREASURE_TRAP_OFFSETS: Array[Vector2] = [
-	Vector2(-12.0, 9.0),
-	Vector2(12.0, -7.0),
-	Vector2(-6.0, -13.0),
-]
 const _COMBAT_TRAP_OFFSETS: Array[Vector2] = [
 	Vector2(-15.5, -20.0),
 	Vector2(16.5, 18.0),
 ]
-## Matches DoorBlockers / door sockets: slab half-width 1.5, centers on X as placed in the POC scene.
-const _DOOR_SLAB_HALF := 1.5
+## Matches DoorBlockers / door sockets: slab half-width (blocker X size * 0.5), centers on X as placed in the POC scene.
+const _DOOR_SLAB_HALF := 3.0
 const _COMBAT_DOOR_X_W := 67.5
 const _COMBAT_DOOR_X_E := 139.5
 const _BOSS_DOOR_X_W := 184.5
-## Only clamp bodies in the vertical doorway strip (opening is 6 units tall, ±3).
-const _DOOR_CLAMP_Y_EXT := 3.51
+## Only clamp bodies in the vertical doorway strip (opening is 12 units tall, ±6).
+const _DOOR_CLAMP_Y_EXT := 7.02
 const _PLAYER_CLAMP_R := 1.2676448
 const _MOB_CLAMP_R := 1.15
 ## Do not pull actors far outside the door (other rooms).
@@ -377,17 +372,17 @@ func _direction_vector(direction: String) -> Vector2:
 func _set_room_sockets_for_layout(room: RoomBase) -> void:
 	var back_main: String = _opposite_direction(_main_dir)
 	var back_branch: String = _opposite_direction(_branch_dir)
-	var trans_b_branch: Dictionary = {_branch_dir: 2}
+	var trans_b_branch: Dictionary = {_branch_dir: 4}
 	var branch_openings: Dictionary = (
-		{back_branch: 2, _branch_dir: 2}
+		{back_branch: 4, _branch_dir: 4}
 	)
-	var treasure_openings: Dictionary = {back_branch: 2}
+	var treasure_openings: Dictionary = {back_branch: 4}
 	var openings_by_room: Dictionary = {
-		"EntranceRoom": {_main_dir: 2},
-		"TransitionRoomA": {back_main: 2, _main_dir: 2},
-		"CombatRoom": {back_main: 2, _main_dir: 2},
-		"TransitionRoomB": {back_main: 2, _main_dir: 2}.merged(trans_b_branch),
-		"BossRoom": {back_main: 2},
+		"EntranceRoom": {_main_dir: 4},
+		"TransitionRoomA": {back_main: 4, _main_dir: 4},
+		"CombatRoom": {back_main: 4, _main_dir: 4},
+		"TransitionRoomB": {back_main: 4, _main_dir: 4}.merged(trans_b_branch),
+		"BossRoom": {back_main: 4},
 		"BranchTransitionRoom": branch_openings,
 		"TreasureRoom": treasure_openings,
 	}
@@ -905,8 +900,6 @@ func _spawn_gameplay_objects() -> void:
 		chest.mesh_ground_y = maxf(1.2, FLOOR_SLAB_TOP_Y + 1.7)
 		chest.position = treasure_center
 		_piece_instances_root.add_child(chest)
-	for off in _TREASURE_TRAP_OFFSETS:
-		_spawn_trap_tile_at(treasure_center + off)
 	var combat_center := _room_center_2d(&"CombatRoom")
 	for off in _COMBAT_TRAP_OFFSETS:
 		_spawn_trap_tile_at(combat_center + off)
@@ -1032,7 +1025,9 @@ func _start_combat_encounter() -> void:
 	_encounter_active[&"combat"] = true
 	_set_combat_doors_locked(true)
 	_info_label.text = "Combat started. Clear all enemies to unlock."
-	_spawn_encounter_wave(&"combat", 6 + maxi(0, _floor_index - 1), 1.0 + float(_floor_index - 1) * 0.08)
+	var raw_count := 6 + maxi(0, _floor_index - 1)
+	var adjusted_count := maxi(1, int(ceili(float(raw_count) * 0.5)))
+	_spawn_encounter_wave(&"combat", adjusted_count, 1.0 + float(_floor_index - 1) * 0.08)
 
 
 func _start_boss_encounter() -> void:
@@ -1040,9 +1035,11 @@ func _start_boss_encounter() -> void:
 	_encounter_active[&"boss"] = true
 	_set_boss_entry_locked(true)
 	_info_label.text = "Boss encounter started. Defeat all enemies."
+	var raw_count := 2 + int(floor(float(_floor_index - 1) / 2.0))
+	var adjusted_count := maxi(1, int(ceili(float(raw_count) * 0.5)))
 	_spawn_encounter_wave(
 		&"boss",
-		2 + int(floor(float(_floor_index - 1) / 2.0)),
+		adjusted_count,
 		1.25 + float(_floor_index - 1) * 0.05
 	)
 
@@ -1052,39 +1049,69 @@ func _spawn_encounter_wave(encounter_id: StringName, total_count: int, speed_mul
 	var points: Array = _spawn_points_by_encounter.get(encounter_id, []) as Array
 	var volumes: Array = _spawn_volumes_by_encounter.get(encounter_id, []) as Array
 	var player_pos := _player.global_position
+	var planned_scenes: Array[PackedScene] = []
+	if total_count >= 2:
+		# Guarantee mixed waves: at least one dasher + one tower when possible.
+		planned_scenes.append(DASHER_SCENE)
+		planned_scenes.append(ARROW_TOWER_SCENE)
+	for i in range(planned_scenes.size(), total_count):
+		planned_scenes.append(_pick_enemy_scene(encounter_id))
 	for point_node in points:
 		if spawned >= total_count:
 			break
 		if point_node is EnemySpawnPoint2D:
 			var point := point_node as EnemySpawnPoint2D
-			_spawn_encounter_mob(encounter_id, point.get_spawn_position(), player_pos, speed_multiplier)
+			var scene_for_spawn := planned_scenes[spawned] if spawned < planned_scenes.size() else null
+			_spawn_encounter_mob(
+				encounter_id,
+				point.get_spawn_position(),
+				player_pos,
+				speed_multiplier,
+				scene_for_spawn
+			)
 			spawned += 1
 	while spawned < total_count:
 		if volumes.is_empty():
 			break
 		var volume_idx := randi() % volumes.size()
 		var volume := volumes[volume_idx] as EnemySpawnVolume2D
-		_spawn_encounter_mob(encounter_id, volume.sample_spawn_position(), player_pos, speed_multiplier)
+		var scene_for_spawn := planned_scenes[spawned] if spawned < planned_scenes.size() else null
+		_spawn_encounter_mob(
+			encounter_id,
+			volume.sample_spawn_position(),
+			player_pos,
+			speed_multiplier,
+			scene_for_spawn
+		)
 		spawned += 1
 
 
 func _spawn_encounter_mob(
-	encounter_id: StringName, spawn_position: Vector2, target_position: Vector2, speed_multiplier: float
+	encounter_id: StringName,
+	spawn_position: Vector2,
+	target_position: Vector2,
+	speed_multiplier: float,
+	enemy_scene: PackedScene = null
 ) -> void:
 	call_deferred(
 		"_spawn_encounter_mob_deferred",
 		encounter_id,
 		spawn_position,
 		target_position,
-		speed_multiplier
+		speed_multiplier,
+		enemy_scene
 	)
 
 
 func _spawn_encounter_mob_deferred(
-	encounter_id: StringName, spawn_position: Vector2, target_position: Vector2, speed_multiplier: float
+	encounter_id: StringName,
+	spawn_position: Vector2,
+	target_position: Vector2,
+	speed_multiplier: float,
+	enemy_scene: PackedScene = null
 ) -> void:
-	var enemy_scene := _pick_enemy_scene(encounter_id)
-	var enemy := enemy_scene.instantiate() as EnemyBase
+	var scene_to_spawn := enemy_scene if enemy_scene != null else _pick_enemy_scene(encounter_id)
+	var enemy := scene_to_spawn.instantiate() as EnemyBase
 	if enemy == null:
 		return
 	enemy.apply_speed_multiplier(speed_multiplier)

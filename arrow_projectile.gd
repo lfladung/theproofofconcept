@@ -1,7 +1,7 @@
 extends Area2D
 class_name ArrowProjectile
 
-const ARROW_VISUAL_SCENE := preload("res://art/Meshy_AI_a_regular_wooden_arrow_0322221011_texture.glb")
+const ARROW_VISUAL_SCENE := preload("res://art/a_regular_wooden_arrow_texture.glb")
 
 @export var speed := 42.0
 @export var max_distance := 30.0

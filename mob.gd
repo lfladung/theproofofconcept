@@ -20,8 +20,6 @@ extends EnemyBase
 @export var arrow_half_width := 0.32
 @export var hit_stun_duration := 1.0
 @export var hit_knockback_duration := 0.22
-@export var damage_text_rise := 1.6
-@export var damage_text_duration := 0.7
 
 var _squash_applied: bool = false
 var _visual: Node3D
@@ -73,7 +71,6 @@ func _ready() -> void:
 		vw.add_child(vis)
 		_visual = vis as Node3D
 		_sync_visual_from_body()
-		vis.screen_exited_visual.connect(_on_visible_on_screen_notifier_screen_exited)
 		_telegraph_mesh = MeshInstance3D.new()
 		_telegraph_mesh.name = &"MobTelegraphArrow"
 		_outline_mat = StandardMaterial3D.new()
@@ -310,7 +307,6 @@ func _sync_visual_anim_speed(for_speed: float = -1.0) -> void:
 func take_hit(damage: int, knockback_dir: Vector2, knockback_strength: float) -> void:
 	if damage <= 0 or _squash_applied:
 		return
-	_show_damage_indicator(damage)
 	super.take_hit(damage, knockback_dir, knockback_strength)
 
 
@@ -344,38 +340,8 @@ func can_contact_damage() -> bool:
 	return _is_dashing
 
 
-func _show_damage_indicator(damage: int) -> void:
-	if _vw == null:
-		return
-	var text := Label3D.new()
-	text.text = "-%s HP" % [damage]
-	text.billboard = BaseMaterial3D.BILLBOARD_ENABLED
-	text.no_depth_test = true
-	text.font_size = 220
-	text.outline_size = 16
-	text.modulate = Color(1.0, 0.15, 0.15, 1.0)
-	text.position = Vector3(global_position.x, 2.8, global_position.y)
-	_vw.add_child(text)
-	var tween := text.create_tween()
-	tween.set_parallel(true)
-	tween.tween_property(
-		text,
-		"position",
-		text.position + Vector3(0.0, damage_text_rise, 0.0),
-		damage_text_duration
-	).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
-	tween.tween_property(text, "modulate:a", 0.0, damage_text_duration).set_trans(Tween.TRANS_SINE).set_ease(
-		Tween.EASE_IN
-	)
-	tween.chain().tween_callback(text.queue_free)
-
-
 func squash() -> void:
 	if _squash_applied:
 		return
 	_squash_applied = true
 	super.squash()
-
-
-func _on_visible_on_screen_notifier_screen_exited() -> void:
-	queue_free()

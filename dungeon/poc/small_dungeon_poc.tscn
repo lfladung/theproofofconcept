@@ -8,7 +8,7 @@
 [ext_resource type="Script" uid="uid://bq4lq2wbf1rkc" path="res://score_label.gd" id="6_coin_counter"]
 
 [sub_resource type="RectangleShape2D" id="1_blocker_shape"]
-size = Vector2(3, 6)
+size = Vector2(6, 12)
 
 [sub_resource type="RectangleShape2D" id="2_trigger_shape"]
 size = Vector2(36, 36)

@@ -5,7 +5,7 @@
 [node name="DoorStandard2D" instance=ExtResource("1_base")]
 piece_id = &"door_standard"
 piece_category = &"connectivity"
-footprint_tiles = Vector2i(2, 1)
+footprint_tiles = Vector2i(4, 1)
 display_color = Color(0.62, 0.26, 0.86, 1)
 walkable = true
 blocks_movement = false
