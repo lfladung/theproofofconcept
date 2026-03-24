@@ -58,14 +58,14 @@ func apply_hard_door_clamps(
 		return
 	if not puzzle_solved and puzzle_gate_socket != Vector2.ZERO:
 		_clamp_to_locked_socket(player, player_radius, puzzle_gate_socket, puzzle_gate_dir)
-		for mob in mob_bodies:
-			_clamp_to_locked_socket(mob, mob_radius, puzzle_gate_socket, puzzle_gate_dir)
 	for encounter_key in encounter_active.keys():
 		var encounter_id := encounter_key as StringName
 		if not bool(encounter_active.get(encounter_id, false)):
 			continue
 		_clamp_encounter_doors(player, player_radius, encounter_id)
 		for mob in mob_bodies:
+			if not _mob_matches_encounter(mob, encounter_id):
+				continue
 			_clamp_encounter_doors(mob, mob_radius, encounter_id)
 
 
@@ -133,3 +133,10 @@ func _socket_pos_key(p: Vector2) -> String:
 	var qx := int(roundf(p.x * 100.0))
 	var qy := int(roundf(p.y * 100.0))
 	return "%s:%s" % [qx, qy]
+
+
+func _mob_matches_encounter(mob: CharacterBody2D, encounter_id: StringName) -> bool:
+	if mob == null:
+		return false
+	var mob_encounter := StringName(String(mob.get_meta(&"encounter_id", &"")))
+	return mob_encounter == encounter_id

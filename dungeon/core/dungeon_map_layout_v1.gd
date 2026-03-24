@@ -55,15 +55,13 @@ static func _stage1_generate_graph(
 	critical_min: int,
 	critical_max: int
 ) -> Dictionary:
-	var total := rng.randi_range(total_min, total_max)
-	# Keep side branches off interior nodes excluding the one right before exit so exit is strictly furthest.
-	var min_cp_for_sides := int(ceili(float(total + 3) * 0.5))
-	var cp_low := maxi(critical_min, min_cp_for_sides)
-	# Must have >= 1 side room so treasure can always be an optional dead-end branch.
-	var cp_high := mini(critical_max, total - 1)
+	# Keep side branches rare: generate a single optional branch room (treasure dead-end).
+	var cp_low := maxi(critical_min, total_min - 1)
+	var cp_high := mini(critical_max, total_max - 1)
 	if cp_low > cp_high:
 		return {"ok": false}
 	var cp_len := rng.randi_range(cp_low, cp_high)
+	var total := cp_len + 1
 	var nodes: Array[String] = []
 	var critical_path: Array[String] = []
 	for i in range(cp_len):
@@ -190,8 +188,6 @@ static func _stage3_assign_roles(stage1: Dictionary, stage2: Dictionary, rng: Ra
 	side_nodes.shuffle()
 	if not side_nodes.is_empty():
 		roles[side_nodes[0]] = "treasure"
-	for i in range(1, side_nodes.size()):
-		roles[side_nodes[i]] = "safe"
 
 	var puzzle_room := String(path[puzzle_idx])
 	var next_room := String(path[puzzle_idx + 1])

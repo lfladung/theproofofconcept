@@ -8,9 +8,9 @@ const FLOOR_SLAB_TOP_Y := -0.5
 const WALL_VISUAL_BASE_Y := FLOOR_SLAB_TOP_Y
 const LABEL_SCALE := 0.2
 const CAMERA_LERP_SPEED := 8.0
-## ARPG-style diagonal view (yaw) + look-down pitch; applied in _ready().
-const CAMERA_DIAG_PITCH_DEG := -44.0
-const CAMERA_DIAG_YAW_DEG := 40.0
+## Spiral Knights-inspired framing: south-side view with a slight diagonal.
+const CAMERA_DIAG_PITCH_DEG := -38.0
+const CAMERA_DIAG_YAW_DEG := 180.0
 const WALL_PIECE_SCENE := preload("res://dungeon/modules/structure/wall_segment_2d.tscn")
 ## Stone wall GLB tiles boundary segments (same asset as stone ground tier).
 const STONE_WALL_GLB := preload("res://art/environment/walls/stone_wall_texture.glb")
@@ -32,8 +32,8 @@ const PUZZLE_FLOOR_BUTTON_SCENE := preload("res://dungeon/modules/gameplay/puzzl
 const ROOM_BASE_SCENE := preload("res://dungeon/rooms/base/room_base.tscn")
 const TRAP_TILE_SCENE := preload("res://dungeon/modules/gameplay/trap_tile_2d.tscn")
 const DUNGEON_CELL_DOOR_SCENE := preload("res://dungeon/visuals/dungeon_cell_door_3d.tscn")
-## World units per texture repeat on floors (matches 3×3 room tiles).
-const FLOOR_TEXTURE_TILE_WORLD := 3.0
+## World units per texture repeat on floors (4x4 gameplay tiles at 3 units per tile).
+const FLOOR_TEXTURE_TILE_WORLD := 12.0
 ## Match floor tile size so wall stone pattern lines up at room corners.
 const WALL_TEXTURE_TILE_WORLD := FLOOR_TEXTURE_TILE_WORLD
 const _COMBAT_TRAP_OFFSETS: Array[Vector2] = [
@@ -58,6 +58,8 @@ const _W_EXT_X := 65.0
 const _E_EXT_X := 143.0
 const _BOSS_W_EXT_X := 182.0
 const _BOSS_PORTAL_INSET := 1.5
+const _ROOM_SIZE_SCALE := 1.5
+const _BACK_HALF_MIN_RATIO := 0.22
 
 @onready var _world_bounds: StaticBody2D = $GameWorld2D/WorldBounds
 @onready var _rooms_root: Node2D = $GameWorld2D/Rooms
@@ -84,6 +86,7 @@ var _encounter_mobs: Dictionary = {}
 var _spawn_points_by_encounter: Dictionary = {}
 var _spawn_volumes_by_encounter: Dictionary = {}
 var _spawn_count_by_encounter: Dictionary = {}
+var _entry_socket_by_encounter: Dictionary = {}
 var _door_visual_by_socket_key: Dictionary = {}
 ## Neighboring rooms both emit the same boundary segment; keep one collider + one visual.
 var _boundary_wall_keys: Dictionary = {}
@@ -283,7 +286,11 @@ func _spawn_rooms_from_layout(layout: Dictionary) -> void:
 		var nm := String(d.get("name", "DM_Room"))
 		room.name = nm
 		room.room_id = nm
-		room.room_size_tiles = d.get("size", Vector2i(12, 12)) as Vector2i
+		var base_size := d.get("size", Vector2i(12, 12)) as Vector2i
+		room.room_size_tiles = Vector2i(
+			maxi(1, int(round(float(base_size.x) * _ROOM_SIZE_SCALE))),
+			maxi(1, int(round(float(base_size.y) * _ROOM_SIZE_SCALE)))
+		)
 		room.tile_size = Vector2i(3, 3)
 		var kind := String(d.get("kind", "start"))
 		room.room_type = DungeonMapLayoutV1.kind_to_room_type(kind)
@@ -967,6 +974,7 @@ func _spawn_encounter_modules() -> void:
 	_spawn_points_by_encounter.clear()
 	_spawn_volumes_by_encounter.clear()
 	_spawn_count_by_encounter.clear()
+	_entry_socket_by_encounter.clear()
 	if _door_lock_controller != null:
 		_door_lock_controller.clear_encounter_locks()
 	_encounter_active = {&"boss": false}
@@ -981,6 +989,7 @@ func _spawn_encounter_modules() -> void:
 		return
 	var boss_center := boss_room.global_position
 	_cache_locked_sockets_for_encounter(boss_room, &"boss")
+	_entry_socket_by_encounter[&"boss"] = _boss_entry_socket
 	_spawn_encounter_trigger(boss_center, &"boss", "BossEncounterTrigger")
 	for room in _rooms_root.get_children():
 		if room is not RoomBase:
@@ -991,6 +1000,7 @@ func _spawn_encounter_modules() -> void:
 		var encounter_id := StringName("arena_%s" % [String(r.name)])
 		var trigger_name := "ArenaEncounterTrigger_%s" % [String(r.name)]
 		_cache_locked_sockets_for_encounter(r, encounter_id)
+		_cache_entry_socket_for_encounter(r, encounter_id)
 		_spawn_encounter_trigger(r.global_position, encounter_id, trigger_name)
 		_spawn_arena_modules_for_room(r, encounter_id)
 		_spawn_count_by_encounter[encounter_id] = _rng.randi_range(2, 4)
@@ -1007,6 +1017,7 @@ func _spawn_encounter_modules() -> void:
 	_spawn_enemy_spawn_point(boss_center + Vector2(bpx, bpy), &"boss")
 	var boss_vol_size := Vector2(maxf(16.0, boss_half.x * 0.4), maxf(12.0, boss_half.y * 0.35))
 	_spawn_enemy_spawn_volume(boss_center + Vector2(-bpx, bpy), boss_vol_size, &"boss")
+	_prespawn_encounter_mobs()
 
 
 func _cache_locked_sockets_for_encounter(room: RoomBase, encounter_id: StringName) -> void:
@@ -1097,6 +1108,7 @@ func _on_encounter_triggered(encounter_id: StringName) -> void:
 func _start_arena_encounter(encounter_id: StringName) -> void:
 	_encounter_active[encounter_id] = true
 	_set_encounter_door_visuals_locked(encounter_id, true, true)
+	_set_encounter_mobs_aggro(encounter_id, true)
 	var is_main_combat := encounter_id == _combat_encounter_id
 	if is_main_combat:
 		_combat_started = true
@@ -1104,23 +1116,26 @@ func _start_arena_encounter(encounter_id: StringName) -> void:
 		_set_info_base_text("Combat started. Clear all enemies to unlock.")
 	else:
 		_set_info_base_text("Arena encounter started.")
-	var count := int(_spawn_count_by_encounter.get(encounter_id, _rng.randi_range(2, 4)))
-	_spawn_encounter_wave(encounter_id, clampi(count, 2, 4), 1.0 + float(_floor_index - 1) * 0.08)
+	if (_encounter_mobs.get(encounter_id, []) as Array).is_empty():
+		var count := int(_spawn_count_by_encounter.get(encounter_id, _rng.randi_range(2, 4)))
+		_spawn_encounter_wave(encounter_id, clampi(count, 2, 4), 1.0 + float(_floor_index - 1) * 0.08)
 
 
 func _start_boss_encounter() -> void:
 	_boss_started = true
 	_encounter_active[&"boss"] = true
 	_set_encounter_door_visuals_locked(&"boss", true, true)
+	_set_encounter_mobs_aggro(&"boss", true)
 	_set_boss_entry_locked(true)
 	_set_info_base_text("Boss encounter started. Defeat all enemies.")
-	var raw_count := 2 + int(floor(float(_floor_index - 1) / 2.0))
-	var adjusted_count := maxi(1, int(ceili(float(raw_count) * 0.5)))
-	_spawn_encounter_wave(
-		&"boss",
-		adjusted_count,
-		1.25 + float(_floor_index - 1) * 0.05
-	)
+	if (_encounter_mobs.get(&"boss", []) as Array).is_empty():
+		var raw_count := 2 + int(floor(float(_floor_index - 1) / 2.0))
+		var adjusted_count := maxi(1, int(ceili(float(raw_count) * 0.5)))
+		_spawn_encounter_wave(
+			&"boss",
+			adjusted_count,
+			1.25 + float(_floor_index - 1) * 0.05
+		)
 
 
 func _spawn_encounter_wave(encounter_id: StringName, total_count: int, speed_multiplier: float) -> void:
@@ -1144,12 +1159,14 @@ func _spawn_encounter_wave(encounter_id: StringName, total_count: int, speed_mul
 			var pos := point.get_spawn_position()
 			if scene_for_spawn == ARROW_TOWER_SCENE:
 				pos = _tower_spawn_near_center(encounter_id, pos)
+			pos = _bias_spawn_to_back_half(encounter_id, pos)
 			_spawn_encounter_mob(
 				encounter_id,
 				pos,
 				player_pos,
 				speed_multiplier,
-				scene_for_spawn
+				scene_for_spawn,
+				false
 			)
 			spawned += 1
 	while spawned < total_count:
@@ -1161,12 +1178,14 @@ func _spawn_encounter_wave(encounter_id: StringName, total_count: int, speed_mul
 		var vpos := volume.sample_spawn_position()
 		if scene_for_spawn == ARROW_TOWER_SCENE:
 			vpos = _tower_spawn_near_center(encounter_id, vpos)
+		vpos = _bias_spawn_to_back_half(encounter_id, vpos)
 		_spawn_encounter_mob(
 			encounter_id,
 			vpos,
 			player_pos,
 			speed_multiplier,
-			scene_for_spawn
+			scene_for_spawn,
+			false
 		)
 		spawned += 1
 
@@ -1176,7 +1195,8 @@ func _spawn_encounter_mob(
 	spawn_position: Vector2,
 	target_position: Vector2,
 	speed_multiplier: float,
-	enemy_scene: PackedScene = null
+	enemy_scene: PackedScene = null,
+	start_aggro := false
 ) -> void:
 	call_deferred(
 		"_spawn_encounter_mob_deferred",
@@ -1184,7 +1204,8 @@ func _spawn_encounter_mob(
 		spawn_position,
 		target_position,
 		speed_multiplier,
-		enemy_scene
+		enemy_scene,
+		start_aggro
 	)
 
 
@@ -1193,8 +1214,10 @@ func _spawn_encounter_mob_deferred(
 	spawn_position: Vector2,
 	target_position: Vector2,
 	speed_multiplier: float,
-	enemy_scene: PackedScene = null
+	enemy_scene: PackedScene = null,
+	start_aggro := false
 ) -> void:
+	var resolved_encounter_id := _resolve_encounter_for_spawn(encounter_id, spawn_position)
 	var scene_to_spawn := enemy_scene if enemy_scene != null else _pick_enemy_scene(encounter_id)
 	var enemy := scene_to_spawn.instantiate() as EnemyBase
 	if enemy == null:
@@ -1202,12 +1225,98 @@ func _spawn_encounter_mob_deferred(
 	enemy.apply_speed_multiplier(speed_multiplier)
 	enemy.configure_spawn(spawn_position, target_position)
 	$GameWorld2D.add_child(enemy)
-	if not _encounter_mobs.has(encounter_id):
-		_encounter_mobs[encounter_id] = []
-	var mobs: Array = _encounter_mobs[encounter_id] as Array
+	enemy.set_meta(&"encounter_id", resolved_encounter_id)
+	var encounter_is_active := bool(_encounter_active.get(resolved_encounter_id, false))
+	var final_aggro := start_aggro or encounter_is_active
+	enemy.set_aggro_enabled(final_aggro)
+	if not _encounter_mobs.has(resolved_encounter_id):
+		_encounter_mobs[resolved_encounter_id] = []
+	var mobs: Array = _encounter_mobs[resolved_encounter_id] as Array
 	mobs.append(enemy)
-	_encounter_mobs[encounter_id] = mobs
-	enemy.tree_exited.connect(func() -> void: _on_encounter_mob_removed(encounter_id, enemy), CONNECT_ONE_SHOT)
+	_encounter_mobs[resolved_encounter_id] = mobs
+	enemy.tree_exited.connect(
+		func() -> void: _on_encounter_mob_removed(resolved_encounter_id, enemy),
+		CONNECT_ONE_SHOT
+	)
+
+
+func _set_encounter_mobs_aggro(encounter_id: StringName, enabled: bool) -> void:
+	var mobs: Array = _encounter_mobs.get(encounter_id, []) as Array
+	for mob in mobs:
+		if mob is EnemyBase and is_instance_valid(mob):
+			(mob as EnemyBase).set_aggro_enabled(enabled)
+
+
+func _prespawn_encounter_mobs() -> void:
+	for encounter_key in _spawn_count_by_encounter.keys():
+		var encounter_id := encounter_key as StringName
+		var count := clampi(int(_spawn_count_by_encounter.get(encounter_id, 0)), 0, 4)
+		if count > 0:
+			_spawn_encounter_wave(encounter_id, count, 1.0 + float(_floor_index - 1) * 0.08)
+	var raw_count := 2 + int(floor(float(_floor_index - 1) / 2.0))
+	var adjusted_count := maxi(1, int(ceili(float(raw_count) * 0.5)))
+	_spawn_encounter_wave(&"boss", adjusted_count, 1.25 + float(_floor_index - 1) * 0.05)
+
+
+func _cache_entry_socket_for_encounter(room: RoomBase, encounter_id: StringName) -> void:
+	if room == null:
+		return
+	var start_center := _room_center_2d(_layout_room_name("start_room"))
+	var best_socket := room.global_position
+	var best_dist := 1.0e12
+	for socket in room.get_all_sockets():
+		if socket.connector_type == &"inactive":
+			continue
+		var world_pos := room.global_position + socket.position
+		var d := world_pos.distance_squared_to(start_center)
+		if d < best_dist:
+			best_dist = d
+			best_socket = world_pos
+	_entry_socket_by_encounter[encounter_id] = best_socket
+
+
+func _bias_spawn_to_back_half(encounter_id: StringName, candidate_pos: Vector2) -> Vector2:
+	var room_name := StringName()
+	var id_text := String(encounter_id)
+	if id_text == "boss":
+		room_name = _layout_room_name("exit_room")
+	elif id_text.begins_with("arena_"):
+		room_name = StringName(id_text.trim_prefix("arena_"))
+	else:
+		return candidate_pos
+	var room := _room_by_name(room_name)
+	if room == null:
+		return candidate_pos
+	var entry_socket := _entry_socket_by_encounter.get(encounter_id, room.global_position) as Vector2
+	var to_entry := entry_socket - room.global_position
+	if to_entry.length_squared() <= 0.0001:
+		return candidate_pos
+	var back_dir := -to_entry.normalized()
+	var half := _room_half_extents(room)
+	var back_limit := maxf(2.5, maxf(half.x, half.y) * _BACK_HALF_MIN_RATIO)
+	var rel := candidate_pos - room.global_position
+	var dot_back := rel.dot(back_dir)
+	if dot_back >= back_limit:
+		return candidate_pos
+	var adjusted := candidate_pos + back_dir * (back_limit - dot_back)
+	# Keep spawn inside the owning room even after back-half bias.
+	var room_rect_local := room.get_room_rect_world()
+	var room_rect := Rect2(room.global_position - room_rect_local.size * 0.5, room_rect_local.size)
+	adjusted.x = clampf(adjusted.x, room_rect.position.x + 0.9, room_rect.end.x - 0.9)
+	adjusted.y = clampf(adjusted.y, room_rect.position.y + 0.9, room_rect.end.y - 0.9)
+	return adjusted
+
+
+func _resolve_encounter_for_spawn(requested_encounter_id: StringName, spawn_pos: Vector2) -> StringName:
+	if String(requested_encounter_id) == "boss":
+		return requested_encounter_id
+	var room_name := _room_name_at(spawn_pos, 1.25)
+	if room_name.is_empty():
+		return requested_encounter_id
+	var resolved := StringName("arena_%s" % [room_name])
+	if _encounter_active.has(resolved) and _encounter_completed.has(resolved):
+		return resolved
+	return requested_encounter_id
 
 
 func _pick_enemy_scene(encounter_id: StringName) -> PackedScene:

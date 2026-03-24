@@ -3,10 +3,10 @@
 [ext_resource type="Script" path="res://dungeon/modules/gameplay/treasure_chest_2d.gd" id="1_script"]
 
 [sub_resource type="RectangleShape2D" id="1_rect_solid"]
-size = Vector2(8, 6)
+size = Vector2(6.4, 4.8)
 
 [sub_resource type="RectangleShape2D" id="2_rect_trigger"]
-size = Vector2(8, 6)
+size = Vector2(6.4, 4.8)
 
 [node name="TreasureChest2D" type="Node2D"]
 script = ExtResource("1_script")

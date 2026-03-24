@@ -6,7 +6,7 @@ const ARROW_PROJECTILE_SCENE := preload("res://scenes/entities/arrow_projectile.
 
 @export var range_tiles := 5.0
 @export var world_units_per_tile := 3.0
-@export var fire_cooldown := 1.0
+@export var fire_cooldown := 2.0
 @export var arrow_damage := 15
 @export var arrow_max_tiles := 5.0
 @export var arrow_speed := 21.0
@@ -26,10 +26,13 @@ var _vw: Node3D
 var _telegraph_mesh: MeshInstance3D
 var _outline_mat: StandardMaterial3D
 var _fill_mat: StandardMaterial3D
+var _aggro_enabled := true
 
 
 func _ready() -> void:
 	super._ready()
+	# Require a full wind-up before the first shot.
+	_cooldown_remaining = maxf(0.01, fire_cooldown)
 	var vw := get_node_or_null("../../VisualWorld3D") as Node3D
 	_vw = vw
 	if vw != null and TOWER_VISUAL_SCENE != null:
@@ -59,7 +62,10 @@ func _ready() -> void:
 
 
 func _physics_process(delta: float) -> void:
-	_cooldown_remaining = maxf(0.0, _cooldown_remaining - delta)
+	if not _aggro_enabled:
+		_update_telegraph_visual(false, Vector2.ZERO, 0.0)
+		_sync_visual()
+		return
 	if _target_player == null or not is_instance_valid(_target_player):
 		_target_player = get_tree().get_first_node_in_group(&"player") as Node2D
 		_update_telegraph_visual(false, Vector2.ZERO, 0.0)
@@ -71,9 +77,13 @@ func _physics_process(delta: float) -> void:
 	var aim_dir := to_player.normalized() if to_player.length_squared() > 0.0001 else Vector2(0.0, -1.0)
 	if in_range:
 		_face_direction(aim_dir)
+		_cooldown_remaining = maxf(0.0, _cooldown_remaining - delta)
 		if _cooldown_remaining <= 0.0:
 			_fire_arrow(aim_dir)
 			_cooldown_remaining = fire_cooldown
+	else:
+		# Leaving range cancels stored charge; next shot needs a full wind-up.
+		_cooldown_remaining = maxf(0.01, fire_cooldown)
 	var denom := maxf(0.01, fire_cooldown)
 	var charge_progress := 1.0 - clampf(_cooldown_remaining / denom, 0.0, 1.0)
 	_update_telegraph_visual(in_range, aim_dir, charge_progress)
@@ -158,8 +168,17 @@ func apply_speed_multiplier(_multiplier: float) -> void:
 	pass
 
 
+func set_aggro_enabled(enabled: bool) -> void:
+	_aggro_enabled = enabled
+	if not _aggro_enabled:
+		_cooldown_remaining = maxf(0.01, fire_cooldown)
+		_update_telegraph_visual(false, Vector2.ZERO, 0.0)
+
+
 func _exit_tree() -> void:
 	if _visual != null and is_instance_valid(_visual):
 		_visual.queue_free()
 	if _telegraph_mesh != null and is_instance_valid(_telegraph_mesh):
 		_telegraph_mesh.queue_free()
+
+

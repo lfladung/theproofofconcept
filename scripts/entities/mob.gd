@@ -45,6 +45,7 @@ var _dash_hit_applied := false
 var _stun_time_remaining := 0.0
 var _knockback_time_remaining := 0.0
 var _knockback_velocity := Vector2.ZERO
+var _aggro_enabled := true
 @onready var _nav_agent: NavigationAgent2D = $NavigationAgent2D
 
 
@@ -56,6 +57,15 @@ func configure_spawn(start_position: Vector2, player_position: Vector2) -> void:
 
 func apply_speed_multiplier(multiplier: float) -> void:
 	_speed_multiplier = maxf(0.01, multiplier)
+
+
+func set_aggro_enabled(enabled: bool) -> void:
+	_aggro_enabled = enabled
+	if not _aggro_enabled:
+		velocity = Vector2.ZERO
+		_is_telegraphing = false
+		_is_dashing = false
+		_sync_visual_anim_speed(0.0)
 
 
 func _ready() -> void:
@@ -133,6 +143,12 @@ func _apply_spawn(start_position: Vector2, player_position: Vector2) -> void:
 
 
 func _update_attack_state(delta: float) -> void:
+	if not _aggro_enabled:
+		velocity = Vector2.ZERO
+		_is_telegraphing = false
+		_is_dashing = false
+		_sync_visual_anim_speed(0.0)
+		return
 	if _target_player == null or not is_instance_valid(_target_player):
 		_target_player = get_tree().get_first_node_in_group(&"player") as Node2D
 		if _target_player == null:

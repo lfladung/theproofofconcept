@@ -29,6 +29,10 @@ func apply_speed_multiplier(_multiplier: float) -> void:
 	pass
 
 
+func set_aggro_enabled(_enabled: bool) -> void:
+	pass
+
+
 func take_hit(damage: int, knockback_dir: Vector2, knockback_strength: float) -> void:
 	if damage <= 0 or _dead:
 		return

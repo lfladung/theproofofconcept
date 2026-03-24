@@ -34,7 +34,6 @@ const GATE_TYPES := {
 
 const ONE_DOOR_ALLOWED_ROOM_TYPES := {
 	"start": true,
-	"safe": true,
 	"treasure": true,
 	"exit": true,
 	"boss": true,
@@ -271,11 +270,13 @@ static func validate(level_data: Dictionary) -> Dictionary:
 			continue
 		if degree == 1 and not ONE_DOOR_ALLOWED_ROOM_TYPES.has(room_type):
 			errors.append(
-				"room '%s' type '%s' cannot be a dead-end (1 door). Only start/safe/treasure/exit/boss may have degree 1." % [
+				"room '%s' type '%s' cannot be a dead-end (1 door). Only start/treasure/exit/boss may have degree 1." % [
 					room_id,
 					room_type,
 				]
 			)
+		if (room_type == "safe" or room_type == "connector") and degree < 2:
+			errors.append("room '%s' type '%s' must have at least 2 doors." % [room_id, room_type])
 
 	return {"ok": errors.is_empty(), "errors": errors}
 
