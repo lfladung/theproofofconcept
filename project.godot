@@ -16,7 +16,7 @@ compatibility/default_parent_skeleton_in_mesh_instance_3d=true
 
 config/name="Squash The Creeps"
 config/description="In this game, your goal is to chase and kick out the creeps!"
-run/main_scene="res://scenes/core/main.tscn"
+run/main_scene="res://dungeon/game/small_dungeon.tscn"
 config/features=PackedStringArray("4.6")
 config/icon="res://icon.webp"
 

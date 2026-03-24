@@ -243,16 +243,6 @@ Generation logic, room catalog loading, and fully data-driven runtime assembly c
 
 ## Dungeon Scenes
 
-- `res://dungeon/game/dungeon_room.tscn`
-  - Instantiates `RoomBase`.
-  - Adds a small-room world boundary and a playable `Player`.
-  - Uses the milestone debug color language in 3D placeholders:
-	- white ground
-	- brown walls
-	- yellow trap tile
-	- purple doorway
-	- orange stairs marker
-
 - `res://dungeon/game/small_dungeon.tscn`
   - Multi-room dungeon scene that includes baseline room types:
 	- entrance room
