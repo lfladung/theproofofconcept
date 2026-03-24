@@ -70,6 +70,8 @@ const _BOSS_W_EXT_X := 182.0
 const _BOSS_PORTAL_INSET := 1.5
 const _ROOM_SIZE_SCALE := 1.5
 const _BACK_HALF_MIN_RATIO := 0.22
+## Arrow towers are biased toward room center; keep planned spawns apart so two never share one spot.
+const _TOWER_SPAWN_MIN_SEP := 4.5
 
 @onready var _world_bounds: StaticBody2D = $GameWorld2D/WorldBounds
 @onready var _rooms_root: Node2D = $GameWorld2D/Rooms
@@ -99,6 +101,7 @@ var _encounter_mobs: Dictionary = {}
 var _spawn_points_by_encounter: Dictionary = {}
 var _spawn_volumes_by_encounter: Dictionary = {}
 var _spawn_count_by_encounter: Dictionary = {}
+var _planned_tower_positions_by_encounter: Dictionary = {}
 var _entry_socket_by_encounter: Dictionary = {}
 var _door_visual_by_socket_key: Dictionary = {}
 ## Neighboring rooms both emit the same boundary segment; keep one collider + one visual.
@@ -308,6 +311,10 @@ func _ensure_dungeon_world_environment() -> void:
 	_dungeon_environment = Environment.new()
 	_dungeon_environment.background_mode = Environment.BG_COLOR
 	_dungeon_environment.background_color = Color(0.035, 0.04, 0.055)
+	# Single directional + dark BG leaves vertical wall normals starved (N·L ≈ 0); warm fill reads like bounce light.
+	_dungeon_environment.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
+	_dungeon_environment.ambient_light_color = Color(0.62, 0.58, 0.52)
+	_dungeon_environment.ambient_light_energy = 0.5
 	_dungeon_world_environment = WorldEnvironment.new()
 	_dungeon_world_environment.name = &"DungeonWorldEnvironment"
 	_dungeon_world_environment.environment = _dungeon_environment
@@ -507,10 +514,23 @@ func _opposite_direction(direction: String) -> String:
 			return ""
 
 
+func _collect_dropped_coins_under(node: Node, out: Array) -> void:
+	for c in node.get_children():
+		if c is DroppedCoin:
+			out.append(c)
+		else:
+			_collect_dropped_coins_under(c, out)
+
+
 func _clear_floor_loot() -> void:
-	for child in _piece_instances_root.get_children():
-		if child is DroppedCoin:
-			(child as Node).queue_free()
+	# Coins can live under PieceInstances (chests) or GameWorld2D root (mob death drops).
+	var gw := get_node_or_null("GameWorld2D") as Node
+	if gw != null:
+		var coins: Array = []
+		_collect_dropped_coins_under(gw, coins)
+		for n in coins:
+			if n is Node and is_instance_valid(n):
+				(n as Node).queue_free()
 	# Safety net for any orphaned visual meshes from old floor coins.
 	for n in _visual_world.find_children("DroppedCoinMesh", "MeshInstance3D", true, false):
 		if n is Node:
@@ -558,6 +578,64 @@ func _tower_spawn_near_center(encounter_id: StringName, module_pos: Vector2) -> 
 	if room == null:
 		return module_pos
 	return room.global_position.lerp(module_pos, 0.2)
+
+
+func _encounter_room_for_tower_separation(encounter_id: StringName) -> RoomBase:
+	var id_text := String(encounter_id)
+	var room_name := StringName()
+	if id_text == "boss":
+		room_name = _layout_room_name("exit_room")
+	elif id_text.begins_with("arena_"):
+		room_name = StringName(id_text.trim_prefix("arena_"))
+	else:
+		room_name = _layout_room_name("combat_room")
+	return _room_by_name(room_name)
+
+
+func _clamp_pos_to_room(room: RoomBase, pos: Vector2) -> Vector2:
+	if room == null:
+		return pos
+	var room_rect_local := room.get_room_rect_world()
+	var room_rect := Rect2(room.global_position - room_rect_local.size * 0.5, room_rect_local.size)
+	var inset := 0.9
+	return Vector2(
+		clampf(pos.x, room_rect.position.x + inset, room_rect.end.x - inset),
+		clampf(pos.y, room_rect.position.y + inset, room_rect.end.y - inset)
+	)
+
+
+func _separate_tower_spawn(encounter_id: StringName, candidate: Vector2) -> Vector2:
+	var room := _encounter_room_for_tower_separation(encounter_id)
+	var min_sep_sq := _TOWER_SPAWN_MIN_SEP * _TOWER_SPAWN_MIN_SEP
+	if not _planned_tower_positions_by_encounter.has(encounter_id):
+		_planned_tower_positions_by_encounter[encounter_id] = []
+	var planned: Array = _planned_tower_positions_by_encounter[encounter_id] as Array
+
+	var pos := _clamp_pos_to_room(room, candidate)
+	for _attempt in range(24):
+		var ok := true
+		for p in planned:
+			if p is Vector2 and (p as Vector2).distance_squared_to(pos) < min_sep_sq:
+				ok = false
+				break
+		if ok:
+			return pos
+		var tangent := Vector2(-(pos.y - room.global_position.y), pos.x - room.global_position.x)
+		if tangent.length_squared() <= 0.0001:
+			tangent = Vector2(1.0, 0.0)
+		tangent = tangent.normalized()
+		var step := _TOWER_SPAWN_MIN_SEP * (0.85 + 0.08 * float(_attempt))
+		var side := 1.0 if (_attempt % 2) == 0 else -1.0
+		pos = _clamp_pos_to_room(room, pos + tangent * step * side)
+	return pos
+
+
+func _register_planned_tower_spawn(encounter_id: StringName, world_pos: Vector2) -> void:
+	if not _planned_tower_positions_by_encounter.has(encounter_id):
+		_planned_tower_positions_by_encounter[encounter_id] = []
+	var planned: Array = _planned_tower_positions_by_encounter[encounter_id] as Array
+	planned.append(world_pos)
+	_planned_tower_positions_by_encounter[encounter_id] = planned
 
 
 func _room_half_extents(room: RoomBase) -> Vector2:
@@ -818,6 +896,30 @@ func _add_wall_piece(position_2d: Vector2, size_2d: Vector2) -> void:
 	_piece_instances_root.add_child(wall_piece)
 
 
+func _apply_disable_receive_shadows_on_mesh_instance(mi: MeshInstance3D) -> void:
+	var mesh := mi.mesh
+	if mesh == null:
+		return
+	for surf_idx in range(mesh.get_surface_count()):
+		var src_mat: Material = mi.get_surface_override_material(surf_idx)
+		if src_mat == null:
+			src_mat = mesh.surface_get_material(surf_idx)
+		if src_mat is BaseMaterial3D:
+			var dup := (src_mat as BaseMaterial3D).duplicate() as BaseMaterial3D
+			dup.disable_receive_shadows = true
+			mi.set_surface_override_material(surf_idx, dup)
+
+
+func _disable_architecture_shadows(root: Node) -> void:
+	if root is GeometryInstance3D:
+		(root as GeometryInstance3D).cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	if root is MeshInstance3D:
+		_apply_disable_receive_shadows_on_mesh_instance(root as MeshInstance3D)
+	for c in root.get_children():
+		if c is Node:
+			_disable_architecture_shadows(c as Node)
+
+
 func _add_wall_visual(position_2d: Vector2, size_2d: Vector2) -> void:
 	var glb_scene := STONE_WALL_GLB
 	var src := _get_floor_glb_tile_aabb(glb_scene)
@@ -849,6 +951,7 @@ func _add_wall_visual(position_2d: Vector2, size_2d: Vector2) -> void:
 				var row_bottom := WALL_VISUAL_BASE_Y + float(iy) * module_y
 				var py := row_bottom - src.position.y * sy
 				tile.position = Vector3(px - src_center.x * sx, py, pz - src_center.z * sz)
+				_disable_architecture_shadows(tile)
 				_wall_visuals.add_child(tile)
 
 
@@ -1066,6 +1169,7 @@ func _add_room_floor_visual(rect: Rect2, label_text: String) -> void:
 			var pz := base_z + float(iz) * module_z
 			var py := FLOOR_SLAB_TOP_Y - top_y * sy
 			tile.position = Vector3(px - src_center.x * sx, py, pz - src_center.z * sz)
+			_disable_architecture_shadows(tile)
 			_room_visuals.add_child(tile)
 
 	var cx := rect.position.x + rect.size.x * 0.5
@@ -1084,6 +1188,7 @@ func _add_cell_door_3d(world_pos: Vector2, wall_direction: String, use_combat_lo
 	door.use_combat_lock_visuals = use_combat_lock_visuals
 	door.configure_for_socket(wall_direction)
 	door.position = Vector3(world_pos.x, FLOOR_SLAB_TOP_Y, world_pos.y)
+	_disable_architecture_shadows(door)
 	_door_visuals.add_child(door)
 	_door_visual_by_socket_key[_socket_pos_key(world_pos)] = door
 	return door
@@ -1196,6 +1301,7 @@ func _spawn_encounter_modules() -> void:
 	_spawn_points_by_encounter.clear()
 	_spawn_volumes_by_encounter.clear()
 	_spawn_count_by_encounter.clear()
+	_planned_tower_positions_by_encounter.clear()
 	_entry_socket_by_encounter.clear()
 	if _door_lock_controller != null:
 		_door_lock_controller.clear_encounter_locks()
@@ -1361,6 +1467,8 @@ func _start_boss_encounter() -> void:
 
 
 func _spawn_encounter_wave(encounter_id: StringName, total_count: int, speed_multiplier: float) -> void:
+	if not _planned_tower_positions_by_encounter.has(encounter_id):
+		_planned_tower_positions_by_encounter[encounter_id] = []
 	var spawned := 0
 	var points: Array = _spawn_points_by_encounter.get(encounter_id, []) as Array
 	var volumes: Array = _spawn_volumes_by_encounter.get(encounter_id, []) as Array
@@ -1382,6 +1490,9 @@ func _spawn_encounter_wave(encounter_id: StringName, total_count: int, speed_mul
 			if scene_for_spawn == ARROW_TOWER_SCENE:
 				pos = _tower_spawn_near_center(encounter_id, pos)
 			pos = _bias_spawn_to_back_half(encounter_id, pos)
+			if scene_for_spawn == ARROW_TOWER_SCENE:
+				pos = _separate_tower_spawn(encounter_id, pos)
+				_register_planned_tower_spawn(encounter_id, pos)
 			_spawn_encounter_mob(
 				encounter_id,
 				pos,
@@ -1401,6 +1512,9 @@ func _spawn_encounter_wave(encounter_id: StringName, total_count: int, speed_mul
 		if scene_for_spawn == ARROW_TOWER_SCENE:
 			vpos = _tower_spawn_near_center(encounter_id, vpos)
 		vpos = _bias_spawn_to_back_half(encounter_id, vpos)
+		if scene_for_spawn == ARROW_TOWER_SCENE:
+			vpos = _separate_tower_spawn(encounter_id, vpos)
+			_register_planned_tower_spawn(encounter_id, vpos)
 		_spawn_encounter_mob(
 			encounter_id,
 			vpos,
