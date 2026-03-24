@@ -1,7 +1,6 @@
 [gd_scene format=3 uid="uid://dk3ryqsnd1kxj"]
 
 [ext_resource type="Script" uid="uid://b5tbqbpc6hk1r" path="res://dungeon/poc/small_dungeon_poc.gd" id="1_script"]
-[ext_resource type="PackedScene" path="res://dungeon/rooms/base/room_base.tscn" id="2_room"]
 [ext_resource type="PackedScene" uid="uid://ceuu150fmggvr" path="res://player.tscn" id="3_player"]
 [ext_resource type="PackedScene" path="res://player_visual.tscn" id="4_player_visual"]
 [ext_resource type="PackedScene" path="res://health_bar.tscn" id="5_health_bar"]
@@ -32,53 +31,6 @@ script = ExtResource("1_script")
 visible = false
 
 [node name="Rooms" type="Node2D" parent="GameWorld2D" unique_id=1307954293]
-
-[node name="EntranceRoom" parent="GameWorld2D/Rooms" unique_id=1139811431 instance=ExtResource("2_room")]
-room_id = "room_entrance_poc_small_01"
-size_class = "small"
-room_type = "safe"
-room_size_tiles = Vector2i(15, 15)
-
-[node name="TransitionRoomA" parent="GameWorld2D/Rooms" unique_id=1839917590 instance=ExtResource("2_room")]
-position = Vector2(45, 0)
-room_id = "room_transition_poc_a_01"
-size_class = "small"
-room_type = "connector"
-room_size_tiles = Vector2i(15, 9)
-
-[node name="CombatRoom" parent="GameWorld2D/Rooms" unique_id=1487576338 instance=ExtResource("2_room")]
-position = Vector2(103.5, 0)
-room_id = "room_combat_poc_medium_01"
-
-[node name="TransitionRoomB" parent="GameWorld2D/Rooms" unique_id=922690738 instance=ExtResource("2_room")]
-position = Vector2(162, 0)
-room_id = "room_transition_poc_b_01"
-size_class = "small"
-room_type = "connector"
-room_size_tiles = Vector2i(15, 9)
-
-[node name="BossRoom" parent="GameWorld2D/Rooms" unique_id=1683146615 instance=ExtResource("2_room")]
-position = Vector2(238.5, 0)
-room_id = "room_boss_poc_large_01"
-size_class = "arena"
-room_type = "boss"
-room_size_tiles = Vector2i(36, 36)
-min_difficulty_tier = 4
-max_difficulty_tier = 8
-
-[node name="BranchTransitionRoom" parent="GameWorld2D/Rooms" unique_id=1312850844 instance=ExtResource("2_room")]
-position = Vector2(162, -36)
-room_id = "room_transition_poc_branch_01"
-size_class = "small"
-room_type = "connector"
-room_size_tiles = Vector2i(9, 15)
-
-[node name="TreasureRoom" parent="GameWorld2D/Rooms" unique_id=2126859021 instance=ExtResource("2_room")]
-position = Vector2(162, -81)
-room_id = "room_treasure_poc_small_01"
-size_class = "small"
-room_type = "treasure"
-room_size_tiles = Vector2i(15, 15)
 
 [node name="Markers" type="Node2D" parent="GameWorld2D" unique_id=2083069729]
 

@@ -4,11 +4,11 @@ class_name ArrowTowerMob
 const TOWER_VISUAL_SCENE := preload("res://art/stylized_arrow_tower_texture.glb")
 const ARROW_PROJECTILE_SCENE := preload("res://arrow_projectile.tscn")
 
-@export var range_tiles := 10.0
+@export var range_tiles := 5.0
 @export var world_units_per_tile := 3.0
 @export var fire_cooldown := 1.0
 @export var arrow_damage := 15
-@export var arrow_max_tiles := 10.0
+@export var arrow_max_tiles := 5.0
 @export var arrow_speed := 21.0
 @export var mesh_ground_y := 0.95
 @export var mesh_scale := Vector3(2.3, 2.3, 2.3)

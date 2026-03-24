@@ -7,13 +7,10 @@ const DROPPED_COIN_SCENE := preload("res://dungeon/modules/gameplay/dropped_coin
 const _DEFAULT_CHEST_MESH := preload("res://art/treasure_chest_texture.glb")
 
 @export var coin_count := 10
-## Spawn distance in front of the chest (world units); keep min large enough to clear the solid body.
-@export var spew_radius_min := 3.5
-@export var spew_radius_max := 6.5
+## Coins arc from the chest center and land on this radius (evenly spaced around a full circle).
+@export var spew_radius := 5.0
 ## Delay between each coin when the chest opens.
 @export var spew_interval_sec := 0.2
-## Half-angle (degrees) for random yaw around "forward"; coins still shoot roughly toward the player.
-@export var spew_front_cone_deg := 14.0
 @export var closed_color := Color(0.55, 0.35, 0.18, 1.0)
 @export var open_color := Color(0.42, 0.38, 0.32, 1.0)
 ## Optional override; defaults to `treasure_chest_texture.glb`.
@@ -92,14 +89,66 @@ func _sync_chest_mesh_transform() -> void:
 
 func _physics_process(_delta: float) -> void:
 	_sync_chest_mesh_transform()
+	if not _opened:
+		_poll_player_touch_open()
 
 
 func _on_open_trigger_body_entered(body: Node2D) -> void:
-	if _opened or body == null or not body.is_in_group(&"player"):
+	if body == null or not body.is_in_group(&"player"):
+		return
+	_open_from_player()
+
+
+## Area2D overlap often misses edge contact vs StaticBody2D (zero penetration). Match the solid AABB instead.
+func _poll_player_touch_open() -> void:
+	var tree := get_tree()
+	if tree == null:
+		return
+	var p := tree.get_first_node_in_group(&"player") as Node2D
+	if p == null or not _player_circle_hits_solid_aabb(p):
+		return
+	_open_from_player()
+
+
+static func _approx_player_collision_radius(body: Node2D) -> float:
+	const FALLBACK := 2.55
+	for c in body.get_children():
+		if c is CollisionShape2D:
+			var circ := (c as CollisionShape2D).shape as CircleShape2D
+			if circ != null:
+				var gs := (c as CollisionShape2D).global_scale
+				return circ.radius * maxf(absf(gs.x), absf(gs.y))
+	return FALLBACK
+
+
+func _solid_aabb_center_half() -> Vector2:
+	if _solid_shape == null:
+		return Vector2.ZERO
+	var rect := _solid_shape.shape as RectangleShape2D
+	if rect == null:
+		return Vector2.ZERO
+	var half := rect.size * 0.5
+	var gs := _solid_shape.global_scale
+	return Vector2(half.x * absf(gs.x), half.y * absf(gs.y))
+
+
+func _player_circle_hits_solid_aabb(player: Node2D) -> bool:
+	var half := _solid_aabb_center_half()
+	if half.x <= 0.0 or half.y <= 0.0:
+		return false
+	var center := _solid_shape.global_position
+	var pc := player.global_position
+	var r := _approx_player_collision_radius(player)
+	var qx := clampf(pc.x, center.x - half.x, center.x + half.x)
+	var qy := clampf(pc.y, center.y - half.y, center.y + half.y)
+	var d2 := pc.distance_squared_to(Vector2(qx, qy))
+	return d2 <= r * r + 0.02
+
+
+func _open_from_player() -> void:
+	if _opened:
 		return
 	_opened = true
-	if _solid_shape != null:
-		_solid_shape.set_deferred("disabled", true)
 	if _open_trigger != null:
 		_open_trigger.set_deferred("monitoring", false)
 		_open_trigger.set_deferred("monitorable", false)
@@ -107,17 +156,6 @@ func _on_open_trigger_body_entered(body: Node2D) -> void:
 		_visual.color = open_color
 	opened.emit()
 	call_deferred("_spew_coins")
-
-
-func _spew_forward_dir() -> Vector2:
-	var tree := get_tree()
-	if tree != null:
-		var p := tree.get_first_node_in_group(&"player") as Node2D
-		if p != null:
-			var d := p.global_position - global_position
-			if d.length_squared() > 0.01:
-				return d.normalized()
-	return Vector2(0.0, 1.0)
 
 
 func _spew_coins() -> void:
@@ -129,28 +167,24 @@ func _spew_coins() -> void:
 	var n := maxi(0, coin_count)
 	if n <= 0:
 		return
-	var cone := deg_to_rad(spew_front_cone_deg)
+	var r := maxf(0.1, spew_radius)
 	for i in n:
 		if not is_instance_valid(self) or not is_inside_tree():
 			return
-		var fwd := _spew_forward_dir()
-		var base_ang := atan2(fwd.y, fwd.x)
-		var ang := base_ang + randf_range(-cone, cone)
-		var dir := Vector2.from_angle(ang)
-		var rad := randf_range(spew_radius_min, spew_radius_max)
-		var offset := dir * rad
-		call_deferred("_spawn_coin_deferred", global_position + offset, global_position)
+		var ang := TAU * float(i) / float(n)
+		var land := global_position + Vector2.from_angle(ang) * r
+		call_deferred("_spawn_coin_deferred", global_position, land)
 		if i < n - 1:
 			await get_tree().create_timer(spew_interval_sec).timeout
 
 
-func _spawn_coin_deferred(spawn_pos: Vector2, chest_origin: Vector2) -> void:
+func _spawn_coin_deferred(chest_center: Vector2, land_pos: Vector2) -> void:
 	var parent := get_parent()
 	if parent == null:
 		return
 	var coin := DROPPED_COIN_SCENE.instantiate() as DroppedCoin
 	if coin == null:
 		return
-	coin.bias_jump_away_from(chest_origin, 0.5)
+	coin.set_planar_arc_end(land_pos)
 	parent.add_child(coin)
-	coin.global_position = spawn_pos
+	coin.global_position = chest_center

@@ -28,6 +28,8 @@ const SPAWN_POINT_SCENE := preload("res://dungeon/modules/encounter/enemy_spawn_
 const SPAWN_VOLUME_SCENE := preload("res://dungeon/modules/encounter/enemy_spawn_volume_2d.tscn")
 const ROOM_TRIGGER_SCENE := preload("res://dungeon/modules/encounter/room_encounter_trigger_2d.tscn")
 const TREASURE_CHEST_SCENE := preload("res://dungeon/modules/gameplay/treasure_chest_2d.tscn")
+const PUZZLE_FLOOR_BUTTON_SCENE := preload("res://dungeon/modules/gameplay/puzzle_floor_button_2d.tscn")
+const ROOM_BASE_SCENE := preload("res://dungeon/rooms/base/room_base.tscn")
 const TRAP_TILE_SCENE := preload("res://dungeon/modules/gameplay/trap_tile_2d.tscn")
 const DUNGEON_CELL_DOOR_SCENE := preload("res://dungeon/visuals/dungeon_cell_door_3d.tscn")
 ## World units per texture repeat on floors (matches 3×3 room tiles).
@@ -35,8 +37,12 @@ const FLOOR_TEXTURE_TILE_WORLD := 3.0
 ## Match floor tile size so wall stone pattern lines up at room corners.
 const WALL_TEXTURE_TILE_WORLD := FLOOR_TEXTURE_TILE_WORLD
 const _COMBAT_TRAP_OFFSETS: Array[Vector2] = [
-	Vector2(-15.5, -20.0),
-	Vector2(16.5, 18.0),
+	Vector2(-7.75, -10.0),
+	Vector2(8.25, 9.0),
+]
+const _TRAP_ROOM_OFFSETS: Array[Vector2] = [
+	Vector2(-3.5, -3.5),
+	Vector2(3.5, 3.5),
 ]
 ## Matches DoorBlockers / door sockets: slab half-width (blocker X size * 0.5), centers on X as placed in the POC scene.
 const _DOOR_SLAB_HALF := 3.0
@@ -52,8 +58,6 @@ const _W_EXT_X := 65.0
 const _E_EXT_X := 143.0
 const _BOSS_W_EXT_X := 182.0
 const _BOSS_PORTAL_INSET := 1.5
-const _SIZE_9_15: PackedInt32Array = [9, 15]
-const _SIZE_24_36: PackedInt32Array = [24, 36]
 
 @onready var _world_bounds: StaticBody2D = $GameWorld2D/WorldBounds
 @onready var _rooms_root: Node2D = $GameWorld2D/Rooms
@@ -79,21 +83,24 @@ var _encounter_completed: Dictionary = {}
 var _encounter_mobs: Dictionary = {}
 var _spawn_points_by_encounter: Dictionary = {}
 var _spawn_volumes_by_encounter: Dictionary = {}
+var _spawn_count_by_encounter: Dictionary = {}
 ## Neighboring rooms both emit the same boundary segment; keep one collider + one visual.
 var _boundary_wall_keys: Dictionary = {}
 ## Merged mesh AABB in GLB root space (cached per path) for floor tile scaling.
 var _floor_glb_aabb_by_path: Dictionary = {}
 var _rng: RandomNumberGenerator = RandomNumberGenerator.new()
 var _floor_index := 1
-var _main_dir := "east"
-var _prev_main_dir := ""
-var _branch_dir := "north"
+var _map_layout: Dictionary = {}
+var _puzzle_solved := false
+var _puzzle_gate_socket := Vector2.ZERO
 var _combat_entry_dir := "west"
 var _combat_exit_dir := "east"
 var _combat_entry_socket := Vector2.ZERO
 var _combat_exit_socket := Vector2.ZERO
+var _combat_encounter_id: StringName = &""
 var _boss_entry_dir := "west"
 var _boss_entry_socket := Vector2.ZERO
+var _puzzle_gate_dir := "east"
 var _combat_door_x_w := _COMBAT_DOOR_X_W
 var _combat_door_x_e := _COMBAT_DOOR_X_E
 var _boss_door_x_w := _BOSS_DOOR_X_W
@@ -104,6 +111,7 @@ var _retry_pending := false
 var _prev_player_pos := Vector2.ZERO
 var _prev_player_inside := true
 var _prev_room_name := ""
+var _info_base_text := ""
 var _floor_transition_pending := false
 var _last_assembly_errors: PackedStringArray = PackedStringArray()
 
@@ -121,6 +129,7 @@ func _process(delta: float) -> void:
 		return
 	var target := Vector3(_player.global_position.x, _camera_pivot.global_position.y, _player.global_position.y)
 	_camera_pivot.global_position = _camera_pivot.global_position.lerp(target, clampf(delta * CAMERA_LERP_SPEED, 0.0, 1.0))
+	_refresh_info_label_with_room_type()
 	_refresh_encounter_state()
 
 
@@ -144,19 +153,6 @@ func _physics_process(_delta: float) -> void:
 	_apply_hard_door_clamps()
 
 
-func _build_room_graph_links() -> Array[Dictionary]:
-	var back_dir := _opposite_direction(_main_dir)
-	var links: Array[Dictionary] = [
-		{"from": "EntranceRoom", "to": "TransitionRoomA", "from_dir": _main_dir},
-		{"from": "TransitionRoomA", "to": "CombatRoom", "from_dir": _main_dir},
-		{"from": "CombatRoom", "to": "TransitionRoomB", "from_dir": _main_dir},
-		{"from": "TransitionRoomB", "to": "BossRoom", "from_dir": _main_dir, "to_dir": back_dir},
-	]
-	links.append({"from": "TransitionRoomB", "to": "BranchTransitionRoom", "from_dir": _branch_dir})
-	links.append({"from": "BranchTransitionRoom", "to": "TreasureRoom", "from_dir": _branch_dir})
-	return links
-
-
 func _regenerate_level(randomize_layout: bool) -> void:
 	_floor_transition_pending = false
 	_combat_started = false
@@ -164,29 +160,33 @@ func _regenerate_level(randomize_layout: bool) -> void:
 	_boss_started = false
 	_boss_cleared = false
 	_retry_pending = false
+	_puzzle_solved = false
+	_puzzle_gate_socket = Vector2.ZERO
 	_clear_floor_loot()
 	for n in get_tree().get_nodes_in_group(&"mob"):
 		if n is Node:
 			(n as Node).queue_free()
+	_map_layout = {}
 	var assembled_ok := false
-	var max_tries := 8 if randomize_layout else 1
-	for attempt in range(max_tries):
-		_configure_room_metadata(randomize_layout)
-		assembled_ok = _assemble_rooms_procedurally()
+	var max_tries := 4 if randomize_layout else 1
+	for _attempt in range(max_tries):
+		var generated := DungeonMapLayoutV1.generate(_rng)
+		if not bool(generated.get("ok", false)):
+			continue
+		_map_layout = generated
+		_destroy_dynamic_rooms()
+		_spawn_rooms_from_layout(_map_layout)
+		_apply_adjacency_sockets(DungeonMapLayoutV1.adjacency_from_links(_map_layout.get("links", []) as Array))
+		assembled_ok = _assemble_rooms_procedurally(_map_layout)
 		if assembled_ok:
 			break
-	if not assembled_ok and randomize_layout:
-		# Guaranteed-safe fallback if randomized attempts fail validation.
-		_configure_room_metadata(false)
-		assembled_ok = _assemble_rooms_procedurally()
 	if not assembled_ok:
 		push_warning(
-			"Milestone 5 assembly failed after retries (%s validation issues); skipping floor build." % [
+			"Grid dungeon assembly failed (%s validation issues); skipping floor build." % [
 				_last_assembly_errors.size()
 			]
 		)
 		return
-	_prev_main_dir = _main_dir
 	_cache_runtime_door_positions()
 	_position_runtime_markers()
 	_build_world_bounds()
@@ -199,61 +199,91 @@ func _regenerate_level(randomize_layout: bool) -> void:
 	_boss_exit_portal.monitoring = false
 	_boss_exit_portal.monitorable = false
 	($VisualWorld3D/BossPortalMarker as MeshInstance3D).visible = false
-	var entrance_spawn := _room_center_2d(&"EntranceRoom")
+	var entrance_spawn := _room_center_2d(_layout_room_name("start_room"))
 	_player.global_position = entrance_spawn
 	_player.velocity = Vector2.ZERO
 	_prev_player_pos = _player.global_position
 	_prev_player_inside = _is_point_inside_any_room(_prev_player_pos, 1.25)
 	_prev_room_name = _room_name_at(_prev_player_pos, 1.25)
-	_info_label.text = (
-		"Floor %s generated. Spawn exit goes %s; treasure branch goes %s." % [
+	_log_generation_debug(_map_layout)
+	var room_count := (_map_layout.get("room_specs", []) as Array).size()
+	_set_info_base_text(
+		"Floor %s — linear spine (%s rooms). Puzzle button unlocks progression; treasure branch is optional." % [
 			_floor_index,
-			_main_dir,
-			_branch_dir,
+			room_count,
 		]
 	)
 
 
-func _configure_room_metadata(randomize_layout: bool = false) -> void:
-	if randomize_layout:
-		var options := PackedStringArray(["north", "east", "south", "west"])
-		if _prev_main_dir != "":
-			options.remove_at(options.find(_prev_main_dir))
-		_main_dir = options[_rng.randi() % options.size()]
-		var branch_options := _perpendicular_directions(_main_dir)
-		_branch_dir = branch_options[_rng.randi() % branch_options.size()]
-	else:
-		_main_dir = "east"
-		_branch_dir = "north"
+func _log_generation_debug(layout: Dictionary) -> void:
+	var debug := layout.get("stage_debug", {}) as Dictionary
+	if debug.is_empty():
+		return
+	var graph := debug.get("graph", {}) as Dictionary
+	var roles := debug.get("roles", {}) as Dictionary
+	var spatial := debug.get("spatial", {}) as Dictionary
+	print("Dungeon Pipeline Graph: %s" % [graph])
+	print("Dungeon Pipeline Roles: %s" % [roles])
+	print("Dungeon Pipeline Spatial: %s" % [spatial])
+
+
+func _destroy_dynamic_rooms() -> void:
+	var kids := _rooms_root.get_children()
+	for c in kids:
+		if c is Node:
+			(c as Node).free()
+
+
+func _spawn_rooms_from_layout(layout: Dictionary) -> void:
+	var specs: Array = layout.get("room_specs", []) as Array
+	for spec in specs:
+		if spec is not Dictionary:
+			continue
+		var d: Dictionary = spec as Dictionary
+		var room := ROOM_BASE_SCENE.instantiate() as RoomBase
+		if room == null:
+			continue
+		var nm := String(d.get("name", "DM_Room"))
+		room.name = nm
+		room.room_id = nm
+		room.room_size_tiles = d.get("size", Vector2i(12, 12)) as Vector2i
+		room.tile_size = Vector2i(3, 3)
+		var kind := String(d.get("kind", "start"))
+		room.room_type = DungeonMapLayoutV1.kind_to_room_type(kind)
+		room.room_tags = PackedStringArray([room.room_type])
+		room.standard_room_sizes = PackedInt32Array([3, 5, 9, 12, 15, 18, 24])
+		if kind == "exit":
+			room.min_difficulty_tier = 4
+			room.max_difficulty_tier = 8
+		_rooms_root.add_child(room)
+
+
+func _apply_adjacency_sockets(adj: Dictionary) -> void:
 	for room in _rooms_root.get_children():
 		if room is not RoomBase:
 			continue
 		var r := room as RoomBase
-		r.tile_size = Vector2i(3, 3)
-		r.standard_room_sizes = PackedInt32Array([9, 15, 24, 36])
-		if randomize_layout:
-			match String(r.name):
-				"TransitionRoomA":
-					r.room_size_tiles = Vector2i(_pick_from_sizes(_SIZE_9_15), 9)
-				"CombatRoom":
-					r.room_size_tiles = Vector2i(_pick_from_sizes(_SIZE_24_36), _pick_from_sizes(_SIZE_24_36))
-				"TransitionRoomB":
-					r.room_size_tiles = Vector2i(_pick_from_sizes(_SIZE_9_15), 9)
-				"BossRoom":
-					r.room_size_tiles = Vector2i(36, 36)
-				"BranchTransitionRoom":
-					r.room_size_tiles = Vector2i(9, _pick_from_sizes(_SIZE_9_15))
-				"TreasureRoom":
-					r.room_size_tiles = Vector2i(_pick_from_sizes(_SIZE_9_15), _pick_from_sizes(_SIZE_9_15))
+		var dirs: Dictionary = adj.get(String(r.name), {}) as Dictionary
+		var half_w := r.room_size_tiles.x * r.tile_size.x * 0.5
+		var half_h := r.room_size_tiles.y * r.tile_size.y * 0.5
+		for socket in r.get_all_sockets():
+			var w := int(dirs.get(socket.direction, 0))
+			if w <= 0:
+				socket.connector_type = &"inactive"
+				continue
+			socket.connector_type = &"standard"
+			socket.width_tiles = w
+			match socket.direction:
+				"north":
+					socket.position = Vector2(0, -half_h)
+				"south":
+					socket.position = Vector2(0, half_h)
+				"west":
+					socket.position = Vector2(-half_w, 0)
+				"east":
+					socket.position = Vector2(half_w, 0)
 				_:
 					pass
-		_set_room_sockets_for_layout(r)
-
-
-func _pick_from_sizes(options: PackedInt32Array) -> int:
-	if options.is_empty():
-		return 9
-	return int(options[_rng.randi() % options.size()])
 
 
 func _opposite_direction(direction: String) -> String:
@@ -270,16 +300,6 @@ func _opposite_direction(direction: String) -> String:
 			return ""
 
 
-func _perpendicular_directions(direction: String) -> PackedStringArray:
-	match direction:
-		"north", "south":
-			return PackedStringArray(["east", "west"])
-		"east", "west":
-			return PackedStringArray(["north", "south"])
-		_:
-			return PackedStringArray(["north", "south"])
-
-
 func _clear_floor_loot() -> void:
 	for child in _piece_instances_root.get_children():
 		if child is DroppedCoin:
@@ -290,10 +310,14 @@ func _clear_floor_loot() -> void:
 			(n as Node).queue_free()
 
 
-func _assemble_rooms_procedurally() -> bool:
+func _assemble_rooms_procedurally(layout: Dictionary) -> bool:
 	var assembler: ProceduralAssemblyV1 = ProceduralAssemblyV1.new()
-	var links: Array[Dictionary] = _build_room_graph_links()
-	var result: Dictionary = assembler.assemble_from_socket_graph(_rooms_root, &"EntranceRoom", links)
+	var links: Array = layout.get("links", []) as Array
+	var start_nm := StringName(String(layout.get("start_room", "")))
+	if String(start_nm) == "":
+		_last_assembly_errors = PackedStringArray(["Missing start_room in layout."])
+		return false
+	var result: Dictionary = assembler.assemble_from_socket_graph(_rooms_root, start_nm, links)
 	_last_assembly_errors = PackedStringArray()
 	if bool(result.get("ok", false)):
 		var placed: int = int(result.get("placed_count", 0))
@@ -309,6 +333,27 @@ func _room_by_name(room_name: StringName) -> RoomBase:
 	if room is RoomBase:
 		return room as RoomBase
 	return null
+
+
+func _layout_room_name(key: String, fallback: String = "") -> StringName:
+	return StringName(String(_map_layout.get(key, fallback)))
+
+
+func _tower_spawn_near_center(encounter_id: StringName, module_pos: Vector2) -> Vector2:
+	if _map_layout.is_empty():
+		return module_pos
+	var id_text := String(encounter_id)
+	var room_name := StringName()
+	if id_text == "boss":
+		room_name = _layout_room_name("exit_room")
+	elif id_text.begins_with("arena_"):
+		room_name = StringName(id_text.trim_prefix("arena_"))
+	else:
+		room_name = _layout_room_name("combat_room")
+	var room := _room_by_name(room_name)
+	if room == null:
+		return module_pos
+	return room.global_position.lerp(module_pos, 0.2)
 
 
 func _room_half_extents(room: RoomBase) -> Vector2:
@@ -334,12 +379,19 @@ func _socket_world_position(room_name: StringName, direction: String) -> Vector2
 
 
 func _cache_runtime_door_positions() -> void:
-	_combat_entry_dir = _opposite_direction(_main_dir)
-	_combat_exit_dir = _main_dir
-	_boss_entry_dir = _opposite_direction(_main_dir)
-	_combat_entry_socket = _socket_world_position(&"CombatRoom", _combat_entry_dir)
-	_combat_exit_socket = _socket_world_position(&"CombatRoom", _combat_exit_dir)
-	_boss_entry_socket = _socket_world_position(&"BossRoom", _boss_entry_dir)
+	if _map_layout.is_empty():
+		return
+	var cr := _layout_room_name("combat_room")
+	var er := _layout_room_name("exit_room")
+	var pr := _layout_room_name("puzzle_room")
+	_combat_entry_dir = String(_map_layout.get("combat_entry_dir", "west"))
+	_combat_exit_dir = String(_map_layout.get("combat_exit_dir", "east"))
+	_boss_entry_dir = String(_map_layout.get("boss_entry_dir", "west"))
+	_puzzle_gate_dir = String(_map_layout.get("puzzle_gate_dir", "east"))
+	_combat_entry_socket = _socket_world_position(cr, _combat_entry_dir)
+	_combat_exit_socket = _socket_world_position(cr, _combat_exit_dir)
+	_boss_entry_socket = _socket_world_position(er, _boss_entry_dir)
+	_puzzle_gate_socket = _socket_world_position(pr, _puzzle_gate_dir)
 	_combat_door_x_w = _combat_entry_socket.x
 	_combat_door_x_e = _combat_exit_socket.x
 	_boss_door_x_w = _boss_entry_socket.x
@@ -349,11 +401,12 @@ func _cache_runtime_door_positions() -> void:
 
 
 func _position_runtime_markers() -> void:
-	var boss_room := _room_by_name(&"BossRoom")
+	var exit_key := _layout_room_name("exit_room")
+	var boss_room := _room_by_name(exit_key)
 	if boss_room == null:
 		return
 	var half := _room_half_extents(boss_room)
-	var outward := _direction_vector(_main_dir)
+	var outward := _direction_vector(_opposite_direction(_boss_entry_dir))
 	var inset_x := maxf(0.0, half.x - _BOSS_PORTAL_INSET)
 	var inset_y := maxf(0.0, half.y - _BOSS_PORTAL_INSET)
 	var offset := Vector2(outward.x * inset_x, outward.y * inset_y)
@@ -375,46 +428,6 @@ func _direction_vector(direction: String) -> Vector2:
 			return Vector2(-1.0, 0.0)
 		_:
 			return Vector2(1.0, 0.0)
-
-
-func _set_room_sockets_for_layout(room: RoomBase) -> void:
-	var back_main: String = _opposite_direction(_main_dir)
-	var back_branch: String = _opposite_direction(_branch_dir)
-	var trans_b_branch: Dictionary = {_branch_dir: 4}
-	var branch_openings: Dictionary = (
-		{back_branch: 4, _branch_dir: 4}
-	)
-	var treasure_openings: Dictionary = {back_branch: 4}
-	var openings_by_room: Dictionary = {
-		"EntranceRoom": {_main_dir: 4},
-		"TransitionRoomA": {back_main: 4, _main_dir: 4},
-		"CombatRoom": {back_main: 4, _main_dir: 4},
-		"TransitionRoomB": {back_main: 4, _main_dir: 4}.merged(trans_b_branch),
-		"BossRoom": {back_main: 4},
-		"BranchTransitionRoom": branch_openings,
-		"TreasureRoom": treasure_openings,
-	}
-	var configured: Dictionary = openings_by_room.get(room.name, {}) as Dictionary
-	for socket in room.get_all_sockets():
-		var width_tiles := int(configured.get(socket.direction, 0))
-		if width_tiles <= 0:
-			socket.connector_type = &"inactive"
-			continue
-		socket.connector_type = &"standard"
-		socket.width_tiles = width_tiles
-		var half_w := room.room_size_tiles.x * room.tile_size.x * 0.5
-		var half_h := room.room_size_tiles.y * room.tile_size.y * 0.5
-		match socket.direction:
-			"north":
-				socket.position = Vector2(0, -half_h)
-			"south":
-				socket.position = Vector2(0, half_h)
-			"west":
-				socket.position = Vector2(-half_w, 0)
-			"east":
-				socket.position = Vector2(half_w, 0)
-			_:
-				pass
 
 
 func _build_world_bounds() -> void:
@@ -592,6 +605,7 @@ func _build_room_debug_visuals() -> void:
 	for child in _door_visuals.get_children():
 		child.queue_free()
 	var door_specs_by_key: Dictionary = {}
+	var combat_nm := _layout_room_name("combat_room")
 	for room in _rooms_root.get_children():
 		if room is not RoomBase:
 			continue
@@ -608,7 +622,7 @@ func _build_room_debug_visuals() -> void:
 			var world_pos := r.global_position + socket.position
 			var dir_key := String(socket.direction)
 			var combat_visuals := (
-				r.name == &"CombatRoom"
+				r.name == combat_nm
 				and (dir_key == _combat_entry_dir or dir_key == _combat_exit_dir)
 			)
 			var dk := "%s:%s" % [int(roundf(world_pos.x * 100.0)), int(roundf(world_pos.y * 100.0))]
@@ -645,7 +659,7 @@ func _build_room_debug_visuals() -> void:
 func _assign_combat_door_visual_refs() -> void:
 	_combat_door_visual_west = null
 	_combat_door_visual_east = null
-	var cr := _rooms_root.get_node_or_null("CombatRoom") as RoomBase
+	var cr := _room_by_name(_layout_room_name("combat_room"))
 	if cr == null:
 		return
 	var west_world := Vector2.ZERO
@@ -832,7 +846,12 @@ func _set_boss_entry_locked(_locked: bool) -> void:
 
 
 func _apply_hard_door_clamps() -> void:
-	if bool(_encounter_active.get(&"combat", false)):
+	if not _puzzle_solved and _puzzle_gate_socket != Vector2.ZERO:
+		_clamp_to_locked_socket(_player, _PLAYER_CLAMP_R, _puzzle_gate_socket, _puzzle_gate_dir)
+		for n in get_tree().get_nodes_in_group(&"mob"):
+			if n is CharacterBody2D:
+				_clamp_to_locked_socket(n as CharacterBody2D, _MOB_CLAMP_R, _puzzle_gate_socket, _puzzle_gate_dir)
+	if _combat_encounter_id != &"" and bool(_encounter_active.get(_combat_encounter_id, false)):
 		_clamp_combat_doors(_player, _PLAYER_CLAMP_R)
 		for n in get_tree().get_nodes_in_group(&"mob"):
 			if n is CharacterBody2D:
@@ -913,19 +932,41 @@ func _spawn_standard_door_piece(world_pos: Vector2, width_tiles: int) -> void:
 	_piece_instances_root.add_child(door_piece)
 
 
+func _on_puzzle_floor_button_activated() -> void:
+	_puzzle_solved = true
+	_set_info_base_text("Puzzle gate open.")
+
+
 func _spawn_gameplay_objects() -> void:
-	var treasure_center := _room_center_2d(&"TreasureRoom")
-	var chest := TREASURE_CHEST_SCENE.instantiate() as TreasureChest2D
-	if chest:
-		chest.name = "TreasureChestPOC"
-		chest.coin_count = 10
-		# Chest GLB pivot sits low — lift well above sunken floor.
-		chest.mesh_ground_y = maxf(1.2, FLOOR_SLAB_TOP_Y + 1.7)
-		chest.position = treasure_center
-		_piece_instances_root.add_child(chest)
-	var combat_center := _room_center_2d(&"CombatRoom")
+	if _map_layout.is_empty():
+		return
+	var treasure_room := _layout_room_name("treasure_room")
+	if String(treasure_room) != "":
+		var treasure_center := _room_center_2d(treasure_room)
+		var chest := TREASURE_CHEST_SCENE.instantiate() as TreasureChest2D
+		if chest:
+			chest.name = "TreasureChestPOC"
+			chest.coin_count = 10
+			chest.mesh_ground_y = maxf(1.2, FLOOR_SLAB_TOP_Y + 1.7)
+			chest.position = treasure_center
+			_piece_instances_root.add_child(chest)
+	var combat_center := _room_center_2d(_layout_room_name("combat_room"))
 	for off in _COMBAT_TRAP_OFFSETS:
 		_spawn_trap_tile_at(combat_center + off)
+	var trap_room := _layout_room_name("trap_room")
+	if String(trap_room) != "":
+		var trap_center := _room_center_2d(trap_room)
+		for off in _TRAP_ROOM_OFFSETS:
+			_spawn_trap_tile_at(trap_center + off)
+	var puzzle_room := _layout_room_name("puzzle_room")
+	if String(puzzle_room) != "":
+		var puzzle_center := _room_center_2d(puzzle_room)
+		var pbtn := PUZZLE_FLOOR_BUTTON_SCENE.instantiate() as PuzzleFloorButton2D
+		if pbtn != null:
+			pbtn.name = "PuzzleFloorButtonPOC"
+			pbtn.position = puzzle_center
+			pbtn.activated.connect(_on_puzzle_floor_button_activated)
+			_piece_instances_root.add_child(pbtn)
 
 
 func _spawn_trap_tile_at(world_pos: Vector2) -> void:
@@ -939,7 +980,7 @@ func _spawn_trap_tile_at(world_pos: Vector2) -> void:
 
 
 func _spawn_entrance_exit_markers() -> void:
-	var entrance_pos := _room_center_2d(&"EntranceRoom")
+	var entrance_pos := _room_center_2d(_layout_room_name("start_room"))
 	var exit_pos := _boss_exit_portal.position
 	var entrance_marker := ENTRANCE_MARKER_SCENE.instantiate() as ConnectorMarker2D
 	if entrance_marker:
@@ -956,33 +997,35 @@ func _spawn_entrance_exit_markers() -> void:
 func _spawn_encounter_modules() -> void:
 	_spawn_points_by_encounter.clear()
 	_spawn_volumes_by_encounter.clear()
-	_encounter_active = {&"combat": false, &"boss": false}
-	_encounter_completed = {&"combat": false, &"boss": false}
-	_encounter_mobs = {&"combat": [], &"boss": []}
+	_spawn_count_by_encounter.clear()
+	_encounter_active = {&"boss": false}
+	_encounter_completed = {&"boss": false}
+	_encounter_mobs = {&"boss": []}
+	_combat_encounter_id = &""
 
-	var combat_room := _room_by_name(&"CombatRoom")
-	var boss_room := _room_by_name(&"BossRoom")
-	if combat_room == null or boss_room == null:
+	var combat_room_name := _layout_room_name("combat_room")
+	var combat_room := _room_by_name(combat_room_name)
+	var boss_room := _room_by_name(_layout_room_name("exit_room"))
+	if boss_room == null:
 		return
-	var combat_center := combat_room.global_position
 	var boss_center := boss_room.global_position
-	_spawn_encounter_trigger(combat_center, &"combat", "CombatEncounterTrigger")
 	_spawn_encounter_trigger(boss_center, &"boss", "BossEncounterTrigger")
-
-	var combat_half := _room_half_extents(combat_room)
-	var combat_margin := Vector2(minf(6.0, combat_half.x * 0.35), minf(6.0, combat_half.y * 0.35))
-	var cpx := maxf(3.0, combat_half.x - combat_margin.x)
-	var cpy := maxf(3.0, combat_half.y - combat_margin.y)
-	for point_pos in [
-		combat_center + Vector2(-cpx, -cpy),
-		combat_center + Vector2(-cpx, cpy),
-		combat_center + Vector2(cpx, -cpy),
-		combat_center + Vector2(cpx, cpy),
-	]:
-		_spawn_enemy_spawn_point(point_pos, &"combat")
-	var combat_vol_size := Vector2(maxf(12.0, combat_half.x * 0.5), maxf(10.0, combat_half.y * 0.4))
-	_spawn_enemy_spawn_volume(combat_center + Vector2(-cpx * 0.78, -cpy * 0.72), combat_vol_size, &"combat")
-	_spawn_enemy_spawn_volume(combat_center + Vector2(cpx * 0.78, cpy * 0.72), combat_vol_size, &"combat")
+	for room in _rooms_root.get_children():
+		if room is not RoomBase:
+			continue
+		var r := room as RoomBase
+		if r.room_type != "arena":
+			continue
+		var encounter_id := StringName("arena_%s" % [String(r.name)])
+		var trigger_name := "ArenaEncounterTrigger_%s" % [String(r.name)]
+		_spawn_encounter_trigger(r.global_position, encounter_id, trigger_name)
+		_spawn_arena_modules_for_room(r, encounter_id)
+		_spawn_count_by_encounter[encounter_id] = _rng.randi_range(2, 4)
+		_encounter_active[encounter_id] = false
+		_encounter_completed[encounter_id] = false
+		_encounter_mobs[encounter_id] = []
+		if r.name == combat_room_name:
+			_combat_encounter_id = encounter_id
 
 	var boss_half := _room_half_extents(boss_room)
 	var bpx := maxf(5.0, boss_half.x - 12.0)
@@ -1033,31 +1076,53 @@ func _spawn_enemy_spawn_volume(position_2d: Vector2, size_2d: Vector2, encounter
 	_spawn_volumes_by_encounter[encounter_id] = volumes
 
 
+func _spawn_arena_modules_for_room(room: RoomBase, encounter_id: StringName) -> void:
+	var center := room.global_position
+	var half := _room_half_extents(room)
+	var margin := Vector2(minf(6.0, half.x * 0.35), minf(6.0, half.y * 0.35))
+	var px := maxf(3.0, half.x - margin.x)
+	var py := maxf(3.0, half.y - margin.y)
+	for point_pos in [
+		center + Vector2(-px, -py),
+		center + Vector2(-px, py),
+		center + Vector2(px, -py),
+		center + Vector2(px, py),
+	]:
+		_spawn_enemy_spawn_point(point_pos, encounter_id)
+	var vol_size := Vector2(maxf(12.0, half.x * 0.5), maxf(10.0, half.y * 0.4))
+	_spawn_enemy_spawn_volume(center + Vector2(-px * 0.78, -py * 0.72), vol_size, encounter_id)
+	_spawn_enemy_spawn_volume(center + Vector2(px * 0.78, py * 0.72), vol_size, encounter_id)
+
+
 func _on_encounter_triggered(encounter_id: StringName) -> void:
 	if bool(_encounter_active.get(encounter_id, false)) or bool(_encounter_completed.get(encounter_id, false)):
 		return
 	match String(encounter_id):
-		"combat":
-			call_deferred("_start_combat_encounter")
 		"boss":
 			call_deferred("_start_boss_encounter")
+		_:
+			if String(encounter_id).begins_with("arena_"):
+				call_deferred("_start_arena_encounter", encounter_id)
 
 
-func _start_combat_encounter() -> void:
-	_combat_started = true
-	_encounter_active[&"combat"] = true
-	_set_combat_doors_locked(true)
-	_info_label.text = "Combat started. Clear all enemies to unlock."
-	var raw_count := 6 + maxi(0, _floor_index - 1)
-	var adjusted_count := maxi(1, int(ceili(float(raw_count) * 0.5)))
-	_spawn_encounter_wave(&"combat", adjusted_count, 1.0 + float(_floor_index - 1) * 0.08)
+func _start_arena_encounter(encounter_id: StringName) -> void:
+	_encounter_active[encounter_id] = true
+	var is_main_combat := encounter_id == _combat_encounter_id
+	if is_main_combat:
+		_combat_started = true
+		_set_combat_doors_locked(true)
+		_set_info_base_text("Combat started. Clear all enemies to unlock.")
+	else:
+		_set_info_base_text("Arena encounter started.")
+	var count := int(_spawn_count_by_encounter.get(encounter_id, _rng.randi_range(2, 4)))
+	_spawn_encounter_wave(encounter_id, clampi(count, 2, 4), 1.0 + float(_floor_index - 1) * 0.08)
 
 
 func _start_boss_encounter() -> void:
 	_boss_started = true
 	_encounter_active[&"boss"] = true
 	_set_boss_entry_locked(true)
-	_info_label.text = "Boss encounter started. Defeat all enemies."
+	_set_info_base_text("Boss encounter started. Defeat all enemies.")
 	var raw_count := 2 + int(floor(float(_floor_index - 1) / 2.0))
 	var adjusted_count := maxi(1, int(ceili(float(raw_count) * 0.5)))
 	_spawn_encounter_wave(
@@ -1085,9 +1150,12 @@ func _spawn_encounter_wave(encounter_id: StringName, total_count: int, speed_mul
 		if point_node is EnemySpawnPoint2D:
 			var point := point_node as EnemySpawnPoint2D
 			var scene_for_spawn := planned_scenes[spawned] if spawned < planned_scenes.size() else null
+			var pos := point.get_spawn_position()
+			if scene_for_spawn == ARROW_TOWER_SCENE:
+				pos = _tower_spawn_near_center(encounter_id, pos)
 			_spawn_encounter_mob(
 				encounter_id,
-				point.get_spawn_position(),
+				pos,
 				player_pos,
 				speed_multiplier,
 				scene_for_spawn
@@ -1099,9 +1167,12 @@ func _spawn_encounter_wave(encounter_id: StringName, total_count: int, speed_mul
 		var volume_idx := randi() % volumes.size()
 		var volume := volumes[volume_idx] as EnemySpawnVolume2D
 		var scene_for_spawn := planned_scenes[spawned] if spawned < planned_scenes.size() else null
+		var vpos := volume.sample_spawn_position()
+		if scene_for_spawn == ARROW_TOWER_SCENE:
+			vpos = _tower_spawn_near_center(encounter_id, vpos)
 		_spawn_encounter_mob(
 			encounter_id,
-			volume.sample_spawn_position(),
+			vpos,
 			player_pos,
 			speed_multiplier,
 			scene_for_spawn
@@ -1149,8 +1220,8 @@ func _spawn_encounter_mob_deferred(
 
 
 func _pick_enemy_scene(encounter_id: StringName) -> PackedScene:
-	# Combat rooms mix in towers; boss rooms keep dashers plus occasional tower support.
-	var tower_weight := 0.35 if String(encounter_id) == "combat" else 0.25
+	# Arena encounters mix towers; boss keeps lower tower frequency.
+	var tower_weight := 0.35 if String(encounter_id) != "boss" else 0.25
 	return ARROW_TOWER_SCENE if randf() < tower_weight else DASHER_SCENE
 
 
@@ -1181,17 +1252,21 @@ func _complete_encounter(encounter_id: StringName) -> void:
 	_encounter_active[encounter_id] = false
 	_encounter_completed[encounter_id] = true
 	match String(encounter_id):
-		"combat":
-			_combat_cleared = true
-			_set_combat_doors_locked(false)
-			_info_label.text = "Combat room cleared. Doors unlocked."
 		"boss":
 			_boss_cleared = true
 			_set_boss_entry_locked(false)
 			_boss_exit_portal.monitoring = true
 			_boss_exit_portal.monitorable = true
 			($VisualWorld3D/BossPortalMarker as MeshInstance3D).visible = true
-			_info_label.text = "Boss defeated. Exit portal is active."
+			_set_info_base_text("Boss defeated. Exit portal is active.")
+		_:
+			if String(encounter_id).begins_with("arena_"):
+				if encounter_id == _combat_encounter_id:
+					_combat_cleared = true
+					_set_combat_doors_locked(false)
+					_set_info_base_text("Combat room cleared. Doors unlocked.")
+				else:
+					_set_info_base_text("Arena room cleared.")
 
 
 func _on_boss_exit_portal_body_entered(body: Node2D) -> void:
@@ -1214,12 +1289,12 @@ func _deferred_advance_floor_after_portal() -> void:
 
 func _on_player_hit() -> void:
 	_retry_pending = true
-	_encounter_active[&"combat"] = false
-	_encounter_active[&"boss"] = false
+	for key in _encounter_active.keys():
+		_encounter_active[key] = false
 	for n in get_tree().get_nodes_in_group(&"mob"):
 		if n is Node:
 			(n as Node).queue_free()
-	_info_label.text = "You died. Press Enter to Retry."
+	_set_info_base_text("You died. Press Enter to Retry.")
 
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -1227,10 +1302,9 @@ func _unhandled_input(event: InputEvent) -> void:
 		return
 	if event.is_action_pressed("ui_accept"):
 		_floor_index = 1
-		_prev_main_dir = ""
 		_reset_score_ui()
 		_regenerate_level(true)
-		var spawn := _room_center_2d(&"EntranceRoom")
+		var spawn := _room_center_2d(_layout_room_name("start_room"))
 		if _player != null and _player.has_method(&"reset_for_retry"):
 			_player.call(&"reset_for_retry", spawn)
 
@@ -1263,3 +1337,34 @@ func _room_name_at(world_pos: Vector2, margin: float = 0.0) -> String:
 		if rect.has_point(world_pos):
 			return String(r.name)
 	return ""
+
+
+func _room_type_at(world_pos: Vector2, margin: float = 0.0) -> String:
+	for room in _rooms_root.get_children():
+		if room is not RoomBase:
+			continue
+		var r := room as RoomBase
+		var local_rect := r.get_room_rect_world()
+		var rect := Rect2(r.global_position - local_rect.size * 0.5, local_rect.size).grow(margin)
+		if rect.has_point(world_pos):
+			return String(r.room_type)
+	return ""
+
+
+func _set_info_base_text(text: String) -> void:
+	_info_base_text = text
+	_refresh_info_label_with_room_type()
+
+
+func _refresh_info_label_with_room_type() -> void:
+	if _info_label == null:
+		return
+	var base := _info_base_text if not _info_base_text.is_empty() else _info_label.text
+	if _player == null or not is_instance_valid(_player):
+		_info_label.text = base
+		return
+	var room_type := _room_type_at(_player.global_position, 1.25)
+	if room_type.is_empty():
+		_info_label.text = base
+	else:
+		_info_label.text = "%s | Room: %s" % [base, room_type]

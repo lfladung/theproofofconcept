@@ -26,6 +26,8 @@ var _setup_done := false
 var _chest_center_2d := Vector2.ZERO
 var _bias_jump_outward := false
 var _chest_kick_scale := 1.0
+var _fixed_arc_end_2d: Vector2
+var _use_fixed_arc_end := false
 
 
 ## VisualWorld3D is a sibling of GameWorld2D under the scene root — not a child of GameWorld2D.
@@ -69,13 +71,21 @@ func bias_jump_away_from(world_origin_2d: Vector2, kick_scale: float = 1.0) -> v
 	_chest_kick_scale = kick_scale
 
 
+## Chest burst: hop along a straight line in XZ from current position to this landing point (no random kick).
+func set_planar_arc_end(world_end_2d: Vector2) -> void:
+	_fixed_arc_end_2d = world_end_2d
+	_use_fixed_arc_end = true
+
+
 ## Runs after the spawner sets our global_position (mob sets it after add_child).
 func _deferred_setup_drop() -> void:
 	if not is_inside_tree():
 		return
 	_start_2d = global_position
 	var kick: Vector2
-	if _bias_jump_outward:
+	if _use_fixed_arc_end:
+		kick = _fixed_arc_end_2d - _start_2d
+	elif _bias_jump_outward:
 		var away := _start_2d - _chest_center_2d
 		if away.length_squared() < 0.25:
 			away = Vector2(1.0, 0.0)

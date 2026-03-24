@@ -4,7 +4,7 @@ class_name RoomBase
 @export var room_id := "room_base_template"
 @export_enum("small", "medium", "large", "arena")
 var size_class := "medium"
-@export_enum("arena", "corridor", "puzzle", "treasure", "safe", "boss", "connector")
+@export_enum("arena", "corridor", "puzzle", "treasure", "safe", "boss", "connector", "trap")
 var room_type := "arena"
 @export_enum("center", "top_left")
 var origin_mode := "center"
