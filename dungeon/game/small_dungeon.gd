@@ -19,6 +19,17 @@ const GROUND_GLB_METAL := preload("res://art/environment/floors/metal_tile_floor
 const GROUND_GLB_GRASS := preload("res://art/environment/floors/grass_ground_texture.glb")
 const GROUND_GLB_DIRT := preload("res://art/environment/floors/dirt_brick_ground_texture.glb")
 const GROUND_GLB_STONE := STONE_WALL_GLB
+## 2D backdrop PNGs; one is chosen at random when each floor builds.
+const BACKDROP_IMAGE_DIR := "res://art/backdrops"
+## Full-screen quad along camera -Z (inside Camera3D far plane).
+const BACKDROP_QUAD_DISTANCE := 420.0
+## Slightly larger than ortho frustum so edges are not visible.
+const BACKDROP_QUAD_MARGIN := 1.12
+## Subtle exploration parallax: quad rotates slightly from 2D position (radians per world unit).
+const BACKDROP_PARALLAX_YAW_PER_UNIT := 0.0011
+const BACKDROP_PARALLAX_PITCH_PER_UNIT := 0.00075
+## How fast the backdrop eases toward the position target (higher = snappier).
+const BACKDROP_PARALLAX_LERP_SPEED := 3.5
 const DOOR_STANDARD_SCENE := preload("res://dungeon/modules/connectivity/door_standard_2d.tscn")
 const ENTRANCE_MARKER_SCENE := preload("res://dungeon/modules/connectivity/entrance_marker_2d.tscn")
 const EXIT_MARKER_SCENE := preload("res://dungeon/modules/connectivity/exit_marker_2d.tscn")
@@ -70,9 +81,12 @@ const _BACK_HALF_MIN_RATIO := 0.22
 @onready var _wall_visuals: Node3D = $VisualWorld3D/WallVisuals
 @onready var _door_visuals: Node3D = $VisualWorld3D/DoorVisuals
 @onready var _camera_pivot: Marker3D = $VisualWorld3D/CameraPivot
+@onready var _camera_3d: Camera3D = $VisualWorld3D/CameraPivot/Camera
 @onready var _player: CharacterBody2D = $GameWorld2D/Player
 @onready var _info_label: Label = $CanvasLayer/UI/InfoLabel
 @onready var _boss_exit_portal: Area2D = $GameWorld2D/Triggers/BossExitPortal
+@onready var _debug_spawn_exit_portal: Area2D = $GameWorld2D/Triggers/DebugSpawnExitPortal
+@onready var _debug_spawn_portal_marker: MeshInstance3D = $VisualWorld3D/DebugSpawnPortalMarker
 
 var _combat_started := false
 var _combat_cleared := false
@@ -116,12 +130,17 @@ var _prev_player_pos := Vector2.ZERO
 var _prev_player_inside := true
 var _prev_room_name := ""
 var _floor_transition_pending := false
+var _debug_portal_monitor_token := 0
 var _last_assembly_errors: PackedStringArray = PackedStringArray()
 var _room_queries: RoomQueryService
 var _info_controller: InfoLabelController
 var _camera_follow: CameraFollowController
 var _door_lock_controller: DoorLockController
-
+var _dungeon_world_environment: WorldEnvironment
+var _dungeon_environment: Environment
+var _backdrop_quad: MeshInstance3D
+var _backdrop_parallax_yaw := 0.0
+var _backdrop_parallax_pitch := 0.0
 
 func _ready() -> void:
 	_rng.randomize()
@@ -153,6 +172,8 @@ func _process(delta: float) -> void:
 		_camera_follow.tick(delta)
 	_refresh_info_label_with_room_type()
 	_refresh_encounter_state()
+	_update_backdrop_parallax(delta)
+	_update_backdrop_quad_transform()
 
 
 func _physics_process(_delta: float) -> void:
@@ -239,12 +260,25 @@ func _regenerate_level(randomize_layout: bool) -> void:
 	_boss_exit_portal.monitoring = false
 	_boss_exit_portal.monitorable = false
 	($VisualWorld3D/BossPortalMarker as MeshInstance3D).visible = false
+	_debug_spawn_exit_portal.monitoring = false
+	_debug_spawn_exit_portal.monitorable = false
 	var entrance_spawn := _room_center_2d(_layout_room_name("start_room"))
 	_player.global_position = entrance_spawn
 	_player.velocity = Vector2.ZERO
+	_reset_backdrop_parallax_to_player()
 	_prev_player_pos = _player.global_position
 	_prev_player_inside = _is_point_inside_any_room(_prev_player_pos, 1.25)
 	_prev_room_name = _room_name_at(_prev_player_pos, 1.25)
+	if OS.is_debug_build():
+		# After teleport, CharacterBody2D syncs next physics tick; enabling monitoring earlier
+		# still sees old overlap and fires body_entered once (double floor). Boss portal is fine
+		# because the player is not on the debug portal when it enables.
+		_debug_portal_monitor_token += 1
+		var token := _debug_portal_monitor_token
+		call_deferred("_enable_debug_spawn_portal_after_physics", token)
+	else:
+		if _debug_spawn_portal_marker != null:
+			_debug_spawn_portal_marker.visible = false
 	_log_generation_debug(_map_layout)
 	var room_count := (_map_layout.get("room_specs", []) as Array).size()
 	_set_info_base_text(
@@ -253,6 +287,115 @@ func _regenerate_level(randomize_layout: bool) -> void:
 			room_count,
 		]
 	)
+	_apply_random_level_backdrop()
+
+
+func _enable_debug_spawn_portal_after_physics(token: int) -> void:
+	if not is_inside_tree():
+		return
+	await get_tree().physics_frame
+	if token != _debug_portal_monitor_token:
+		return
+	if not OS.is_debug_build() or not is_instance_valid(_debug_spawn_exit_portal):
+		return
+	_debug_spawn_exit_portal.monitoring = true
+	_debug_spawn_exit_portal.monitorable = true
+
+
+func _ensure_dungeon_world_environment() -> void:
+	if _dungeon_world_environment != null and is_instance_valid(_dungeon_world_environment):
+		return
+	_dungeon_environment = Environment.new()
+	_dungeon_environment.background_mode = Environment.BG_COLOR
+	_dungeon_environment.background_color = Color(0.035, 0.04, 0.055)
+	_dungeon_world_environment = WorldEnvironment.new()
+	_dungeon_world_environment.name = &"DungeonWorldEnvironment"
+	_dungeon_world_environment.environment = _dungeon_environment
+	_visual_world.add_child(_dungeon_world_environment)
+
+
+func _ensure_backdrop_quad() -> void:
+	if _backdrop_quad != null and is_instance_valid(_backdrop_quad):
+		return
+	if _camera_3d == null:
+		return
+	var qm := QuadMesh.new()
+	qm.size = Vector2(1.0, 1.0)
+	var mat := StandardMaterial3D.new()
+	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	mat.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR
+	mat.cull_mode = BaseMaterial3D.CULL_DISABLED
+	_backdrop_quad = MeshInstance3D.new()
+	_backdrop_quad.name = &"LevelBackdropQuad"
+	_backdrop_quad.mesh = qm
+	_backdrop_quad.material_override = mat
+	_backdrop_quad.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	_backdrop_quad.position = Vector3(0.0, 0.0, -BACKDROP_QUAD_DISTANCE)
+	_camera_3d.add_child(_backdrop_quad)
+	_update_backdrop_quad_transform()
+
+
+func _reset_backdrop_parallax_to_player() -> void:
+	if _player == null:
+		_backdrop_parallax_yaw = 0.0
+		_backdrop_parallax_pitch = 0.0
+		return
+	var p := _player.global_position
+	_backdrop_parallax_yaw = p.x * BACKDROP_PARALLAX_YAW_PER_UNIT
+	_backdrop_parallax_pitch = p.y * BACKDROP_PARALLAX_PITCH_PER_UNIT
+
+
+func _update_backdrop_parallax(delta: float) -> void:
+	if _player == null:
+		return
+	var target_yaw := _player.global_position.x * BACKDROP_PARALLAX_YAW_PER_UNIT
+	var target_pitch := _player.global_position.y * BACKDROP_PARALLAX_PITCH_PER_UNIT
+	var t := clampf(delta * BACKDROP_PARALLAX_LERP_SPEED, 0.0, 1.0)
+	_backdrop_parallax_yaw = lerpf(_backdrop_parallax_yaw, target_yaw, t)
+	_backdrop_parallax_pitch = lerpf(_backdrop_parallax_pitch, target_pitch, t)
+
+
+func _update_backdrop_quad_transform() -> void:
+	if _backdrop_quad == null or not is_instance_valid(_backdrop_quad) or _camera_3d == null:
+		return
+	var vp := get_viewport().get_visible_rect().size
+	var aspect := vp.x / maxf(vp.y, 0.001)
+	var h: float = _camera_3d.size * BACKDROP_QUAD_MARGIN
+	var w: float = h * aspect
+	_backdrop_quad.scale = Vector3(w, h, 1.0)
+	_backdrop_quad.rotation = Vector3(_backdrop_parallax_pitch, _backdrop_parallax_yaw, 0.0)
+
+
+func _collect_backdrop_png_paths() -> PackedStringArray:
+	var out := PackedStringArray()
+	var da := DirAccess.open(BACKDROP_IMAGE_DIR)
+	if da == null:
+		push_warning("Cannot open backdrop folder: %s" % BACKDROP_IMAGE_DIR)
+		return out
+	da.list_dir_begin()
+	var fn := da.get_next()
+	while fn != "":
+		if not da.current_is_dir() and String(fn).get_extension().to_lower() == "png":
+			out.append("%s/%s" % [BACKDROP_IMAGE_DIR, fn])
+		fn = da.get_next()
+	da.list_dir_end()
+	return out
+
+
+func _apply_random_level_backdrop() -> void:
+	var paths := _collect_backdrop_png_paths()
+	if paths.is_empty():
+		return
+	_ensure_dungeon_world_environment()
+	_ensure_backdrop_quad()
+	var tex_path := paths[_rng.randi_range(0, paths.size() - 1)]
+	var tex := load(tex_path)
+	if tex is not Texture2D:
+		push_warning("Backdrop is not a Texture2D: %s" % tex_path)
+		return
+	var mat := _backdrop_quad.material_override as StandardMaterial3D
+	if mat != null:
+		mat.albedo_texture = tex as Texture2D
 
 
 func _log_generation_debug(layout: Dictionary) -> void:
@@ -434,17 +577,76 @@ func _cache_runtime_door_positions() -> void:
 func _position_runtime_markers() -> void:
 	var exit_key := _layout_room_name("exit_room")
 	var boss_room := _room_by_name(exit_key)
-	if boss_room == null:
+	if boss_room != null:
+		var half := _room_half_extents(boss_room)
+		var outward := _direction_vector(_opposite_direction(_boss_entry_dir))
+		var inset_x := maxf(0.0, half.x - _BOSS_PORTAL_INSET)
+		var inset_y := maxf(0.0, half.y - _BOSS_PORTAL_INSET)
+		var offset := Vector2(outward.x * inset_x, outward.y * inset_y)
+		_boss_exit_portal.position = boss_room.global_position + offset
+		var portal_marker := $VisualWorld3D/BossPortalMarker as MeshInstance3D
+		if portal_marker != null:
+			portal_marker.position = Vector3(_boss_exit_portal.position.x, 0.45, _boss_exit_portal.position.y)
+	_position_debug_spawn_exit_portal()
+
+
+func _grid_dir_from_delta(d: Vector2i) -> String:
+	if d == Vector2i(1, 0):
+		return "east"
+	if d == Vector2i(-1, 0):
+		return "west"
+	if d == Vector2i(0, 1):
+		return "south"
+	if d == Vector2i(0, -1):
+		return "north"
+	return "east"
+
+
+func _critical_path_forward_dir_from_start() -> String:
+	var critical: Array = _map_layout.get("critical_path", []) as Array
+	if critical.size() < 2:
+		return "east"
+	var start_id := String(critical[0])
+	var next_id := String(critical[1])
+	var start_grid := Vector2i.ZERO
+	var next_grid := Vector2i.ZERO
+	for spec in _map_layout.get("room_specs", []) as Array:
+		if spec is not Dictionary:
+			continue
+		var d: Dictionary = spec as Dictionary
+		var nm := String(d.get("name", ""))
+		if nm == start_id:
+			start_grid = d.get("grid", Vector2i.ZERO) as Vector2i
+		elif nm == next_id:
+			next_grid = d.get("grid", Vector2i.ZERO) as Vector2i
+	return _grid_dir_from_delta(next_grid - start_grid)
+
+
+func _position_debug_spawn_exit_portal() -> void:
+	if not OS.is_debug_build():
+		_debug_spawn_exit_portal.monitoring = false
+		_debug_spawn_exit_portal.monitorable = false
+		if _debug_spawn_portal_marker != null:
+			_debug_spawn_portal_marker.visible = false
 		return
-	var half := _room_half_extents(boss_room)
-	var outward := _direction_vector(_opposite_direction(_boss_entry_dir))
+	var start_room := _room_by_name(_layout_room_name("start_room"))
+	if start_room == null:
+		return
+	var forward := _critical_path_forward_dir_from_start()
+	var back := _opposite_direction(forward)
+	var half := _room_half_extents(start_room)
+	var outward := _direction_vector(back)
 	var inset_x := maxf(0.0, half.x - _BOSS_PORTAL_INSET)
 	var inset_y := maxf(0.0, half.y - _BOSS_PORTAL_INSET)
-	var offset := Vector2(outward.x * inset_x, outward.y * inset_y)
-	_boss_exit_portal.position = boss_room.global_position + offset
-	var portal_marker := $VisualWorld3D/BossPortalMarker as MeshInstance3D
-	if portal_marker != null:
-		portal_marker.position = Vector3(_boss_exit_portal.position.x, 0.45, _boss_exit_portal.position.y)
+	var off := Vector2(outward.x * inset_x, outward.y * inset_y)
+	_debug_spawn_exit_portal.position = start_room.global_position + off
+	if _debug_spawn_portal_marker != null:
+		_debug_spawn_portal_marker.position = Vector3(
+			_debug_spawn_exit_portal.position.x,
+			0.45,
+			_debug_spawn_exit_portal.position.y
+		)
+		_debug_spawn_portal_marker.visible = true
 
 
 func _direction_vector(direction: String) -> Vector2:
@@ -1372,17 +1574,32 @@ func _complete_encounter(encounter_id: StringName) -> void:
 
 
 func _on_boss_exit_portal_body_entered(body: Node2D) -> void:
-	if not _boss_cleared or not body.is_in_group(&"player"):
+	if not _boss_cleared or body != _player:
 		return
+	_schedule_floor_advance_after_portal()
+
+
+func _on_debug_spawn_exit_portal_body_entered(body: Node2D) -> void:
+	if not OS.is_debug_build() or body != _player:
+		return
+	_schedule_floor_advance_after_portal()
+
+
+func _schedule_floor_advance_after_portal() -> void:
 	if _floor_transition_pending:
 		return
 	_floor_transition_pending = true
 	_boss_exit_portal.set_deferred("monitoring", false)
 	_boss_exit_portal.set_deferred("monitorable", false)
+	_debug_spawn_exit_portal.set_deferred("monitoring", false)
+	_debug_spawn_exit_portal.set_deferred("monitorable", false)
 	call_deferred("_deferred_advance_floor_after_portal")
 
 
 func _deferred_advance_floor_after_portal() -> void:
+	if not _floor_transition_pending:
+		return
+	_floor_transition_pending = false
 	if _player != null and _player.has_method(&"heal_to_full"):
 		_player.call(&"heal_to_full")
 	_floor_index += 1

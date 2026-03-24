@@ -199,5 +199,4 @@ offset_bottom = 80.0
 text = "Small dungeon loaded."
 
 [connection signal="body_entered" from="GameWorld2D/Triggers/BossExitPortal" to="." method="_on_boss_exit_portal_body_entered"]
-
 [connection signal="body_entered" from="GameWorld2D/Triggers/DebugSpawnExitPortal" to="." method="_on_debug_spawn_exit_portal_body_entered"]
