@@ -198,7 +198,7 @@ static func _stage3_assign_roles(stage1: Dictionary, stage2: Dictionary, rng: Ra
 	}
 
 
-static func _stage4_place_spatial(stage1: Dictionary, stage2: Dictionary, rng: RandomNumberGenerator) -> Dictionary:
+static func _stage4_place_spatial(stage1: Dictionary, stage2: Dictionary, _rng: RandomNumberGenerator) -> Dictionary:
 	var path := stage2.get("critical_path", []) as Array
 	if path.is_empty():
 		return {"ok": false, "error": "Missing critical path."}

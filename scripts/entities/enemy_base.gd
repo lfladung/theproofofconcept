@@ -70,8 +70,9 @@ func _spawn_dropped_coin() -> void:
 	var coin := DROPPED_COIN_SCENE.instantiate() as Node2D
 	if coin == null:
 		return
-	parent.add_child(coin)
-	coin.global_position = global_position
+	# add_child during body_entered / physics flush mutates Area2D state; defer to next idle/safe frame.
+	coin.position = parent.to_local(global_position)
+	parent.call_deferred("add_child", coin)
 
 
 func _resolve_visual_world_3d() -> Node3D:

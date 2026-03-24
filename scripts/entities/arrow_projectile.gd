@@ -2,6 +2,7 @@ extends Area2D
 class_name ArrowProjectile
 
 const ARROW_VISUAL_SCENE := preload("res://art/combat/projectiles/a_regular_wooden_arrow_texture.glb")
+const PLAYER_PROJECTILE_VISUAL_SCENE := preload("res://art/combat/projectiles/projectile_red_texture.glb")
 
 @export var speed := 42.0
 @export var max_distance := 30.0
@@ -12,6 +13,7 @@ const ARROW_VISUAL_SCENE := preload("res://art/combat/projectiles/a_regular_wood
 @export var show_debug_hitbox := true
 @export var debug_hitbox_ground_y := 0.08
 @export var debug_hitbox_height := 0.08
+@export var knockback_strength := 8.0
 
 @onready var _shape: CollisionShape2D = $CollisionShape2D
 
@@ -21,17 +23,29 @@ var _traveled := 0.0
 var _visual: Node3D
 var _debug_hitbox: MeshInstance3D
 var _vw: Node3D
+## Tower shots use mask 1 (player). Player shots use enemies + world (2 | 4).
+var _fired_by_player := false
 
 
-func configure(spawn_position: Vector2, direction: Vector2, owner_visual_world: Node3D) -> void:
+func configure(
+	spawn_position: Vector2,
+	direction: Vector2,
+	owner_visual_world: Node3D,
+	fired_by_player: bool = false
+) -> void:
 	global_position = spawn_position
 	_start_pos = spawn_position
 	_direction = direction.normalized() if direction.length_squared() > 0.0001 else Vector2.RIGHT
 	_vw = owner_visual_world
+	_fired_by_player = fired_by_player
 
 
 func _ready() -> void:
 	body_entered.connect(_on_body_entered)
+	if _fired_by_player:
+		collision_mask = 2 | 4
+	else:
+		collision_mask = 1
 	if _shape != null:
 		_shape.set_deferred("disabled", false)
 	call_deferred("_deferred_setup_visual")
@@ -40,10 +54,13 @@ func _ready() -> void:
 func _deferred_setup_visual() -> void:
 	if _vw == null:
 		return
-	if ARROW_VISUAL_SCENE != null:
-		var vis := ARROW_VISUAL_SCENE.instantiate() as Node3D
+	var vis_scene: PackedScene = (
+		PLAYER_PROJECTILE_VISUAL_SCENE if _fired_by_player else ARROW_VISUAL_SCENE
+	)
+	if vis_scene != null:
+		var vis := vis_scene.instantiate() as Node3D
 		if vis != null:
-			vis.scale = mesh_scale
+			vis.scale = mesh_scale * (0.5 if _fired_by_player else 1.0)
 			_vw.add_child(vis)
 			_visual = vis
 	if show_debug_hitbox:
@@ -87,6 +104,15 @@ func _sync_visual() -> void:
 
 func _on_body_entered(body: Node2D) -> void:
 	if body == null:
+		return
+	if _fired_by_player:
+		if body.is_in_group(&"player"):
+			return
+		if body.is_in_group(&"mob") and body.has_method(&"take_hit"):
+			body.call(&"take_hit", damage, _direction, knockback_strength)
+			queue_free()
+			return
+		queue_free()
 		return
 	if body.is_in_group(&"player"):
 		if body.has_method(&"take_damage"):

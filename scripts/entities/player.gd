@@ -2,6 +2,11 @@ extends CharacterBody2D
 
 signal hit
 signal health_changed(current: int, max_health: int)
+signal weapon_mode_changed(display_name: String)
+
+const ARROW_PROJECTILE_SCENE := preload("res://scenes/entities/arrow_projectile.tscn")
+
+enum WeaponMode { SWORD, GUN }
 
 ## Horizontal speed (matches former 3D XZ plane).
 @export var speed := 14.0
@@ -35,6 +40,14 @@ signal health_changed(current: int, max_health: int)
 @export var dodge_speed := 36.0
 @export var dodge_duration := 0.16
 @export var dodge_cooldown := 0.05
+## Ranged (gun) — aligned loosely with arrow towers.
+@export var ranged_cooldown := 0.45
+@export var ranged_damage := 15
+@export var ranged_knockback := 8.0
+@export var ranged_speed := 24.0
+@export var ranged_max_tiles := 8.0
+@export var ranged_spawn_beyond_body := 0.75
+@export var world_units_per_tile := 3.0
 
 @onready var _visual: Node3D = get_node_or_null("../../VisualWorld3D/PlayerVisual") as Node3D
 @onready var _body_shape: CollisionShape2D = $CollisionShape2D
@@ -56,6 +69,12 @@ var _dodge_direction := Vector2.ZERO
 var _is_dead := false
 var _attack_hitbox_visual_time_remaining := 0.0
 var _melee_attack_cooldown_remaining := 0.0
+var weapon_mode: WeaponMode = WeaponMode.SWORD
+var _ranged_cooldown_remaining := 0.0
+var _rmb_down := false
+## Right-click attacks: face mouse this frame, resolve attack next physics frame.
+var _pending_rmb_kind: StringName = &""
+var _pending_rmb_facing := Vector2(0.0, -1.0)
 
 
 func _ready() -> void:
@@ -93,6 +112,82 @@ func _ready() -> void:
 
 	health = max_health
 	health_changed.emit(health, max_health)
+
+
+func get_weapon_mode_display() -> String:
+	return "Gun" if weapon_mode == WeaponMode.GUN else "Sword"
+
+
+func _cycle_weapon() -> void:
+	if _is_dead:
+		return
+	weapon_mode = WeaponMode.GUN if weapon_mode == WeaponMode.SWORD else WeaponMode.SWORD
+	weapon_mode_changed.emit(get_weapon_mode_display())
+
+
+func _face_toward_mouse_planar() -> void:
+	var t := _mouse_planar_world() - global_position
+	if t.length_squared() > 0.0001:
+		_facing_planar = t.normalized()
+
+
+func _clear_pending_rmb_attack() -> void:
+	_pending_rmb_kind = &""
+
+
+func _queue_rmb_attack_after_facing_mouse() -> void:
+	_face_toward_mouse_planar()
+	_pending_rmb_facing = _facing_planar
+	if weapon_mode == WeaponMode.GUN and _ranged_cooldown_remaining <= 0.0:
+		_pending_rmb_kind = &"gun"
+	elif weapon_mode == WeaponMode.SWORD and _melee_attack_cooldown_remaining <= 0.0:
+		_pending_rmb_kind = &"melee"
+
+
+func _execute_pending_rmb_attack_if_any() -> void:
+	if _pending_rmb_kind == &"":
+		return
+	var kind := _pending_rmb_kind
+	_pending_rmb_kind = &""
+	_facing_planar = _pending_rmb_facing
+	if kind == &"gun":
+		if weapon_mode != WeaponMode.GUN or _ranged_cooldown_remaining > 0.0:
+			return
+		if _visual and _visual.has_method(&"try_play_attack"):
+			_visual.try_play_attack()
+		_try_fire_ranged_arrow()
+	elif kind == &"melee":
+		if weapon_mode != WeaponMode.SWORD or _melee_attack_cooldown_remaining > 0.0:
+			return
+		if _visual and _visual.has_method(&"try_play_attack"):
+			_visual.try_play_attack()
+		_squash_mobs_in_melee_hit()
+		_melee_attack_cooldown_remaining = melee_attack_cooldown
+		_attack_hitbox_visual_time_remaining = maxf(
+			_attack_hitbox_visual_time_remaining,
+			attack_hitbox_visual_duration
+		)
+
+
+func _try_fire_ranged_arrow() -> void:
+	var parent := get_parent()
+	if parent == null:
+		return
+	var vw := get_node_or_null("../../VisualWorld3D") as Node3D
+	var arrow := ARROW_PROJECTILE_SCENE.instantiate() as ArrowProjectile
+	if arrow == null:
+		return
+	arrow.damage = ranged_damage
+	arrow.speed = ranged_speed
+	arrow.max_distance = ranged_max_tiles * world_units_per_tile
+	arrow.knockback_strength = ranged_knockback
+	var dir := _facing_planar
+	if dir.length_squared() <= 1e-6:
+		dir = Vector2(0.0, -1.0)
+	var spawn := global_position + dir * (_get_player_body_radius() + ranged_spawn_beyond_body)
+	arrow.configure(spawn, dir, vw, true)
+	parent.add_child(arrow)
+	_ranged_cooldown_remaining = ranged_cooldown
 
 
 func take_damage(amount: int) -> void:
@@ -311,6 +406,18 @@ func _rebuild_mob_hitboxes_debug() -> void:
 func _physics_process(delta: float) -> void:
 	if _is_dead:
 		return
+	_melee_attack_cooldown_remaining = maxf(0.0, _melee_attack_cooldown_remaining - delta)
+	_ranged_cooldown_remaining = maxf(0.0, _ranged_cooldown_remaining - delta)
+
+	if Input.is_action_just_pressed(&"weapon_switch"):
+		_clear_pending_rmb_attack()
+		_cycle_weapon()
+
+	var rmb := Input.is_mouse_button_pressed(MOUSE_BUTTON_RIGHT)
+	var rmb_click := rmb and not _rmb_down
+	_rmb_down = rmb
+	var ui_blocks_attack := get_viewport().gui_get_hovered_control() != null
+
 	var direction := Vector2.ZERO
 	if _mouse_steering_active():
 		var target := _mouse_planar_world()
@@ -319,7 +426,7 @@ func _physics_process(delta: float) -> void:
 			direction = to_target.normalized()
 
 	_update_facing_planar(direction)
-	_melee_attack_cooldown_remaining = maxf(0.0, _melee_attack_cooldown_remaining - delta)
+	_execute_pending_rmb_attack_if_any()
 
 	_dodge_cooldown_remaining = maxf(0.0, _dodge_cooldown_remaining - delta)
 	if _dodge_time_remaining > 0.0:
@@ -343,13 +450,20 @@ func _physics_process(delta: float) -> void:
 
 	move_and_slide()
 
+	if rmb_click and not ui_blocks_attack:
+		_queue_rmb_attack_after_facing_mouse()
+
 	if _visual:
 		_visual.global_position = Vector3(global_position.x, height, global_position.y)
 		_visual.rotation.y = atan2(_facing_planar.x, _facing_planar.y)
 		if _visual.has_method(&"set_locomotion_from_planar_speed"):
 			_visual.set_locomotion_from_planar_speed(planar_speed, speed)
 
-	if Input.is_action_just_pressed(&"melee_attack") and _melee_attack_cooldown_remaining <= 0.0:
+	var want_melee := false
+	if weapon_mode == WeaponMode.SWORD:
+		if Input.is_action_just_pressed(&"melee_attack"):
+			want_melee = true
+	if want_melee and _melee_attack_cooldown_remaining <= 0.0:
 		if _visual and _visual.has_method(&"try_play_attack"):
 			_visual.try_play_attack()
 		_squash_mobs_in_melee_hit()
@@ -390,6 +504,8 @@ func die() -> void:
 	_dodge_time_remaining = 0.0
 	_dodge_cooldown_remaining = 0.0
 	_invuln_time_remaining = 0.0
+	_rmb_down = false
+	_clear_pending_rmb_attack()
 	if _body_shape != null:
 		_body_shape.disabled = true
 	_free_world_debug_meshes()
@@ -399,6 +515,9 @@ func die() -> void:
 
 func reset_for_retry(world_pos: Vector2) -> void:
 	_is_dead = false
+	_clear_pending_rmb_attack()
+	weapon_mode = WeaponMode.SWORD
+	weapon_mode_changed.emit(get_weapon_mode_display())
 	heal_to_full()
 	global_position = world_pos
 	velocity = Vector2.ZERO
@@ -406,6 +525,7 @@ func reset_for_retry(world_pos: Vector2) -> void:
 	_invuln_time_remaining = 0.0
 	_dodge_time_remaining = 0.0
 	_dodge_cooldown_remaining = 0.0
+	_rmb_down = false
 	if _body_shape != null:
 		_body_shape.disabled = false
 	_reset_player_visual_transparency()

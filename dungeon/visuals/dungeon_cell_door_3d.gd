@@ -15,6 +15,8 @@ class_name DungeonCellDoor3D
 @export var door_panel_depth: float = 0.07
 ## Purple/black tint and swing for combat room doors only; other rooms keep mesh textures.
 @export var use_combat_lock_visuals: bool = true
+## If true, hinge starts closed (e.g. puzzle exit until solved). Still uses combat visuals when that flag is on.
+@export var start_visual_closed: bool = false
 ## Disabled by default because it can hide a one-mesh frame asset.
 @export var hide_frame_meshes_overlapping_panel: bool = false
 ## Rare fallback for degenerate imports; subtree filtering below is preferred.
@@ -36,9 +38,15 @@ func _ready() -> void:
 	_apply_hinge_alignment()
 	_hide_static_panel_meshes_in_frame_if_overlapping()
 	if use_combat_lock_visuals:
-		set_combat_locked(false, false)
+		if start_visual_closed:
+			set_runtime_locked(true, false)
+		else:
+			set_combat_locked(false, false)
 	else:
-		_hinge.rotation.y = _open_rotation_y
+		if start_visual_closed:
+			set_runtime_locked(true, false)
+		else:
+			_hinge.rotation.y = _open_rotation_y
 
 
 func configure_for_socket(wall_direction: String) -> void:
@@ -68,9 +76,15 @@ func configure_for_socket(wall_direction: String) -> void:
 		_apply_hinge_alignment()
 		_hide_static_panel_meshes_in_frame_if_overlapping()
 		if use_combat_lock_visuals:
-			set_combat_locked(false, false)
+			if start_visual_closed:
+				set_runtime_locked(true, false)
+			else:
+				set_combat_locked(false, false)
 		else:
-			_hinge.rotation.y = _open_rotation_y
+			if start_visual_closed:
+				set_runtime_locked(true, false)
+			else:
+				_hinge.rotation.y = _open_rotation_y
 
 
 func _apply_content_fit() -> void:
