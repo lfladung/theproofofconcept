@@ -1,0 +1,10 @@
+[gd_scene load_steps=3 format=3 uid="uid://bqj8m2k4player_visual"]
+
+[ext_resource type="Script" path="res://scripts/visuals/player_visual.gd" id="1_pv"]
+[ext_resource type="PackedScene" uid="uid://dfpl8qjnxc6gf" path="res://art/characters/player/Cute_chibi_fantasy_kn_biped_Animation_Walking_withSkin.glb" id="2_meshy"]
+
+[node name="PlayerVisual" type="Node3D"]
+transform = Transform3D(4, 0, 0, 0, 4, 0, 0, 0, 4, 0, 0, 0)
+script = ExtResource("1_pv")
+
+[node name="Meshy" parent="." instance=ExtResource("2_meshy")]

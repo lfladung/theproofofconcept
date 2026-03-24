@@ -3,7 +3,7 @@ class_name PuzzleFloorButton2D
 
 signal activated
 
-const BUTTON_GLB := preload("res://art/button_texture.glb")
+const BUTTON_GLB := preload("res://art/props/interactables/button_texture.glb")
 
 @export var mesh_ground_y := 0.5
 @export var mesh_scale := Vector3(2.2, 2.2, 2.2)

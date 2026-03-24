@@ -4,7 +4,7 @@ class_name TreasureChest2D
 signal opened
 
 const DROPPED_COIN_SCENE := preload("res://dungeon/modules/gameplay/dropped_coin.tscn")
-const _DEFAULT_CHEST_MESH := preload("res://art/treasure_chest_texture.glb")
+const _DEFAULT_CHEST_MESH := preload("res://art/props/interactables/treasure_chest_texture.glb")
 
 @export var coin_count := 10
 ## Coins arc from the chest center and land on this radius (evenly spaced around a full circle).

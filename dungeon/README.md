@@ -11,7 +11,7 @@ All new dungeon rooms must follow these rules. This is the source of truth for r
 1. Grid compliance
    - Room dimensions align to a global tile grid.
    - Width/height use standardized sizes (default set: `10`, `16`, `24`, `32` tiles).
-   - POC validated scaled profile also supported: `9`, `15`, `24`, `36` tiles.
+   - Validated scaled profile also supported: `9`, `15`, `24`, `36` tiles.
    - Player footprint is treated as `1x1` tile baseline.
    - Door sockets align to grid centers.
 2. Closed boundary
@@ -174,7 +174,7 @@ Authoring workflow: duplicate `room_base.tscn`, set metadata first, then paint/l
 
 ## Validated Milestone Baseline
 
-The small dungeon POC is now considered the first validated end-to-end room framework milestone for this project.
+The small dungeon is now considered the first validated end-to-end room framework milestone for this project.
 
 What is validated:
 - room taxonomy integration: `safe`, `connector`, `arena`, `treasure`, `boss`
@@ -190,7 +190,7 @@ Validated room chain:
 - optional treasure branch via connector
 
 Validated scale profile:
-- all POC rooms are authored at `1.5x` of the original draft sizes
+- all baseline rooms are authored at `1.5x` of the original draft sizes
 - this profile is accepted as a standard room-size set for future content packs
 
 Design policy moving forward:
@@ -204,7 +204,7 @@ Milestone 1:
 - reusable socket and zone marker scenes
 - shared constants and color legend
 
-Milestone 2 (validated POC integration):
+Milestone 2 (validated integration):
 - multi-room base taxonomy proof (`entrance`, `transition`, `combat`, `treasure`, `boss`)
 - runtime boundary + visual wall generation from sockets
 - room progression gating (combat lock/clear, boss completion portal)
@@ -233,7 +233,7 @@ Milestone 3 (encounter infrastructure MVP):
   - `enemy_spawn_volume_2d.tscn`
   - `room_encounter_trigger_2d.tscn`
   - `arena_boundary_piece_2d.tscn`
-- `small_dungeon_poc` now uses real spawn-clear logic:
+- `small_dungeon` now uses real spawn-clear logic:
   - entering combat/boss room triggers an encounter wave
   - arena boundaries lock during active encounter
   - boundaries unlock only when all encounter mobs are cleared
@@ -241,9 +241,9 @@ Milestone 3 (encounter infrastructure MVP):
 
 Generation logic, room catalog loading, and fully data-driven runtime assembly continue in later milestones.
 
-## POC Scene
+## Dungeon Scenes
 
-- `res://dungeon/poc/dungeon_room_poc.tscn`
+- `res://dungeon/game/dungeon_room.tscn`
   - Instantiates `RoomBase`.
   - Adds a small-room world boundary and a playable `Player`.
   - Uses the milestone debug color language in 3D placeholders:
@@ -253,8 +253,8 @@ Generation logic, room catalog loading, and fully data-driven runtime assembly c
 	- purple doorway
 	- orange stairs marker
 
-- `res://dungeon/poc/small_dungeon_poc.tscn`
-  - Multi-room dungeon POC that includes baseline room types:
+- `res://dungeon/game/small_dungeon.tscn`
+  - Multi-room dungeon scene that includes baseline room types:
 	- entrance room
 	- transition corridors between main rooms
 	- combat room (lock/unlock proof without enemy spawning)

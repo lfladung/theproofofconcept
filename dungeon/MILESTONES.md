@@ -10,16 +10,16 @@ This file tracks milestone goals for the dungeon architecture and procedural con
   - door socket + metadata zone marker base scenes
   - debug color standard (white ground, brown walls, yellow traps, purple doors/exits, orange stairs)
 
-- [x] Milestone 1 POC: Playable single-room prototype
+- [x] Milestone 1: Playable single-room prototype
   - player can move inside a small room
   - room boundaries, door marker, trap marker, stairs marker
 
 - [x] Rules Integration Milestone
   - canonical dungeon room rulebook added to `dungeon/README.md`
   - `RoomBase` validation checks for grid/socket/metadata/rotation/budget constraints
-  - validated baseline documented from POC learnings
+  - validated baseline documented from early prototype learnings
 
-- [x] Multi-room Dungeon POC Milestone
+- [x] Multi-room Dungeon Milestone
   - entrance -> transition -> combat -> transition -> boss chain
   - optional treasure branch
   - simulated combat lock/clear + boss completion portal flow
@@ -30,17 +30,17 @@ This file tracks milestone goals for the dungeon architecture and procedural con
   - structure pieces: floor, wall, corner, pit, ramp
   - connectivity pieces: standard door, locked door, entrance marker, exit marker
   - reusable base piece contract and locked-door API
-  - wired into `small_dungeon_poc` runtime assembly
+  - wired into `small_dungeon` runtime assembly
 
 - [x] Milestone 3: Encounter infrastructure MVP
   - encounter modules: enemy spawn point, spawn volume, room trigger, arena boundary
-  - `small_dungeon_poc` upgraded from simulated clear timers to real spawn-clear flow
+  - `small_dungeon` upgraded from simulated clear timers to real spawn-clear flow
   - encounter boundaries lock/unlock from live enemy state
   - boss exit portal now unlocks after actual boss encounter clear
 
 - [x] Milestone 4: Gameplay object MVP
   - `TreasureChest2D` spews `DroppedCoin` pickups; `KeyPickup2D` + keyed `LockedDoorPiece2D` remain for other rooms
-  - `small_dungeon_poc` treasure branch uses a normal door; chest drops 10 coins
+  - `small_dungeon` treasure branch uses a normal door; chest drops 10 coins
   - `TrapTile2D` damage-over-time while standing on tile (cooldown), placed in treasure room
 
 ## Next Milestone Goals
@@ -57,7 +57,7 @@ This file tracks milestone goals for the dungeon architecture and procedural con
   - dash hitbox damage only while the strike executes
 
 - [ ] Future enhancement: Biome/theme pipeline
-  - swappable tile/material sets (POC: per-dungeon-floor ground albedo cycles metal / grass / dirt / stone; shared stone wall GLB for all walls)
+  - swappable tile/material sets (per-dungeon-floor ground albedo cycles metal / grass / dirt / stone; shared stone wall GLB for all walls)
   - hazard/prop pool variation by biome
   - lighting/fog/atmosphere presets (not started)
 
@@ -65,4 +65,4 @@ This file tracks milestone goals for the dungeon architecture and procedural con
 
 - One major milestone per commit.
 - Keep milestones independently testable.
-- Extend the validated POC baseline rather than replacing it.
+- Extend the validated baseline rather than replacing it.

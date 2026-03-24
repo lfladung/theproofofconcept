@@ -84,6 +84,10 @@ func _apply_content_fit() -> void:
 func set_combat_locked(locked: bool, animate: bool = true) -> void:
 	if not use_combat_lock_visuals:
 		return
+	set_runtime_locked(locked, animate)
+
+
+func set_runtime_locked(locked: bool, animate: bool = true) -> void:
 	var closed_y := 0.0
 	var target_y := closed_y if locked else _open_rotation_y
 	if not is_node_ready():

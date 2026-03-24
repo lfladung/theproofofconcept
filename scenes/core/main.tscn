@@ -1,0 +1,208 @@
+[gd_scene format=3 uid="uid://2wap0283yk0r"]
+
+[ext_resource type="Script" uid="uid://cc8n3086pvl18" path="res://scripts/core/main.gd" id="1_h2yge"]
+[ext_resource type="PackedScene" uid="uid://ceuu150fmggvr" path="res://scenes/entities/player.tscn" id="2_player"]
+[ext_resource type="PackedScene" uid="uid://defdm2qdva75q" path="res://scenes/entities/mob.tscn" id="3_mob"]
+[ext_resource type="FontFile" uid="uid://cyxhh7ddkn62q" path="res://fonts/Montserrat-Medium.ttf" id="4_font"]
+[ext_resource type="Script" uid="uid://bq4lq2wbf1rkc" path="res://scripts/ui/score_label.gd" id="5_score"]
+[ext_resource type="PackedScene" path="res://scenes/visuals/player_visual.tscn" id="6_pvis"]
+[ext_resource type="PackedScene" uid="uid://health_bar_ui" path="res://scenes/ui/health_bar.tscn" id="7_health"]
+
+[sub_resource type="RectangleShape2D" id="Rect_wall_s"]
+size = Vector2(62, 0.6)
+
+[sub_resource type="RectangleShape2D" id="Rect_wall_n"]
+size = Vector2(62, 0.6)
+
+[sub_resource type="RectangleShape2D" id="Rect_wall_w"]
+size = Vector2(0.6, 62)
+
+[sub_resource type="RectangleShape2D" id="Rect_wall_e"]
+size = Vector2(0.6, 62)
+
+[sub_resource type="Curve2D" id="Curve2D_spawn"]
+
+[sub_resource type="BoxMesh" id="BoxMesh_ground"]
+size = Vector3(60, 2, 60)
+
+[sub_resource type="ProceduralSkyMaterial" id="ProceduralSkyMaterial_sky"]
+sky_horizon_color = Color(0.64625, 0.65575, 0.67075, 1)
+ground_horizon_color = Color(0.64625, 0.65575, 0.67075, 1)
+
+[sub_resource type="Sky" id="Sky_main"]
+sky_material = SubResource("ProceduralSkyMaterial_sky")
+
+[sub_resource type="Environment" id="Environment_main"]
+background_mode = 2
+sky = SubResource("Sky_main")
+tonemap_mode = 4
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_cylinder"]
+albedo_color = Color(0.635294, 0.211765, 0.0235294, 1)
+
+[sub_resource type="CylinderMesh" id="CylinderMesh_marker"]
+material = SubResource("StandardMaterial3D_cylinder")
+radial_segments = 24
+rings = 1
+
+[sub_resource type="Theme" id="Theme_ui"]
+default_font = ExtResource("4_font")
+
+[sub_resource type="Theme" id="Theme_score"]
+default_font = ExtResource("4_font")
+default_font_size = 22
+
+[node name="Main" type="Node" unique_id=1349376862]
+script = ExtResource("1_h2yge")
+mob_scene = ExtResource("3_mob")
+
+[node name="GameWorld2D" type="Node2D" parent="." unique_id=818340683]
+
+[node name="WorldBounds" type="StaticBody2D" parent="GameWorld2D" unique_id=986305257]
+collision_layer = 4
+collision_mask = 0
+
+[node name="WallSouth" type="CollisionShape2D" parent="GameWorld2D/WorldBounds" unique_id=126813431]
+position = Vector2(0, -30.4)
+shape = SubResource("Rect_wall_s")
+
+[node name="WallNorth" type="CollisionShape2D" parent="GameWorld2D/WorldBounds" unique_id=2010963779]
+position = Vector2(0, 30.4)
+shape = SubResource("Rect_wall_n")
+
+[node name="WallWest" type="CollisionShape2D" parent="GameWorld2D/WorldBounds" unique_id=2005867823]
+position = Vector2(-30.4, 0)
+shape = SubResource("Rect_wall_w")
+
+[node name="WallEast" type="CollisionShape2D" parent="GameWorld2D/WorldBounds" unique_id=95964262]
+position = Vector2(30.4, 0)
+shape = SubResource("Rect_wall_e")
+
+[node name="SpawnPath2D" type="Path2D" parent="GameWorld2D" unique_id=555023809]
+curve = SubResource("Curve2D_spawn")
+
+[node name="SpawnLocation" type="PathFollow2D" parent="GameWorld2D/SpawnPath2D" unique_id=555039076]
+cubic_interp = false
+loop = false
+
+[node name="Player" parent="GameWorld2D" unique_id=191842588 instance=ExtResource("2_player")]
+
+[node name="VisualWorld3D" type="Node3D" parent="." unique_id=642074585]
+
+[node name="GroundDecor" type="Node3D" parent="VisualWorld3D" unique_id=848535774]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -1.5, 0)
+
+[node name="GroundMesh" type="MeshInstance3D" parent="VisualWorld3D/GroundDecor" unique_id=376513642]
+mesh = SubResource("BoxMesh_ground")
+
+[node name="DirectionalLight3D" type="DirectionalLight3D" parent="VisualWorld3D" unique_id=505519777]
+transform = Transform3D(0.5, -0.777049, 0.382355, 0, 0.441506, 0.897258, -0.866025, -0.448629, 0.220753, 0, 12.5592, 14.7757)
+shadow_enabled = true
+shadow_bias = 0.04
+shadow_blur = 1.5
+directional_shadow_mode = 0
+directional_shadow_fade_start = 1.0
+directional_shadow_max_distance = 40.0
+
+[node name="WorldEnvironment" type="WorldEnvironment" parent="VisualWorld3D" unique_id=883985401]
+environment = SubResource("Environment_main")
+
+[node name="PlayerVisual" parent="VisualWorld3D" unique_id=1033673835 instance=ExtResource("6_pvis")]
+
+[node name="CameraPivot" type="Marker3D" parent="VisualWorld3D" unique_id=607571233]
+transform = Transform3D(1, 0, 0, 0, 0.707107, 0.707107, 0, -0.707107, 0.707107, 0.183514, 0, 0)
+
+[node name="Camera" type="Camera3D" parent="VisualWorld3D/CameraPivot" unique_id=1818839170]
+transform = Transform3D(1, 0, 0, 0, 1, -2.98023e-08, 0, 2.98023e-08, 1, 0, 9.53674e-07, 19)
+projection = 1
+current = true
+fov = 48.6
+size = 34.0
+far = 50.0
+
+[node name="Cylinders" type="Node3D" parent="VisualWorld3D" unique_id=1433690147]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 8, 0, 0)
+
+[node name="MeshInstance" type="MeshInstance3D" parent="VisualWorld3D/Cylinders" unique_id=957701352]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 6, 1, -15)
+mesh = SubResource("CylinderMesh_marker")
+
+[node name="MeshInstance3" type="MeshInstance3D" parent="VisualWorld3D/Cylinders" unique_id=386179477]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -21, 1, -15)
+mesh = SubResource("CylinderMesh_marker")
+
+[node name="MeshInstance2" type="MeshInstance3D" parent="VisualWorld3D/Cylinders" unique_id=1688844974]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -21, 1, 16)
+mesh = SubResource("CylinderMesh_marker")
+
+[node name="MeshInstance4" type="MeshInstance3D" parent="VisualWorld3D/Cylinders" unique_id=671423961]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 6, 1, 16)
+mesh = SubResource("CylinderMesh_marker")
+
+[node name="MobTimer" type="Timer" parent="." unique_id=1208140017]
+wait_time = 0.5
+autostart = true
+
+[node name="CanvasLayer" type="CanvasLayer" parent="." unique_id=221292051]
+
+[node name="UserInterface" type="Control" parent="CanvasLayer" unique_id=1483916510]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_right = 8.0
+offset_bottom = 6.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+theme = SubResource("Theme_ui")
+
+[node name="CoinCounter" type="Label" parent="CanvasLayer/UserInterface" unique_id=518873321]
+layout_mode = 1
+anchors_preset = 3
+anchor_left = 1.0
+anchor_top = 1.0
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = -196.0
+offset_top = -44.0
+offset_right = -14.0
+offset_bottom = -10.0
+grow_horizontal = 0
+grow_vertical = 0
+theme = SubResource("Theme_score")
+theme_override_colors/font_color = Color(0, 0, 0, 1)
+horizontal_alignment = 2
+vertical_alignment = 2
+text = "Coins: 0"
+script = ExtResource("5_score")
+
+[node name="HealthBar" parent="CanvasLayer/UserInterface" unique_id=1892345601 instance=ExtResource("7_health")]
+
+[node name="Retry" type="ColorRect" parent="CanvasLayer/UserInterface" unique_id=1497156876]
+visible = false
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+color = Color(0, 0, 0, 1)
+
+[node name="Label" type="Label" parent="CanvasLayer/UserInterface/Retry" unique_id=1781685463]
+layout_mode = 1
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -80.0
+offset_top = -12.0
+offset_right = 80.0
+offset_bottom = 12.0
+grow_horizontal = 2
+grow_vertical = 2
+text = "Press Enter to Retry"
+
+[connection signal="hit" from="GameWorld2D/Player" to="." method="_on_player_hit"]
+[connection signal="timeout" from="MobTimer" to="." method="_on_mob_timer_timeout"]

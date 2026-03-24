@@ -14,9 +14,9 @@ compatibility/default_parent_skeleton_in_mesh_instance_3d=true
 
 [application]
 
-config/name="GamePOC"
+config/name="Squash The Creeps"
 config/description="In this game, your goal is to chase and kick out the creeps!"
-run/main_scene="res://main.tscn"
+run/main_scene="res://scenes/core/main.tscn"
 config/features=PackedStringArray("4.6")
 config/icon="res://icon.webp"
 

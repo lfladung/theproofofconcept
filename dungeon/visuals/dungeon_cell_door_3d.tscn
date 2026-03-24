@@ -1,7 +1,7 @@
 [gd_scene format=3 uid="uid://ikqp75olbmnq"]
 
-[ext_resource type="PackedScene" uid="uid://ckipskinnnf45" path="res://art/stylized_door_frame_texture.glb" id="1_frame"]
-[ext_resource type="PackedScene" uid="uid://osjofa2tyd5w" path="res://art/Weathered_Cell_Door_texture.glb" id="2_cell"]
+[ext_resource type="PackedScene" uid="uid://ckipskinnnf45" path="res://art/props/doors/stylized_Door_frame_texture.glb" id="1_frame"]
+[ext_resource type="PackedScene" uid="uid://osjofa2tyd5w" path="res://art/props/doors/Weathered_Cell_Door_texture.glb" id="2_cell"]
 [ext_resource type="Script" uid="uid://e3swcy6sd5rq" path="res://dungeon/visuals/dungeon_cell_door_3d.gd" id="3_script"]
 
 [node name="DungeonCellDoor3D" type="Node3D" unique_id=1251516793]

@@ -1,7 +1,7 @@
 extends Node2D
 class_name TrapTile2D
 
-const _DEFAULT_TRAP_MESH := preload("res://art/spike_trap_texture.glb")
+const _DEFAULT_TRAP_MESH := preload("res://art/hazards/spike_trap_texture.glb")
 
 @export var damage := 18
 @export var hit_cooldown_sec := 1.1

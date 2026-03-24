@@ -191,8 +191,7 @@ static func _stage3_assign_roles(stage1: Dictionary, stage2: Dictionary, rng: Ra
 	if not side_nodes.is_empty():
 		roles[side_nodes[0]] = "treasure"
 	for i in range(1, side_nodes.size()):
-		var pick := rng.randf()
-		roles[side_nodes[i]] = "trap" if pick < 0.5 else "challenge"
+		roles[side_nodes[i]] = "safe"
 
 	var puzzle_room := String(path[puzzle_idx])
 	var next_room := String(path[puzzle_idx + 1])
