@@ -361,3 +361,7 @@ func squash() -> void:
 		return
 	_squash_applied = true
 	super.squash()
+
+
+func get_shadow_visual_root() -> Node3D:
+	return _visual

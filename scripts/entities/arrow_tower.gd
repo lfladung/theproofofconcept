@@ -182,3 +182,7 @@ func _exit_tree() -> void:
 		_telegraph_mesh.queue_free()
 
 
+func get_shadow_visual_root() -> Node3D:
+	return _visual
+
+

@@ -1,6 +1,7 @@
 [gd_scene load_steps=4 format=3 uid="uid://ceuu150fmggvr"]
 
 [ext_resource type="Script" path="res://scripts/entities/player.gd" id="1"]
+[ext_resource type="Script" path="res://scripts/entities/fake_shadow_3d.gd" id="2"]
 
 [sub_resource type="CircleShape2D" id="CircleShape2D_body"]
 radius = 2.5352896
@@ -13,8 +14,9 @@ collision_layer = 1
 collision_mask = 6
 motion_mode = 1
 script = ExtResource("1")
-show_player_hitbox_debug = true
-show_mob_hitbox_debug = true
+show_melee_hit_debug = false
+show_player_hitbox_debug = false
+show_mob_hitbox_debug = false
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="."]
 shape = SubResource("CircleShape2D_body")
@@ -23,6 +25,14 @@ shape = SubResource("CircleShape2D_body")
 collision_layer = 0
 collision_mask = 2
 monitorable = false
+
+[node name="FakeShadow3D" type="Node" parent="."]
+script = ExtResource("2")
+base_scale = 6.8
+min_scale = 4.4
+base_alpha = 0.9
+min_alpha = 0.65
+floor_offset = 0.08
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="MobDetector"]
 position = Vector2(0, 3.36)

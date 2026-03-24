@@ -427,6 +427,10 @@ func _free_world_debug_meshes() -> void:
 	_mob_hitboxes_mi = null
 
 
+func get_shadow_visual_root() -> Node3D:
+	return _visual
+
+
 func _on_mob_detector_body_entered(body: Node2D) -> void:
 	# Only creeps kill the player; avoids spurious Area2D overlaps (e.g. parent body quirks).
 	if body == null or body == self or not body.is_in_group(&"mob"):
