@@ -25,11 +25,10 @@ const BACKDROP_IMAGE_DIR := "res://art/backdrops"
 const BACKDROP_QUAD_DISTANCE := 420.0
 ## Slightly larger than ortho frustum so edges are not visible.
 const BACKDROP_QUAD_MARGIN := 1.12
-## Subtle exploration parallax: quad rotates slightly from 2D position (radians per world unit).
-const BACKDROP_PARALLAX_YAW_PER_UNIT := 0.0011
-const BACKDROP_PARALLAX_PITCH_PER_UNIT := 0.00075
-## How fast the backdrop eases toward the position target (higher = snappier).
-const BACKDROP_PARALLAX_LERP_SPEED := 3.5
+## Far backdrop moves only as a fraction of camera/pivot motion (camera is truth; background nearly static).
+const BACKDROP_PARALLAX_CAMERA_FRACTION := 0.02
+## Cap accumulated quad shift in camera space so margins can hide edges (0 = no cap).
+const BACKDROP_PARALLAX_MAX_OFFSET := 40.0
 const DOOR_STANDARD_SCENE := preload("res://dungeon/modules/connectivity/door_standard_2d.tscn")
 const ENTRANCE_MARKER_SCENE := preload("res://dungeon/modules/connectivity/entrance_marker_2d.tscn")
 const EXIT_MARKER_SCENE := preload("res://dungeon/modules/connectivity/exit_marker_2d.tscn")
@@ -139,8 +138,9 @@ var _door_lock_controller: DoorLockController
 var _dungeon_world_environment: WorldEnvironment
 var _dungeon_environment: Environment
 var _backdrop_quad: MeshInstance3D
-var _backdrop_parallax_yaw := 0.0
-var _backdrop_parallax_pitch := 0.0
+## Accumulated LevelBackdropQuad position in Camera3D local XY (Z from BACKDROP_QUAD_DISTANCE).
+var _backdrop_offset_cam := Vector3.ZERO
+var _prev_backdrop_camera_ref := Vector3.ZERO
 
 func _ready() -> void:
 	_rng.randomize()
@@ -172,7 +172,7 @@ func _process(delta: float) -> void:
 		_camera_follow.tick(delta)
 	_refresh_info_label_with_room_type()
 	_refresh_encounter_state()
-	_update_backdrop_parallax(delta)
+	_update_backdrop_parallax()
 	_update_backdrop_quad_transform()
 
 
@@ -332,27 +332,42 @@ func _ensure_backdrop_quad() -> void:
 	_backdrop_quad.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	_backdrop_quad.position = Vector3(0.0, 0.0, -BACKDROP_QUAD_DISTANCE)
 	_camera_3d.add_child(_backdrop_quad)
-	_update_backdrop_quad_transform()
+	_reset_backdrop_parallax_reference()
+
+
+func _reset_backdrop_parallax_reference() -> void:
+	_backdrop_offset_cam = Vector3.ZERO
+	if _camera_pivot != null:
+		_prev_backdrop_camera_ref = _camera_pivot.global_position
 
 
 func _reset_backdrop_parallax_to_player() -> void:
-	if _player == null:
-		_backdrop_parallax_yaw = 0.0
-		_backdrop_parallax_pitch = 0.0
-		return
-	var p := _player.global_position
-	_backdrop_parallax_yaw = p.x * BACKDROP_PARALLAX_YAW_PER_UNIT
-	_backdrop_parallax_pitch = p.y * BACKDROP_PARALLAX_PITCH_PER_UNIT
+	_reset_backdrop_parallax_reference()
 
 
-func _update_backdrop_parallax(delta: float) -> void:
-	if _player == null:
+func _update_backdrop_parallax() -> void:
+	if _camera_pivot == null or _camera_3d == null:
 		return
-	var target_yaw := _player.global_position.x * BACKDROP_PARALLAX_YAW_PER_UNIT
-	var target_pitch := _player.global_position.y * BACKDROP_PARALLAX_PITCH_PER_UNIT
-	var t := clampf(delta * BACKDROP_PARALLAX_LERP_SPEED, 0.0, 1.0)
-	_backdrop_parallax_yaw = lerpf(_backdrop_parallax_yaw, target_yaw, t)
-	_backdrop_parallax_pitch = lerpf(_backdrop_parallax_pitch, target_pitch, t)
+	var ref := _camera_pivot.global_position
+	if _backdrop_quad == null or not is_instance_valid(_backdrop_quad):
+		_prev_backdrop_camera_ref = ref
+		return
+	var delta_w: Vector3 = ref - _prev_backdrop_camera_ref
+	_prev_backdrop_camera_ref = ref
+	if delta_w.length_squared() < 1e-16:
+		return
+	# Single motion frame: camera right + up only (no mixed world-axis fighting).
+	var bx: Vector3 = _camera_3d.global_transform.basis.x
+	var by: Vector3 = _camera_3d.global_transform.basis.y
+	var along_right: float = delta_w.dot(bx)
+	var along_up: float = delta_w.dot(by)
+	# World-anchored feel: compensate opposite to camera travel at 2% so the layer stays almost static.
+	var step := Vector3(-along_right, -along_up, 0.0) * BACKDROP_PARALLAX_CAMERA_FRACTION
+	_backdrop_offset_cam += step
+	if BACKDROP_PARALLAX_MAX_OFFSET > 0.0:
+		var lim := BACKDROP_PARALLAX_MAX_OFFSET
+		_backdrop_offset_cam.x = clampf(_backdrop_offset_cam.x, -lim, lim)
+		_backdrop_offset_cam.y = clampf(_backdrop_offset_cam.y, -lim, lim)
 
 
 func _update_backdrop_quad_transform() -> void:
@@ -363,7 +378,12 @@ func _update_backdrop_quad_transform() -> void:
 	var h: float = _camera_3d.size * BACKDROP_QUAD_MARGIN
 	var w: float = h * aspect
 	_backdrop_quad.scale = Vector3(w, h, 1.0)
-	_backdrop_quad.rotation = Vector3(_backdrop_parallax_pitch, _backdrop_parallax_yaw, 0.0)
+	_backdrop_quad.rotation = Vector3.ZERO
+	_backdrop_quad.position = Vector3(
+		_backdrop_offset_cam.x,
+		_backdrop_offset_cam.y,
+		-BACKDROP_QUAD_DISTANCE
+	)
 
 
 func _collect_backdrop_png_paths() -> PackedStringArray:
