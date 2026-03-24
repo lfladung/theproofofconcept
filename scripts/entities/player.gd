@@ -5,8 +5,9 @@ signal health_changed(current: int, max_health: int)
 signal weapon_mode_changed(display_name: String)
 
 const ARROW_PROJECTILE_SCENE := preload("res://scenes/entities/arrow_projectile.tscn")
+const PLAYER_BOMB_SCENE := preload("res://scenes/entities/player_bomb.tscn")
 
-enum WeaponMode { SWORD, GUN }
+enum WeaponMode { SWORD, GUN, BOMB }
 
 ## Horizontal speed (matches former 3D XZ plane).
 @export var speed := 14.0
@@ -48,6 +49,14 @@ enum WeaponMode { SWORD, GUN }
 @export var ranged_max_tiles := 8.0
 @export var ranged_spawn_beyond_body := 0.75
 @export var world_units_per_tile := 3.0
+## Thrown bomb: Tab cycles weapons (see project input map; Space is dodge).
+@export var bomb_damage := 30
+@export var bomb_cooldown := 0.85
+@export var bomb_landing_distance := 14.0
+@export var bomb_aoe_radius := 5.0
+@export var bomb_flight_time := 0.48
+@export var bomb_arc_start_height := 4.0
+@export var bomb_knockback_strength := 0.0
 
 @onready var _visual: Node3D = get_node_or_null("../../VisualWorld3D/PlayerVisual") as Node3D
 @onready var _body_shape: CollisionShape2D = $CollisionShape2D
@@ -71,6 +80,7 @@ var _attack_hitbox_visual_time_remaining := 0.0
 var _melee_attack_cooldown_remaining := 0.0
 var weapon_mode: WeaponMode = WeaponMode.SWORD
 var _ranged_cooldown_remaining := 0.0
+var _bomb_cooldown_remaining := 0.0
 var _rmb_down := false
 ## Right-click attacks: face mouse this frame, resolve attack next physics frame.
 var _pending_rmb_kind: StringName = &""
@@ -115,13 +125,25 @@ func _ready() -> void:
 
 
 func get_weapon_mode_display() -> String:
-	return "Gun" if weapon_mode == WeaponMode.GUN else "Sword"
+	match weapon_mode:
+		WeaponMode.GUN:
+			return "Gun"
+		WeaponMode.BOMB:
+			return "Bomb"
+		_:
+			return "Sword"
 
 
 func _cycle_weapon() -> void:
 	if _is_dead:
 		return
-	weapon_mode = WeaponMode.GUN if weapon_mode == WeaponMode.SWORD else WeaponMode.SWORD
+	match weapon_mode:
+		WeaponMode.SWORD:
+			weapon_mode = WeaponMode.GUN
+		WeaponMode.GUN:
+			weapon_mode = WeaponMode.BOMB
+		_:
+			weapon_mode = WeaponMode.SWORD
 	weapon_mode_changed.emit(get_weapon_mode_display())
 
 
@@ -142,6 +164,8 @@ func _queue_rmb_attack_after_facing_mouse() -> void:
 		_pending_rmb_kind = &"gun"
 	elif weapon_mode == WeaponMode.SWORD and _melee_attack_cooldown_remaining <= 0.0:
 		_pending_rmb_kind = &"melee"
+	elif weapon_mode == WeaponMode.BOMB and _bomb_cooldown_remaining <= 0.0:
+		_pending_rmb_kind = &"bomb"
 
 
 func _execute_pending_rmb_attack_if_any() -> void:
@@ -167,6 +191,38 @@ func _execute_pending_rmb_attack_if_any() -> void:
 			_attack_hitbox_visual_time_remaining,
 			attack_hitbox_visual_duration
 		)
+	elif kind == &"bomb":
+		if weapon_mode != WeaponMode.BOMB or _bomb_cooldown_remaining > 0.0:
+			return
+		if _visual and _visual.has_method(&"try_play_attack"):
+			_visual.try_play_attack()
+		_try_throw_bomb()
+
+
+func _try_throw_bomb() -> void:
+	var parent := get_parent()
+	if parent == null:
+		return
+	var vw := get_node_or_null("../../VisualWorld3D") as Node3D
+	var bomb := PLAYER_BOMB_SCENE.instantiate() as PlayerBomb
+	if bomb == null:
+		return
+	var dir := _facing_planar
+	if dir.length_squared() <= 1e-6:
+		dir = Vector2(0.0, -1.0)
+	bomb.configure(
+		global_position,
+		dir,
+		vw,
+		bomb_damage,
+		bomb_aoe_radius,
+		bomb_landing_distance,
+		bomb_flight_time,
+		bomb_arc_start_height,
+		bomb_knockback_strength
+	)
+	parent.add_child(bomb)
+	_bomb_cooldown_remaining = bomb_cooldown
 
 
 func _try_fire_ranged_arrow() -> void:
@@ -280,12 +336,34 @@ func _planar_point_in_melee_hit(mob_pos: Vector2) -> bool:
 	return along >= inner and along <= inner + melee_depth and absf(lateral) <= half_w
 
 
+func _melee_hit_polygon_world() -> PackedVector2Array:
+	var f := _facing_planar
+	var r := Vector2(-f.y, f.x)
+	var half_w := melee_width * 0.5
+	var inner := _melee_range_start()
+	var p := global_position
+	var poly := PackedVector2Array()
+	poly.append(p + f * inner + r * (-half_w))
+	poly.append(p + f * inner + r * half_w)
+	poly.append(p + f * (inner + melee_depth) + r * half_w)
+	poly.append(p + f * (inner + melee_depth) + r * (-half_w))
+	return poly
+
+
+func _melee_hit_overlaps_mob(mob: CharacterBody2D) -> bool:
+	var melee_poly := _melee_hit_polygon_world()
+	var mob_poly := HitboxOverlap2D.mob_collision_polygon_world(mob)
+	if mob_poly.size() >= 3:
+		return HitboxOverlap2D.convex_polygons_overlap(melee_poly, mob_poly)
+	return _planar_point_in_melee_hit(mob.global_position)
+
+
 func _squash_mobs_in_melee_hit() -> void:
 	for node in get_tree().get_nodes_in_group(&"mob"):
 		if not node is CharacterBody2D:
 			continue
 		var mob := node as CharacterBody2D
-		if _planar_point_in_melee_hit(mob.global_position):
+		if _melee_hit_overlaps_mob(mob):
 			if mob.has_method(&"take_hit"):
 				mob.call(&"take_hit", melee_attack_damage, _facing_planar, melee_knockback_strength)
 
@@ -408,6 +486,7 @@ func _physics_process(delta: float) -> void:
 		return
 	_melee_attack_cooldown_remaining = maxf(0.0, _melee_attack_cooldown_remaining - delta)
 	_ranged_cooldown_remaining = maxf(0.0, _ranged_cooldown_remaining - delta)
+	_bomb_cooldown_remaining = maxf(0.0, _bomb_cooldown_remaining - delta)
 
 	if Input.is_action_just_pressed(&"weapon_switch"):
 		_clear_pending_rmb_attack()
@@ -506,6 +585,7 @@ func die() -> void:
 	_invuln_time_remaining = 0.0
 	_rmb_down = false
 	_clear_pending_rmb_attack()
+	_bomb_cooldown_remaining = 0.0
 	if _body_shape != null:
 		_body_shape.disabled = true
 	_free_world_debug_meshes()
@@ -526,6 +606,7 @@ func reset_for_retry(world_pos: Vector2) -> void:
 	_dodge_time_remaining = 0.0
 	_dodge_cooldown_remaining = 0.0
 	_rmb_down = false
+	_bomb_cooldown_remaining = 0.0
 	if _body_shape != null:
 		_body_shape.disabled = false
 	_reset_player_visual_transparency()

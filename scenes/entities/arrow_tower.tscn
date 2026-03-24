@@ -4,7 +4,7 @@
 [ext_resource type="Script" path="res://scripts/entities/fake_shadow_3d.gd" id="2"]
 
 [sub_resource type="CircleShape2D" id="CircleShape2D_tower"]
-radius = 2.2
+radius = 2.75
 
 [node name="ArrowTower" type="CharacterBody2D" groups=["mob"]]
 collision_layer = 2
