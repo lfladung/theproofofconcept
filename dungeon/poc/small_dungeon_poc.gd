@@ -12,6 +12,13 @@ const CAMERA_LERP_SPEED := 8.0
 const CAMERA_DIAG_PITCH_DEG := -44.0
 const CAMERA_DIAG_YAW_DEG := 40.0
 const WALL_PIECE_SCENE := preload("res://dungeon/modules/structure/wall_segment_2d.tscn")
+## Stone wall GLB tiles boundary segments (same asset as stone ground tier).
+const STONE_WALL_GLB := preload("res://art/stone_wall_texture.glb")
+## Ground GLBs tile per room; cycle with dungeon depth (`_floor_index`): metal → grass → dirt → stone.
+const GROUND_GLB_METAL := preload("res://art/metal_tile_floor_texture.glb")
+const GROUND_GLB_GRASS := preload("res://art/grass_ground_texture.glb")
+const GROUND_GLB_DIRT := preload("res://art/dirt_brick_ground_texture.glb")
+const GROUND_GLB_STONE := STONE_WALL_GLB
 const DOOR_STANDARD_SCENE := preload("res://dungeon/modules/connectivity/door_standard_2d.tscn")
 const ENTRANCE_MARKER_SCENE := preload("res://dungeon/modules/connectivity/entrance_marker_2d.tscn")
 const EXIT_MARKER_SCENE := preload("res://dungeon/modules/connectivity/exit_marker_2d.tscn")
@@ -23,10 +30,10 @@ const ROOM_TRIGGER_SCENE := preload("res://dungeon/modules/encounter/room_encoun
 const TREASURE_CHEST_SCENE := preload("res://dungeon/modules/gameplay/treasure_chest_2d.tscn")
 const TRAP_TILE_SCENE := preload("res://dungeon/modules/gameplay/trap_tile_2d.tscn")
 const DUNGEON_CELL_DOOR_SCENE := preload("res://dungeon/visuals/dungeon_cell_door_3d.tscn")
-const STYLIZED_WALL_3D_SCENE := preload("res://art/stylized_wall_texture.glb")
-const FLOOR_WALL_ALBEDO_TEXTURE := preload("res://art/stylized_wall_texture_0.jpg")
 ## World units per texture repeat on floors (matches 3×3 room tiles).
 const FLOOR_TEXTURE_TILE_WORLD := 3.0
+## Match floor tile size so wall stone pattern lines up at room corners.
+const WALL_TEXTURE_TILE_WORLD := FLOOR_TEXTURE_TILE_WORLD
 const _COMBAT_TRAP_OFFSETS: Array[Vector2] = [
 	Vector2(-15.5, -20.0),
 	Vector2(16.5, 18.0),
@@ -72,9 +79,10 @@ var _encounter_completed: Dictionary = {}
 var _encounter_mobs: Dictionary = {}
 var _spawn_points_by_encounter: Dictionary = {}
 var _spawn_volumes_by_encounter: Dictionary = {}
-var _wall_visual_prefab_ready := false
-var _wall_visual_prefab_has_mesh := false
-var _wall_visual_prefab_aabb := AABB()
+## Neighboring rooms both emit the same boundary segment; keep one collider + one visual.
+var _boundary_wall_keys: Dictionary = {}
+## Merged mesh AABB in GLB root space (cached per path) for floor tile scaling.
+var _floor_glb_aabb_by_path: Dictionary = {}
 var _rng: RandomNumberGenerator = RandomNumberGenerator.new()
 var _floor_index := 1
 var _main_dir := "east"
@@ -410,6 +418,7 @@ func _set_room_sockets_for_layout(room: RoomBase) -> void:
 
 
 func _build_world_bounds() -> void:
+	_boundary_wall_keys.clear()
 	_free_children_immediate(_world_bounds)
 	_free_children_immediate(_piece_instances_root)
 	_free_children_immediate(_encounter_modules_root)
@@ -509,8 +518,18 @@ func _segments_from_openings(min_value: float, max_value: float, openings: Array
 
 
 func _add_wall_shape(position_2d: Vector2, size_2d: Vector2) -> void:
+	var k := _wall_boundary_key(position_2d, size_2d)
+	if _boundary_wall_keys.has(k):
+		return
+	_boundary_wall_keys[k] = true
 	_add_wall_piece(position_2d, size_2d)
 	_add_wall_visual(position_2d, size_2d)
+
+
+func _wall_boundary_key(position_2d: Vector2, size_2d: Vector2) -> String:
+	var p := Vector2(snappedf(position_2d.x, 0.05), snappedf(position_2d.y, 0.05))
+	var s := Vector2(snappedf(size_2d.x, 0.05), snappedf(size_2d.y, 0.05))
+	return "%.2f,%.2f|%.2f,%.2f" % [p.x, p.y, s.x, s.y]
 
 
 func _add_wall_piece(position_2d: Vector2, size_2d: Vector2) -> void:
@@ -534,115 +553,37 @@ func _add_wall_piece(position_2d: Vector2, size_2d: Vector2) -> void:
 
 
 func _add_wall_visual(position_2d: Vector2, size_2d: Vector2) -> void:
-	_ensure_wall_visual_prefab_metrics()
-	if _wall_visual_prefab_has_mesh:
-		var src := _wall_visual_prefab_aabb
-		var tiles_x := maxi(1, int(roundf(size_2d.x)))
-		var tiles_z := maxi(1, int(roundf(size_2d.y)))
-		var module_x := size_2d.x / float(tiles_x)
-		var module_z := size_2d.y / float(tiles_z)
-		var sx := module_x / maxf(0.01, src.size.x)
-		var sy := WALL_VISUAL_HEIGHT / maxf(0.01, src.size.y)
-		var sz := module_z / maxf(0.01, src.size.z)
-		var src_center := src.get_center()
-		var base_x := position_2d.x - size_2d.x * 0.5 + module_x * 0.5
-		var base_z := position_2d.y - size_2d.y * 0.5 + module_z * 0.5
-		var world_y := WALL_VISUAL_BASE_Y - src.position.y * sy
-		for ix in range(tiles_x):
-			for iz in range(tiles_z):
-				var wall_node := STYLIZED_WALL_3D_SCENE.instantiate() as Node3D
-				if wall_node == null:
+	var glb_scene := STONE_WALL_GLB
+	var src := _get_floor_glb_tile_aabb(glb_scene)
+	var tw := maxf(0.01, WALL_TEXTURE_TILE_WORLD)
+	var wx := size_2d.x
+	var wz := size_2d.y
+	var wy := WALL_VISUAL_HEIGHT
+	var tiles_x := maxi(1, ceili(wx / tw))
+	var tiles_z := maxi(1, ceili(wz / tw))
+	var tiles_y := maxi(1, ceili(wy / tw))
+	var module_x := wx / float(tiles_x)
+	var module_z := wz / float(tiles_z)
+	var module_y := wy / float(tiles_y)
+	var sx := module_x / maxf(0.01, src.size.x)
+	var sy := module_y / maxf(0.01, src.size.y)
+	var sz := module_z / maxf(0.01, src.size.z)
+	var src_center := src.get_center()
+	var base_x := position_2d.x - wx * 0.5 + module_x * 0.5
+	var base_z := position_2d.y - wz * 0.5 + module_z * 0.5
+	for ix in range(tiles_x):
+		for iz in range(tiles_z):
+			for iy in range(tiles_y):
+				var tile := glb_scene.instantiate() as Node3D
+				if tile == null:
 					continue
-				wall_node.scale = Vector3(sx, sy, sz)
-				wall_node.position = Vector3(
-					base_x + float(ix) * module_x - src_center.x * sx,
-					world_y,
-					base_z + float(iz) * module_z - src_center.z * sz
-				)
-				_wall_visuals.add_child(wall_node)
-		return
-
-	var wall_mesh := MeshInstance3D.new()
-	var box := BoxMesh.new()
-	box.size = Vector3(size_2d.x, WALL_VISUAL_HEIGHT, size_2d.y)
-	var mat := StandardMaterial3D.new()
-	mat.albedo_color = Color(0.47, 0.31, 0.20, 1.0)
-	box.material = mat
-	wall_mesh.mesh = box
-	wall_mesh.position = Vector3(
-		position_2d.x,
-		WALL_VISUAL_BASE_Y + WALL_VISUAL_HEIGHT * 0.5,
-		position_2d.y
-	)
-	_wall_visuals.add_child(wall_mesh)
-
-
-func _ensure_wall_visual_prefab_metrics() -> void:
-	if _wall_visual_prefab_ready:
-		return
-	_wall_visual_prefab_ready = true
-	var sample := STYLIZED_WALL_3D_SCENE.instantiate() as Node3D
-	if sample == null:
-		return
-	var aabb := _merged_mesh_aabb_in_root_space(sample)
-	if aabb.size.length_squared() > 1e-8:
-		_wall_visual_prefab_aabb = aabb
-		_wall_visual_prefab_has_mesh = true
-	sample.free()
-
-
-func _merged_mesh_aabb_in_root_space(root: Node3D) -> AABB:
-	var merged := AABB()
-	var any := false
-	for n in root.find_children("*", "MeshInstance3D", true, false):
-		if not n is MeshInstance3D:
-			continue
-		var mi := n as MeshInstance3D
-		if mi.mesh == null:
-			continue
-		var root_to_mesh := _transform_to_ancestor_space(mi, root)
-		var aabb := _transform_aabb_to_space(root_to_mesh, mi.mesh.get_aabb())
-		if not any:
-			merged = aabb
-			any = true
-		else:
-			merged = merged.merge(aabb)
-	return merged if any else AABB()
-
-
-static func _transform_to_ancestor_space(node: Node3D, ancestor: Node3D) -> Transform3D:
-	var xf := Transform3D.IDENTITY
-	var cur: Node = node
-	while cur != null and cur != ancestor:
-		if cur is Node3D:
-			xf = (cur as Node3D).transform * xf
-		cur = cur.get_parent()
-	return xf
-
-
-static func _transform_aabb_to_space(xf: Transform3D, aabb: AABB) -> AABB:
-	var p := aabb.position
-	var s := aabb.size
-	var corners: Array[Vector3] = [
-		Vector3(p.x, p.y, p.z),
-		Vector3(p.x + s.x, p.y, p.z),
-		Vector3(p.x, p.y + s.y, p.z),
-		Vector3(p.x, p.y, p.z + s.z),
-		Vector3(p.x + s.x, p.y + s.y, p.z),
-		Vector3(p.x + s.x, p.y, p.z + s.z),
-		Vector3(p.x, p.y + s.y, p.z + s.z),
-		Vector3(p.x + s.x, p.y + s.y, p.z + s.z),
-	]
-	var out := AABB()
-	var first := true
-	for c in corners:
-		var wc := xf * c
-		if first:
-			out = AABB(wc, Vector3.ZERO)
-			first = false
-		else:
-			out = out.expand(wc)
-	return out
+				tile.scale = Vector3(sx, sy, sz)
+				var px := base_x + float(ix) * module_x
+				var pz := base_z + float(iz) * module_z
+				var row_bottom := WALL_VISUAL_BASE_Y + float(iy) * module_y
+				var py := row_bottom - src.position.y * sy
+				tile.position = Vector3(px - src_center.x * sx, py, pz - src_center.z * sz)
+				_wall_visuals.add_child(tile)
 
 
 func _build_room_debug_visuals() -> void:
@@ -660,8 +601,7 @@ func _build_room_debug_visuals() -> void:
 		# Using rect_local.position + global would offset floors for odd tile counts (asymmetric tile rect).
 		var half := rect_local.size * 0.5
 		var rect := Rect2(r.global_position - half, rect_local.size)
-		var color := _color_for_room_type(r.room_type)
-		_add_room_floor_visual(rect, color, r.name + " (" + r.room_type.to_upper() + ")")
+		_add_room_floor_visual(rect, r.name + " (" + r.room_type.to_upper() + ")")
 		for socket in r.get_all_sockets():
 			if socket.connector_type == &"inactive":
 				continue
@@ -751,27 +691,122 @@ func _assign_combat_door_visual_refs() -> void:
 		_combat_door_visual_east = best_e
 
 
-func _add_room_floor_visual(rect: Rect2, color: Color, label_text: String) -> void:
-	var mesh := MeshInstance3D.new()
-	var bm := BoxMesh.new()
-	bm.size = Vector3(rect.size.x, ROOM_HEIGHT, rect.size.y)
-	var mat := StandardMaterial3D.new()
-	mat.albedo_texture = FLOOR_WALL_ALBEDO_TEXTURE
-	mat.albedo_color = color
-	mat.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS
-	var tile := maxf(0.01, FLOOR_TEXTURE_TILE_WORLD)
-	mat.uv1_scale = Vector3(rect.size.x / tile, rect.size.y / tile, 1.0)
-	mesh.material_override = mat
-	mesh.mesh = bm
-	var floor_center_y := FLOOR_SLAB_TOP_Y - ROOM_HEIGHT * 0.5
-	mesh.position = Vector3(rect.position.x + rect.size.x * 0.5, floor_center_y, rect.position.y + rect.size.y * 0.5)
-	_room_visuals.add_child(mesh)
+func _ground_glb_scene_for_dungeon_floor() -> PackedScene:
+	var i := (_floor_index - 1) % 4
+	match i:
+		0:
+			return GROUND_GLB_METAL
+		1:
+			return GROUND_GLB_GRASS
+		2:
+			return GROUND_GLB_DIRT
+		_:
+			return GROUND_GLB_STONE
 
+
+func _get_floor_glb_tile_aabb(glb_scene: PackedScene) -> AABB:
+	var path_key := glb_scene.resource_path
+	if _floor_glb_aabb_by_path.has(path_key):
+		return _floor_glb_aabb_by_path[path_key] as AABB
+	var inst := glb_scene.instantiate() as Node3D
+	var aabb := AABB()
+	if inst != null:
+		aabb = _merged_mesh_aabb_in_glb_root(inst)
+		inst.free()
+	if aabb.size.length_squared() < 1e-8:
+		aabb = AABB(Vector3(-1.5, -0.05, -1.5), Vector3(3.0, 0.1, 3.0))
+	_floor_glb_aabb_by_path[path_key] = aabb
+	return aabb
+
+
+func _merged_mesh_aabb_in_glb_root(root: Node3D) -> AABB:
+	var merged := AABB()
+	var any := false
+	for n in root.find_children("*", "MeshInstance3D", true, false):
+		if not n is MeshInstance3D:
+			continue
+		var mi := n as MeshInstance3D
+		if mi.mesh == null:
+			continue
+		var root_to_mesh := _glb_transform_to_ancestor(mi, root)
+		var aabb := _glb_transform_aabb(root_to_mesh, mi.mesh.get_aabb())
+		if not any:
+			merged = aabb
+			any = true
+		else:
+			merged = merged.merge(aabb)
+	return merged if any else AABB()
+
+
+static func _glb_transform_to_ancestor(node: Node3D, ancestor: Node3D) -> Transform3D:
+	var xf := Transform3D.IDENTITY
+	var cur: Node = node
+	while cur != null and cur != ancestor:
+		if cur is Node3D:
+			xf = (cur as Node3D).transform * xf
+		cur = cur.get_parent()
+	return xf
+
+
+static func _glb_transform_aabb(xf: Transform3D, aabb: AABB) -> AABB:
+	var p := aabb.position
+	var s := aabb.size
+	var corners: Array[Vector3] = [
+		Vector3(p.x, p.y, p.z),
+		Vector3(p.x + s.x, p.y, p.z),
+		Vector3(p.x, p.y + s.y, p.z),
+		Vector3(p.x, p.y, p.z + s.z),
+		Vector3(p.x + s.x, p.y + s.y, p.z),
+		Vector3(p.x + s.x, p.y, p.z + s.z),
+		Vector3(p.x, p.y + s.y, p.z + s.z),
+		Vector3(p.x + s.x, p.y + s.y, p.z + s.z),
+	]
+	var out := AABB()
+	var first := true
+	for c in corners:
+		var wc := xf * c
+		if first:
+			out = AABB(wc, Vector3.ZERO)
+			first = false
+		else:
+			out = out.expand(wc)
+	return out
+
+
+func _add_room_floor_visual(rect: Rect2, label_text: String) -> void:
+	var glb_scene := _ground_glb_scene_for_dungeon_floor()
+	var src := _get_floor_glb_tile_aabb(glb_scene)
+	var tw := maxf(0.01, FLOOR_TEXTURE_TILE_WORLD)
+	var tiles_x := maxi(1, ceili(rect.size.x / tw))
+	var tiles_z := maxi(1, ceili(rect.size.y / tw))
+	var module_x := rect.size.x / float(tiles_x)
+	var module_z := rect.size.y / float(tiles_z)
+	var sx := module_x / maxf(0.01, src.size.x)
+	var sy := ROOM_HEIGHT / maxf(0.01, src.size.y)
+	var sz := module_z / maxf(0.01, src.size.z)
+	var src_center := src.get_center()
+	var top_y := src.position.y + src.size.y
+	var base_x := rect.position.x + module_x * 0.5
+	var base_z := rect.position.y + module_z * 0.5
+	for ix in range(tiles_x):
+		for iz in range(tiles_z):
+			var tile := glb_scene.instantiate() as Node3D
+			if tile == null:
+				continue
+			tile.scale = Vector3(sx, sy, sz)
+			var px := base_x + float(ix) * module_x
+			var pz := base_z + float(iz) * module_z
+			var py := FLOOR_SLAB_TOP_Y - top_y * sy
+			tile.position = Vector3(px - src_center.x * sx, py, pz - src_center.z * sz)
+			_room_visuals.add_child(tile)
+
+	var cx := rect.position.x + rect.size.x * 0.5
+	var cz := rect.position.y + rect.size.y * 0.5
 	var label := Label3D.new()
 	label.text = label_text
 	label.billboard = BaseMaterial3D.BILLBOARD_ENABLED
 	label.modulate = Color.BLACK
-	label.position = Vector3(mesh.position.x, FLOOR_SLAB_TOP_Y + 1.85, mesh.position.z)
+	label.position = Vector3(cx, FLOOR_SLAB_TOP_Y + 1.85, cz)
 	label.scale = Vector3.ONE * LABEL_SCALE
 	_room_visuals.add_child(label)
 
@@ -783,18 +818,6 @@ func _add_cell_door_3d(world_pos: Vector2, wall_direction: String, use_combat_lo
 	door.position = Vector3(world_pos.x, FLOOR_SLAB_TOP_Y, world_pos.y)
 	_door_visuals.add_child(door)
 	return door
-
-
-func _color_for_room_type(room_type: String) -> Color:
-	match room_type:
-		"corridor", "connector":
-			return Color(0.92, 0.92, 0.92, 1.0)
-		"treasure":
-			return Color(1.0, 0.97, 0.84, 1.0)
-		"boss":
-			return Color(0.95, 0.88, 0.88, 1.0)
-		_:
-			return Color(1.0, 1.0, 1.0, 1.0)
 
 
 func _set_combat_doors_locked(locked: bool, animate: bool = true) -> void:
