@@ -54,6 +54,14 @@ func _is_server_peer() -> bool:
 	return mp != null and mp.multiplayer_peer != null and mp.is_server()
 
 
+func _can_broadcast_world_replication() -> bool:
+	if not _multiplayer_active() or not _is_server_peer():
+		return true
+	var session := get_node_or_null("/root/NetworkSession")
+	if session != null and session.has_method("can_broadcast_world_replication"):
+		return bool(session.call("can_broadcast_world_replication"))
+	return true
+
 func _enemy_network_compact_state() -> Dictionary:
 	return {}
 
@@ -64,6 +72,8 @@ func _enemy_network_apply_remote_state(_state: Dictionary) -> void:
 
 func _enemy_network_server_broadcast(delta: float) -> void:
 	if not _is_server_peer():
+		return
+	if not _can_broadcast_world_replication():
 		return
 	_network_sync_time_accum += delta
 	if _network_sync_time_accum < network_sync_interval:
@@ -130,6 +140,7 @@ func take_hit(damage: int, knockback_dir: Vector2, knockback_strength: float) ->
 		return
 	if show_damage_text:
 		_show_floating_damage_text(damage)
+		_broadcast_damage_text(damage)
 	_health = maxi(0, _health - damage)
 	if _health <= 0:
 		squash()
@@ -191,6 +202,10 @@ func _resolve_visual_world_3d() -> Node3D:
 
 
 func _show_floating_damage_text(damage: int) -> void:
+	_show_floating_damage_text_at(damage, global_position)
+
+
+func _show_floating_damage_text_at(damage: int, world_pos: Vector2) -> void:
 	var vw := _resolve_visual_world_3d()
 	if vw == null:
 		return
@@ -201,7 +216,7 @@ func _show_floating_damage_text(damage: int) -> void:
 	text.font_size = damage_text_font_size
 	text.outline_size = 16
 	text.modulate = Color(1.0, 0.15, 0.15, 1.0)
-	text.position = Vector3(global_position.x, damage_text_world_y, global_position.y)
+	text.position = Vector3(world_pos.x, damage_text_world_y, world_pos.y)
 	vw.add_child(text)
 	var tween := text.create_tween()
 	tween.set_parallel(true)
@@ -215,6 +230,24 @@ func _show_floating_damage_text(damage: int) -> void:
 		Tween.EASE_IN
 	)
 	tween.chain().tween_callback(text.queue_free)
+
+
+func _broadcast_damage_text(damage: int) -> void:
+	if not _multiplayer_active() or not _is_server_peer():
+		return
+	if not _can_broadcast_world_replication():
+		return
+	_rpc_show_damage_text.rpc(damage, global_position)
+
+
+@rpc("any_peer", "call_remote", "unreliable_ordered")
+func _rpc_show_damage_text(damage: int, world_pos: Vector2) -> void:
+	if _is_server_peer():
+		return
+	var mp := _multiplayer_api_safe()
+	if mp == null or mp.get_remote_sender_id() != 1:
+		return
+	_show_floating_damage_text_at(damage, world_pos)
 
 
 func _pick_nearest_player_target() -> Node2D:
@@ -257,3 +290,6 @@ func _pick_nearest_player_target() -> Node2D:
 	)
 	var best_v: Variant = candidates[0].get("node", null)
 	return best_v as Node2D
+
+
+

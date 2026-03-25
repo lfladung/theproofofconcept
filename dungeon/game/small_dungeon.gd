@@ -29,6 +29,7 @@ const BACKDROP_QUAD_MARGIN := 1.12
 const BACKDROP_PARALLAX_CAMERA_FRACTION := 0.02
 ## Cap accumulated quad shift in camera space so margins can hide edges (0 = no cap).
 const BACKDROP_PARALLAX_MAX_OFFSET := 40.0
+const LAYOUT_KEY_BACKDROP_TEXTURE_PATH := "backdrop_texture_path"
 const DOOR_STANDARD_SCENE := preload("res://dungeon/modules/connectivity/door_standard_2d.tscn")
 const ENTRANCE_MARKER_SCENE := preload("res://dungeon/modules/connectivity/entrance_marker_2d.tscn")
 const EXIT_MARKER_SCENE := preload("res://dungeon/modules/connectivity/exit_marker_2d.tscn")
@@ -44,6 +45,7 @@ const ROOM_BASE_SCENE := preload("res://dungeon/rooms/base/room_base.tscn")
 const TRAP_TILE_SCENE := preload("res://dungeon/modules/gameplay/trap_tile_2d.tscn")
 const DUNGEON_CELL_DOOR_SCENE := preload("res://dungeon/visuals/dungeon_cell_door_3d.tscn")
 const PLAYER_SCENE := preload("res://scenes/entities/player.tscn")
+const ELEVATOR_VISUAL_SCENE := preload("res://art/props/interactables/elevator_texture.glb")
 const ENEMY_SCENE_KIND_DASHER := 1
 const ENEMY_SCENE_KIND_ARROW_TOWER := 2
 ## World units per texture repeat on floors (4x4 gameplay tiles at 3 units per tile).
@@ -94,6 +96,7 @@ const _TOWER_SPAWN_MIN_SEP := 4.5
 @onready var _weapon_mode_label: Label = $CanvasLayer/UI/WeaponModeLabel
 @onready var _boss_exit_portal: Area2D = $GameWorld2D/Triggers/BossExitPortal
 @onready var _debug_spawn_exit_portal: Area2D = $GameWorld2D/Triggers/DebugSpawnExitPortal
+@onready var _boss_portal_marker: MeshInstance3D = $VisualWorld3D/BossPortalMarker
 @onready var _debug_spawn_portal_marker: MeshInstance3D = $VisualWorld3D/DebugSpawnPortalMarker
 
 var _combat_started := false
@@ -150,6 +153,7 @@ var _door_lock_controller: DoorLockController
 var _dungeon_world_environment: WorldEnvironment
 var _dungeon_environment: Environment
 var _backdrop_quad: MeshInstance3D
+var _boss_exit_elevator_visual: Node3D
 var _player: CharacterBody2D
 var _players_by_peer: Dictionary = {}
 var _peer_slots: Dictionary = {}
@@ -158,11 +162,13 @@ var _networked_run := false
 var _bound_hit_player: CharacterBody2D
 var _weapon_ui_bound_player: CharacterBody2D
 var _has_generated_floor := false
-var _enemy_nodes_by_net_id: Dictionary = {}
-var _enemy_net_id_sequence := 0
-var _coin_nodes_by_net_id: Dictionary = {}
-var _coin_net_id_sequence := 0
+var _enemy_nodes_by_network_id: Dictionary = {}
+var _enemy_network_id_sequence := 0
+var _coin_nodes_by_network_id: Dictionary = {}
+var _coin_network_id_sequence := 0
 var _coin_totals_by_peer: Dictionary = {}
+var _shared_coin_total := 0
+var _awaiting_layout_snapshot := false
 ## Accumulated LevelBackdropQuad position in Camera3D local XY (Z from BACKDROP_QUAD_DISTANCE).
 var _backdrop_offset_cam := Vector3.ZERO
 var _prev_backdrop_camera_ref := Vector3.ZERO
@@ -240,13 +246,51 @@ func _is_server_peer() -> bool:
 	return mp != null and mp.multiplayer_peer != null and mp.is_server()
 
 
-func _next_enemy_net_id() -> int:
-	_enemy_net_id_sequence += 1
-	return _enemy_net_id_sequence
+func _is_dedicated_server_session() -> bool:
+	return (
+		_network_session != null
+		and _network_session.has_method("is_dedicated_server")
+		and bool(_network_session.call("is_dedicated_server"))
+	)
+
+
+func _can_broadcast_world_replication() -> bool:
+	if not _networked_run:
+		return true
+	if not _is_server_peer() or not _has_multiplayer_peer():
+		return false
+	if _network_session != null and _network_session.has_method("can_broadcast_world_replication"):
+		return bool(_network_session.call("can_broadcast_world_replication"))
+	return true
+
+
+func _prepare_dedicated_server_placeholder_player() -> void:
+	if _host_player == null or not is_instance_valid(_host_player):
+		return
+	if _host_player.is_in_group(&"player"):
+		_host_player.remove_from_group(&"player")
+	var shape := _host_player.get_node_or_null("CollisionShape2D") as CollisionShape2D
+	if shape != null:
+		shape.disabled = true
+	_host_player.collision_layer = 0
+	_host_player.collision_mask = 0
+	_host_player.set_physics_process(false)
+	_host_player.set_process(false)
+
+
+func _next_enemy_network_id() -> int:
+	_enemy_network_id_sequence += 1
+	return _enemy_network_id_sequence
 
 
 func _enemy_scene_kind_from_scene(scene: PackedScene) -> int:
 	if scene == ARROW_TOWER_SCENE:
+		return ENEMY_SCENE_KIND_ARROW_TOWER
+	return ENEMY_SCENE_KIND_DASHER
+
+
+func _enemy_scene_kind_from_enemy_instance(enemy: EnemyBase) -> int:
+	if enemy is ArrowTowerMob:
 		return ENEMY_SCENE_KIND_ARROW_TOWER
 	return ENEMY_SCENE_KIND_DASHER
 
@@ -278,18 +322,18 @@ func _register_encounter_enemy(encounter_id: StringName, enemy: EnemyBase) -> vo
 		enemy.coin_drop_requested.connect(_on_enemy_coin_drop_requested)
 
 
-func _register_enemy_net_id(enemy: EnemyBase, net_id: int) -> void:
+func _register_enemy_network_id(enemy: EnemyBase, net_id: int) -> void:
 	if enemy == null or net_id <= 0:
 		return
 	enemy.name = "Enemy_%s" % [net_id]
-	enemy.set_meta(&"enemy_net_id", net_id)
+	enemy.set_meta(&"enemy_network_id", net_id)
 	enemy.set_multiplayer_authority(1, true)
-	_enemy_nodes_by_net_id[net_id] = enemy
+	_enemy_nodes_by_network_id[net_id] = enemy
 
 
-func _next_coin_net_id() -> int:
-	_coin_net_id_sequence += 1
-	return _coin_net_id_sequence
+func _next_coin_network_id() -> int:
+	_coin_network_id_sequence += 1
+	return _coin_network_id_sequence
 
 
 func _normalize_coin_totals(raw_totals: Dictionary) -> Dictionary:
@@ -300,17 +344,19 @@ func _normalize_coin_totals(raw_totals: Dictionary) -> Dictionary:
 
 
 func _ensure_coin_totals_for_roster() -> void:
+	var max_total := _shared_coin_total
+	for value in _coin_totals_by_peer.values():
+		max_total = maxi(max_total, int(value))
+	_shared_coin_total = maxi(0, max_total)
 	var peer_ids: Array[int] = _overlay_sorted_player_peer_ids()
 	if peer_ids.is_empty():
 		peer_ids.append(_local_peer_id())
 	for peer_id in peer_ids:
-		if not _coin_totals_by_peer.has(peer_id):
-			_coin_totals_by_peer[peer_id] = 0
+		_coin_totals_by_peer[peer_id] = _shared_coin_total
 
 
 func _refresh_local_coin_ui() -> void:
-	var local_peer := _local_peer_id()
-	var local_total := maxi(0, int(_coin_totals_by_peer.get(local_peer, 0)))
+	var local_total := _shared_coin_total
 	for n in get_tree().get_nodes_in_group(&"score_ui"):
 		if n.has_method(&"set_score"):
 			n.call(&"set_score", local_total)
@@ -323,7 +369,36 @@ func _refresh_local_coin_ui() -> void:
 func _broadcast_coin_totals_if_server() -> void:
 	if not _networked_run or not _is_server_peer() or not _has_multiplayer_peer():
 		return
+	if not _can_broadcast_world_replication():
+		return
 	_rpc_sync_coin_totals.rpc(_coin_totals_by_peer)
+
+
+func _layout_snapshot_payload() -> Dictionary:
+	return _map_layout.duplicate(true)
+
+
+func _request_layout_snapshot_from_server() -> void:
+	if not _networked_run or _is_authoritative_world() or not _has_multiplayer_peer():
+		return
+	if _awaiting_layout_snapshot:
+		return
+	_awaiting_layout_snapshot = true
+	_rpc_request_layout_snapshot.rpc_id(1)
+
+
+func _request_runtime_snapshot_from_server() -> void:
+	if not _networked_run or _is_authoritative_world() or not _has_multiplayer_peer():
+		return
+	_rpc_request_runtime_snapshot.rpc_id(1)
+
+
+func _broadcast_layout_snapshot_if_server() -> void:
+	if not _networked_run or not _is_server_peer() or not _has_multiplayer_peer():
+		return
+	if _map_layout.is_empty():
+		return
+	_rpc_receive_layout_snapshot.rpc(_floor_index, _layout_snapshot_payload())
 
 
 func _normalize_slot_map(slot_map: Dictionary) -> Dictionary:
@@ -367,12 +442,18 @@ func _ensure_player_node_for_peer(peer_id: int, reusable_host: bool = false) -> 
 	var existing: Variant = _players_by_peer.get(peer_id, null)
 	if existing is CharacterBody2D and is_instance_valid(existing):
 		var found := existing as CharacterBody2D
-		_assign_player_authority(found, peer_id)
-		return found
+		if found != _host_player:
+			_assign_player_authority(found, peer_id)
+			return found
+	var desired_name := "PlayerPeer_%s" % [peer_id]
+	var conflicting := $GameWorld2D.get_node_or_null(NodePath(desired_name)) as CharacterBody2D
+	if conflicting != null and conflicting != existing and conflicting != _host_player:
+		$GameWorld2D.remove_child(conflicting)
+		conflicting.queue_free()
 	var spawned := PLAYER_SCENE.instantiate() as CharacterBody2D
 	if spawned == null:
 		return null
-	spawned.name = "PlayerPeer_%s" % [peer_id]
+	spawned.name = desired_name
 	$GameWorld2D.add_child(spawned)
 	_assign_player_authority(spawned, peer_id)
 	return spawned
@@ -381,6 +462,8 @@ func _ensure_player_node_for_peer(peer_id: int, reusable_host: bool = false) -> 
 func _initialize_player_roster() -> void:
 	_players_by_peer.clear()
 	_peer_slots.clear()
+	if _networked_run and _is_server_peer() and _is_dedicated_server_session():
+		_prepare_dedicated_server_placeholder_player()
 	if not _networked_run:
 		_players_by_peer[_local_peer_id()] = _host_player
 		_assign_player_authority(_host_player, _local_peer_id())
@@ -398,13 +481,24 @@ func _apply_player_roster_from_slot_map(raw_slot_map: Dictionary) -> void:
 		_player if _player != null and is_instance_valid(_player) else null
 	)
 	var slot_map: Dictionary = _normalize_slot_map(raw_slot_map)
-	if slot_map.is_empty():
+	if slot_map.is_empty() and not _networked_run:
 		slot_map[1] = 0
 	_peer_slots = slot_map
 	var ordered_peer_ids: Array[int] = _peer_ids_sorted_by_slot(_peer_slots)
+	var reusable_host_peer_id := -1
+	var allow_host_reuse := not _networked_run or _peer_slots.has(1)
+	if _networked_run and not allow_host_reuse:
+		# Dedicated sessions keep server/client RPC paths stable by forcing PlayerPeer_<peer_id> nodes.
+		_prepare_dedicated_server_placeholder_player()
+	if allow_host_reuse and not ordered_peer_ids.is_empty():
+		reusable_host_peer_id = ordered_peer_ids[0]
+		for id in ordered_peer_ids:
+			if id == 1:
+				reusable_host_peer_id = 1
+				break
 	var seen: Dictionary = {}
 	for peer_id in ordered_peer_ids:
-		var use_host := peer_id == 1
+		var use_host := peer_id == reusable_host_peer_id
 		var p: CharacterBody2D = _ensure_player_node_for_peer(peer_id, use_host)
 		if p == null:
 			continue
@@ -497,6 +591,7 @@ func _process(delta: float) -> void:
 	_refresh_combat_debug_overlay()
 	if _is_authoritative_world():
 		_refresh_encounter_state()
+		_try_schedule_floor_advance_if_all_players_on_elevator()
 	_update_backdrop_parallax()
 	_update_backdrop_quad_transform()
 
@@ -646,40 +741,52 @@ func _regenerate_level(randomize_layout: bool) -> void:
 	for n in get_tree().get_nodes_in_group(&"mob"):
 		if n is Node:
 			(n as Node).queue_free()
-	_enemy_nodes_by_net_id.clear()
-	_enemy_net_id_sequence = 0
-	_map_layout = {}
+	_enemy_nodes_by_network_id.clear()
+	_enemy_network_id_sequence = 0
 	var assembled_ok := false
-	var max_tries := 4 if randomize_layout else 1
-	for _attempt in range(max_tries):
-		var generated := DungeonMapLayoutV1.generate(_rng)
-		if not bool(generated.get("ok", false)):
-			continue
-		var level_data := LevelDataV1.from_layout(
-			generated,
-			{
-				"levelId": "floor_%s" % [_floor_index],
-				"seed": int(_rng.seed),
-				"difficulty": _floor_index,
-				"theme": "procedural",
-			}
-		)
-		var schema_check := LevelDataV1.validate(level_data)
-		if not bool(schema_check.get("ok", false)):
-			var schema_errors: Array = schema_check.get("errors", []) as Array
-			var packed := PackedStringArray()
-			for msg in schema_errors:
-				packed.append(String(msg))
-			_last_assembly_errors = packed
-			continue
-		_map_layout = generated
-		_map_layout["level_data"] = level_data
+	if _networked_run and not _is_authoritative_world():
+		if _map_layout.is_empty():
+			_request_layout_snapshot_from_server()
+			return
+		_awaiting_layout_snapshot = false
 		_destroy_dynamic_rooms()
 		_spawn_rooms_from_layout(_map_layout)
-		_apply_adjacency_sockets(DungeonMapLayoutV1.adjacency_from_links(_map_layout.get("links", []) as Array))
+		var links_client: Array = _map_layout.get("links", []) as Array
+		_apply_adjacency_sockets(DungeonMapLayoutV1.adjacency_from_links(links_client))
 		assembled_ok = _assemble_rooms_procedurally(_map_layout)
-		if assembled_ok:
-			break
+	else:
+		_map_layout = {}
+		var max_tries := 4 if randomize_layout else 1
+		for _attempt in range(max_tries):
+			var generated := DungeonMapLayoutV1.generate(_rng)
+			if not bool(generated.get("ok", false)):
+				continue
+			var level_data := LevelDataV1.from_layout(
+				generated,
+				{
+					"levelId": "floor_%s" % [_floor_index],
+					"seed": int(_rng.seed),
+					"difficulty": _floor_index,
+					"theme": "procedural",
+				}
+			)
+			var schema_check := LevelDataV1.validate(level_data)
+			if not bool(schema_check.get("ok", false)):
+				var schema_errors: Array = schema_check.get("errors", []) as Array
+				var packed := PackedStringArray()
+				for msg in schema_errors:
+					packed.append(String(msg))
+				_last_assembly_errors = packed
+				continue
+			_map_layout = generated
+			_map_layout["level_data"] = level_data
+			_destroy_dynamic_rooms()
+			_spawn_rooms_from_layout(_map_layout)
+			var links_server: Array = _map_layout.get("links", []) as Array
+			_apply_adjacency_sockets(DungeonMapLayoutV1.adjacency_from_links(links_server))
+			assembled_ok = _assemble_rooms_procedurally(_map_layout)
+			if assembled_ok:
+				break
 	if not assembled_ok:
 		push_warning(
 			"Grid dungeon assembly failed (%s validation issues); skipping floor build." % [
@@ -698,16 +805,24 @@ func _regenerate_level(randomize_layout: bool) -> void:
 	_set_boss_entry_locked(false)
 	_boss_exit_portal.monitoring = false
 	_boss_exit_portal.monitorable = false
-	($VisualWorld3D/BossPortalMarker as MeshInstance3D).visible = false
+	if _boss_portal_marker != null:
+		_boss_portal_marker.visible = false
+	if _boss_exit_elevator_visual != null and is_instance_valid(_boss_exit_elevator_visual):
+		_boss_exit_elevator_visual.visible = false
 	_debug_spawn_exit_portal.monitoring = false
 	_debug_spawn_exit_portal.monitorable = false
 	var entrance_spawn := _room_center_2d(_layout_room_name("start_room"))
 	_position_players_at_spawn(entrance_spawn)
 	_has_generated_floor = true
 	_reset_backdrop_parallax_to_player()
-	_prev_player_pos = _player.global_position
-	_prev_player_inside = _is_point_inside_any_room(_prev_player_pos, 1.25)
-	_prev_room_name = _room_name_at(_prev_player_pos, 1.25)
+	if _player != null and is_instance_valid(_player):
+		_prev_player_pos = _player.global_position
+		_prev_player_inside = _is_point_inside_any_room(_prev_player_pos, 1.25)
+		_prev_room_name = _room_name_at(_prev_player_pos, 1.25)
+	else:
+		_prev_player_pos = Vector2.ZERO
+		_prev_player_inside = true
+		_prev_room_name = ""
 	if OS.is_debug_build():
 		# After teleport, CharacterBody2D syncs next physics tick; enabling monitoring earlier
 		# still sees old overlap and fires body_entered once (double floor). Boss portal is fine
@@ -718,6 +833,8 @@ func _regenerate_level(randomize_layout: bool) -> void:
 	else:
 		if _debug_spawn_portal_marker != null:
 			_debug_spawn_portal_marker.visible = false
+	if _is_authoritative_world():
+		_ensure_layout_backdrop_path_server()
 	_log_generation_debug(_map_layout)
 	var room_count := (_map_layout.get("room_specs", []) as Array).size()
 	_set_info_base_text(
@@ -726,7 +843,11 @@ func _regenerate_level(randomize_layout: bool) -> void:
 			room_count,
 		]
 	)
-	_apply_random_level_backdrop()
+	if _networked_run and not _is_authoritative_world():
+		_request_runtime_snapshot_from_server()
+	_apply_layout_backdrop_from_layout()
+	if _is_authoritative_world():
+		_broadcast_layout_snapshot_if_server()
 
 
 func _position_players_at_spawn(entrance_spawn: Vector2) -> void:
@@ -856,6 +977,18 @@ func _ensure_dungeon_world_environment() -> void:
 	_visual_world.add_child(_dungeon_world_environment)
 
 
+func _ensure_boss_exit_elevator_visual() -> void:
+	if _boss_exit_elevator_visual != null and is_instance_valid(_boss_exit_elevator_visual):
+		return
+	var visual := ELEVATOR_VISUAL_SCENE.instantiate() as Node3D
+	if visual == null:
+		return
+	visual.name = "BossExitElevatorVisual"
+	visual.visible = false
+	_visual_world.add_child(visual)
+	_boss_exit_elevator_visual = visual
+
+
 func _ensure_backdrop_quad() -> void:
 	if _backdrop_quad != null and is_instance_valid(_backdrop_quad):
 		return
@@ -941,16 +1074,34 @@ func _collect_backdrop_png_paths() -> PackedStringArray:
 			out.append("%s/%s" % [BACKDROP_IMAGE_DIR, fn])
 		fn = da.get_next()
 	da.list_dir_end()
+	out.sort()
 	return out
 
 
-func _apply_random_level_backdrop() -> void:
+func _ensure_layout_backdrop_path_server() -> void:
+	if not _is_authoritative_world():
+		return
+	if _map_layout.is_empty():
+		return
+	var existing := String(_map_layout.get(LAYOUT_KEY_BACKDROP_TEXTURE_PATH, "")).strip_edges()
+	if not existing.is_empty():
+		return
 	var paths := _collect_backdrop_png_paths()
 	if paths.is_empty():
 		return
+	_map_layout[LAYOUT_KEY_BACKDROP_TEXTURE_PATH] = paths[_rng.randi_range(0, paths.size() - 1)]
+
+
+func _apply_layout_backdrop_from_layout() -> void:
+	var tex_path := String(_map_layout.get(LAYOUT_KEY_BACKDROP_TEXTURE_PATH, "")).strip_edges()
+	if tex_path.is_empty() and _is_authoritative_world():
+		_ensure_layout_backdrop_path_server()
+		tex_path = String(_map_layout.get(LAYOUT_KEY_BACKDROP_TEXTURE_PATH, "")).strip_edges()
+	if tex_path.is_empty():
+		push_warning("Layout missing backdrop texture path; skipping backdrop apply.")
+		return
 	_ensure_dungeon_world_environment()
 	_ensure_backdrop_quad()
-	var tex_path := paths[_rng.randi_range(0, paths.size() - 1)]
 	var tex := load(tex_path)
 	if tex is not Texture2D:
 		push_warning("Backdrop is not a Texture2D: %s" % tex_path)
@@ -1059,7 +1210,7 @@ func _collect_dropped_coins_under(node: Node, out: Array) -> void:
 
 func _clear_floor_loot() -> void:
 	# Coins can live under PieceInstances (chests) or GameWorld2D root (mob death drops).
-	_coin_nodes_by_net_id.clear()
+	_coin_nodes_by_network_id.clear()
 	var gw := get_node_or_null("GameWorld2D") as Node
 	if gw != null:
 		var coins: Array = []
@@ -1218,9 +1369,16 @@ func _position_runtime_markers() -> void:
 		var inset_y := maxf(0.0, half.y - _BOSS_PORTAL_INSET)
 		var offset := Vector2(outward.x * inset_x, outward.y * inset_y)
 		_boss_exit_portal.position = boss_room.global_position + offset
-		var portal_marker := $VisualWorld3D/BossPortalMarker as MeshInstance3D
-		if portal_marker != null:
-			portal_marker.position = Vector3(_boss_exit_portal.position.x, 0.45, _boss_exit_portal.position.y)
+		if _boss_portal_marker != null:
+			_boss_portal_marker.visible = false
+		_ensure_boss_exit_elevator_visual()
+		if _boss_exit_elevator_visual != null and is_instance_valid(_boss_exit_elevator_visual):
+			_boss_exit_elevator_visual.position = Vector3(
+				_boss_exit_portal.position.x,
+				FLOOR_SLAB_TOP_Y + 0.05,
+				_boss_exit_portal.position.y
+			)
+			_boss_exit_elevator_visual.visible = false
 	_position_debug_spawn_exit_portal()
 
 
@@ -1851,6 +2009,8 @@ func _on_treasure_chest_opened(chest: TreasureChest2D) -> void:
 		return
 	if not _networked_run or not _is_server_peer() or not _has_multiplayer_peer():
 		return
+	if not _can_broadcast_world_replication():
+		return
 	_rpc_open_treasure_chest.rpc(chest.get_path())
 
 
@@ -1874,76 +2034,76 @@ func _random_enemy_coin_land_pos(spawn_position: Vector2) -> Vector2:
 
 
 func _spawn_authoritative_coin(spawn_position: Vector2, landing_position: Vector2, coin_value: int) -> void:
-	var coin_net_id := _next_coin_net_id()
-	_spawn_coin_instance(coin_net_id, spawn_position, landing_position, coin_value, true)
-	if _networked_run and _is_server_peer() and _has_multiplayer_peer():
-		_rpc_spawn_coin.rpc(coin_net_id, spawn_position, landing_position, coin_value)
+	var coin_network_id := _next_coin_network_id()
+	_spawn_coin_instance(coin_network_id, spawn_position, landing_position, coin_value, true)
+	if _networked_run and _is_server_peer() and _has_multiplayer_peer() and _can_broadcast_world_replication():
+		_rpc_spawn_coin.rpc(coin_network_id, spawn_position, landing_position, coin_value)
 
 
 func _spawn_coin_instance(
-	coin_net_id: int,
+	coin_network_id: int,
 	spawn_position: Vector2,
 	landing_position: Vector2,
 	coin_value: int,
 	authoritative_pickup: bool
 ) -> void:
-	if coin_net_id <= 0:
+	if coin_network_id <= 0:
 		return
-	var existing_v: Variant = _coin_nodes_by_net_id.get(coin_net_id, null)
+	var existing_v: Variant = _coin_nodes_by_network_id.get(coin_network_id, null)
 	if existing_v is DroppedCoin and is_instance_valid(existing_v):
 		return
 	var coin := DROPPED_COIN_SCENE.instantiate() as DroppedCoin
 	if coin == null:
 		return
-	coin.name = "Coin_%s" % [coin_net_id]
+	coin.name = "Coin_%s" % [coin_network_id]
 	coin.set_planar_arc_end(landing_position)
 	$GameWorld2D.add_child(coin)
 	coin.global_position = spawn_position
-	coin.configure_network_coin(coin_net_id, coin_value, authoritative_pickup)
-	_register_coin_instance(coin, coin_net_id)
+	coin.configure_network_coin(coin_network_id, coin_value, authoritative_pickup)
+	_register_coin_instance(coin, coin_network_id)
 
 
-func _register_coin_instance(coin: DroppedCoin, coin_net_id: int) -> void:
-	if coin == null or coin_net_id <= 0:
+func _register_coin_instance(coin: DroppedCoin, coin_network_id: int) -> void:
+	if coin == null or coin_network_id <= 0:
 		return
-	_coin_nodes_by_net_id[coin_net_id] = coin
+	_coin_nodes_by_network_id[coin_network_id] = coin
 	if coin.has_signal(&"pickup_requested") and not coin.pickup_requested.is_connected(_on_coin_pickup_requested):
 		coin.pickup_requested.connect(_on_coin_pickup_requested)
-	coin.tree_exited.connect(_on_coin_tree_exited.bind(coin_net_id, coin), CONNECT_ONE_SHOT)
+	coin.tree_exited.connect(_on_coin_tree_exited.bind(coin_network_id, coin), CONNECT_ONE_SHOT)
 
 
-func _on_coin_tree_exited(coin_net_id: int, coin: DroppedCoin) -> void:
-	var current_v: Variant = _coin_nodes_by_net_id.get(coin_net_id, null)
+func _on_coin_tree_exited(coin_network_id: int, coin: DroppedCoin) -> void:
+	var current_v: Variant = _coin_nodes_by_network_id.get(coin_network_id, null)
 	if current_v == coin:
-		_coin_nodes_by_net_id.erase(coin_net_id)
+		_coin_nodes_by_network_id.erase(coin_network_id)
 
 
-func _despawn_coin_local(coin_net_id: int) -> void:
-	var coin_v: Variant = _coin_nodes_by_net_id.get(coin_net_id, null)
+func _despawn_coin_local(coin_network_id: int) -> void:
+	var coin_v: Variant = _coin_nodes_by_network_id.get(coin_network_id, null)
 	if coin_v is DroppedCoin and is_instance_valid(coin_v):
 		(coin_v as DroppedCoin).queue_free()
-	_coin_nodes_by_net_id.erase(coin_net_id)
+	_coin_nodes_by_network_id.erase(coin_network_id)
 
 
-func _on_coin_pickup_requested(coin_net_id: int, picker_peer_id: int, coin_value: int) -> void:
+func _on_coin_pickup_requested(coin_network_id: int, picker_peer_id: int, coin_value: int) -> void:
 	if not _is_authoritative_world():
 		return
-	var coin_v: Variant = _coin_nodes_by_net_id.get(coin_net_id, null)
+	var coin_v: Variant = _coin_nodes_by_network_id.get(coin_network_id, null)
 	if coin_v == null or not is_instance_valid(coin_v):
-		_coin_nodes_by_net_id.erase(coin_net_id)
+		_coin_nodes_by_network_id.erase(coin_network_id)
 		return
 	var resolved_peer := picker_peer_id
 	if resolved_peer <= 0:
 		resolved_peer = _local_peer_id()
 	if _networked_run and not _players_by_peer.has(resolved_peer):
 		resolved_peer = 1
-	_despawn_coin_local(coin_net_id)
-	var current_total := int(_coin_totals_by_peer.get(resolved_peer, 0))
-	var next_total := current_total + maxi(1, coin_value)
-	_coin_totals_by_peer[resolved_peer] = next_total
+	_despawn_coin_local(coin_network_id)
+	var next_total := _shared_coin_total + maxi(1, coin_value)
+	_shared_coin_total = maxi(0, next_total)
+	_ensure_coin_totals_for_roster()
 	_refresh_local_coin_ui()
-	if _networked_run and _is_server_peer() and _has_multiplayer_peer():
-		_rpc_coin_collected.rpc(coin_net_id, resolved_peer, next_total)
+	if _networked_run and _is_server_peer() and _has_multiplayer_peer() and _can_broadcast_world_replication():
+		_rpc_coin_collected.rpc(coin_network_id, resolved_peer, next_total)
 
 
 func _spawn_trap_tile_at(world_pos: Vector2) -> void:
@@ -1972,8 +2132,8 @@ func _spawn_entrance_exit_markers() -> void:
 
 
 func _spawn_encounter_modules() -> void:
-	_enemy_nodes_by_net_id.clear()
-	_enemy_net_id_sequence = 0
+	_enemy_nodes_by_network_id.clear()
+	_enemy_network_id_sequence = 0
 	if not _is_authoritative_world():
 		_spawn_points_by_encounter.clear()
 		_spawn_volumes_by_encounter.clear()
@@ -2182,13 +2342,27 @@ func _start_boss_encounter() -> void:
 		)
 
 
+func _reference_player_position() -> Vector2:
+	var ordered_peer_ids: Array[int] = _peer_ids_sorted_by_slot(_peer_slots)
+	for peer_id in ordered_peer_ids:
+		var node_v: Variant = _players_by_peer.get(peer_id, null)
+		if node_v is CharacterBody2D and is_instance_valid(node_v):
+			return (node_v as CharacterBody2D).global_position
+	if _player != null and is_instance_valid(_player) and _player.is_in_group(&"player"):
+		return _player.global_position
+	var start_room := _layout_room_name("start_room")
+	if String(start_room) != "":
+		return _room_center_2d(start_room)
+	return Vector2.ZERO
+
+
 func _spawn_encounter_wave(encounter_id: StringName, total_count: int, speed_multiplier: float) -> void:
 	if not _planned_tower_positions_by_encounter.has(encounter_id):
 		_planned_tower_positions_by_encounter[encounter_id] = []
 	var spawned := 0
 	var points: Array = _spawn_points_by_encounter.get(encounter_id, []) as Array
 	var volumes: Array = _spawn_volumes_by_encounter.get(encounter_id, []) as Array
-	var player_pos := _player.global_position
+	var player_pos := _reference_player_position()
 	var planned_scenes: Array[PackedScene] = []
 	if total_count >= 2:
 		# Guarantee mixed waves: at least one dasher + one tower when possible.
@@ -2272,19 +2446,19 @@ func _spawn_encounter_mob_deferred(
 	var resolved_encounter_id := _resolve_encounter_for_spawn(encounter_id, spawn_position)
 	var scene_to_spawn := enemy_scene if enemy_scene != null else _pick_enemy_scene(encounter_id)
 	var scene_kind := _enemy_scene_kind_from_scene(scene_to_spawn)
-	var net_id := _next_enemy_net_id()
+	var net_id := _next_enemy_network_id()
 	var enemy := scene_to_spawn.instantiate() as EnemyBase
 	if enemy == null:
 		return
 	enemy.apply_speed_multiplier(speed_multiplier)
 	enemy.configure_spawn(spawn_position, target_position)
-	_register_enemy_net_id(enemy, net_id)
+	_register_enemy_network_id(enemy, net_id)
 	$GameWorld2D.add_child(enemy)
 	var encounter_is_active := bool(_encounter_active.get(resolved_encounter_id, false))
 	var final_aggro := start_aggro or encounter_is_active
 	enemy.set_aggro_enabled(final_aggro)
 	_register_encounter_enemy(resolved_encounter_id, enemy)
-	if _is_server_peer():
+	if _is_server_peer() and _can_broadcast_world_replication():
 		_rpc_spawn_enemy.rpc(
 			net_id,
 			String(resolved_encounter_id),
@@ -2301,7 +2475,7 @@ func _set_encounter_mobs_aggro(encounter_id: StringName, enabled: bool) -> void:
 	for mob in mobs:
 		if mob is EnemyBase and is_instance_valid(mob):
 			(mob as EnemyBase).set_aggro_enabled(enabled)
-	if _is_server_peer():
+	if _is_server_peer() and _can_broadcast_world_replication():
 		_rpc_set_encounter_aggro.rpc(String(encounter_id), enabled)
 
 
@@ -2319,7 +2493,7 @@ func _rpc_spawn_enemy(
 		return
 	if multiplayer.get_remote_sender_id() != 1:
 		return
-	var existing_v: Variant = _enemy_nodes_by_net_id.get(net_id, null)
+	var existing_v: Variant = _enemy_nodes_by_network_id.get(net_id, null)
 	if existing_v is EnemyBase and is_instance_valid(existing_v):
 		(existing_v as EnemyBase).set_aggro_enabled(aggro_enabled)
 		return
@@ -2332,7 +2506,7 @@ func _rpc_spawn_enemy(
 	var encounter_id := StringName(encounter_id_text)
 	enemy.apply_speed_multiplier(speed_multiplier)
 	enemy.configure_spawn(spawn_position, target_position)
-	_register_enemy_net_id(enemy, net_id)
+	_register_enemy_network_id(enemy, net_id)
 	$GameWorld2D.add_child(enemy)
 	enemy.set_aggro_enabled(aggro_enabled)
 	_register_encounter_enemy(encounter_id, enemy)
@@ -2344,10 +2518,10 @@ func _rpc_despawn_enemy(net_id: int) -> void:
 		return
 	if multiplayer.get_remote_sender_id() != 1:
 		return
-	var enemy_v: Variant = _enemy_nodes_by_net_id.get(net_id, null)
+	var enemy_v: Variant = _enemy_nodes_by_network_id.get(net_id, null)
 	if enemy_v is EnemyBase and is_instance_valid(enemy_v):
 		(enemy_v as EnemyBase).queue_free()
-	_enemy_nodes_by_net_id.erase(net_id)
+	_enemy_nodes_by_network_id.erase(net_id)
 
 
 @rpc("any_peer", "call_remote", "reliable")
@@ -2361,6 +2535,87 @@ func _rpc_set_encounter_aggro(encounter_id_text: String, enabled: bool) -> void:
 	for mob in mobs:
 		if mob is EnemyBase and is_instance_valid(mob):
 			(mob as EnemyBase).set_aggro_enabled(enabled)
+
+
+func _send_runtime_snapshot_to_peer(peer_id: int) -> void:
+	if peer_id <= 0 or not _is_server_peer() or not _has_multiplayer_peer():
+		return
+	var enemy_ids: Array = _enemy_nodes_by_network_id.keys()
+	enemy_ids.sort()
+	for key in enemy_ids:
+		var net_id := int(key)
+		var enemy_v: Variant = _enemy_nodes_by_network_id.get(net_id, null)
+		if enemy_v is not EnemyBase or not is_instance_valid(enemy_v):
+			continue
+		var enemy := enemy_v as EnemyBase
+		var encounter_id := StringName(enemy.get_meta(&"encounter_id", &""))
+		var scene_kind := _enemy_scene_kind_from_enemy_instance(enemy)
+		var aggro_enabled := bool(_encounter_active.get(encounter_id, false))
+		_rpc_spawn_enemy.rpc_id(
+			peer_id,
+			net_id,
+			String(encounter_id),
+			scene_kind,
+			enemy.global_position,
+			enemy.global_position,
+			1.0,
+			aggro_enabled
+		)
+	_ensure_coin_totals_for_roster()
+	_rpc_sync_coin_totals.rpc_id(peer_id, _coin_totals_by_peer)
+	_rpc_runtime_snapshot_complete.rpc_id(peer_id)
+
+@rpc("any_peer", "call_remote", "reliable")
+func _rpc_request_layout_snapshot() -> void:
+	if not _is_server_peer():
+		return
+	var mp := _multiplayer_api_safe()
+	if mp == null:
+		return
+	var requester_peer := mp.get_remote_sender_id()
+	if requester_peer <= 0:
+		return
+	if _map_layout.is_empty():
+		return
+	_rpc_receive_layout_snapshot.rpc_id(requester_peer, _floor_index, _layout_snapshot_payload())
+
+
+@rpc("any_peer", "call_remote", "reliable")
+func _rpc_request_runtime_snapshot() -> void:
+	if not _is_server_peer():
+		return
+	var mp := _multiplayer_api_safe()
+	if mp == null:
+		return
+	var requester_peer := mp.get_remote_sender_id()
+	if requester_peer <= 0:
+		return
+	_send_runtime_snapshot_to_peer(requester_peer)
+
+
+@rpc("any_peer", "call_remote", "reliable")
+func _rpc_runtime_snapshot_complete() -> void:
+	if _is_authoritative_world():
+		return
+	if multiplayer.get_remote_sender_id() != 1:
+		return
+	if _network_session != null and _network_session.has_method("mark_runtime_scene_ready_local"):
+		_network_session.call("mark_runtime_scene_ready_local")
+
+
+@rpc("any_peer", "call_remote", "reliable")
+func _rpc_receive_layout_snapshot(floor_index_value: int, layout_snapshot: Dictionary) -> void:
+	if _is_authoritative_world():
+		return
+	if multiplayer.get_remote_sender_id() != 1:
+		return
+	if layout_snapshot.is_empty():
+		return
+	_floor_index = maxi(1, floor_index_value)
+	_map_layout = layout_snapshot.duplicate(true)
+	_awaiting_layout_snapshot = false
+	_regenerate_level(false)
+	_request_runtime_snapshot_from_server()
 
 
 @rpc("any_peer", "call_remote", "reliable")
@@ -2378,23 +2633,24 @@ func _rpc_open_treasure_chest(chest_path: NodePath) -> void:
 
 @rpc("any_peer", "call_remote", "reliable")
 func _rpc_spawn_coin(
-	coin_net_id: int, spawn_position: Vector2, landing_position: Vector2, coin_value: int
+	coin_network_id: int, spawn_position: Vector2, landing_position: Vector2, coin_value: int
 ) -> void:
 	if _is_authoritative_world():
 		return
 	if multiplayer.get_remote_sender_id() != 1:
 		return
-	_spawn_coin_instance(coin_net_id, spawn_position, landing_position, coin_value, false)
+	_spawn_coin_instance(coin_network_id, spawn_position, landing_position, coin_value, false)
 
 
 @rpc("any_peer", "call_remote", "reliable")
-func _rpc_coin_collected(coin_net_id: int, picker_peer_id: int, picker_new_total: int) -> void:
+func _rpc_coin_collected(coin_network_id: int, picker_peer_id: int, picker_new_total: int) -> void:
 	if _is_authoritative_world():
 		return
 	if multiplayer.get_remote_sender_id() != 1:
 		return
-	_despawn_coin_local(coin_net_id)
-	_coin_totals_by_peer[picker_peer_id] = maxi(0, picker_new_total)
+	_despawn_coin_local(coin_network_id)
+	_shared_coin_total = maxi(0, picker_new_total)
+	_ensure_coin_totals_for_roster()
 	_refresh_local_coin_ui()
 
 
@@ -2405,6 +2661,10 @@ func _rpc_sync_coin_totals(raw_totals: Dictionary) -> void:
 	if multiplayer.get_remote_sender_id() != 1:
 		return
 	_coin_totals_by_peer = _normalize_coin_totals(raw_totals)
+	var synced_total := 0
+	for value in _coin_totals_by_peer.values():
+		synced_total = maxi(synced_total, int(value))
+	_shared_coin_total = synced_total
 	_ensure_coin_totals_for_roster()
 	_refresh_local_coin_ui()
 
@@ -2498,11 +2758,11 @@ func _on_encounter_mob_removed(encounter_id: StringName, mob: EnemyBase) -> void
 		mobs.erase(mob)
 		_encounter_mobs[encounter_id] = mobs
 	var net_id := -1
-	if mob != null and mob.has_meta(&"enemy_net_id"):
-		net_id = int(mob.get_meta(&"enemy_net_id", -1))
+	if mob != null and mob.has_meta(&"enemy_network_id"):
+		net_id = int(mob.get_meta(&"enemy_network_id", -1))
 	if net_id > 0:
-		_enemy_nodes_by_net_id.erase(net_id)
-		if _is_server_peer():
+		_enemy_nodes_by_network_id.erase(net_id)
+		if _is_server_peer() and _can_broadcast_world_replication():
 			_rpc_despawn_enemy.rpc(net_id)
 
 
@@ -2531,8 +2791,11 @@ func _complete_encounter(encounter_id: StringName) -> void:
 			_set_boss_entry_locked(false)
 			_boss_exit_portal.monitoring = true
 			_boss_exit_portal.monitorable = true
-			($VisualWorld3D/BossPortalMarker as MeshInstance3D).visible = true
-			_set_info_base_text("Boss defeated. Exit portal is active.")
+			if _boss_portal_marker != null:
+				_boss_portal_marker.visible = false
+			if _boss_exit_elevator_visual != null and is_instance_valid(_boss_exit_elevator_visual):
+				_boss_exit_elevator_visual.visible = true
+			_set_info_base_text("Boss defeated. Elevator is active. All players must board.")
 		_:
 			if String(encounter_id).begins_with("arena_"):
 				_set_encounter_door_visuals_locked(encounter_id, false, true)
@@ -2544,12 +2807,55 @@ func _complete_encounter(encounter_id: StringName) -> void:
 					_set_info_base_text("Arena room cleared.")
 
 
+func _required_floor_transition_peer_ids() -> Array[int]:
+	var peer_ids: Array[int] = _peer_ids_sorted_by_slot(_peer_slots)
+	if peer_ids.is_empty():
+		peer_ids.append(_local_peer_id())
+	return peer_ids
+
+
+func _count_players_on_exit_elevator(required_peer_ids: Array[int]) -> int:
+	if _boss_exit_portal == null:
+		return 0
+	var overlaps: Array = _boss_exit_portal.get_overlapping_bodies()
+	var on_count := 0
+	for peer_id in required_peer_ids:
+		var node_v: Variant = _players_by_peer.get(peer_id, null)
+		if node_v is not CharacterBody2D:
+			continue
+		var player := node_v as CharacterBody2D
+		if player == null or not is_instance_valid(player):
+			continue
+		if overlaps.has(player):
+			on_count += 1
+	return on_count
+
+
+func _try_schedule_floor_advance_if_all_players_on_elevator() -> void:
+	if not _is_authoritative_world():
+		return
+	if not _boss_cleared or _floor_transition_pending:
+		return
+	if _boss_exit_portal == null or not _boss_exit_portal.monitoring:
+		return
+	var required_peer_ids: Array[int] = _required_floor_transition_peer_ids()
+	if required_peer_ids.is_empty():
+		return
+	var on_count := _count_players_on_exit_elevator(required_peer_ids)
+	if on_count < required_peer_ids.size():
+		_set_info_base_text(
+			"Boss defeated. Elevator boarding: %s/%s players." % [on_count, required_peer_ids.size()]
+		)
+		return
+	_schedule_floor_advance_after_portal()
+
+
 func _on_boss_exit_portal_body_entered(body: Node2D) -> void:
 	if not _is_authoritative_world():
 		return
 	if not _boss_cleared or not _is_player_body(body):
 		return
-	_schedule_floor_advance_after_portal()
+	_try_schedule_floor_advance_if_all_players_on_elevator()
 
 
 func _on_debug_spawn_exit_portal_body_entered(body: Node2D) -> void:
@@ -2571,6 +2877,8 @@ func _schedule_floor_advance_after_portal() -> void:
 	if _floor_transition_pending:
 		return
 	_floor_transition_pending = true
+	if _boss_exit_elevator_visual != null and is_instance_valid(_boss_exit_elevator_visual):
+		_boss_exit_elevator_visual.visible = false
 	_boss_exit_portal.set_deferred("monitoring", false)
 	_boss_exit_portal.set_deferred("monitorable", false)
 	_debug_spawn_exit_portal.set_deferred("monitoring", false)
@@ -2616,6 +2924,7 @@ func _unhandled_input(event: InputEvent) -> void:
 
 func _reset_score_ui() -> void:
 	_coin_totals_by_peer.clear()
+	_shared_coin_total = 0
 	_ensure_coin_totals_for_roster()
 	_refresh_local_coin_ui()
 	_broadcast_coin_totals_if_server()
@@ -2651,3 +2960,9 @@ func _set_info_base_text(text: String) -> void:
 func _refresh_info_label_with_room_type() -> void:
 	if _info_controller != null:
 		_info_controller.refresh()
+
+
+
+
+
+

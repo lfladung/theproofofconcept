@@ -82,6 +82,3 @@ func _normalize_slot_map(slot_map: Dictionary) -> Dictionary:
 
 func _session() -> NetworkSessionService:
 	return get_node_or_null("/root/NetworkSession") as NetworkSessionService
-
-
-

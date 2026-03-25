@@ -217,3 +217,22 @@ Must be true before expanding scope:
 - One loot pickup flow is synchronized.
 
 If any of these fail, do not advance to later milestones.
+
+## Dedicated Server Track (New)
+
+Goal:
+- Move from listen-server hosting to dedicated instance hosting suitable for external orchestration.
+
+Progress:
+- [x] DS Milestone 1: Dedicated server boot mode in `NetworkSession`
+  - CLI boot flags (`--dedicated_server`, `--port`, `--max_players`, `--start_in_run`)
+  - host peer excluded from gameplay slot map for dedicated sessions
+  - dedicated placeholder player hardened in `small_dungeon`
+- [x] DS Milestone 2: Session directory integration + registry service scaffold
+  - optional instance registration/heartbeat/unregister from dedicated `NetworkSession`
+  - new lightweight registry service in `tools/instance_registry/instance_registry_server.py`
+  - session code support (`--session_code`) and advertised endpoint (`--public_host`, `--port`)
+- [x] DS Milestone 3: Client resolve-and-join by session code (UI + API wiring)
+- [ ] DS Milestone 4: Matchmaker + allocator (party queue -> free instance)
+- [ ] DS Milestone 5: Reconnect tokens and run snapshot handoff
+

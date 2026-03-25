@@ -217,7 +217,8 @@ func _fire_arrow(dir: Vector2) -> void:
 	var event_sequence := _server_arrow_event_sequence
 	if not _spawn_tower_arrow(global_position, dir, true, event_sequence):
 		return
-	_rpc_receive_tower_arrow_event.rpc(event_sequence, global_position, dir)
+	if _can_broadcast_world_replication():
+		_rpc_receive_tower_arrow_event.rpc(event_sequence, global_position, dir)
 
 
 func _spawn_tower_arrow(
@@ -273,6 +274,8 @@ func _on_server_authoritative_tower_projectile_finished(
 	if not _is_server_peer():
 		return
 	if not _multiplayer_active():
+		return
+	if not _can_broadcast_world_replication():
 		return
 	_rpc_receive_tower_arrow_projectile_finished.rpc(projectile_event_id, final_position)
 

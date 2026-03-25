@@ -230,6 +230,14 @@ func _is_server_peer() -> bool:
 	return _multiplayer_active() and multiplayer.is_server()
 
 
+func _can_broadcast_world_replication() -> bool:
+	if not _multiplayer_active() or not _is_server_peer():
+		return true
+	var session := get_node_or_null("/root/NetworkSession")
+	if session != null and session.has_method("can_broadcast_world_replication"):
+		return bool(session.call("can_broadcast_world_replication"))
+	return true
+
 func _is_local_owner_peer() -> bool:
 	return network_owner_peer_id == _local_peer_id()
 
@@ -286,6 +294,8 @@ func _is_facing_locked() -> bool:
 
 func _broadcast_server_state(delta: float) -> void:
 	if not _is_server_peer():
+		return
+	if not _can_broadcast_world_replication():
 		return
 	_net_sync_time_accum += delta
 	if _net_sync_time_accum < network_sync_interval:
@@ -571,17 +581,20 @@ func _run_shared_cooldown_and_debug_tick(delta: float) -> void:
 
 
 func _play_melee_attack_presentation() -> void:
-	if _visual and _visual.has_method(&"try_play_attack"):
-		_visual.try_play_attack()
+	_play_attack_animation_presentation(&"melee")
 	_attack_hitbox_visual_time_remaining = maxf(
 		_attack_hitbox_visual_time_remaining,
 		attack_hitbox_visual_duration
 	)
 
 
-func _play_attack_animation_presentation() -> void:
-	if _visual and _visual.has_method(&"try_play_attack"):
-		_visual.try_play_attack()
+func _play_attack_animation_presentation(mode: StringName = &"melee") -> void:
+	if _visual == null:
+		return
+	if _visual.has_method(&"try_play_attack_for_mode"):
+		_visual.call(&"try_play_attack_for_mode", mode)
+	elif _visual.has_method(&"try_play_attack"):
+		_visual.call(&"try_play_attack")
 
 
 func _normalized_attack_facing(facing: Vector2) -> Vector2:
@@ -681,7 +694,8 @@ func _try_execute_server_melee_attack(requested_facing: Vector2) -> bool:
 	_server_melee_event_sequence += 1
 	var event_sequence := _server_melee_event_sequence
 	_last_applied_melee_event_sequence = max(_last_applied_melee_event_sequence, event_sequence)
-	_rpc_receive_melee_attack_event.rpc(event_sequence, _facing_planar, hit_count)
+	if _can_broadcast_world_replication():
+		_rpc_receive_melee_attack_event.rpc(event_sequence, _facing_planar, hit_count)
 	if OS.is_debug_build():
 		print(
 			"[M4][Melee] peer=%s attack_event=%s hit_event=%s hits=%s" % [
@@ -704,14 +718,15 @@ func _try_execute_server_ranged_attack(requested_facing: Vector2) -> bool:
 	var resolved_facing := _normalized_attack_facing(requested_facing)
 	_facing_planar = resolved_facing
 	_start_facing_lock(_facing_planar)
-	_play_attack_animation_presentation()
+	_play_attack_animation_presentation(&"ranged")
 	var spawn := _compute_ranged_spawn(_facing_planar)
 	_server_ranged_event_sequence += 1
 	var event_sequence := _server_ranged_event_sequence
 	if not _spawn_player_ranged_arrow(spawn, _facing_planar, true, true, event_sequence):
 		return false
 	_last_applied_ranged_event_sequence = max(_last_applied_ranged_event_sequence, event_sequence)
-	_rpc_receive_ranged_attack_event.rpc(event_sequence, spawn, _facing_planar)
+	if _can_broadcast_world_replication():
+		_rpc_receive_ranged_attack_event.rpc(event_sequence, spawn, _facing_planar)
 	if OS.is_debug_build():
 		print(
 			"[M4][Ranged] peer=%s attack_event=%s spawn=%s" % [
@@ -733,13 +748,14 @@ func _try_execute_server_bomb_attack(requested_facing: Vector2) -> bool:
 	var resolved_facing := _normalized_attack_facing(requested_facing)
 	_facing_planar = resolved_facing
 	_start_facing_lock(_facing_planar)
-	_play_attack_animation_presentation()
+	_play_attack_animation_presentation(&"bomb")
 	if not _spawn_player_bomb(global_position, _facing_planar, true, true):
 		return false
 	_server_bomb_event_sequence += 1
 	var event_sequence := _server_bomb_event_sequence
 	_last_applied_bomb_event_sequence = max(_last_applied_bomb_event_sequence, event_sequence)
-	_rpc_receive_bomb_attack_event.rpc(event_sequence, global_position, _facing_planar)
+	if _can_broadcast_world_replication():
+		_rpc_receive_bomb_attack_event.rpc(event_sequence, global_position, _facing_planar)
 	if OS.is_debug_build():
 		print(
 			"[M4][Bomb] peer=%s attack_event=%s origin=%s" % [
@@ -914,7 +930,7 @@ func _rpc_receive_ranged_attack_event(
 	var dir := _normalized_attack_facing(facing_planar)
 	_facing_planar = dir
 	_start_facing_lock(_facing_planar)
-	_play_attack_animation_presentation()
+	_play_attack_animation_presentation(&"ranged")
 	_spawn_player_ranged_arrow(spawn_position, dir, false, false, event_sequence)
 	_ranged_cooldown_remaining = maxf(_ranged_cooldown_remaining, ranged_cooldown)
 	if OS.is_debug_build():
@@ -941,7 +957,7 @@ func _rpc_receive_bomb_attack_event(
 	var dir := _normalized_attack_facing(facing_planar)
 	_facing_planar = dir
 	_start_facing_lock(_facing_planar)
-	_play_attack_animation_presentation()
+	_play_attack_animation_presentation(&"bomb")
 	_spawn_player_bomb(spawn_position, dir, false, false)
 	_bomb_cooldown_remaining = maxf(_bomb_cooldown_remaining, bomb_cooldown)
 	if OS.is_debug_build():
@@ -961,6 +977,8 @@ func _on_server_authoritative_ranged_projectile_finished(
 		return
 	if not _multiplayer_active():
 		return
+	if not _can_broadcast_world_replication():
+		return
 	_rpc_receive_ranged_projectile_finished.rpc(projectile_event_id, final_position)
 
 
@@ -973,13 +991,18 @@ func _rpc_receive_ranged_projectile_finished(
 	if multiplayer.get_remote_sender_id() != 1:
 		return
 	var projectile_v: Variant = _remote_ranged_projectiles_by_event_id.get(projectile_event_id, null)
-	if projectile_v is ArrowProjectile and is_instance_valid(projectile_v):
-		var projectile := projectile_v as ArrowProjectile
-		projectile.global_position = final_position
-		if projectile.has_method(&"_finish_projectile"):
-			projectile.call(&"_finish_projectile")
-		else:
-			projectile.queue_free()
+	if projectile_v == null or not is_instance_valid(projectile_v):
+		_remote_ranged_projectiles_by_event_id.erase(projectile_event_id)
+		return
+	var projectile := projectile_v as ArrowProjectile
+	if projectile == null:
+		_remote_ranged_projectiles_by_event_id.erase(projectile_event_id)
+		return
+	projectile.global_position = final_position
+	if projectile.has_method(&"_finish_projectile"):
+		projectile.call(&"_finish_projectile")
+	else:
+		projectile.queue_free()
 	_remote_ranged_projectiles_by_event_id.erase(projectile_event_id)
 
 
@@ -1078,14 +1101,12 @@ func _execute_pending_rmb_attack_if_any() -> void:
 	if kind == &"gun":
 		if weapon_mode != WeaponMode.GUN or _ranged_cooldown_remaining > 0.0:
 			return
-		if _visual and _visual.has_method(&"try_play_attack"):
-			_visual.try_play_attack()
+		_play_attack_animation_presentation(&"ranged")
 		_try_fire_ranged_arrow()
 	elif kind == &"melee":
 		if weapon_mode != WeaponMode.SWORD or _melee_attack_cooldown_remaining > 0.0:
 			return
-		if _visual and _visual.has_method(&"try_play_attack"):
-			_visual.try_play_attack()
+		_play_attack_animation_presentation(&"melee")
 		_start_facing_lock(_facing_planar)
 		_squash_mobs_in_melee_hit()
 		_melee_attack_cooldown_remaining = melee_attack_cooldown
@@ -1096,8 +1117,7 @@ func _execute_pending_rmb_attack_if_any() -> void:
 	elif kind == &"bomb":
 		if weapon_mode != WeaponMode.BOMB or _bomb_cooldown_remaining > 0.0:
 			return
-		if _visual and _visual.has_method(&"try_play_attack"):
-			_visual.try_play_attack()
+		_play_attack_animation_presentation(&"bomb")
 		_try_throw_bomb()
 
 
@@ -1435,8 +1455,7 @@ func _physics_process(delta: float) -> void:
 		if Input.is_action_just_pressed(&"melee_attack"):
 			want_melee = true
 	if want_melee and _melee_attack_cooldown_remaining <= 0.0:
-		if _visual and _visual.has_method(&"try_play_attack"):
-			_visual.try_play_attack()
+		_play_attack_animation_presentation(&"melee")
 		_start_facing_lock(_facing_planar)
 		_squash_mobs_in_melee_hit()
 		_melee_attack_cooldown_remaining = melee_attack_cooldown
@@ -1548,3 +1567,5 @@ func _on_mob_detector_body_entered(body: Node2D) -> void:
 	if planar_d > mob_kill_max_planar_dist:
 		return
 	take_damage(mob_hit_damage)
+
+

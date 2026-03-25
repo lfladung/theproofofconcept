@@ -1,7 +1,7 @@
 extends Node2D
 class_name DroppedCoin
 
-signal pickup_requested(coin_net_id: int, picker_peer_id: int, coin_value: int)
+signal pickup_requested(coin_network_id: int, picker_peer_id: int, coin_value: int)
 
 const JUMP_DURATION_SEC := 0.48
 const PICKUP_DELAY_AFTER_LAND_MS := 1000
@@ -30,7 +30,7 @@ var _bias_jump_outward := false
 var _chest_kick_scale := 1.0
 var _fixed_arc_end_2d: Vector2
 var _use_fixed_arc_end := false
-var _coin_net_id := -1
+var _coin_network_id := -1
 var _coin_value := 1
 var _authoritative_pickup := true
 
@@ -82,8 +82,8 @@ func set_planar_arc_end(world_end_2d: Vector2) -> void:
 	_use_fixed_arc_end = true
 
 
-func configure_network_coin(coin_net_id: int, coin_value: int = 1, authoritative_pickup: bool = true) -> void:
-	_coin_net_id = coin_net_id
+func configure_network_coin(coin_network_id: int, coin_value: int = 1, authoritative_pickup: bool = true) -> void:
+	_coin_network_id = coin_network_id
 	_coin_value = maxi(1, coin_value)
 	_authoritative_pickup = authoritative_pickup
 
@@ -210,7 +210,7 @@ func _on_pickup_body_entered(body: Node2D) -> void:
 			_visual.queue_free()
 		queue_free()
 		return
-	pickup_requested.emit(_coin_net_id, picker_peer_id, _coin_value)
+	pickup_requested.emit(_coin_network_id, picker_peer_id, _coin_value)
 
 
 func _resolve_picker_peer_id(body: Node2D) -> int:
@@ -220,3 +220,4 @@ func _resolve_picker_peer_id(body: Node2D) -> int:
 	if peer_id <= 0 and body.has_meta(&"network_owner_peer_id"):
 		peer_id = int(body.get_meta(&"network_owner_peer_id", 0))
 	return maxi(0, peer_id)
+
