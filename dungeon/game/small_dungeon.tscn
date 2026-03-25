@@ -228,5 +228,22 @@ offset_right = 700.0
 offset_bottom = 80.0
 text = "Small dungeon loaded."
 
+[node name="LeaveRunButton" type="Button" parent="CanvasLayer/UI"]
+layout_mode = 1
+anchors_preset = 3
+anchor_left = 1.0
+anchor_top = 1.0
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = -148.0
+offset_top = -132.0
+offset_right = -14.0
+offset_bottom = -98.0
+grow_horizontal = 0
+grow_vertical = 0
+text = "Leave Run"
+
 [connection signal="body_entered" from="GameWorld2D/Triggers/BossExitPortal" to="." method="_on_boss_exit_portal_body_entered"]
 [connection signal="body_entered" from="GameWorld2D/Triggers/DebugSpawnExitPortal" to="." method="_on_debug_spawn_exit_portal_body_entered"]
+[connection signal="pressed" from="CanvasLayer/UI/LeaveRunButton" to="." method="_on_leave_run_pressed"]
+

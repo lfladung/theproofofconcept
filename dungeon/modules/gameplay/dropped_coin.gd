@@ -1,6 +1,8 @@
 extends Node2D
 class_name DroppedCoin
 
+signal pickup_requested(coin_net_id: int, picker_peer_id: int, coin_value: int)
+
 const JUMP_DURATION_SEC := 0.48
 const PICKUP_DELAY_AFTER_LAND_MS := 1000
 const ARC_PEAK := 2.35
@@ -28,6 +30,9 @@ var _bias_jump_outward := false
 var _chest_kick_scale := 1.0
 var _fixed_arc_end_2d: Vector2
 var _use_fixed_arc_end := false
+var _coin_net_id := -1
+var _coin_value := 1
+var _authoritative_pickup := true
 
 
 ## VisualWorld3D is a sibling of GameWorld2D under the scene root — not a child of GameWorld2D.
@@ -75,6 +80,12 @@ func bias_jump_away_from(world_origin_2d: Vector2, kick_scale: float = 1.0) -> v
 func set_planar_arc_end(world_end_2d: Vector2) -> void:
 	_fixed_arc_end_2d = world_end_2d
 	_use_fixed_arc_end = true
+
+
+func configure_network_coin(coin_net_id: int, coin_value: int = 1, authoritative_pickup: bool = true) -> void:
+	_coin_net_id = coin_net_id
+	_coin_value = maxi(1, coin_value)
+	_authoritative_pickup = authoritative_pickup
 
 
 ## Runs after the spawner sets our global_position (mob sets it after add_child).
@@ -164,6 +175,8 @@ func _land() -> void:
 
 
 func _enable_pickup() -> void:
+	if not _authoritative_pickup:
+		return
 	_pickup_enabled = true
 	_pickup_shape.set_deferred("disabled", false)
 	_pickup_area.set_deferred("monitoring", true)
@@ -179,12 +192,31 @@ func _try_pickup_overlapping_player() -> void:
 
 
 func _on_pickup_body_entered(body: Node2D) -> void:
-	if _collected or not _pickup_enabled or body == null or not body.is_in_group(&"player"):
+	if (
+		_collected
+		or not _authoritative_pickup
+		or not _pickup_enabled
+		or body == null
+		or not body.is_in_group(&"player")
+	):
 		return
 	_collected = true
-	for n in get_tree().get_nodes_in_group(&"score_ui"):
-		if n.has_method(&"add_score"):
-			n.call(&"add_score", 1)
-	if _visual != null and is_instance_valid(_visual):
-		_visual.queue_free()
-	queue_free()
+	var picker_peer_id := _resolve_picker_peer_id(body)
+	if pickup_requested.get_connections().is_empty():
+		for n in get_tree().get_nodes_in_group(&"score_ui"):
+			if n.has_method(&"add_score"):
+				n.call(&"add_score", _coin_value)
+		if _visual != null and is_instance_valid(_visual):
+			_visual.queue_free()
+		queue_free()
+		return
+	pickup_requested.emit(_coin_net_id, picker_peer_id, _coin_value)
+
+
+func _resolve_picker_peer_id(body: Node2D) -> int:
+	if body == null:
+		return 0
+	var peer_id := int(body.get_meta(&"peer_id", 0))
+	if peer_id <= 0 and body.has_meta(&"network_owner_peer_id"):
+		peer_id = int(body.get_meta(&"network_owner_peer_id", 0))
+	return maxi(0, peer_id)

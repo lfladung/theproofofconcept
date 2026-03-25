@@ -32,14 +32,11 @@ func cache_room_locks(
 			continue
 		var world_pos := room.global_position + socket.position
 		var dir := String(socket.direction)
-		var block_exit_only := false
 		if exclude_clamp:
 			if dir == exclude_clamp_dir and world_pos.distance_squared_to(exclude_clamp_socket_world) < 0.49:
-				block_exit_only = true
+				# Entry socket is intentionally left open; only exit/other encounter doors lock.
+				continue
 		var entry := {"pos": world_pos, "dir": dir}
-		if block_exit_only:
-			entry["block_exit_only"] = true
-			entry["interior_room"] = String(room.name)
 		sockets.append(entry)
 		var dk := _socket_pos_key(world_pos)
 		if door_visual_by_socket_key.has(dk):
@@ -94,9 +91,7 @@ func _clamp_encounter_doors(body: CharacterBody2D, radius: float, encounter_id: 
 			body,
 			radius,
 			s.get("pos", Vector2.ZERO) as Vector2,
-			String(s.get("dir", "")),
-			bool(s.get("block_exit_only", false)),
-			String(s.get("interior_room", ""))
+			String(s.get("dir", ""))
 		)
 
 
@@ -104,18 +99,10 @@ func _clamp_to_locked_socket(
 	body: CharacterBody2D,
 	radius: float,
 	socket_pos: Vector2,
-	door_direction: String,
-	block_exit_only: bool = false,
-	interior_room: String = ""
+	door_direction: String
 ) -> void:
 	if body == null:
 		return
-	if block_exit_only:
-		if not resolve_room_name_for_body.is_valid():
-			return
-		var here := String(resolve_room_name_for_body.call(body))
-		if here != interior_room:
-			return
 	var p := body.global_position
 	var v := body.velocity
 	var changed := false

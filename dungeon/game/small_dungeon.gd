@@ -38,10 +38,14 @@ const SPAWN_POINT_SCENE := preload("res://dungeon/modules/encounter/enemy_spawn_
 const SPAWN_VOLUME_SCENE := preload("res://dungeon/modules/encounter/enemy_spawn_volume_2d.tscn")
 const ROOM_TRIGGER_SCENE := preload("res://dungeon/modules/encounter/room_encounter_trigger_2d.tscn")
 const TREASURE_CHEST_SCENE := preload("res://dungeon/modules/gameplay/treasure_chest_2d.tscn")
+const DROPPED_COIN_SCENE := preload("res://dungeon/modules/gameplay/dropped_coin.tscn")
 const PUZZLE_FLOOR_BUTTON_SCENE := preload("res://dungeon/modules/gameplay/puzzle_floor_button_2d.tscn")
 const ROOM_BASE_SCENE := preload("res://dungeon/rooms/base/room_base.tscn")
 const TRAP_TILE_SCENE := preload("res://dungeon/modules/gameplay/trap_tile_2d.tscn")
 const DUNGEON_CELL_DOOR_SCENE := preload("res://dungeon/visuals/dungeon_cell_door_3d.tscn")
+const PLAYER_SCENE := preload("res://scenes/entities/player.tscn")
+const ENEMY_SCENE_KIND_DASHER := 1
+const ENEMY_SCENE_KIND_ARROW_TOWER := 2
 ## World units per texture repeat on floors (4x4 gameplay tiles at 3 units per tile).
 const FLOOR_TEXTURE_TILE_WORLD := 12.0
 ## Match floor tile size so wall stone pattern lines up at room corners.
@@ -85,7 +89,7 @@ const _TOWER_SPAWN_MIN_SEP := 4.5
 @onready var _door_visuals: Node3D = $VisualWorld3D/DoorVisuals
 @onready var _camera_pivot: Marker3D = $VisualWorld3D/CameraPivot
 @onready var _camera_3d: Camera3D = $VisualWorld3D/CameraPivot/Camera
-@onready var _player: CharacterBody2D = $GameWorld2D/Player
+@onready var _host_player: CharacterBody2D = $GameWorld2D/Player
 @onready var _info_label: Label = $CanvasLayer/UI/InfoLabel
 @onready var _weapon_mode_label: Label = $CanvasLayer/UI/WeaponModeLabel
 @onready var _boss_exit_portal: Area2D = $GameWorld2D/Triggers/BossExitPortal
@@ -107,6 +111,7 @@ var _spawn_volumes_by_encounter: Dictionary = {}
 var _spawn_count_by_encounter: Dictionary = {}
 var _planned_tower_positions_by_encounter: Dictionary = {}
 var _entry_socket_by_encounter: Dictionary = {}
+var _entry_socket_dir_by_encounter: Dictionary = {}
 var _door_visual_by_socket_key: Dictionary = {}
 ## Neighboring rooms both emit the same boundary segment; keep one collider + one visual.
 var _boundary_wall_keys: Dictionary = {}
@@ -145,13 +150,42 @@ var _door_lock_controller: DoorLockController
 var _dungeon_world_environment: WorldEnvironment
 var _dungeon_environment: Environment
 var _backdrop_quad: MeshInstance3D
+var _player: CharacterBody2D
+var _players_by_peer: Dictionary = {}
+var _peer_slots: Dictionary = {}
+var _network_session: Node
+var _networked_run := false
+var _bound_hit_player: CharacterBody2D
+var _weapon_ui_bound_player: CharacterBody2D
+var _has_generated_floor := false
+var _enemy_nodes_by_net_id: Dictionary = {}
+var _enemy_net_id_sequence := 0
+var _coin_nodes_by_net_id: Dictionary = {}
+var _coin_net_id_sequence := 0
+var _coin_totals_by_peer: Dictionary = {}
 ## Accumulated LevelBackdropQuad position in Camera3D local XY (Z from BACKDROP_QUAD_DISTANCE).
 var _backdrop_offset_cam := Vector3.ZERO
 var _prev_backdrop_camera_ref := Vector3.ZERO
+@export var show_combat_debug_overlay := true
+var _combat_debug_label: Label
+var _combat_debug_last_text := ""
 
 func _ready() -> void:
 	_rng.randomize()
 	_camera_pivot.rotation_degrees = Vector3(CAMERA_DIAG_PITCH_DEG, CAMERA_DIAG_YAW_DEG, 0.0)
+	_network_session = get_node_or_null("/root/NetworkSession")
+	_networked_run = _network_session != null and _network_session.has_method("has_active_peer") and bool(
+		_network_session.call("has_active_peer")
+	)
+	if (
+		_network_session != null
+		and _network_session.has_signal("peer_slot_map_changed")
+		and not _network_session.peer_slot_map_changed.is_connected(_on_network_slot_map_changed)
+	):
+		_network_session.peer_slot_map_changed.connect(_on_network_slot_map_changed)
+	_initialize_player_roster()
+	_ensure_coin_totals_for_roster()
+	_refresh_local_coin_ui()
 	_room_queries = RoomQueryService.new()
 	_room_queries.rooms_root = _rooms_root
 	add_child(_room_queries)
@@ -170,19 +204,282 @@ func _ready() -> void:
 	_door_lock_controller.door_clamp_y_ext = _DOOR_CLAMP_Y_EXT
 	_door_lock_controller.resolve_room_name_for_body = _door_resolve_room_name_for_body
 	add_child(_door_lock_controller)
+	_ensure_combat_debug_overlay()
 	_regenerate_level(true)
-	if _player != null and _player.has_signal(&"hit") and not _player.hit.is_connected(_on_player_hit):
-		_player.hit.connect(_on_player_hit)
+	_bind_local_player_runtime_hooks()
+
+
+func _multiplayer_api_safe() -> MultiplayerAPI:
+	if not is_inside_tree():
+		return null
+	var tree := get_tree()
+	if tree == null:
+		return null
+	return tree.get_multiplayer()
+
+
+func _local_peer_id() -> int:
+	var mp := _multiplayer_api_safe()
+	return mp.get_unique_id() if mp != null and mp.multiplayer_peer != null else 1
+
+
+func _is_authoritative_world() -> bool:
+	if not _networked_run:
+		return true
+	var mp := _multiplayer_api_safe()
+	return mp != null and mp.multiplayer_peer != null and mp.is_server()
+
+
+func _has_multiplayer_peer() -> bool:
+	var mp := _multiplayer_api_safe()
+	return mp != null and mp.multiplayer_peer != null
+
+
+func _is_server_peer() -> bool:
+	var mp := _multiplayer_api_safe()
+	return mp != null and mp.multiplayer_peer != null and mp.is_server()
+
+
+func _next_enemy_net_id() -> int:
+	_enemy_net_id_sequence += 1
+	return _enemy_net_id_sequence
+
+
+func _enemy_scene_kind_from_scene(scene: PackedScene) -> int:
+	if scene == ARROW_TOWER_SCENE:
+		return ENEMY_SCENE_KIND_ARROW_TOWER
+	return ENEMY_SCENE_KIND_DASHER
+
+
+func _enemy_scene_from_kind(kind: int) -> PackedScene:
+	match kind:
+		ENEMY_SCENE_KIND_ARROW_TOWER:
+			return ARROW_TOWER_SCENE
+		_:
+			return DASHER_SCENE
+
+
+func _register_encounter_enemy(encounter_id: StringName, enemy: EnemyBase) -> void:
+	if enemy == null:
+		return
+	enemy.set_meta(&"encounter_id", encounter_id)
+	if not _encounter_mobs.has(encounter_id):
+		_encounter_mobs[encounter_id] = []
+	var mobs: Array = _encounter_mobs[encounter_id] as Array
+	mobs.append(enemy)
+	_encounter_mobs[encounter_id] = mobs
+	enemy.tree_exited.connect(
+		func() -> void: _on_encounter_mob_removed(encounter_id, enemy),
+		CONNECT_ONE_SHOT
+	)
+	if enemy.has_signal(&"coin_drop_requested") and not enemy.coin_drop_requested.is_connected(
+		_on_enemy_coin_drop_requested
+	):
+		enemy.coin_drop_requested.connect(_on_enemy_coin_drop_requested)
+
+
+func _register_enemy_net_id(enemy: EnemyBase, net_id: int) -> void:
+	if enemy == null or net_id <= 0:
+		return
+	enemy.name = "Enemy_%s" % [net_id]
+	enemy.set_meta(&"enemy_net_id", net_id)
+	enemy.set_multiplayer_authority(1, true)
+	_enemy_nodes_by_net_id[net_id] = enemy
+
+
+func _next_coin_net_id() -> int:
+	_coin_net_id_sequence += 1
+	return _coin_net_id_sequence
+
+
+func _normalize_coin_totals(raw_totals: Dictionary) -> Dictionary:
+	var out := {}
+	for key in raw_totals.keys():
+		out[int(key)] = maxi(0, int(raw_totals[key]))
+	return out
+
+
+func _ensure_coin_totals_for_roster() -> void:
+	var peer_ids: Array[int] = _overlay_sorted_player_peer_ids()
+	if peer_ids.is_empty():
+		peer_ids.append(_local_peer_id())
+	for peer_id in peer_ids:
+		if not _coin_totals_by_peer.has(peer_id):
+			_coin_totals_by_peer[peer_id] = 0
+
+
+func _refresh_local_coin_ui() -> void:
+	var local_peer := _local_peer_id()
+	var local_total := maxi(0, int(_coin_totals_by_peer.get(local_peer, 0)))
+	for n in get_tree().get_nodes_in_group(&"score_ui"):
+		if n.has_method(&"set_score"):
+			n.call(&"set_score", local_total)
+		elif n.has_method(&"reset_score"):
+			n.call(&"reset_score")
+			if n.has_method(&"add_score") and local_total > 0:
+				n.call(&"add_score", local_total)
+
+
+func _broadcast_coin_totals_if_server() -> void:
+	if not _networked_run or not _is_server_peer() or not _has_multiplayer_peer():
+		return
+	_rpc_sync_coin_totals.rpc(_coin_totals_by_peer)
+
+
+func _normalize_slot_map(slot_map: Dictionary) -> Dictionary:
+	var out := {}
+	for key in slot_map.keys():
+		out[int(key)] = int(slot_map[key])
+	return out
+
+
+func _peer_ids_sorted_by_slot(slot_map: Dictionary) -> Array[int]:
+	var keyed: Array[Dictionary] = []
+	for peer_id in slot_map.keys():
+		keyed.append({"peer_id": int(peer_id), "slot": int(slot_map[peer_id])})
+	keyed.sort_custom(
+		func(a: Dictionary, b: Dictionary) -> bool:
+			var sa := int(a.get("slot", 0))
+			var sb := int(b.get("slot", 0))
+			if sa == sb:
+				return int(a.get("peer_id", 0)) < int(b.get("peer_id", 0))
+			return sa < sb
+	)
+	var out: Array[int] = []
+	for entry in keyed:
+		out.append(int(entry.get("peer_id", 0)))
+	return out
+
+
+func _assign_player_authority(player: CharacterBody2D, peer_id: int) -> void:
+	if player == null:
+		return
+	player.set_multiplayer_authority(peer_id, true)
+	player.set_meta(&"peer_id", peer_id)
+	if player.has_method("set_network_owner_peer_id"):
+		player.call("set_network_owner_peer_id", peer_id)
+
+
+func _ensure_player_node_for_peer(peer_id: int, reusable_host: bool = false) -> CharacterBody2D:
+	if reusable_host:
+		_assign_player_authority(_host_player, peer_id)
+		return _host_player
+	var existing: Variant = _players_by_peer.get(peer_id, null)
+	if existing is CharacterBody2D and is_instance_valid(existing):
+		var found := existing as CharacterBody2D
+		_assign_player_authority(found, peer_id)
+		return found
+	var spawned := PLAYER_SCENE.instantiate() as CharacterBody2D
+	if spawned == null:
+		return null
+	spawned.name = "PlayerPeer_%s" % [peer_id]
+	$GameWorld2D.add_child(spawned)
+	_assign_player_authority(spawned, peer_id)
+	return spawned
+
+
+func _initialize_player_roster() -> void:
+	_players_by_peer.clear()
+	_peer_slots.clear()
+	if not _networked_run:
+		_players_by_peer[_local_peer_id()] = _host_player
+		_assign_player_authority(_host_player, _local_peer_id())
+		_player = _host_player
+		_log_player_authority_roster("singleplayer_roster")
+		return
+	var slot_map: Dictionary = {}
+	if _network_session != null and _network_session.has_method("get_peer_slot_map"):
+		slot_map = _network_session.call("get_peer_slot_map") as Dictionary
+	_apply_player_roster_from_slot_map(slot_map)
+
+
+func _apply_player_roster_from_slot_map(raw_slot_map: Dictionary) -> void:
+	var previous_local: CharacterBody2D = (
+		_player if _player != null and is_instance_valid(_player) else null
+	)
+	var slot_map: Dictionary = _normalize_slot_map(raw_slot_map)
+	if slot_map.is_empty():
+		slot_map[1] = 0
+	_peer_slots = slot_map
+	var ordered_peer_ids: Array[int] = _peer_ids_sorted_by_slot(_peer_slots)
+	var seen: Dictionary = {}
+	for peer_id in ordered_peer_ids:
+		var use_host := peer_id == 1
+		var p: CharacterBody2D = _ensure_player_node_for_peer(peer_id, use_host)
+		if p == null:
+			continue
+		_players_by_peer[peer_id] = p
+		seen[peer_id] = true
+	for key in _players_by_peer.keys():
+		var peer_id := int(key)
+		if seen.has(peer_id):
+			continue
+		var stale: Variant = _players_by_peer[peer_id]
+		if stale is CharacterBody2D and stale != _host_player and is_instance_valid(stale):
+			(stale as CharacterBody2D).queue_free()
+		_players_by_peer.erase(peer_id)
+	var local_peer := _local_peer_id()
+	var resolved_local := _players_by_peer.get(local_peer, null) as CharacterBody2D
+	if resolved_local == null and previous_local != null and is_instance_valid(previous_local):
+		resolved_local = previous_local
+	if resolved_local == null:
+		resolved_local = _host_player
+	_player = resolved_local
+	_ensure_coin_totals_for_roster()
+	_refresh_local_coin_ui()
+	_broadcast_coin_totals_if_server()
+	_bind_local_player_runtime_hooks()
+	_log_player_authority_roster("slot_map")
+	if _has_generated_floor:
+		var spawn_anchor: Vector2 = (
+			_player.global_position if _player != null and is_instance_valid(_player) else Vector2.ZERO
+		)
+		_position_uninitialized_players(spawn_anchor)
+
+
+func _on_network_slot_map_changed(slot_map: Dictionary) -> void:
+	_apply_player_roster_from_slot_map(slot_map)
+
+
+func _bind_local_player_runtime_hooks() -> void:
+	if _player == null:
+		return
+	if _bound_hit_player != null and _bound_hit_player.has_signal(&"hit") and _bound_hit_player.hit.is_connected(
+		_on_player_hit
+	):
+		_bound_hit_player.hit.disconnect(_on_player_hit)
+	_bound_hit_player = _player
+	var local_player_authority := (
+		not _has_multiplayer_peer() or _bound_hit_player.is_multiplayer_authority()
+	)
+	if (
+		local_player_authority
+		and _bound_hit_player.has_signal(&"hit")
+		and not _bound_hit_player.hit.is_connected(_on_player_hit)
+	):
+		_bound_hit_player.hit.connect(_on_player_hit)
 	_connect_player_weapon_ui()
+	if _camera_follow != null:
+		_camera_follow.player = _player
+	if _info_controller != null:
+		_info_controller.player = _player
+	_refresh_combat_debug_overlay()
 
 
 func _connect_player_weapon_ui() -> void:
 	if _player == null or _weapon_mode_label == null:
 		return
-	if _player.has_signal(&"weapon_mode_changed") and not _player.weapon_mode_changed.is_connected(
+	if (
+		_weapon_ui_bound_player != null
+		and _weapon_ui_bound_player.has_signal(&"weapon_mode_changed")
+		and _weapon_ui_bound_player.weapon_mode_changed.is_connected(_on_player_weapon_mode_changed)
+	):
+		_weapon_ui_bound_player.weapon_mode_changed.disconnect(_on_player_weapon_mode_changed)
+	_weapon_ui_bound_player = _player
+	if _weapon_ui_bound_player.has_signal(&"weapon_mode_changed") and not _weapon_ui_bound_player.weapon_mode_changed.is_connected(
 		_on_player_weapon_mode_changed
 	):
-		_player.weapon_mode_changed.connect(_on_player_weapon_mode_changed)
+		_weapon_ui_bound_player.weapon_mode_changed.connect(_on_player_weapon_mode_changed)
 	if _player.has_method(&"get_weapon_mode_display"):
 		var wname: Variant = _player.call(&"get_weapon_mode_display")
 		_weapon_mode_label.text = "Weapon: %s" % String(wname)
@@ -197,9 +494,122 @@ func _process(delta: float) -> void:
 	if _camera_follow != null:
 		_camera_follow.tick(delta)
 	_refresh_info_label_with_room_type()
-	_refresh_encounter_state()
+	_refresh_combat_debug_overlay()
+	if _is_authoritative_world():
+		_refresh_encounter_state()
 	_update_backdrop_parallax()
 	_update_backdrop_quad_transform()
+
+
+func _ensure_combat_debug_overlay() -> void:
+	var ui_root := get_node_or_null("CanvasLayer/UI") as Control
+	if ui_root == null:
+		return
+	var existing := ui_root.get_node_or_null("CombatDebugLabel") as Label
+	if existing != null:
+		_combat_debug_label = existing
+	else:
+		var lbl := Label.new()
+		lbl.name = "CombatDebugLabel"
+		lbl.layout_mode = 1
+		lbl.offset_left = 10.0
+		lbl.offset_top = 82.0
+		lbl.offset_right = 860.0
+		lbl.offset_bottom = 246.0
+		lbl.add_theme_font_size_override("font_size", 16)
+		lbl.add_theme_color_override("font_color", Color(0.0, 0.0, 0.0, 1.0))
+		lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		lbl.text = "CombatDebug: pending"
+		ui_root.add_child(lbl)
+		_combat_debug_label = lbl
+	_combat_debug_label.offset_bottom = maxf(_combat_debug_label.offset_bottom, 246.0)
+	_combat_debug_label.visible = show_combat_debug_overlay
+	_refresh_combat_debug_overlay()
+
+
+func _set_combat_debug_overlay_text(text: String) -> void:
+	if _combat_debug_label == null:
+		return
+	if _combat_debug_last_text == text:
+		return
+	_combat_debug_last_text = text
+	_combat_debug_label.text = text
+
+
+func _overlay_sorted_player_peer_ids() -> Array[int]:
+	if not _peer_slots.is_empty():
+		return _peer_ids_sorted_by_slot(_peer_slots)
+	var peer_ids: Array[int] = []
+	for key in _players_by_peer.keys():
+		peer_ids.append(int(key))
+	peer_ids.sort()
+	return peer_ids
+
+
+func _refresh_combat_debug_overlay() -> void:
+	if _combat_debug_label == null:
+		return
+	_combat_debug_label.visible = show_combat_debug_overlay
+	if not show_combat_debug_overlay:
+		return
+	var world_mode := "offline"
+	if _has_multiplayer_peer():
+		world_mode = "server" if _is_server_peer() else "client"
+	var local_peer := _local_peer_id()
+	var ordered_peer_ids: Array[int] = _overlay_sorted_player_peer_ids()
+	var lines: PackedStringArray = PackedStringArray()
+	lines.append("CombatDebug [%s] local=%s players=%s" % [world_mode, local_peer, ordered_peer_ids.size()])
+	if ordered_peer_ids.is_empty():
+		lines.append("peer roster empty")
+	else:
+		for peer_id in ordered_peer_ids:
+			var player_v: Variant = _players_by_peer.get(peer_id, null)
+			if player_v is not CharacterBody2D:
+				lines.append("peer=%s missing player node" % [peer_id])
+				continue
+			var player_node: CharacterBody2D = player_v as CharacterBody2D
+			if player_node == null or not is_instance_valid(player_node):
+				lines.append("peer=%s invalid player node" % [peer_id])
+				continue
+			if not player_node.has_method(&"get_combat_debug_snapshot"):
+				lines.append("peer=%s debug snapshot missing" % [peer_id])
+				continue
+			var snapshot_v: Variant = player_node.call(&"get_combat_debug_snapshot")
+			if snapshot_v is not Dictionary:
+				lines.append("peer=%s debug snapshot invalid" % [peer_id])
+				continue
+			var snapshot: Dictionary = snapshot_v as Dictionary
+			var local_weapon := String(snapshot.get("weapon_mode", "?"))
+			var auth_weapon := String(snapshot.get("authoritative_weapon_mode", local_weapon))
+			var local_melee_cd := float(snapshot.get("melee_cooldown", 0.0))
+			var local_ranged_cd := float(snapshot.get("ranged_cooldown", 0.0))
+			var local_bomb_cd := float(snapshot.get("bomb_cooldown", 0.0))
+			var auth_melee_cd := float(snapshot.get("authoritative_melee_cooldown", local_melee_cd))
+			var auth_ranged_cd := float(snapshot.get("authoritative_ranged_cooldown", local_ranged_cd))
+			var auth_bomb_cd := float(snapshot.get("authoritative_bomb_cooldown", local_bomb_cd))
+			var owner_peer := int(snapshot.get("network_owner_peer_id", 1))
+			var authority_peer := int(snapshot.get("multiplayer_authority", owner_peer))
+			var is_local_owner := bool(snapshot.get("is_local_owner_peer", false))
+			var local_marker := "*" if peer_id == local_peer else "-"
+			var row := (
+				"%s peer=%s W[a/l]=%s/%s CD[a]=%.2f/%.2f/%.2f CD[l]=%.2f/%.2f/%.2f own=%s auth=%s lo=%s"
+			) % [
+				local_marker,
+				peer_id,
+				auth_weapon,
+				local_weapon,
+				auth_melee_cd,
+				auth_ranged_cd,
+				auth_bomb_cd,
+				local_melee_cd,
+				local_ranged_cd,
+				local_bomb_cd,
+				owner_peer,
+				authority_peer,
+				is_local_owner,
+			]
+			lines.append(row)
+	_set_combat_debug_overlay_text("\n".join(lines))
 
 
 func _physics_process(_delta: float) -> void:
@@ -223,6 +633,7 @@ func _physics_process(_delta: float) -> void:
 
 
 func _regenerate_level(randomize_layout: bool) -> void:
+	_has_generated_floor = false
 	_floor_transition_pending = false
 	_combat_started = false
 	_combat_cleared = false
@@ -235,6 +646,8 @@ func _regenerate_level(randomize_layout: bool) -> void:
 	for n in get_tree().get_nodes_in_group(&"mob"):
 		if n is Node:
 			(n as Node).queue_free()
+	_enemy_nodes_by_net_id.clear()
+	_enemy_net_id_sequence = 0
 	_map_layout = {}
 	var assembled_ok := false
 	var max_tries := 4 if randomize_layout else 1
@@ -289,8 +702,8 @@ func _regenerate_level(randomize_layout: bool) -> void:
 	_debug_spawn_exit_portal.monitoring = false
 	_debug_spawn_exit_portal.monitorable = false
 	var entrance_spawn := _room_center_2d(_layout_room_name("start_room"))
-	_player.global_position = entrance_spawn
-	_player.velocity = Vector2.ZERO
+	_position_players_at_spawn(entrance_spawn)
+	_has_generated_floor = true
 	_reset_backdrop_parallax_to_player()
 	_prev_player_pos = _player.global_position
 	_prev_player_inside = _is_point_inside_any_room(_prev_player_pos, 1.25)
@@ -314,6 +727,105 @@ func _regenerate_level(randomize_layout: bool) -> void:
 		]
 	)
 	_apply_random_level_backdrop()
+
+
+func _position_players_at_spawn(entrance_spawn: Vector2) -> void:
+	var peer_ids: Array[int] = _peer_ids_sorted_by_slot(_peer_slots)
+	if peer_ids.is_empty():
+		peer_ids.append(_local_peer_id())
+	var offsets: Array[Vector2] = [
+		Vector2.ZERO,
+		Vector2(4.0, 0.0),
+		Vector2(-4.0, 0.0),
+		Vector2(0.0, 4.0),
+		Vector2(0.0, -4.0),
+	]
+	for i in range(peer_ids.size()):
+		var peer_id := peer_ids[i]
+		var node: Variant = _players_by_peer.get(peer_id, null)
+		if node is not CharacterBody2D:
+			continue
+		var player := node as CharacterBody2D
+		var offset: Vector2 = offsets[i] if i < offsets.size() else Vector2(float(i) * 2.0, 0.0)
+		player.global_position = entrance_spawn + offset
+		player.velocity = Vector2.ZERO
+		player.set_meta(&"spawn_initialized", true)
+
+
+func _position_uninitialized_players(anchor: Vector2) -> void:
+	var peer_ids: Array[int] = _peer_ids_sorted_by_slot(_peer_slots)
+	if peer_ids.is_empty():
+		return
+	var offsets: Array[Vector2] = [
+		Vector2(4.0, 0.0),
+		Vector2(-4.0, 0.0),
+		Vector2(0.0, 4.0),
+		Vector2(0.0, -4.0),
+		Vector2(6.0, 3.0),
+	]
+	var offset_idx := 0
+	for peer_id in peer_ids:
+		var node: Variant = _players_by_peer.get(peer_id, null)
+		if node is not CharacterBody2D:
+			continue
+		var player := node as CharacterBody2D
+		if bool(player.get_meta(&"spawn_initialized", false)):
+			continue
+		var offset: Vector2 = (
+			offsets[offset_idx] if offset_idx < offsets.size() else Vector2(float(offset_idx) * 2.0, 0.0)
+		)
+		player.global_position = anchor + offset
+		player.velocity = Vector2.ZERO
+		player.set_meta(&"spawn_initialized", true)
+		offset_idx += 1
+
+
+func _log_player_authority_roster(reason: String) -> void:
+	if not OS.is_debug_build():
+		return
+	var local_peer := _local_peer_id()
+	var has_peer := _has_multiplayer_peer()
+	var peer_ids := _peer_ids_sorted_by_slot(_peer_slots)
+	if peer_ids.is_empty():
+		peer_ids.append(local_peer)
+	var parts: Array[String] = []
+	for peer_id in peer_ids:
+		var node: Variant = _players_by_peer.get(peer_id, null)
+		var node_name := "<missing>"
+		var authority_peer := -1
+		var is_local_authority := false
+		if node is CharacterBody2D and is_instance_valid(node):
+			var player := node as CharacterBody2D
+			node_name = player.name
+			authority_peer = player.get_multiplayer_authority()
+			if has_peer:
+				is_local_authority = player.is_multiplayer_authority()
+			else:
+				is_local_authority = authority_peer == local_peer
+		var slot := int(_peer_slots.get(peer_id, -1))
+		parts.append(
+			"peer=%s slot=%s node=%s authority=%s local_auth=%s" % [
+				peer_id,
+				slot,
+				node_name,
+				authority_peer,
+				is_local_authority,
+			]
+		)
+	var summary := ""
+	for i in range(parts.size()):
+		if i > 0:
+			summary += " | "
+		summary += parts[i]
+	print(
+		"[M2][Roster][%s] local_peer=%s networked=%s players=%s :: %s" % [
+			reason,
+			local_peer,
+			_networked_run,
+			_players_by_peer.size(),
+			summary,
+		]
+	)
 
 
 func _enable_debug_spawn_portal_after_physics(token: int) -> void:
@@ -547,6 +1059,7 @@ func _collect_dropped_coins_under(node: Node, out: Array) -> void:
 
 func _clear_floor_loot() -> void:
 	# Coins can live under PieceInstances (chests) or GameWorld2D root (mob death drops).
+	_coin_nodes_by_net_id.clear()
 	var gw := get_node_or_null("GameWorld2D") as Node
 	if gw != null:
 		var coins: Array = []
@@ -1237,7 +1750,8 @@ func _add_cell_door_3d(
 
 
 func _set_combat_doors_locked(locked: bool, animate: bool = true) -> void:
-	for asm in [_combat_door_visual_west, _combat_door_visual_east]:
+	# Entry door stays open; only combat exit door is gated by clear state.
+	for asm in [_combat_door_visual_east]:
 		if asm != null:
 			asm.set_combat_locked(locked, animate)
 
@@ -1252,17 +1766,25 @@ func _apply_hard_door_clamps() -> void:
 	for n in get_tree().get_nodes_in_group(&"mob"):
 		if n is CharacterBody2D:
 			mobs.append(n as CharacterBody2D)
+	var players_to_clamp: Array[CharacterBody2D] = []
+	for peer_id in _players_by_peer.keys():
+		var node: Variant = _players_by_peer.get(peer_id, null)
+		if node is CharacterBody2D and is_instance_valid(node):
+			players_to_clamp.append(node as CharacterBody2D)
+	if players_to_clamp.is_empty() and _player != null and is_instance_valid(_player):
+		players_to_clamp.append(_player)
 	if _door_lock_controller != null:
-		_door_lock_controller.apply_hard_door_clamps(
-			_player,
-			_puzzle_solved,
-			_puzzle_gate_socket,
-			_puzzle_gate_dir,
-			_encounter_active,
-			_PLAYER_CLAMP_R,
-			_MOB_CLAMP_R,
-			mobs
-		)
+		for p in players_to_clamp:
+			_door_lock_controller.apply_hard_door_clamps(
+				p,
+				_puzzle_solved,
+				_puzzle_gate_socket,
+				_puzzle_gate_dir,
+				_encounter_active,
+				_PLAYER_CLAMP_R,
+				_MOB_CLAMP_R,
+				mobs
+			)
 
 
 func _spawn_standard_door_piece(world_pos: Vector2, width_tiles: int) -> void:
@@ -1296,6 +1818,14 @@ func _spawn_gameplay_objects() -> void:
 			chest.coin_count = 10
 			chest.mesh_ground_y = maxf(1.2, FLOOR_SLAB_TOP_Y + 1.7)
 			chest.position = treasure_center
+			if chest.has_signal(&"opened") and not chest.opened.is_connected(_on_treasure_chest_opened):
+				chest.opened.connect(_on_treasure_chest_opened.bind(chest))
+			if chest.has_signal(&"coin_spawn_requested") and not chest.coin_spawn_requested.is_connected(
+				_on_treasure_chest_coin_spawn_requested
+			):
+				chest.coin_spawn_requested.connect(_on_treasure_chest_coin_spawn_requested)
+			if _networked_run and not _is_authoritative_world() and chest.has_method(&"set_interaction_enabled"):
+				chest.call(&"set_interaction_enabled", false)
 			_piece_instances_root.add_child(chest)
 	var combat_center := _room_center_2d(_layout_room_name("combat_room"))
 	for off in _COMBAT_TRAP_OFFSETS:
@@ -1314,6 +1844,106 @@ func _spawn_gameplay_objects() -> void:
 			pbtn.position = puzzle_center
 			pbtn.activated.connect(_on_puzzle_floor_button_activated)
 			_piece_instances_root.add_child(pbtn)
+
+
+func _on_treasure_chest_opened(chest: TreasureChest2D) -> void:
+	if chest == null:
+		return
+	if not _networked_run or not _is_server_peer() or not _has_multiplayer_peer():
+		return
+	_rpc_open_treasure_chest.rpc(chest.get_path())
+
+
+func _on_treasure_chest_coin_spawn_requested(chest_center: Vector2, land_pos: Vector2) -> void:
+	if not _is_authoritative_world():
+		return
+	_spawn_authoritative_coin(chest_center, land_pos, 1)
+
+
+func _on_enemy_coin_drop_requested(spawn_position: Vector2, coin_value: int) -> void:
+	if not _is_authoritative_world():
+		return
+	var landing_position := _random_enemy_coin_land_pos(spawn_position)
+	_spawn_authoritative_coin(spawn_position, landing_position, maxi(1, coin_value))
+
+
+func _random_enemy_coin_land_pos(spawn_position: Vector2) -> Vector2:
+	var angle := randf() * TAU
+	var distance := randf_range(1.4, 3.1)
+	return spawn_position + Vector2.from_angle(angle) * distance
+
+
+func _spawn_authoritative_coin(spawn_position: Vector2, landing_position: Vector2, coin_value: int) -> void:
+	var coin_net_id := _next_coin_net_id()
+	_spawn_coin_instance(coin_net_id, spawn_position, landing_position, coin_value, true)
+	if _networked_run and _is_server_peer() and _has_multiplayer_peer():
+		_rpc_spawn_coin.rpc(coin_net_id, spawn_position, landing_position, coin_value)
+
+
+func _spawn_coin_instance(
+	coin_net_id: int,
+	spawn_position: Vector2,
+	landing_position: Vector2,
+	coin_value: int,
+	authoritative_pickup: bool
+) -> void:
+	if coin_net_id <= 0:
+		return
+	var existing_v: Variant = _coin_nodes_by_net_id.get(coin_net_id, null)
+	if existing_v is DroppedCoin and is_instance_valid(existing_v):
+		return
+	var coin := DROPPED_COIN_SCENE.instantiate() as DroppedCoin
+	if coin == null:
+		return
+	coin.name = "Coin_%s" % [coin_net_id]
+	coin.set_planar_arc_end(landing_position)
+	$GameWorld2D.add_child(coin)
+	coin.global_position = spawn_position
+	coin.configure_network_coin(coin_net_id, coin_value, authoritative_pickup)
+	_register_coin_instance(coin, coin_net_id)
+
+
+func _register_coin_instance(coin: DroppedCoin, coin_net_id: int) -> void:
+	if coin == null or coin_net_id <= 0:
+		return
+	_coin_nodes_by_net_id[coin_net_id] = coin
+	if coin.has_signal(&"pickup_requested") and not coin.pickup_requested.is_connected(_on_coin_pickup_requested):
+		coin.pickup_requested.connect(_on_coin_pickup_requested)
+	coin.tree_exited.connect(_on_coin_tree_exited.bind(coin_net_id, coin), CONNECT_ONE_SHOT)
+
+
+func _on_coin_tree_exited(coin_net_id: int, coin: DroppedCoin) -> void:
+	var current_v: Variant = _coin_nodes_by_net_id.get(coin_net_id, null)
+	if current_v == coin:
+		_coin_nodes_by_net_id.erase(coin_net_id)
+
+
+func _despawn_coin_local(coin_net_id: int) -> void:
+	var coin_v: Variant = _coin_nodes_by_net_id.get(coin_net_id, null)
+	if coin_v is DroppedCoin and is_instance_valid(coin_v):
+		(coin_v as DroppedCoin).queue_free()
+	_coin_nodes_by_net_id.erase(coin_net_id)
+
+
+func _on_coin_pickup_requested(coin_net_id: int, picker_peer_id: int, coin_value: int) -> void:
+	if not _is_authoritative_world():
+		return
+	var coin_v: Variant = _coin_nodes_by_net_id.get(coin_net_id, null)
+	if coin_v == null or not is_instance_valid(coin_v):
+		_coin_nodes_by_net_id.erase(coin_net_id)
+		return
+	var resolved_peer := picker_peer_id
+	if resolved_peer <= 0:
+		resolved_peer = _local_peer_id()
+	if _networked_run and not _players_by_peer.has(resolved_peer):
+		resolved_peer = 1
+	_despawn_coin_local(coin_net_id)
+	var current_total := int(_coin_totals_by_peer.get(resolved_peer, 0))
+	var next_total := current_total + maxi(1, coin_value)
+	_coin_totals_by_peer[resolved_peer] = next_total
+	_refresh_local_coin_ui()
+	if _networked_run and _is_server_peer() and _has_multiplayer_peer():
+		_rpc_coin_collected.rpc(coin_net_id, resolved_peer, next_total)
 
 
 func _spawn_trap_tile_at(world_pos: Vector2) -> void:
@@ -1342,11 +1972,28 @@ func _spawn_entrance_exit_markers() -> void:
 
 
 func _spawn_encounter_modules() -> void:
+	_enemy_nodes_by_net_id.clear()
+	_enemy_net_id_sequence = 0
+	if not _is_authoritative_world():
+		_spawn_points_by_encounter.clear()
+		_spawn_volumes_by_encounter.clear()
+		_spawn_count_by_encounter.clear()
+		_planned_tower_positions_by_encounter.clear()
+		_entry_socket_by_encounter.clear()
+		_entry_socket_dir_by_encounter.clear()
+		if _door_lock_controller != null:
+			_door_lock_controller.clear_encounter_locks()
+		_encounter_active = {}
+		_encounter_completed = {}
+		_encounter_mobs = {}
+		_combat_encounter_id = &""
+		return
 	_spawn_points_by_encounter.clear()
 	_spawn_volumes_by_encounter.clear()
 	_spawn_count_by_encounter.clear()
 	_planned_tower_positions_by_encounter.clear()
 	_entry_socket_by_encounter.clear()
+	_entry_socket_dir_by_encounter.clear()
 	if _door_lock_controller != null:
 		_door_lock_controller.clear_encounter_locks()
 	_encounter_active = {&"boss": false}
@@ -1359,8 +2006,9 @@ func _spawn_encounter_modules() -> void:
 	if boss_room == null:
 		return
 	var boss_center := boss_room.global_position
-	_cache_locked_sockets_for_encounter(boss_room, &"boss")
 	_entry_socket_by_encounter[&"boss"] = _boss_entry_socket
+	_entry_socket_dir_by_encounter[&"boss"] = _boss_entry_dir
+	_cache_locked_sockets_for_encounter(boss_room, &"boss")
 	_spawn_encounter_trigger(boss_center, &"boss", "BossEncounterTrigger")
 	for room in _rooms_root.get_children():
 		if room is not RoomBase:
@@ -1370,8 +2018,8 @@ func _spawn_encounter_modules() -> void:
 			continue
 		var encounter_id := StringName("arena_%s" % [String(r.name)])
 		var trigger_name := "ArenaEncounterTrigger_%s" % [String(r.name)]
-		_cache_locked_sockets_for_encounter(r, encounter_id)
 		_cache_entry_socket_for_encounter(r, encounter_id)
+		_cache_locked_sockets_for_encounter(r, encounter_id)
 		var trigger_pos := r.global_position
 		var trigger_sz := Vector2.ZERO
 		if r.name == combat_room_name and _combat_entry_socket.length_squared() > 0.01:
@@ -1407,12 +2055,8 @@ func _spawn_encounter_modules() -> void:
 func _cache_locked_sockets_for_encounter(room: RoomBase, encounter_id: StringName) -> void:
 	if _door_lock_controller == null:
 		return
-	var combat_nm := _layout_room_name("combat_room")
-	var ex_pos := _combat_entry_socket
-	var ex_dir := _combat_entry_dir
-	if room.name != combat_nm:
-		ex_pos = Vector2.ZERO
-		ex_dir = ""
+	var ex_pos := _entry_socket_by_encounter.get(encounter_id, Vector2.ZERO) as Vector2
+	var ex_dir := String(_entry_socket_dir_by_encounter.get(encounter_id, ""))
 	_door_lock_controller.cache_room_locks(room, encounter_id, _door_visual_by_socket_key, ex_pos, ex_dir)
 
 
@@ -1493,6 +2137,8 @@ func _spawn_arena_modules_for_room(room: RoomBase, encounter_id: StringName) -> 
 
 
 func _on_encounter_triggered(encounter_id: StringName) -> void:
+	if not _is_authoritative_world():
+		return
 	if bool(_encounter_active.get(encounter_id, false)) or bool(_encounter_completed.get(encounter_id, false)):
 		return
 	match String(encounter_id):
@@ -1625,25 +2271,29 @@ func _spawn_encounter_mob_deferred(
 ) -> void:
 	var resolved_encounter_id := _resolve_encounter_for_spawn(encounter_id, spawn_position)
 	var scene_to_spawn := enemy_scene if enemy_scene != null else _pick_enemy_scene(encounter_id)
+	var scene_kind := _enemy_scene_kind_from_scene(scene_to_spawn)
+	var net_id := _next_enemy_net_id()
 	var enemy := scene_to_spawn.instantiate() as EnemyBase
 	if enemy == null:
 		return
 	enemy.apply_speed_multiplier(speed_multiplier)
 	enemy.configure_spawn(spawn_position, target_position)
+	_register_enemy_net_id(enemy, net_id)
 	$GameWorld2D.add_child(enemy)
-	enemy.set_meta(&"encounter_id", resolved_encounter_id)
 	var encounter_is_active := bool(_encounter_active.get(resolved_encounter_id, false))
 	var final_aggro := start_aggro or encounter_is_active
 	enemy.set_aggro_enabled(final_aggro)
-	if not _encounter_mobs.has(resolved_encounter_id):
-		_encounter_mobs[resolved_encounter_id] = []
-	var mobs: Array = _encounter_mobs[resolved_encounter_id] as Array
-	mobs.append(enemy)
-	_encounter_mobs[resolved_encounter_id] = mobs
-	enemy.tree_exited.connect(
-		func() -> void: _on_encounter_mob_removed(resolved_encounter_id, enemy),
-		CONNECT_ONE_SHOT
-	)
+	_register_encounter_enemy(resolved_encounter_id, enemy)
+	if _is_server_peer():
+		_rpc_spawn_enemy.rpc(
+			net_id,
+			String(resolved_encounter_id),
+			scene_kind,
+			spawn_position,
+			target_position,
+			speed_multiplier,
+			final_aggro
+		)
 
 
 func _set_encounter_mobs_aggro(encounter_id: StringName, enabled: bool) -> void:
@@ -1651,6 +2301,112 @@ func _set_encounter_mobs_aggro(encounter_id: StringName, enabled: bool) -> void:
 	for mob in mobs:
 		if mob is EnemyBase and is_instance_valid(mob):
 			(mob as EnemyBase).set_aggro_enabled(enabled)
+	if _is_server_peer():
+		_rpc_set_encounter_aggro.rpc(String(encounter_id), enabled)
+
+
+@rpc("any_peer", "call_remote", "reliable")
+func _rpc_spawn_enemy(
+	net_id: int,
+	encounter_id_text: String,
+	scene_kind: int,
+	spawn_position: Vector2,
+	target_position: Vector2,
+	speed_multiplier: float,
+	aggro_enabled: bool
+) -> void:
+	if _is_authoritative_world():
+		return
+	if multiplayer.get_remote_sender_id() != 1:
+		return
+	var existing_v: Variant = _enemy_nodes_by_net_id.get(net_id, null)
+	if existing_v is EnemyBase and is_instance_valid(existing_v):
+		(existing_v as EnemyBase).set_aggro_enabled(aggro_enabled)
+		return
+	var scene_to_spawn := _enemy_scene_from_kind(scene_kind)
+	if scene_to_spawn == null:
+		return
+	var enemy := scene_to_spawn.instantiate() as EnemyBase
+	if enemy == null:
+		return
+	var encounter_id := StringName(encounter_id_text)
+	enemy.apply_speed_multiplier(speed_multiplier)
+	enemy.configure_spawn(spawn_position, target_position)
+	_register_enemy_net_id(enemy, net_id)
+	$GameWorld2D.add_child(enemy)
+	enemy.set_aggro_enabled(aggro_enabled)
+	_register_encounter_enemy(encounter_id, enemy)
+
+
+@rpc("any_peer", "call_remote", "reliable")
+func _rpc_despawn_enemy(net_id: int) -> void:
+	if _is_authoritative_world():
+		return
+	if multiplayer.get_remote_sender_id() != 1:
+		return
+	var enemy_v: Variant = _enemy_nodes_by_net_id.get(net_id, null)
+	if enemy_v is EnemyBase and is_instance_valid(enemy_v):
+		(enemy_v as EnemyBase).queue_free()
+	_enemy_nodes_by_net_id.erase(net_id)
+
+
+@rpc("any_peer", "call_remote", "reliable")
+func _rpc_set_encounter_aggro(encounter_id_text: String, enabled: bool) -> void:
+	if _is_authoritative_world():
+		return
+	if multiplayer.get_remote_sender_id() != 1:
+		return
+	var encounter_id := StringName(encounter_id_text)
+	var mobs: Array = _encounter_mobs.get(encounter_id, []) as Array
+	for mob in mobs:
+		if mob is EnemyBase and is_instance_valid(mob):
+			(mob as EnemyBase).set_aggro_enabled(enabled)
+
+
+@rpc("any_peer", "call_remote", "reliable")
+func _rpc_open_treasure_chest(chest_path: NodePath) -> void:
+	if _is_authoritative_world():
+		return
+	if multiplayer.get_remote_sender_id() != 1:
+		return
+	var chest := get_node_or_null(chest_path) as TreasureChest2D
+	if chest == null:
+		return
+	if chest.has_method(&"open_visual_only"):
+		chest.call(&"open_visual_only")
+
+
+@rpc("any_peer", "call_remote", "reliable")
+func _rpc_spawn_coin(
+	coin_net_id: int, spawn_position: Vector2, landing_position: Vector2, coin_value: int
+) -> void:
+	if _is_authoritative_world():
+		return
+	if multiplayer.get_remote_sender_id() != 1:
+		return
+	_spawn_coin_instance(coin_net_id, spawn_position, landing_position, coin_value, false)
+
+
+@rpc("any_peer", "call_remote", "reliable")
+func _rpc_coin_collected(coin_net_id: int, picker_peer_id: int, picker_new_total: int) -> void:
+	if _is_authoritative_world():
+		return
+	if multiplayer.get_remote_sender_id() != 1:
+		return
+	_despawn_coin_local(coin_net_id)
+	_coin_totals_by_peer[picker_peer_id] = maxi(0, picker_new_total)
+	_refresh_local_coin_ui()
+
+
+@rpc("any_peer", "call_remote", "reliable")
+func _rpc_sync_coin_totals(raw_totals: Dictionary) -> void:
+	if _is_authoritative_world():
+		return
+	if multiplayer.get_remote_sender_id() != 1:
+		return
+	_coin_totals_by_peer = _normalize_coin_totals(raw_totals)
+	_ensure_coin_totals_for_roster()
+	_refresh_local_coin_ui()
 
 
 func _prespawn_encounter_mobs() -> void:
@@ -1670,6 +2426,7 @@ func _cache_entry_socket_for_encounter(room: RoomBase, encounter_id: StringName)
 	var start_center := _room_center_2d(_layout_room_name("start_room"))
 	var best_socket := room.global_position
 	var best_dist := 1.0e12
+	var best_dir := ""
 	for socket in room.get_all_sockets():
 		if socket.connector_type == &"inactive":
 			continue
@@ -1678,7 +2435,9 @@ func _cache_entry_socket_for_encounter(room: RoomBase, encounter_id: StringName)
 		if d < best_dist:
 			best_dist = d
 			best_socket = world_pos
+			best_dir = String(socket.direction)
 	_entry_socket_by_encounter[encounter_id] = best_socket
+	_entry_socket_dir_by_encounter[encounter_id] = best_dir
 
 
 func _bias_spawn_to_back_half(encounter_id: StringName, candidate_pos: Vector2) -> Vector2:
@@ -1733,10 +2492,18 @@ func _pick_enemy_scene(encounter_id: StringName) -> PackedScene:
 
 func _on_encounter_mob_removed(encounter_id: StringName, mob: EnemyBase) -> void:
 	if not _encounter_mobs.has(encounter_id):
-		return
-	var mobs: Array = _encounter_mobs[encounter_id] as Array
-	mobs.erase(mob)
-	_encounter_mobs[encounter_id] = mobs
+		pass
+	else:
+		var mobs: Array = _encounter_mobs[encounter_id] as Array
+		mobs.erase(mob)
+		_encounter_mobs[encounter_id] = mobs
+	var net_id := -1
+	if mob != null and mob.has_meta(&"enemy_net_id"):
+		net_id = int(mob.get_meta(&"enemy_net_id", -1))
+	if net_id > 0:
+		_enemy_nodes_by_net_id.erase(net_id)
+		if _is_server_peer():
+			_rpc_despawn_enemy.rpc(net_id)
 
 
 func _refresh_encounter_state() -> void:
@@ -1778,15 +2545,26 @@ func _complete_encounter(encounter_id: StringName) -> void:
 
 
 func _on_boss_exit_portal_body_entered(body: Node2D) -> void:
-	if not _boss_cleared or body != _player:
+	if not _is_authoritative_world():
+		return
+	if not _boss_cleared or not _is_player_body(body):
 		return
 	_schedule_floor_advance_after_portal()
 
 
 func _on_debug_spawn_exit_portal_body_entered(body: Node2D) -> void:
-	if not OS.is_debug_build() or body != _player:
+	if not _is_authoritative_world():
+		return
+	if not OS.is_debug_build() or not _is_player_body(body):
 		return
 	_schedule_floor_advance_after_portal()
+
+
+func _on_leave_run_pressed() -> void:
+	var session := get_node_or_null("/root/NetworkSession")
+	if session == null or not session.has_method("request_leave_run_from_local_peer"):
+		return
+	session.call("request_leave_run_from_local_peer")
 
 
 func _schedule_floor_advance_after_portal() -> void:
@@ -1804,8 +2582,12 @@ func _deferred_advance_floor_after_portal() -> void:
 	if not _floor_transition_pending:
 		return
 	_floor_transition_pending = false
-	if _player != null and _player.has_method(&"heal_to_full"):
-		_player.call(&"heal_to_full")
+	for peer_id in _players_by_peer.keys():
+		var node: Variant = _players_by_peer[peer_id]
+		if node is CharacterBody2D and is_instance_valid(node):
+			var player := node as CharacterBody2D
+			if player.has_method(&"heal_to_full"):
+				player.call(&"heal_to_full")
 	_floor_index += 1
 	_regenerate_level(true)
 
@@ -1833,9 +2615,10 @@ func _unhandled_input(event: InputEvent) -> void:
 
 
 func _reset_score_ui() -> void:
-	for n in get_tree().get_nodes_in_group(&"score_ui"):
-		if n.has_method(&"reset_score"):
-			n.call(&"reset_score")
+	_coin_totals_by_peer.clear()
+	_ensure_coin_totals_for_roster()
+	_refresh_local_coin_ui()
+	_broadcast_coin_totals_if_server()
 
 
 func _is_point_inside_any_room(world_pos: Vector2, margin: float = 0.0) -> bool:
@@ -1850,6 +2633,10 @@ func _door_resolve_room_name_for_body(body: CharacterBody2D) -> String:
 	if body == null:
 		return ""
 	return _room_name_at(body.global_position, 1.25)
+
+
+func _is_player_body(body: Node2D) -> bool:
+	return body != null and body is CharacterBody2D and body.is_in_group(&"player")
 
 
 func _room_type_at(world_pos: Vector2, margin: float = 0.0) -> String:

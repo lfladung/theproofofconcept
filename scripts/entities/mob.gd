@@ -20,6 +20,7 @@ extends EnemyBase
 @export var arrow_half_width := 0.32
 @export var hit_stun_duration := 1.0
 @export var hit_knockback_duration := 0.22
+@export var target_refresh_interval := 0.3
 
 var _squash_applied: bool = false
 var _visual: Node3D
@@ -34,6 +35,7 @@ var _move_speed := 12.0
 var _speed_multiplier := 1.0
 var _repath_time_remaining := 0.0
 var _target_player: Node2D
+var _target_refresh_time_remaining := 0.0
 var _is_telegraphing := false
 var _is_dashing := false
 var _telegraph_time := 0.0
@@ -97,7 +99,8 @@ func _ready() -> void:
 		_telegraph_mesh.visible = false
 		vw.add_child(_telegraph_mesh)
 	_sync_visual_anim_speed()
-	_target_player = get_tree().get_first_node_in_group(&"player") as Node2D
+	_target_player = _pick_target_player()
+	_target_refresh_time_remaining = 0.0
 	if _nav_agent:
 		_nav_agent.path_desired_distance = 0.75
 		_nav_agent.target_desired_distance = stop_distance
@@ -118,10 +121,42 @@ func _exit_tree() -> void:
 
 
 func _physics_process(delta: float) -> void:
+	if _multiplayer_active() and not _is_server_peer():
+		_enemy_network_client_interpolate(delta)
+		_sync_visual_from_body()
+		_update_telegraph_visual()
+		return
 	_update_attack_state(delta)
 	move_and_slide()
+	_enemy_network_server_broadcast(delta)
 	_sync_visual_from_body()
 	_update_telegraph_visual()
+
+
+func _enemy_network_compact_state() -> Dictionary:
+	return {
+		"ag": _aggro_enabled,
+		"tg": _is_telegraphing,
+		"tt": _telegraph_time,
+		"td": telegraph_duration,
+		"dd": _dash_dir,
+		"ds": _is_dashing,
+	}
+
+
+func _enemy_network_apply_remote_state(state: Dictionary) -> void:
+	_aggro_enabled = bool(state.get("ag", _aggro_enabled))
+	_is_telegraphing = bool(state.get("tg", false))
+	_is_dashing = bool(state.get("ds", false))
+	telegraph_duration = maxf(0.01, float(state.get("td", telegraph_duration)))
+	_telegraph_time = clampf(float(state.get("tt", 0.0)), 0.0, telegraph_duration)
+	var dash_dir_v: Variant = state.get("dd", _dash_dir)
+	if dash_dir_v is Vector2:
+		var dash_dir := dash_dir_v as Vector2
+		if dash_dir.length_squared() > 0.0001:
+			_dash_dir = dash_dir.normalized()
+	if not _is_telegraphing:
+		_telegraph_time = 0.0
 
 
 func _sync_visual_from_body() -> void:
@@ -149,13 +184,12 @@ func _update_attack_state(delta: float) -> void:
 		_is_dashing = false
 		_sync_visual_anim_speed(0.0)
 		return
+	_refresh_target_player(delta, not _is_telegraphing and not _is_dashing)
 	if _target_player == null or not is_instance_valid(_target_player):
-		_target_player = get_tree().get_first_node_in_group(&"player") as Node2D
-		if _target_player == null:
-			velocity = Vector2.ZERO
-			_is_telegraphing = false
-			_is_dashing = false
-			return
+		velocity = Vector2.ZERO
+		_is_telegraphing = false
+		_is_dashing = false
+		return
 	if _stun_time_remaining > 0.0:
 		_update_stun(delta)
 		return
@@ -174,7 +208,6 @@ func _update_attack_state(delta: float) -> void:
 
 func _update_chase_velocity(delta: float) -> void:
 	if _target_player == null or not is_instance_valid(_target_player):
-		_target_player = get_tree().get_first_node_in_group(&"player") as Node2D
 		if _target_player == null:
 			velocity = Vector2.ZERO
 			return
@@ -365,3 +398,18 @@ func squash() -> void:
 
 func get_shadow_visual_root() -> Node3D:
 	return _visual
+
+
+func _pick_target_player() -> Node2D:
+	return _pick_nearest_player_target()
+
+
+func _refresh_target_player(delta: float, allow_retarget: bool = true) -> void:
+	_target_refresh_time_remaining = maxf(0.0, _target_refresh_time_remaining - delta)
+	if (
+		_target_player == null
+		or not is_instance_valid(_target_player)
+		or (allow_retarget and _target_refresh_time_remaining <= 0.0)
+	):
+		_target_player = _pick_target_player()
+		_target_refresh_time_remaining = maxf(0.05, target_refresh_interval)

@@ -25,6 +25,7 @@ var _vw: Node3D
 var _visual: Node3D
 var _aoe_preview: MeshInstance3D
 var _facing := Vector2(0.0, -1.0)
+var _authoritative_damage := true
 
 
 func configure(
@@ -36,7 +37,8 @@ func configure(
 	landing_distance: float,
 	flight_duration: float,
 	arc_start_height: float,
-	knockback: float
+	knockback: float,
+	authoritative_damage: bool = true
 ) -> void:
 	_start_2d = spawn_planar
 	_facing = direction.normalized() if direction.length_squared() > 1e-6 else Vector2(0.0, -1.0)
@@ -47,6 +49,7 @@ func configure(
 	_flight_time = maxf(0.05, flight_duration)
 	_arc_start_y = arc_start_height
 	_knockback_strength = knockback
+	_authoritative_damage = authoritative_damage
 
 
 func _ready() -> void:
@@ -133,6 +136,9 @@ func _setup_aoe_preview() -> void:
 
 
 func _explode() -> void:
+	if not _authoritative_damage:
+		queue_free()
+		return
 	var tree := get_tree()
 	if tree != null:
 		for node in tree.get_nodes_in_group(&"mob"):

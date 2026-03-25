@@ -8,13 +8,16 @@ func _ready() -> void:
 
 
 func add_score(amount: int = 1) -> void:
-	score += amount
+	set_score(score + amount)
+
+
+func set_score(value: int) -> void:
+	score = maxi(0, value)
 	text = "Coins: %s" % score
 
 
 func reset_score() -> void:
-	score = 0
-	text = "Coins: 0"
+	set_score(0)
 
 
 func _on_mob_squashed() -> void:

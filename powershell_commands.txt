@@ -1,0 +1,3 @@
+$exe = Join-Path $PWD "Godot_v4.6.1-stable_win64.exe\Godot_v4.6.1-stable_win64.exe"
+Start-Process -FilePath $exe -ArgumentList "--path", $PWD
+Start-Process -FilePath $exe -ArgumentList "--path", $PWD

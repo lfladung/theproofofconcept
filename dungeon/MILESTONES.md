@@ -61,6 +61,13 @@ This file tracks milestone goals for the dungeon architecture and procedural con
   - hazard/prop pool variation by biome
   - lighting/fog/atmosphere presets (not started)
 
+## Multiplayer Planning Artifacts
+
+- `dungeon/MULTIPLAYER_REFACTOR_PROMPT.md`
+  - Saved canonical multiplayer refactor prompt for reuse.
+- `dungeon/MULTIPLAYER_MILESTONE_MAP.md`
+  - Incremental milestone plan with concrete done criteria and file-touch order.
+
 ## Working Rules
 
 - One major milestone per commit.

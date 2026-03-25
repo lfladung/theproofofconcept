@@ -2,23 +2,102 @@ extends CharacterBody2D
 class_name EnemyBase
 
 signal squashed
+signal coin_drop_requested(spawn_position: Vector2, coin_value: int)
 
 const DROPPED_COIN_SCENE := preload("res://dungeon/modules/gameplay/dropped_coin.tscn")
 
 @export var max_health := 50
 @export var drops_coin_on_death := true
+@export var coin_drop_value := 1
 @export var show_damage_text := true
 @export var damage_text_world_y := 2.8
 @export var damage_text_rise := 1.6
 @export var damage_text_duration := 0.7
 @export var damage_text_font_size := 220
+@export var network_sync_interval := 0.05
+@export var remote_interpolation_lerp_rate := 14.0
+@export var remote_interpolation_snap_distance := 6.0
 
 var _health := 0
 var _dead := false
+var _last_authoritative_hit_event_id := -1
+var _network_sync_time_accum := 0.0
+var _remote_target_position := Vector2.ZERO
+var _remote_target_velocity := Vector2.ZERO
+var _remote_has_state := false
 
 
 func _ready() -> void:
 	_health = max_health
+	if _multiplayer_active() and not _is_server_peer():
+		# Client enemy nodes are visual proxies only; server owns gameplay collisions.
+		set_deferred(&"collision_layer", 0)
+		set_deferred(&"collision_mask", 0)
+
+
+func _multiplayer_api_safe() -> MultiplayerAPI:
+	if not is_inside_tree():
+		return null
+	var tree: SceneTree = get_tree()
+	if tree == null:
+		return null
+	return tree.get_multiplayer()
+
+
+func _multiplayer_active() -> bool:
+	var mp := _multiplayer_api_safe()
+	return mp != null and mp.multiplayer_peer != null
+
+
+func _is_server_peer() -> bool:
+	var mp := _multiplayer_api_safe()
+	return mp != null and mp.multiplayer_peer != null and mp.is_server()
+
+
+func _enemy_network_compact_state() -> Dictionary:
+	return {}
+
+
+func _enemy_network_apply_remote_state(_state: Dictionary) -> void:
+	pass
+
+
+func _enemy_network_server_broadcast(delta: float) -> void:
+	if not _is_server_peer():
+		return
+	_network_sync_time_accum += delta
+	if _network_sync_time_accum < network_sync_interval:
+		return
+	_network_sync_time_accum = 0.0
+	_rpc_receive_enemy_transform_state.rpc(global_position, velocity, _enemy_network_compact_state())
+
+
+@rpc("any_peer", "call_remote", "unreliable_ordered")
+func _rpc_receive_enemy_transform_state(
+	world_pos: Vector2, planar_velocity: Vector2, compact_state: Dictionary
+) -> void:
+	if _is_server_peer():
+		return
+	var mp := _multiplayer_api_safe()
+	if mp == null or mp.get_remote_sender_id() != 1:
+		return
+	_remote_target_position = world_pos
+	_remote_target_velocity = planar_velocity
+	_remote_has_state = true
+	_enemy_network_apply_remote_state(compact_state)
+
+
+func _enemy_network_client_interpolate(delta: float) -> void:
+	if not _remote_has_state:
+		return
+	var dist_to_target := global_position.distance_to(_remote_target_position)
+	if dist_to_target >= remote_interpolation_snap_distance:
+		global_position = _remote_target_position
+		velocity = _remote_target_velocity
+		return
+	var alpha := clampf(delta * remote_interpolation_lerp_rate, 0.0, 1.0)
+	global_position = global_position.lerp(_remote_target_position, alpha)
+	velocity = velocity.lerp(_remote_target_velocity, alpha)
 
 
 func configure_spawn(start_position: Vector2, _player_position: Vector2) -> void:
@@ -33,7 +112,20 @@ func set_aggro_enabled(_enabled: bool) -> void:
 	pass
 
 
+func apply_authoritative_hit_event(
+	hit_event_id: int, damage: int, knockback_dir: Vector2, knockback_strength: float
+) -> bool:
+	if hit_event_id >= 0 and hit_event_id <= _last_authoritative_hit_event_id:
+		return false
+	if hit_event_id >= 0:
+		_last_authoritative_hit_event_id = hit_event_id
+	take_hit(damage, knockback_dir, knockback_strength)
+	return true
+
+
 func take_hit(damage: int, knockback_dir: Vector2, knockback_strength: float) -> void:
+	if _multiplayer_active() and not _is_server_peer():
+		return
 	if damage <= 0 or _dead:
 		return
 	if show_damage_text:
@@ -64,6 +156,9 @@ func squash() -> void:
 
 
 func _spawn_dropped_coin() -> void:
+	if not coin_drop_requested.get_connections().is_empty():
+		coin_drop_requested.emit(global_position, maxi(1, coin_drop_value))
+		return
 	var parent := get_parent()
 	if parent == null:
 		return
@@ -76,7 +171,7 @@ func _spawn_dropped_coin() -> void:
 
 
 func _resolve_visual_world_3d() -> Node3D:
-	var tree := get_tree()
+	var tree: SceneTree = get_tree()
 	if tree != null and tree.current_scene != null:
 		var direct := tree.current_scene.get_node_or_null("VisualWorld3D") as Node3D
 		if direct != null:
@@ -120,3 +215,45 @@ func _show_floating_damage_text(damage: int) -> void:
 		Tween.EASE_IN
 	)
 	tween.chain().tween_callback(text.queue_free)
+
+
+func _pick_nearest_player_target() -> Node2D:
+	var candidates: Array[Dictionary] = []
+	var tree: SceneTree = get_tree()
+	if tree == null:
+		return null
+	for node in tree.get_nodes_in_group(&"player"):
+		if node is not Node2D:
+			continue
+		var candidate := node as Node2D
+		if candidate == null or not is_instance_valid(candidate):
+			continue
+		var peer_id := int(candidate.get_meta(&"peer_id", 0))
+		if peer_id <= 0 and candidate.has_meta(&"network_owner_peer_id"):
+			peer_id = int(candidate.get_meta(&"network_owner_peer_id", 0))
+		candidates.append(
+			{
+				"node": candidate,
+				"d2": global_position.distance_squared_to(candidate.global_position),
+				"peer_id": peer_id,
+				"name": String(candidate.name),
+			}
+		)
+	if candidates.is_empty():
+		return null
+	candidates.sort_custom(
+		func(a: Dictionary, b: Dictionary) -> bool:
+			var d2_a := float(a.get("d2", INF))
+			var d2_b := float(b.get("d2", INF))
+			if not is_equal_approx(d2_a, d2_b):
+				return d2_a < d2_b
+			var peer_a := int(a.get("peer_id", 0))
+			var peer_b := int(b.get("peer_id", 0))
+			if peer_a != peer_b:
+				return peer_a < peer_b
+			var name_a := String(a.get("name", ""))
+			var name_b := String(b.get("name", ""))
+			return name_a < name_b
+	)
+	var best_v: Variant = candidates[0].get("node", null)
+	return best_v as Node2D

@@ -2,6 +2,7 @@ extends Node2D
 class_name TreasureChest2D
 
 signal opened
+signal coin_spawn_requested(chest_center: Vector2, land_pos: Vector2)
 
 const DROPPED_COIN_SCENE := preload("res://dungeon/modules/gameplay/dropped_coin.tscn")
 const _DEFAULT_CHEST_MESH := preload("res://art/props/interactables/treasure_chest_texture.glb")
@@ -26,6 +27,7 @@ const _DEFAULT_CHEST_MESH := preload("res://art/props/interactables/treasure_che
 var _opened := false
 var _spew_started := false
 var _chest_3d: Node3D
+var _interaction_enabled := true
 
 
 static func _find_visual_world(from: Node) -> Node3D:
@@ -89,14 +91,16 @@ func _sync_chest_mesh_transform() -> void:
 
 func _physics_process(_delta: float) -> void:
 	_sync_chest_mesh_transform()
-	if not _opened:
+	if not _opened and _interaction_enabled:
 		_poll_player_touch_open()
 
 
 func _on_open_trigger_body_entered(body: Node2D) -> void:
+	if not _interaction_enabled:
+		return
 	if body == null or not body.is_in_group(&"player"):
 		return
-	_open_from_player()
+	_open_from_player(true)
 
 
 ## Area2D overlap often misses edge contact vs StaticBody2D (zero penetration). Match the solid AABB instead.
@@ -107,7 +111,7 @@ func _poll_player_touch_open() -> void:
 	var p := tree.get_first_node_in_group(&"player") as Node2D
 	if p == null or not _player_circle_hits_solid_aabb(p):
 		return
-	_open_from_player()
+	_open_from_player(true)
 
 
 static func _approx_player_collision_radius(body: Node2D) -> float:
@@ -145,7 +149,7 @@ func _player_circle_hits_solid_aabb(player: Node2D) -> bool:
 	return d2 <= r * r + 0.02
 
 
-func _open_from_player() -> void:
+func _open_from_player(spawn_coins: bool) -> void:
 	if _opened:
 		return
 	_opened = true
@@ -155,7 +159,19 @@ func _open_from_player() -> void:
 	if _visual:
 		_visual.color = open_color
 	opened.emit()
-	call_deferred("_spew_coins")
+	if spawn_coins:
+		call_deferred("_spew_coins")
+
+
+func set_interaction_enabled(enabled: bool) -> void:
+	_interaction_enabled = enabled
+	if _open_trigger != null:
+		_open_trigger.set_deferred("monitoring", enabled)
+		_open_trigger.set_deferred("monitorable", enabled)
+
+
+func open_visual_only() -> void:
+	_open_from_player(false)
 
 
 func _spew_coins() -> void:
@@ -179,6 +195,9 @@ func _spew_coins() -> void:
 
 
 func _spawn_coin_deferred(chest_center: Vector2, land_pos: Vector2) -> void:
+	if not coin_spawn_requested.get_connections().is_empty():
+		coin_spawn_requested.emit(chest_center, land_pos)
+		return
 	var parent := get_parent()
 	if parent == null:
 		return

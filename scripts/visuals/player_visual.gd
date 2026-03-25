@@ -3,12 +3,16 @@ extends Node3D
 ## Drives Meshy locomotion clips; melee attack animation via try_play_attack().
 
 @export var walk_speed_threshold := 8.0
+@export var attack_duration_seconds := 0.2
 
 const _RUN_GLB := "res://art/characters/player/Cute_chibi_fantasy_kn_biped_Animation_Running_withSkin.glb"
 const _ATK_GLB := "res://art/characters/player/Cute_chibi_fantasy_kn_biped_Animation_Attack_withSkin.glb"
 
 var _anim: AnimationPlayer
 var _attack_playing: bool = false
+var _attack_nonce := 0
+var _attack_clip: StringName = &""
+var _attack_clip_duration := 0.0
 
 
 func _ready() -> void:
@@ -17,6 +21,7 @@ func _ready() -> void:
 		_anim.active = true
 		_merge_anim_libraries_from_glb(_RUN_GLB, &"meshy_run")
 		_merge_anim_libraries_from_glb(_ATK_GLB, &"meshy_atk")
+		_cache_attack_clip_metadata()
 		_play_locomotion(false, 1.0)
 
 
@@ -93,24 +98,56 @@ func set_jump_tilt(vertical_velocity: float, jump_impulse: float) -> void:
 	rotation.x = PI / 6.0 * vertical_velocity / jump_impulse
 
 
-func try_play_attack() -> void:
+func _cache_attack_clip_metadata() -> void:
+	_attack_clip = &""
+	_attack_clip_duration = 0.0
 	if _anim == null:
 		return
-	var clip: StringName = &""
 	for n in _anim.get_animation_list():
 		var lower := String(n).to_lower()
 		if "attack" in lower:
-			clip = n
-			break
+			_attack_clip = n
+			var anim_res := _anim.get_animation(n)
+			if anim_res != null:
+				_attack_clip_duration = anim_res.length
+			return
+
+
+func get_attack_duration_seconds() -> float:
+	if attack_duration_seconds > 0.0:
+		return attack_duration_seconds
+	if _attack_clip == &"" or _attack_clip_duration <= 0.0:
+		_cache_attack_clip_metadata()
+	return maxf(_attack_clip_duration, 0.0)
+
+
+func try_play_attack() -> void:
+	if _anim == null or _attack_playing:
+		return
+	if _attack_clip == &"":
+		_cache_attack_clip_metadata()
+	var clip := _attack_clip
 	if clip == &"":
 		return
 	_attack_playing = true
+	_attack_nonce += 1
+	var attack_nonce := _attack_nonce
 	_anim.play(clip)
-	var anim_res := _anim.get_animation(clip)
-	if anim_res == null:
-		_attack_playing = false
+	var target_duration := get_attack_duration_seconds()
+	var anim_len := maxf(_attack_clip_duration, 0.0)
+	if anim_len <= 0.0:
+		var anim_res := _anim.get_animation(clip)
+		if anim_res == null:
+			_attack_playing = false
+			return
+		anim_len = anim_res.length
+		_attack_clip_duration = anim_len
+	if anim_len > 0.0 and target_duration > 0.0:
+		_anim.speed_scale = anim_len / target_duration
+	else:
+		target_duration = maxf(anim_len, 0.01)
+	await get_tree().create_timer(maxf(target_duration, 0.01)).timeout
+	if attack_nonce != _attack_nonce:
 		return
-	var anim_len := anim_res.length
-	await get_tree().create_timer(anim_len / maxf(_anim.speed_scale, 0.01)).timeout
 	_attack_playing = false
 	_play_locomotion(false, 1.0)

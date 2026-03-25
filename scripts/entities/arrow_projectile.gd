@@ -1,6 +1,8 @@
 extends Area2D
 class_name ArrowProjectile
 
+signal projectile_finished(final_position: Vector2)
+
 const ARROW_VISUAL_SCENE := preload("res://art/combat/projectiles/a_regular_wooden_arrow_texture.glb")
 const PLAYER_PROJECTILE_VISUAL_SCENE := preload("res://art/combat/projectiles/projectile_red_texture.glb")
 
@@ -25,6 +27,8 @@ var _debug_hitbox: MeshInstance3D
 var _vw: Node3D
 ## Tower shots use mask 1 (player). Player shots use enemies + world (2 | 4).
 var _fired_by_player := false
+var _authoritative_damage := true
+var _finished := false
 
 
 func configure(
@@ -38,6 +42,10 @@ func configure(
 	_direction = direction.normalized() if direction.length_squared() > 0.0001 else Vector2.RIGHT
 	_vw = owner_visual_world
 	_fired_by_player = fired_by_player
+
+
+func set_authoritative_damage(enabled: bool) -> void:
+	_authoritative_damage = enabled
 
 
 func _ready() -> void:
@@ -89,7 +97,7 @@ func _physics_process(delta: float) -> void:
 	_traveled = global_position.distance_to(_start_pos)
 	_sync_visual()
 	if _traveled >= max_distance:
-		queue_free()
+		_finish_projectile()
 
 
 func _sync_visual() -> void:
@@ -108,16 +116,24 @@ func _on_body_entered(body: Node2D) -> void:
 	if _fired_by_player:
 		if body.is_in_group(&"player"):
 			return
-		if body.is_in_group(&"mob") and body.has_method(&"take_hit"):
+		if _authoritative_damage and body.is_in_group(&"mob") and body.has_method(&"take_hit"):
 			body.call(&"take_hit", damage, _direction, knockback_strength)
-			queue_free()
+			_finish_projectile()
 			return
-		queue_free()
+		_finish_projectile()
 		return
 	if body.is_in_group(&"player"):
-		if body.has_method(&"take_damage"):
+		if _authoritative_damage and body.has_method(&"take_damage"):
 			body.call(&"take_damage", damage)
-		queue_free()
+		_finish_projectile()
+
+
+func _finish_projectile() -> void:
+	if _finished:
+		return
+	_finished = true
+	projectile_finished.emit(global_position)
+	queue_free()
 
 
 func _exit_tree() -> void:
