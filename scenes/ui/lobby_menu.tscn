@@ -43,9 +43,11 @@ layout_mode = 2
 text = "Create a Lobby, Join by Session Code, or Play Offline"
 horizontal_alignment = 1
 
-[node name="LobbyCodeLabel" type="Label" parent="Center/Margin/VBox"]
+[node name="LobbyCodeLabel" type="LineEdit" parent="Center/Margin/VBox"]
 layout_mode = 2
-text = "Lobby Code: -"
+editable = false
+select_all_on_focus = true
+text = ""
 horizontal_alignment = 1
 
 [node name="CodeRow" type="HBoxContainer" parent="Center/Margin/VBox"]

@@ -78,6 +78,8 @@ const _BOSS_W_EXT_X := 182.0
 const _BOSS_PORTAL_INSET := 1.5
 const _ROOM_SIZE_SCALE := 1.5
 const _BACK_HALF_MIN_RATIO := 0.22
+const _ELEVATOR_PLAYER_SIZE_MULT := 4.0
+const _DEBUG_ELEVATOR_YAW_OFFSET_DEG := 180.0
 ## Arrow towers are biased toward room center; keep planned spawns apart so two never share one spot.
 const _TOWER_SPAWN_MIN_SEP := 4.5
 
@@ -91,7 +93,6 @@ const _TOWER_SPAWN_MIN_SEP := 4.5
 @onready var _door_visuals: Node3D = $VisualWorld3D/DoorVisuals
 @onready var _camera_pivot: Marker3D = $VisualWorld3D/CameraPivot
 @onready var _camera_3d: Camera3D = $VisualWorld3D/CameraPivot/Camera
-@onready var _host_player: CharacterBody2D = $GameWorld2D/Player
 @onready var _info_label: Label = $CanvasLayer/UI/InfoLabel
 @onready var _weapon_mode_label: Label = $CanvasLayer/UI/WeaponModeLabel
 @onready var _boss_exit_portal: Area2D = $GameWorld2D/Triggers/BossExitPortal
@@ -120,6 +121,8 @@ var _door_visual_by_socket_key: Dictionary = {}
 var _boundary_wall_keys: Dictionary = {}
 ## Merged mesh AABB in GLB root space (cached per path) for floor tile scaling.
 var _floor_glb_aabb_by_path: Dictionary = {}
+var _elevator_visual_aabb_cache := AABB()
+var _has_elevator_visual_aabb_cache := false
 var _rng: RandomNumberGenerator = RandomNumberGenerator.new()
 var _floor_index := 1
 var _map_layout: Dictionary = {}
@@ -154,6 +157,7 @@ var _dungeon_world_environment: WorldEnvironment
 var _dungeon_environment: Environment
 var _backdrop_quad: MeshInstance3D
 var _boss_exit_elevator_visual: Node3D
+var _debug_spawn_exit_elevator_visual: Node3D
 var _player: CharacterBody2D
 var _players_by_peer: Dictionary = {}
 var _peer_slots: Dictionary = {}
@@ -262,20 +266,6 @@ func _can_broadcast_world_replication() -> bool:
 	if _network_session != null and _network_session.has_method("can_broadcast_world_replication"):
 		return bool(_network_session.call("can_broadcast_world_replication"))
 	return true
-
-
-func _prepare_dedicated_server_placeholder_player() -> void:
-	if _host_player == null or not is_instance_valid(_host_player):
-		return
-	if _host_player.is_in_group(&"player"):
-		_host_player.remove_from_group(&"player")
-	var shape := _host_player.get_node_or_null("CollisionShape2D") as CollisionShape2D
-	if shape != null:
-		shape.disabled = true
-	_host_player.collision_layer = 0
-	_host_player.collision_mask = 0
-	_host_player.set_physics_process(false)
-	_host_player.set_process(false)
 
 
 func _next_enemy_network_id() -> int:
@@ -435,19 +425,15 @@ func _assign_player_authority(player: CharacterBody2D, peer_id: int) -> void:
 		player.call("set_network_owner_peer_id", peer_id)
 
 
-func _ensure_player_node_for_peer(peer_id: int, reusable_host: bool = false) -> CharacterBody2D:
-	if reusable_host:
-		_assign_player_authority(_host_player, peer_id)
-		return _host_player
+func _ensure_player_node_for_peer(peer_id: int) -> CharacterBody2D:
 	var existing: Variant = _players_by_peer.get(peer_id, null)
 	if existing is CharacterBody2D and is_instance_valid(existing):
 		var found := existing as CharacterBody2D
-		if found != _host_player:
-			_assign_player_authority(found, peer_id)
-			return found
+		_assign_player_authority(found, peer_id)
+		return found
 	var desired_name := "PlayerPeer_%s" % [peer_id]
 	var conflicting := $GameWorld2D.get_node_or_null(NodePath(desired_name)) as CharacterBody2D
-	if conflicting != null and conflicting != existing and conflicting != _host_player:
+	if conflicting != null and conflicting != existing:
 		$GameWorld2D.remove_child(conflicting)
 		conflicting.queue_free()
 	var spawned := PLAYER_SCENE.instantiate() as CharacterBody2D
@@ -462,44 +448,23 @@ func _ensure_player_node_for_peer(peer_id: int, reusable_host: bool = false) -> 
 func _initialize_player_roster() -> void:
 	_players_by_peer.clear()
 	_peer_slots.clear()
-	if _networked_run and _is_server_peer() and _is_dedicated_server_session():
-		_prepare_dedicated_server_placeholder_player()
-	if not _networked_run:
-		_players_by_peer[_local_peer_id()] = _host_player
-		_assign_player_authority(_host_player, _local_peer_id())
-		_player = _host_player
-		_log_player_authority_roster("singleplayer_roster")
-		return
 	var slot_map: Dictionary = {}
-	if _network_session != null and _network_session.has_method("get_peer_slot_map"):
+	if not _networked_run:
+		slot_map[_local_peer_id()] = 0
+	elif _network_session != null and _network_session.has_method("get_peer_slot_map"):
 		slot_map = _network_session.call("get_peer_slot_map") as Dictionary
 	_apply_player_roster_from_slot_map(slot_map)
 
 
 func _apply_player_roster_from_slot_map(raw_slot_map: Dictionary) -> void:
-	var previous_local: CharacterBody2D = (
-		_player if _player != null and is_instance_valid(_player) else null
-	)
 	var slot_map: Dictionary = _normalize_slot_map(raw_slot_map)
 	if slot_map.is_empty() and not _networked_run:
 		slot_map[1] = 0
 	_peer_slots = slot_map
 	var ordered_peer_ids: Array[int] = _peer_ids_sorted_by_slot(_peer_slots)
-	var reusable_host_peer_id := -1
-	var allow_host_reuse := not _networked_run or _peer_slots.has(1)
-	if _networked_run and not allow_host_reuse:
-		# Dedicated sessions keep server/client RPC paths stable by forcing PlayerPeer_<peer_id> nodes.
-		_prepare_dedicated_server_placeholder_player()
-	if allow_host_reuse and not ordered_peer_ids.is_empty():
-		reusable_host_peer_id = ordered_peer_ids[0]
-		for id in ordered_peer_ids:
-			if id == 1:
-				reusable_host_peer_id = 1
-				break
 	var seen: Dictionary = {}
 	for peer_id in ordered_peer_ids:
-		var use_host := peer_id == reusable_host_peer_id
-		var p: CharacterBody2D = _ensure_player_node_for_peer(peer_id, use_host)
+		var p: CharacterBody2D = _ensure_player_node_for_peer(peer_id)
 		if p == null:
 			continue
 		_players_by_peer[peer_id] = p
@@ -509,15 +474,19 @@ func _apply_player_roster_from_slot_map(raw_slot_map: Dictionary) -> void:
 		if seen.has(peer_id):
 			continue
 		var stale: Variant = _players_by_peer[peer_id]
-		if stale is CharacterBody2D and stale != _host_player and is_instance_valid(stale):
+		if stale is CharacterBody2D and is_instance_valid(stale):
 			(stale as CharacterBody2D).queue_free()
 		_players_by_peer.erase(peer_id)
 	var local_peer := _local_peer_id()
 	var resolved_local := _players_by_peer.get(local_peer, null) as CharacterBody2D
-	if resolved_local == null and previous_local != null and is_instance_valid(previous_local):
-		resolved_local = previous_local
 	if resolved_local == null:
-		resolved_local = _host_player
+		var is_headless_dedicated := (
+			_networked_run and _is_server_peer() and _is_dedicated_server_session()
+		)
+		if not is_headless_dedicated:
+			resolved_local = _ensure_player_node_for_peer(local_peer)
+			if resolved_local != null:
+				_players_by_peer[local_peer] = resolved_local
 	_player = resolved_local
 	_ensure_coin_totals_for_roster()
 	_refresh_local_coin_ui()
@@ -592,6 +561,7 @@ func _process(delta: float) -> void:
 	if _is_authoritative_world():
 		_refresh_encounter_state()
 		_try_schedule_floor_advance_if_all_players_on_elevator()
+		_try_schedule_floor_advance_if_all_players_on_debug_elevator()
 	_update_backdrop_parallax()
 	_update_backdrop_quad_transform()
 
@@ -742,7 +712,6 @@ func _regenerate_level(randomize_layout: bool) -> void:
 		if n is Node:
 			(n as Node).queue_free()
 	_enemy_nodes_by_network_id.clear()
-	_enemy_network_id_sequence = 0
 	var assembled_ok := false
 	if _networked_run and not _is_authoritative_world():
 		if _map_layout.is_empty():
@@ -803,14 +772,13 @@ func _regenerate_level(randomize_layout: bool) -> void:
 	_spawn_entrance_exit_markers()
 	_set_combat_doors_locked(false, false)
 	_set_boss_entry_locked(false)
-	_boss_exit_portal.monitoring = false
-	_boss_exit_portal.monitorable = false
+	_set_boss_exit_active(false)
 	if _boss_portal_marker != null:
 		_boss_portal_marker.visible = false
-	if _boss_exit_elevator_visual != null and is_instance_valid(_boss_exit_elevator_visual):
-		_boss_exit_elevator_visual.visible = false
 	_debug_spawn_exit_portal.monitoring = false
 	_debug_spawn_exit_portal.monitorable = false
+	if _debug_spawn_exit_elevator_visual != null and is_instance_valid(_debug_spawn_exit_elevator_visual):
+		_debug_spawn_exit_elevator_visual.visible = false
 	var entrance_spawn := _room_center_2d(_layout_room_name("start_room"))
 	_position_players_at_spawn(entrance_spawn)
 	_has_generated_floor = true
@@ -833,6 +801,8 @@ func _regenerate_level(randomize_layout: bool) -> void:
 	else:
 		if _debug_spawn_portal_marker != null:
 			_debug_spawn_portal_marker.visible = false
+		if _debug_spawn_exit_elevator_visual != null and is_instance_valid(_debug_spawn_exit_elevator_visual):
+			_debug_spawn_exit_elevator_visual.visible = false
 	if _is_authoritative_world():
 		_ensure_layout_backdrop_path_server()
 	_log_generation_debug(_map_layout)
@@ -959,6 +929,8 @@ func _enable_debug_spawn_portal_after_physics(token: int) -> void:
 		return
 	_debug_spawn_exit_portal.monitoring = true
 	_debug_spawn_exit_portal.monitorable = true
+	if _debug_spawn_exit_elevator_visual != null and is_instance_valid(_debug_spawn_exit_elevator_visual):
+		_debug_spawn_exit_elevator_visual.visible = true
 
 
 func _ensure_dungeon_world_environment() -> void:
@@ -987,6 +959,93 @@ func _ensure_boss_exit_elevator_visual() -> void:
 	visual.visible = false
 	_visual_world.add_child(visual)
 	_boss_exit_elevator_visual = visual
+	_sync_boss_exit_elevator_visual_transform()
+
+
+func _sync_boss_exit_elevator_visual_transform() -> void:
+	if _boss_exit_elevator_visual == null or not is_instance_valid(_boss_exit_elevator_visual):
+		return
+	_set_elevator_visual_transform(
+		_boss_exit_elevator_visual,
+		_boss_exit_portal.position,
+		_boss_entry_socket,
+		0.0
+	)
+
+
+func _ensure_debug_spawn_exit_elevator_visual() -> void:
+	if _debug_spawn_exit_elevator_visual != null and is_instance_valid(_debug_spawn_exit_elevator_visual):
+		return
+	var visual := ELEVATOR_VISUAL_SCENE.instantiate() as Node3D
+	if visual == null:
+		return
+	visual.name = "DebugSpawnExitElevatorVisual"
+	visual.visible = false
+	_visual_world.add_child(visual)
+	_debug_spawn_exit_elevator_visual = visual
+	_sync_debug_spawn_exit_elevator_visual_transform()
+
+
+func _sync_debug_spawn_exit_elevator_visual_transform() -> void:
+	if _debug_spawn_exit_elevator_visual == null or not is_instance_valid(_debug_spawn_exit_elevator_visual):
+		return
+	_set_elevator_visual_transform(
+		_debug_spawn_exit_elevator_visual,
+		_debug_spawn_exit_portal.position,
+		_debug_spawn_exit_facing_target(),
+		_DEBUG_ELEVATOR_YAW_OFFSET_DEG
+	)
+
+
+func _set_elevator_visual_transform(
+	visual: Node3D, portal_position: Vector2, facing_target: Vector2, yaw_offset_deg: float = 0.0
+) -> void:
+	if visual == null or not is_instance_valid(visual):
+		return
+	visual.position = Vector3(
+		portal_position.x,
+		FLOOR_SLAB_TOP_Y + 0.05,
+		portal_position.y
+	)
+	var src := _get_elevator_visual_aabb()
+	var player_diameter := maxf(0.01, _PLAYER_CLAMP_R * 2.0)
+	var target_footprint := player_diameter * _ELEVATOR_PLAYER_SIZE_MULT
+	var base_footprint := maxf(0.01, maxf(src.size.x, src.size.z))
+	var uniform_scale := target_footprint / base_footprint
+	visual.scale = Vector3.ONE * uniform_scale
+	var door_target := Vector3(
+		facing_target.x,
+		visual.position.y,
+		facing_target.y
+	)
+	if door_target.distance_squared_to(visual.position) > 1e-8:
+		visual.look_at(door_target, Vector3.UP)
+		if absf(yaw_offset_deg) > 0.001:
+			visual.rotate_y(deg_to_rad(yaw_offset_deg))
+
+
+func _debug_spawn_exit_facing_target() -> Vector2:
+	var forward := _critical_path_forward_dir_from_start()
+	var start_room_name := _layout_room_name("start_room")
+	var socket_target := _socket_world_position(start_room_name, forward)
+	if socket_target.length_squared() > 0.0001:
+		return socket_target
+	return _debug_spawn_exit_portal.position + _direction_vector(forward) * 6.0
+
+
+func _get_elevator_visual_aabb() -> AABB:
+	if _has_elevator_visual_aabb_cache:
+		return _elevator_visual_aabb_cache
+	var inst := ELEVATOR_VISUAL_SCENE.instantiate() as Node3D
+	var aabb := AABB()
+	if inst != null:
+		aabb = _merged_mesh_aabb_in_glb_root(inst)
+		inst.free()
+	if aabb.size.length_squared() < 1e-8:
+		aabb = AABB(Vector3(-1.5, -0.5, -1.5), Vector3(3.0, 1.0, 3.0))
+	_elevator_visual_aabb_cache = aabb
+	_has_elevator_visual_aabb_cache = true
+	return aabb
 
 
 func _ensure_backdrop_quad() -> void:
@@ -1373,11 +1432,7 @@ func _position_runtime_markers() -> void:
 			_boss_portal_marker.visible = false
 		_ensure_boss_exit_elevator_visual()
 		if _boss_exit_elevator_visual != null and is_instance_valid(_boss_exit_elevator_visual):
-			_boss_exit_elevator_visual.position = Vector3(
-				_boss_exit_portal.position.x,
-				FLOOR_SLAB_TOP_Y + 0.05,
-				_boss_exit_portal.position.y
-			)
+			_sync_boss_exit_elevator_visual_transform()
 			_boss_exit_elevator_visual.visible = false
 	_position_debug_spawn_exit_portal()
 
@@ -1420,6 +1475,8 @@ func _position_debug_spawn_exit_portal() -> void:
 		_debug_spawn_exit_portal.monitorable = false
 		if _debug_spawn_portal_marker != null:
 			_debug_spawn_portal_marker.visible = false
+		if _debug_spawn_exit_elevator_visual != null and is_instance_valid(_debug_spawn_exit_elevator_visual):
+			_debug_spawn_exit_elevator_visual.visible = false
 		return
 	var start_room := _room_by_name(_layout_room_name("start_room"))
 	if start_room == null:
@@ -1433,12 +1490,11 @@ func _position_debug_spawn_exit_portal() -> void:
 	var off := Vector2(outward.x * inset_x, outward.y * inset_y)
 	_debug_spawn_exit_portal.position = start_room.global_position + off
 	if _debug_spawn_portal_marker != null:
-		_debug_spawn_portal_marker.position = Vector3(
-			_debug_spawn_exit_portal.position.x,
-			0.45,
-			_debug_spawn_exit_portal.position.y
-		)
-		_debug_spawn_portal_marker.visible = true
+		_debug_spawn_portal_marker.visible = false
+	_ensure_debug_spawn_exit_elevator_visual()
+	_sync_debug_spawn_exit_elevator_visual_transform()
+	if _debug_spawn_exit_elevator_visual != null and is_instance_valid(_debug_spawn_exit_elevator_visual):
+		_debug_spawn_exit_elevator_visual.visible = true
 
 
 func _direction_vector(direction: String) -> Vector2:
@@ -1907,11 +1963,22 @@ func _add_cell_door_3d(
 	return door
 
 
-func _set_combat_doors_locked(locked: bool, animate: bool = true) -> void:
+func _apply_combat_doors_locked(locked: bool, animate: bool = true) -> void:
 	# Entry door stays open; only combat exit door is gated by clear state.
 	for asm in [_combat_door_visual_east]:
 		if asm != null:
 			asm.set_combat_locked(locked, animate)
+
+
+func _set_combat_doors_locked(locked: bool, animate: bool = true) -> void:
+	_apply_combat_doors_locked(locked, animate)
+	if (
+		_networked_run
+		and _is_server_peer()
+		and _has_multiplayer_peer()
+		and _can_broadcast_world_replication()
+	):
+		_rpc_set_combat_doors_locked.rpc(locked, animate)
 
 
 func _set_boss_entry_locked(_locked: bool) -> void:
@@ -2133,7 +2200,6 @@ func _spawn_entrance_exit_markers() -> void:
 
 func _spawn_encounter_modules() -> void:
 	_enemy_nodes_by_network_id.clear()
-	_enemy_network_id_sequence = 0
 	if not _is_authoritative_world():
 		_spawn_points_by_encounter.clear()
 		_spawn_volumes_by_encounter.clear()
@@ -2226,9 +2292,22 @@ func _socket_pos_key(p: Vector2) -> String:
 	return "%s:%s" % [qx, qy]
 
 
-func _set_encounter_door_visuals_locked(encounter_id: StringName, locked: bool, animate: bool = true) -> void:
+func _apply_encounter_door_visuals_locked(
+	encounter_id: StringName, locked: bool, animate: bool = true
+) -> void:
 	if _door_lock_controller != null:
 		_door_lock_controller.set_encounter_visuals_locked(encounter_id, locked, animate)
+
+
+func _set_encounter_door_visuals_locked(encounter_id: StringName, locked: bool, animate: bool = true) -> void:
+	_apply_encounter_door_visuals_locked(encounter_id, locked, animate)
+	if (
+		_networked_run
+		and _is_server_peer()
+		and _has_multiplayer_peer()
+		and _can_broadcast_world_replication()
+	):
+		_rpc_set_encounter_door_visuals_locked.rpc(String(encounter_id), locked, animate)
 
 
 func _spawn_encounter_trigger(
@@ -2537,6 +2616,35 @@ func _rpc_set_encounter_aggro(encounter_id_text: String, enabled: bool) -> void:
 			(mob as EnemyBase).set_aggro_enabled(enabled)
 
 
+@rpc("authority", "call_remote", "reliable")
+func _rpc_set_encounter_door_visuals_locked(
+	encounter_id_text: String, locked: bool, animate: bool
+) -> void:
+	if _is_authoritative_world():
+		return
+	if multiplayer.get_remote_sender_id() != 1:
+		return
+	_apply_encounter_door_visuals_locked(StringName(encounter_id_text), locked, animate)
+
+
+@rpc("authority", "call_remote", "reliable")
+func _rpc_set_combat_doors_locked(locked: bool, animate: bool) -> void:
+	if _is_authoritative_world():
+		return
+	if multiplayer.get_remote_sender_id() != 1:
+		return
+	_apply_combat_doors_locked(locked, animate)
+
+
+@rpc("authority", "call_remote", "reliable")
+func _rpc_set_boss_exit_active(active: bool) -> void:
+	if _is_authoritative_world():
+		return
+	if multiplayer.get_remote_sender_id() != 1:
+		return
+	_set_boss_exit_active(active, false)
+
+
 func _send_runtime_snapshot_to_peer(peer_id: int) -> void:
 	if peer_id <= 0 or not _is_server_peer() or not _has_multiplayer_peer():
 		return
@@ -2789,12 +2897,7 @@ func _complete_encounter(encounter_id: StringName) -> void:
 			_boss_cleared = true
 			_set_encounter_door_visuals_locked(encounter_id, false, true)
 			_set_boss_entry_locked(false)
-			_boss_exit_portal.monitoring = true
-			_boss_exit_portal.monitorable = true
-			if _boss_portal_marker != null:
-				_boss_portal_marker.visible = false
-			if _boss_exit_elevator_visual != null and is_instance_valid(_boss_exit_elevator_visual):
-				_boss_exit_elevator_visual.visible = true
+			_set_boss_exit_active(true)
 			_set_info_base_text("Boss defeated. Elevator is active. All players must board.")
 		_:
 			if String(encounter_id).begins_with("arena_"):
@@ -2805,6 +2908,24 @@ func _complete_encounter(encounter_id: StringName) -> void:
 					_set_info_base_text("Combat room cleared. Doors unlocked.")
 				else:
 					_set_info_base_text("Arena room cleared.")
+
+
+func _set_boss_exit_active(active: bool, replicate: bool = true) -> void:
+	if _boss_exit_portal != null and is_instance_valid(_boss_exit_portal):
+		_boss_exit_portal.monitoring = active
+		_boss_exit_portal.monitorable = active
+	if _boss_portal_marker != null:
+		_boss_portal_marker.visible = false
+	if _boss_exit_elevator_visual != null and is_instance_valid(_boss_exit_elevator_visual):
+		_boss_exit_elevator_visual.visible = active
+	if (
+		replicate
+		and _networked_run
+		and _is_server_peer()
+		and _has_multiplayer_peer()
+		and _can_broadcast_world_replication()
+	):
+		_rpc_set_boss_exit_active.rpc(active)
 
 
 func _required_floor_transition_peer_ids() -> Array[int]:
@@ -2850,6 +2971,44 @@ func _try_schedule_floor_advance_if_all_players_on_elevator() -> void:
 	_schedule_floor_advance_after_portal()
 
 
+func _count_players_on_debug_exit_elevator(required_peer_ids: Array[int]) -> int:
+	if _debug_spawn_exit_portal == null:
+		return 0
+	var overlaps: Array = _debug_spawn_exit_portal.get_overlapping_bodies()
+	var on_count := 0
+	for peer_id in required_peer_ids:
+		var node_v: Variant = _players_by_peer.get(peer_id, null)
+		if node_v is not CharacterBody2D:
+			continue
+		var player := node_v as CharacterBody2D
+		if player == null or not is_instance_valid(player):
+			continue
+		if overlaps.has(player):
+			on_count += 1
+	return on_count
+
+
+func _try_schedule_floor_advance_if_all_players_on_debug_elevator() -> void:
+	if not _is_authoritative_world():
+		return
+	if _floor_transition_pending:
+		return
+	if not OS.is_debug_build():
+		return
+	if _debug_spawn_exit_portal == null or not _debug_spawn_exit_portal.monitoring:
+		return
+	var required_peer_ids: Array[int] = _required_floor_transition_peer_ids()
+	if required_peer_ids.is_empty():
+		return
+	var on_count := _count_players_on_debug_exit_elevator(required_peer_ids)
+	if on_count < required_peer_ids.size():
+		_set_info_base_text(
+			"Debug elevator boarding: %s/%s players." % [on_count, required_peer_ids.size()]
+		)
+		return
+	_schedule_floor_advance_after_portal()
+
+
 func _on_boss_exit_portal_body_entered(body: Node2D) -> void:
 	if not _is_authoritative_world():
 		return
@@ -2863,7 +3022,7 @@ func _on_debug_spawn_exit_portal_body_entered(body: Node2D) -> void:
 		return
 	if not OS.is_debug_build() or not _is_player_body(body):
 		return
-	_schedule_floor_advance_after_portal()
+	_try_schedule_floor_advance_if_all_players_on_debug_elevator()
 
 
 func _on_leave_run_pressed() -> void:
@@ -2877,12 +3036,11 @@ func _schedule_floor_advance_after_portal() -> void:
 	if _floor_transition_pending:
 		return
 	_floor_transition_pending = true
-	if _boss_exit_elevator_visual != null and is_instance_valid(_boss_exit_elevator_visual):
-		_boss_exit_elevator_visual.visible = false
-	_boss_exit_portal.set_deferred("monitoring", false)
-	_boss_exit_portal.set_deferred("monitorable", false)
+	_set_boss_exit_active(false)
 	_debug_spawn_exit_portal.set_deferred("monitoring", false)
 	_debug_spawn_exit_portal.set_deferred("monitorable", false)
+	if _debug_spawn_exit_elevator_visual != null and is_instance_valid(_debug_spawn_exit_elevator_visual):
+		_debug_spawn_exit_elevator_visual.visible = false
 	call_deferred("_deferred_advance_floor_after_portal")
 
 

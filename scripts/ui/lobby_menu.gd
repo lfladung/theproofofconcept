@@ -9,7 +9,7 @@ class_name LobbyMenu
 @onready var _play_offline_button: Button = $Center/Margin/VBox/ButtonRow/PlayOfflineButton
 @onready var _disconnect_button: Button = $Center/Margin/VBox/ButtonRow/DisconnectButton
 @onready var _status_label: Label = $Center/Margin/VBox/StatusLabel
-@onready var _lobby_code_label: Label = $Center/Margin/VBox/LobbyCodeLabel
+@onready var _lobby_code_label: LineEdit = $Center/Margin/VBox/LobbyCodeLabel
 @onready var _error_label: Label = $Center/Margin/VBox/ErrorLabel
 @onready var _peers_list: ItemList = $Center/Margin/VBox/PeersList
 
@@ -86,6 +86,8 @@ func _on_registry_lookup_result(success: bool, message: String) -> void:
 		message.begins_with("Resolving")
 		or message.begins_with("Finding")
 		or message.begins_with("Found")
+		or message.begins_with("Creating")
+		or message.begins_with("Created")
 	):
 		_error_label.text = ""
 	_refresh_ui()
@@ -146,7 +148,7 @@ func _refresh_ui() -> void:
 	_session_code_input.editable = not (has_peer or has_pending_request)
 
 	var session_code := NetworkSession.get_session_code().strip_edges().to_upper()
-	_lobby_code_label.text = "Lobby Code: %s" % (session_code if not session_code.is_empty() else "-")
+	_lobby_code_label.text = session_code if not session_code.is_empty() else "-"
 	if is_host and not session_code.is_empty():
 		_session_code_input.text = session_code
 

@@ -205,17 +205,22 @@ func set_network_owner_peer_id(peer_id: int) -> void:
 func _resolve_or_create_visual_root(vw: Node3D) -> Node3D:
 	if vw == null:
 		return null
-	var shared := get_node_or_null("../../VisualWorld3D/PlayerVisual") as Node3D
-	if shared != null and not bool(shared.get_meta(&"claimed_by_player", false)):
-		shared.set_meta(&"claimed_by_player", true)
-		return shared
 	var vis := PLAYER_VISUAL_SCENE.instantiate() as Node3D
 	if vis == null:
-		return shared
+		return null
 	vis.name = "PlayerVisual_%s" % [name]
 	vis.set_meta(&"owned_by_player", true)
 	vw.add_child(vis)
 	return vis
+
+
+func suppress_placeholder_visual() -> void:
+	# Dedicated-session placeholder players should not own/claim any visible 3D proxy.
+	_free_world_debug_meshes()
+	if _visual == null or not is_instance_valid(_visual):
+		return
+	_visual.queue_free()
+	_visual = null
 
 
 func _multiplayer_active() -> bool:
@@ -1493,10 +1498,7 @@ func _exit_tree() -> void:
 	_remote_ranged_projectiles_by_event_id.clear()
 	if _visual == null or not is_instance_valid(_visual):
 		return
-	if bool(_visual.get_meta(&"owned_by_player", false)):
-		_visual.queue_free()
-	elif _visual.has_meta(&"claimed_by_player"):
-		_visual.set_meta(&"claimed_by_player", false)
+	_visual.queue_free()
 
 
 func die() -> void:
