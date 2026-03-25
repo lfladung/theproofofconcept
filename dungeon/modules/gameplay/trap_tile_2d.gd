@@ -18,6 +18,7 @@ const _DEFAULT_TRAP_MESH := preload("res://art/hazards/spike_trap_texture.glb")
 
 var _next_hit_time: Dictionary = {}
 var _trap_3d: Node3D
+var _authoritative_damage := true
 
 
 static func _find_visual_world(from: Node) -> Node3D:
@@ -44,6 +45,7 @@ func _ready() -> void:
 	_rebuild_visual()
 	_setup_hurtbox()
 	_hurtbox.body_exited.connect(_on_hurtbox_body_exited)
+	_apply_authoritative_damage_runtime()
 	call_deferred(&"_deferred_setup_trap_mesh")
 
 
@@ -101,6 +103,8 @@ func _setup_hurtbox() -> void:
 
 func _physics_process(_delta: float) -> void:
 	_sync_trap_mesh_transform()
+	if not _authoritative_damage:
+		return
 	for body in _hurtbox.get_overlapping_bodies():
 		if body is Node2D and body.is_in_group(&"player"):
 			_try_damage(body as Node2D)
@@ -120,3 +124,16 @@ func _try_damage(body: Node2D) -> void:
 	if body.has_method(&"take_damage"):
 		body.call(&"take_damage", damage)
 	_next_hit_time[id] = now + hit_cooldown_sec
+
+
+func set_authoritative_damage(enabled: bool) -> void:
+	_authoritative_damage = enabled
+	if is_inside_tree():
+		_apply_authoritative_damage_runtime()
+
+
+func _apply_authoritative_damage_runtime() -> void:
+	if _hurtbox == null:
+		return
+	_hurtbox.set_deferred("monitoring", _authoritative_damage)
+	_hurtbox.set_deferred("monitorable", _authoritative_damage)

@@ -2025,10 +2025,29 @@ func _spawn_standard_door_piece(world_pos: Vector2, width_tiles: int) -> void:
 
 
 func _on_puzzle_floor_button_activated() -> void:
-	_puzzle_solved = true
+	if _networked_run and not _is_authoritative_world():
+		return
+	_set_puzzle_gate_solved(true, true, true)
+
+
+func _apply_puzzle_gate_solved(solved: bool, animate: bool = true) -> void:
+	_puzzle_solved = solved
 	if _puzzle_door_visual != null and is_instance_valid(_puzzle_door_visual):
-		_puzzle_door_visual.set_runtime_locked(false, true)
-	_set_info_base_text("Puzzle gate open.")
+		_puzzle_door_visual.set_runtime_locked(not solved, animate)
+	if solved:
+		_set_info_base_text("Puzzle gate open.")
+
+
+func _set_puzzle_gate_solved(solved: bool, animate: bool = true, replicate: bool = true) -> void:
+	_apply_puzzle_gate_solved(solved, animate)
+	if (
+		replicate
+		and _networked_run
+		and _is_server_peer()
+		and _has_multiplayer_peer()
+		and _can_broadcast_world_replication()
+	):
+		_rpc_set_puzzle_gate_solved.rpc(solved, animate)
 
 
 func _spawn_gameplay_objects() -> void:
@@ -2068,6 +2087,8 @@ func _spawn_gameplay_objects() -> void:
 			pbtn.name = "PuzzleFloorButton"
 			pbtn.position = puzzle_center
 			pbtn.activated.connect(_on_puzzle_floor_button_activated)
+			if _networked_run and not _is_authoritative_world() and pbtn.has_method(&"set_interaction_enabled"):
+				pbtn.call(&"set_interaction_enabled", false)
 			_piece_instances_root.add_child(pbtn)
 
 
@@ -2180,6 +2201,8 @@ func _spawn_trap_tile_at(world_pos: Vector2) -> void:
 	trap.name = "TrapTile_%s_%s" % [int(world_pos.x), int(world_pos.y)]
 	trap.mesh_ground_y = FLOOR_SLAB_TOP_Y + 0.22
 	trap.position = world_pos
+	if trap.has_method(&"set_authoritative_damage"):
+		trap.call(&"set_authoritative_damage", _is_authoritative_world())
 	_piece_instances_root.add_child(trap)
 
 
@@ -2645,6 +2668,15 @@ func _rpc_set_boss_exit_active(active: bool) -> void:
 	_set_boss_exit_active(active, false)
 
 
+@rpc("authority", "call_remote", "reliable")
+func _rpc_set_puzzle_gate_solved(solved: bool, animate: bool) -> void:
+	if _is_authoritative_world():
+		return
+	if multiplayer.get_remote_sender_id() != 1:
+		return
+	_apply_puzzle_gate_solved(solved, animate)
+
+
 func _send_runtime_snapshot_to_peer(peer_id: int) -> void:
 	if peer_id <= 0 or not _is_server_peer() or not _has_multiplayer_peer():
 		return
@@ -2669,6 +2701,7 @@ func _send_runtime_snapshot_to_peer(peer_id: int) -> void:
 			1.0,
 			aggro_enabled
 		)
+	_rpc_set_puzzle_gate_solved.rpc_id(peer_id, _puzzle_solved, false)
 	_ensure_coin_totals_for_roster()
 	_rpc_sync_coin_totals.rpc_id(peer_id, _coin_totals_by_peer)
 	_rpc_runtime_snapshot_complete.rpc_id(peer_id)

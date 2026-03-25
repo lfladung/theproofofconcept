@@ -108,10 +108,13 @@ func _poll_player_touch_open() -> void:
 	var tree := get_tree()
 	if tree == null:
 		return
-	var p := tree.get_first_node_in_group(&"player") as Node2D
-	if p == null or not _player_circle_hits_solid_aabb(p):
-		return
-	_open_from_player(true)
+	for node in tree.get_nodes_in_group(&"player"):
+		if node is not Node2D:
+			continue
+		var p := node as Node2D
+		if _player_circle_hits_solid_aabb(p):
+			_open_from_player(true)
+			return
 
 
 static func _approx_player_collision_radius(body: Node2D) -> float:

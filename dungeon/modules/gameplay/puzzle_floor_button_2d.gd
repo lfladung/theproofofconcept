@@ -12,6 +12,7 @@ const BUTTON_GLB := preload("res://art/props/interactables/button_texture.glb")
 
 var _visual: Node3D
 var _done := false
+var _interaction_enabled := true
 
 
 static func _find_visual_world(from: Node) -> Node3D:
@@ -37,6 +38,8 @@ static func _find_visual_world(from: Node) -> Node3D:
 func _ready() -> void:
 	if _press_area:
 		_press_area.body_entered.connect(_on_press_area_body_entered)
+		_press_area.set_deferred("monitoring", _interaction_enabled)
+		_press_area.set_deferred("monitorable", _interaction_enabled)
 	call_deferred(&"_deferred_setup_visual")
 
 
@@ -72,7 +75,14 @@ func _sync_visual() -> void:
 
 
 func _on_press_area_body_entered(body: Node2D) -> void:
-	if _done or body == null or not body.is_in_group(&"player"):
+	if _done or not _interaction_enabled or body == null or not body.is_in_group(&"player"):
 		return
 	_done = true
 	activated.emit()
+
+
+func set_interaction_enabled(enabled: bool) -> void:
+	_interaction_enabled = enabled
+	if _press_area != null:
+		_press_area.set_deferred("monitoring", enabled)
+		_press_area.set_deferred("monitorable", enabled)
