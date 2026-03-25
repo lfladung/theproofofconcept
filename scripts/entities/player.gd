@@ -3,6 +3,7 @@ extends CharacterBody2D
 signal hit
 signal health_changed(current: int, max_health: int)
 signal weapon_mode_changed(display_name: String)
+signal downed_state_changed(is_downed: bool)
 
 const ARROW_PROJECTILE_SCENE := preload("res://scenes/entities/arrow_projectile.tscn")
 const PLAYER_BOMB_SCENE := preload("res://scenes/entities/player_bomb.tscn")
@@ -17,6 +18,7 @@ enum WeaponMode { SWORD, GUN, BOMB }
 ## Max planar center distance for a kill; filters spurious Area2D body_entered at large separation.
 @export var mob_kill_max_planar_dist := 6.5
 @export var max_health := 100
+@export var revive_health := 50
 @export var mob_hit_damage := 25
 @export var hit_invulnerability_duration := 2.0
 ## Extra transparency during flash (0 = opaque, 1 = invisible). Alternates with fully opaque.
@@ -183,6 +185,7 @@ func _ready() -> void:
 	_authoritative_melee_cooldown_remaining = 0.0
 	_authoritative_ranged_cooldown_remaining = 0.0
 	_authoritative_bomb_cooldown_remaining = 0.0
+	_apply_visual_downed_state()
 
 
 func set_network_owner_peer_id(peer_id: int) -> void:
@@ -263,6 +266,38 @@ func _update_visual_from_planar_speed(planar_speed: float) -> void:
 	_visual.rotation.y = atan2(_facing_planar.x, _facing_planar.y)
 	if _visual.has_method(&"set_locomotion_from_planar_speed"):
 		_visual.set_locomotion_from_planar_speed(planar_speed, speed)
+
+
+func _apply_visual_downed_state() -> void:
+	if _visual == null:
+		return
+	if _visual.has_method(&"set_downed_state"):
+		_visual.call(&"set_downed_state", _is_dead)
+
+
+func _set_downed_state(next_downed: bool, emit_hit_signal: bool = false) -> void:
+	if _is_dead == next_downed:
+		return
+	_is_dead = next_downed
+	if _is_dead:
+		velocity = Vector2.ZERO
+		height = 0.0
+		_dodge_time_remaining = 0.0
+		_dodge_cooldown_remaining = 0.0
+		_facing_lock_time_remaining = 0.0
+		_invuln_time_remaining = 0.0
+		_attack_hitbox_visual_time_remaining = 0.0
+		_rmb_down = false
+		_clear_pending_rmb_attack()
+	else:
+		_invuln_time_remaining = 0.0
+	if _body_shape != null:
+		_body_shape.disabled = _is_dead
+	_reset_player_visual_transparency()
+	_apply_visual_downed_state()
+	if emit_hit_signal and _is_dead:
+		hit.emit()
+	downed_state_changed.emit(_is_dead)
 
 
 func _resolve_melee_facing_lock_duration() -> float:
@@ -387,10 +422,7 @@ func _rpc_receive_server_state(
 	_authoritative_melee_cooldown_remaining = maxf(0.0, melee_cooldown_remaining_value)
 	_authoritative_ranged_cooldown_remaining = maxf(0.0, ranged_cooldown_remaining_value)
 	_authoritative_bomb_cooldown_remaining = maxf(0.0, bomb_cooldown_remaining_value)
-	if _is_dead != dead_state:
-		_is_dead = dead_state
-		if _body_shape != null:
-			_body_shape.disabled = _is_dead
+	_set_downed_state(dead_state)
 	_facing_lock_time_remaining = maxf(0.0, facing_lock_time_remaining_value)
 	if _facing_lock_time_remaining > 0.0:
 		_facing_lock_planar = _facing_planar
@@ -1031,6 +1063,7 @@ func get_combat_debug_snapshot() -> Dictionary:
 		"weapon_mode_id": int(weapon_mode),
 		"authoritative_weapon_mode": _weapon_mode_display_from_id(_authoritative_weapon_mode_id),
 		"authoritative_weapon_mode_id": _authoritative_weapon_mode_id,
+		"is_downed": _is_dead,
 		"melee_cooldown": maxf(0.0, _melee_attack_cooldown_remaining),
 		"ranged_cooldown": maxf(0.0, _ranged_cooldown_remaining),
 		"bomb_cooldown": maxf(0.0, _bomb_cooldown_remaining),
@@ -1059,6 +1092,10 @@ func _weapon_mode_display_from_id(mode_id: int) -> String:
 
 func get_weapon_mode_display() -> String:
 	return _weapon_mode_display_from_id(int(weapon_mode))
+
+
+func is_downed() -> bool:
+	return _is_dead
 
 
 func _cycle_weapon() -> void:
@@ -1502,25 +1539,11 @@ func _exit_tree() -> void:
 
 
 func die() -> void:
-	_is_dead = true
-	velocity = Vector2.ZERO
-	height = 0.0
-	_dodge_time_remaining = 0.0
-	_dodge_cooldown_remaining = 0.0
-	_facing_lock_time_remaining = 0.0
-	_invuln_time_remaining = 0.0
-	_rmb_down = false
-	_clear_pending_rmb_attack()
-	_bomb_cooldown_remaining = 0.0
-	if _body_shape != null:
-		_body_shape.disabled = true
-	_free_world_debug_meshes()
-	_reset_player_visual_transparency()
-	hit.emit()
+	_set_downed_state(true, true)
 
 
 func reset_for_retry(world_pos: Vector2) -> void:
-	_is_dead = false
+	_set_downed_state(false)
 	_clear_pending_rmb_attack()
 	weapon_mode = WeaponMode.SWORD
 	weapon_mode_changed.emit(get_weapon_mode_display())
@@ -1539,6 +1562,23 @@ func reset_for_retry(world_pos: Vector2) -> void:
 	_reset_player_visual_transparency()
 	if _visual != null:
 		_visual.global_position = Vector3(global_position.x, height, global_position.y)
+
+
+func revive(health_after_revive: int = -1) -> void:
+	if _multiplayer_active() and not _is_server_peer():
+		return
+	if not _is_dead:
+		return
+	var resolved_health := health_after_revive
+	if resolved_health <= 0:
+		resolved_health = revive_health
+	health = clampi(resolved_health, 1, max_health)
+	health_changed.emit(health, max_health)
+	_set_downed_state(false)
+
+
+func revive_to_full() -> void:
+	revive(max_health)
 
 
 func heal_to_full() -> void:

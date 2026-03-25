@@ -1,6 +1,6 @@
 extends Node3D
 
-## Drives role-based animation clips (idle/run/melee/ranged/bomb).
+## Drives role-based animation clips (idle/run/melee/ranged/bomb/downed).
 ## Clip selection prefers Knight_Animation_* paths when present, with fallback to existing imports.
 
 @export var walk_speed_threshold := 8.0
@@ -10,6 +10,7 @@ extends Node3D
 @export var melee_clip_hint := "slash"
 @export var ranged_clip_hint := "slash"
 @export var bomb_clip_hint := "slash"
+@export var downed_clip_hint := "shot"
 
 const _IDLE_GLB_CANDIDATES := [
 	"res://art/characters/player/Knight_Animation_Idle_withSkin.glb",
@@ -30,6 +31,9 @@ const _SLASH_GLB_CANDIDATES := [
 	"res://art/characters/player/Knight_Animation_Slash_withSkin.glb",
 	"res://art/characters/player/Cute_chibi_fantasy_kn_biped_Animation_Attack_withSkin.glb",
 ]
+const _DOWNED_GLB_CANDIDATES := [
+	"res://art/characters/player/Knight_Animation_Shot_and_Fall_Backward_withSkin.glb",
+]
 
 var _anim: AnimationPlayer
 var _attack_playing: bool = false
@@ -39,8 +43,11 @@ var _run_clip: StringName = &""
 var _melee_clip: StringName = &""
 var _ranged_clip: StringName = &""
 var _bomb_clip: StringName = &""
+var _downed_clip: StringName = &""
 var _last_locomotion_moving := false
 var _last_locomotion_speed_scale := 1.0
+var _downed_hold_active := false
+var _downed_play_nonce := 0
 
 
 func _ready() -> void:
@@ -51,6 +58,7 @@ func _ready() -> void:
 		_merge_anim_libraries_from_candidates(_IDLE_GLB_CANDIDATES, &"knight_idle")
 		_merge_anim_libraries_from_candidates(_RUN_GLB_CANDIDATES, &"knight_run")
 		_merge_anim_libraries_from_candidates(_SLASH_GLB_CANDIDATES, &"knight_slash")
+		_merge_anim_libraries_from_candidates(_DOWNED_GLB_CANDIDATES, &"knight_downed")
 		_cache_role_clips()
 		_play_locomotion(false, 1.0)
 
@@ -168,6 +176,9 @@ func _cache_role_clips() -> void:
 	_bomb_clip = _find_clip_by_hint_or_keywords(
 		bomb_clip_hint, ["bomb", "throw", "slash", "attack"]
 	)
+	_downed_clip = _find_clip_by_hint_or_keywords(
+		downed_clip_hint, ["shot", "fall", "down", "hit"]
+	)
 	if _ranged_clip == &"":
 		_ranged_clip = _melee_clip
 	if _bomb_clip == &"":
@@ -192,7 +203,7 @@ func _pick_locomotion_clip(running: bool) -> StringName:
 
 
 func _play_locomotion(moving: bool, speed_scale: float) -> void:
-	if _anim == null or _attack_playing:
+	if _anim == null or _attack_playing or _downed_hold_active:
 		return
 	var clip := _pick_locomotion_clip(moving and speed_scale * 14.0 >= walk_speed_threshold)
 	if clip == &"":
@@ -205,7 +216,7 @@ func _play_locomotion(moving: bool, speed_scale: float) -> void:
 
 
 func set_locomotion_from_planar_speed(planar_speed: float, max_speed: float) -> void:
-	if _attack_playing:
+	if _attack_playing or _downed_hold_active:
 		return
 	var moving := planar_speed > 0.05
 	var t := clampf(planar_speed / max(max_speed, 0.001), 0.0, 2.5)
@@ -246,7 +257,7 @@ func get_attack_duration_seconds() -> float:
 
 
 func try_play_attack_for_mode(mode: StringName = &"melee") -> void:
-	if _anim == null or _attack_playing:
+	if _anim == null or _attack_playing or _downed_hold_active:
 		return
 	var clip := _clip_for_attack_mode(mode)
 	if clip == &"":
@@ -276,3 +287,44 @@ func try_play_attack_for_mode(mode: StringName = &"melee") -> void:
 
 func try_play_attack() -> void:
 	try_play_attack_for_mode(&"melee")
+
+
+func set_downed_state(is_downed: bool) -> void:
+	if _anim == null:
+		return
+	if is_downed:
+		if _downed_hold_active:
+			return
+		_downed_hold_active = true
+		_attack_nonce += 1
+		_attack_playing = false
+		_downed_play_nonce += 1
+		_play_downed_once_then_hold(_downed_play_nonce)
+		return
+	if not _downed_hold_active:
+		return
+	_downed_hold_active = false
+	_downed_play_nonce += 1
+	_attack_playing = false
+	_anim.speed_scale = 1.0
+	_play_locomotion(_last_locomotion_moving, _last_locomotion_speed_scale)
+
+
+func _play_downed_once_then_hold(play_nonce: int) -> void:
+	var clip := _downed_clip
+	if clip == &"":
+		_cache_role_clips()
+		clip = _downed_clip
+	if clip == &"":
+		return
+	_anim.speed_scale = 1.0
+	_anim.play(clip)
+	var anim_len := _clip_length_seconds(clip)
+	if anim_len <= 0.0:
+		return
+	await get_tree().create_timer(anim_len).timeout
+	if play_nonce != _downed_play_nonce or not _downed_hold_active:
+		return
+	_anim.seek(maxf(anim_len - 0.0001, 0.0), true)
+	_anim.pause()
+	_anim.speed_scale = 1.0

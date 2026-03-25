@@ -71,6 +71,7 @@ const _BOSS_DOOR_X_W := 184.5
 const _DOOR_CLAMP_Y_EXT := 7.02
 const _PLAYER_CLAMP_R := 1.2676448
 const _MOB_CLAMP_R := 1.15
+const _REVIVE_TRIGGER_DISTANCE := _PLAYER_CLAMP_R * 2.0
 ## Do not pull actors far outside the door (other rooms).
 const _W_EXT_X := 65.0
 const _E_EXT_X := 143.0
@@ -142,7 +143,7 @@ var _boss_door_x_w := _BOSS_DOOR_X_W
 var _w_ext_x := _W_EXT_X
 var _e_ext_x := _E_EXT_X
 var _boss_w_ext_x := _BOSS_W_EXT_X
-var _retry_pending := false
+var _party_wipe_pending := false
 var _prev_player_pos := Vector2.ZERO
 var _prev_player_inside := true
 var _prev_room_name := ""
@@ -559,6 +560,7 @@ func _process(delta: float) -> void:
 	_refresh_info_label_with_room_type()
 	_refresh_combat_debug_overlay()
 	if _is_authoritative_world():
+		_process_authoritative_revive_and_wipe()
 		_refresh_encounter_state()
 		_try_schedule_floor_advance_if_all_players_on_elevator()
 		_try_schedule_floor_advance_if_all_players_on_debug_elevator()
@@ -655,9 +657,10 @@ func _refresh_combat_debug_overlay() -> void:
 			var owner_peer := int(snapshot.get("network_owner_peer_id", 1))
 			var authority_peer := int(snapshot.get("multiplayer_authority", owner_peer))
 			var is_local_owner := bool(snapshot.get("is_local_owner_peer", false))
+			var is_downed := bool(snapshot.get("is_downed", false))
 			var local_marker := "*" if peer_id == local_peer else "-"
 			var row := (
-				"%s peer=%s W[a/l]=%s/%s CD[a]=%.2f/%.2f/%.2f CD[l]=%.2f/%.2f/%.2f own=%s auth=%s lo=%s"
+				"%s peer=%s W[a/l]=%s/%s CD[a]=%.2f/%.2f/%.2f CD[l]=%.2f/%.2f/%.2f down=%s own=%s auth=%s lo=%s"
 			) % [
 				local_marker,
 				peer_id,
@@ -669,6 +672,7 @@ func _refresh_combat_debug_overlay() -> void:
 				local_melee_cd,
 				local_ranged_cd,
 				local_bomb_cd,
+				is_downed,
 				owner_peer,
 				authority_peer,
 				is_local_owner,
@@ -678,8 +682,6 @@ func _refresh_combat_debug_overlay() -> void:
 
 
 func _physics_process(_delta: float) -> void:
-	if _retry_pending:
-		return
 	if _player != null and is_instance_valid(_player):
 		var inside_now := _is_point_inside_any_room(_player.global_position, 1.25)
 		var room_now := _room_name_at(_player.global_position, 1.25)
@@ -704,7 +706,7 @@ func _regenerate_level(randomize_layout: bool) -> void:
 	_combat_cleared = false
 	_boss_started = false
 	_boss_cleared = false
-	_retry_pending = false
+	_party_wipe_pending = false
 	_puzzle_solved = false
 	_puzzle_gate_socket = Vector2.ZERO
 	_clear_floor_loot()
@@ -3085,32 +3087,121 @@ func _deferred_advance_floor_after_portal() -> void:
 		var node: Variant = _players_by_peer[peer_id]
 		if node is CharacterBody2D and is_instance_valid(node):
 			var player := node as CharacterBody2D
-			if player.has_method(&"heal_to_full"):
+			if player.has_method(&"revive_to_full"):
+				player.call(&"revive_to_full")
+			elif player.has_method(&"heal_to_full"):
 				player.call(&"heal_to_full")
 	_floor_index += 1
 	_regenerate_level(true)
 
 
 func _on_player_hit() -> void:
-	_retry_pending = true
-	for key in _encounter_active.keys():
-		_encounter_active[key] = false
-	for n in get_tree().get_nodes_in_group(&"mob"):
-		if n is Node:
-			(n as Node).queue_free()
-	_set_info_base_text("You died. Press Enter to Retry.")
-
-
-func _unhandled_input(event: InputEvent) -> void:
-	if not _retry_pending:
+	if _player == null or not is_instance_valid(_player):
 		return
-	if event.is_action_pressed("ui_accept"):
-		_floor_index = 1
-		_reset_score_ui()
-		_regenerate_level(true)
-		var spawn := _room_center_2d(_layout_room_name("start_room"))
-		if _player != null and _player.has_method(&"reset_for_retry"):
-			_player.call(&"reset_for_retry", spawn)
+	var downed := false
+	if _player.has_method(&"is_downed"):
+		downed = bool(_player.call(&"is_downed"))
+	if downed:
+		_set_info_base_text("You are downed. A teammate can revive you by stepping on you.")
+
+
+func _authoritative_roster_players() -> Array[CharacterBody2D]:
+	var roster: Array[CharacterBody2D] = []
+	for peer_id in _players_by_peer.keys():
+		var node_v: Variant = _players_by_peer.get(peer_id, null)
+		if node_v is CharacterBody2D and is_instance_valid(node_v):
+			roster.append(node_v as CharacterBody2D)
+	if roster.is_empty() and _player != null and is_instance_valid(_player):
+		roster.append(_player)
+	return roster
+
+
+func _player_is_downed(player: CharacterBody2D) -> bool:
+	if player == null or not is_instance_valid(player):
+		return false
+	if player.has_method(&"is_downed"):
+		return bool(player.call(&"is_downed"))
+	return false
+
+
+func _try_revive_downed_players(roster: Array[CharacterBody2D]) -> bool:
+	var revived_any := false
+	var downed_players: Array[CharacterBody2D] = []
+	var active_players: Array[CharacterBody2D] = []
+	for player in roster:
+		if _player_is_downed(player):
+			downed_players.append(player)
+		else:
+			active_players.append(player)
+	if downed_players.is_empty() or active_players.is_empty():
+		return false
+	for downed_player in downed_players:
+		var revived := false
+		for active_player in active_players:
+			if active_player == downed_player:
+				continue
+			var dist := active_player.global_position.distance_to(downed_player.global_position)
+			if dist > _REVIVE_TRIGGER_DISTANCE:
+				continue
+			if downed_player.has_method(&"revive"):
+				downed_player.call(&"revive")
+				revived_any = true
+				revived = true
+				break
+		if revived:
+			continue
+	return revived_any
+
+
+func _all_roster_players_downed(roster: Array[CharacterBody2D]) -> bool:
+	if roster.is_empty():
+		return false
+	for player in roster:
+		if not _player_is_downed(player):
+			return false
+	return true
+
+
+func _process_authoritative_revive_and_wipe() -> void:
+	if _party_wipe_pending:
+		return
+	var roster: Array[CharacterBody2D] = _authoritative_roster_players()
+	if roster.is_empty():
+		return
+	var revived_any := _try_revive_downed_players(roster)
+	if revived_any:
+		_set_info_base_text("Teammate revived.")
+		roster = _authoritative_roster_players()
+	if _all_roster_players_downed(roster):
+		_trigger_party_wipe_return_to_lobby()
+
+
+func _trigger_party_wipe_return_to_lobby() -> void:
+	if _party_wipe_pending:
+		return
+	_party_wipe_pending = true
+	_set_info_base_text("All players are downed. Returning to lobby...")
+	call_deferred("_deferred_return_party_to_lobby")
+
+
+func _deferred_return_party_to_lobby() -> void:
+	if not _party_wipe_pending:
+		return
+	_party_wipe_pending = false
+	var session := get_node_or_null("/root/NetworkSession")
+	if session == null:
+		get_tree().change_scene_to_file("res://scenes/ui/lobby_menu.tscn")
+		return
+	if (
+		session.has_method("has_active_peer")
+		and bool(session.call("has_active_peer"))
+		and _is_authoritative_world()
+		and session.has_method("return_to_lobby")
+	):
+		session.call("return_to_lobby")
+		return
+	if session.has_method("disconnect_from_session"):
+		session.call("disconnect_from_session")
 
 
 func _reset_score_ui() -> void:
