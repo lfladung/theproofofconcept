@@ -315,6 +315,10 @@ function Resolve-ServerPort {
 
 $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $repoRoot = (Resolve-Path (Join-Path $scriptDir "..")).Path
+$logsRoot = Join-Path $repoRoot "logs"
+if (-not (Test-Path $logsRoot)) {
+    New-Item -ItemType Directory -Path $logsRoot -Force | Out-Null
+}
 
 if ([string]::IsNullOrWhiteSpace($GodotExe)) {
     $exeName = if ($UseDesktopExe) {
@@ -327,27 +331,42 @@ if ([string]::IsNullOrWhiteSpace($GodotExe)) {
 $GodotExe = (Resolve-Path $GodotExe).Path
 
 if ([string]::IsNullOrWhiteSpace($AllocatorLogDir)) {
-    $AllocatorLogDir = $repoRoot
+    $AllocatorLogDir = $logsRoot
 } elseif (-not [System.IO.Path]::IsPathRooted($AllocatorLogDir)) {
     $AllocatorLogDir = Join-Path $repoRoot $AllocatorLogDir
 }
+if (-not (Test-Path $AllocatorLogDir)) {
+    New-Item -ItemType Directory -Path $AllocatorLogDir -Force | Out-Null
+}
 
 if ([string]::IsNullOrWhiteSpace($EngineLogFile)) {
-    $EngineLogFile = Join-Path $repoRoot "dedicated_server_engine.log"
+    $EngineLogFile = Join-Path $logsRoot "dedicated_server_engine.log"
 } elseif (-not [System.IO.Path]::IsPathRooted($EngineLogFile)) {
     $EngineLogFile = Join-Path $repoRoot $EngineLogFile
 }
+$engineLogParent = Split-Path -Parent $EngineLogFile
+if (-not [string]::IsNullOrWhiteSpace($engineLogParent) -and -not (Test-Path $engineLogParent)) {
+    New-Item -ItemType Directory -Path $engineLogParent -Force | Out-Null
+}
 
 if ([string]::IsNullOrWhiteSpace($DedicatedLogFile)) {
-    $DedicatedLogFile = Join-Path $repoRoot "dedicated_server.log"
+    $DedicatedLogFile = Join-Path $logsRoot "dedicated_server.log"
 } elseif (-not [System.IO.Path]::IsPathRooted($DedicatedLogFile)) {
     $DedicatedLogFile = Join-Path $repoRoot $DedicatedLogFile
 }
+$dedicatedLogParent = Split-Path -Parent $DedicatedLogFile
+if (-not [string]::IsNullOrWhiteSpace($dedicatedLogParent) -and -not (Test-Path $dedicatedLogParent)) {
+    New-Item -ItemType Directory -Path $dedicatedLogParent -Force | Out-Null
+}
 
 if ([string]::IsNullOrWhiteSpace($RegistryLogFile)) {
-    $RegistryLogFile = Join-Path $repoRoot "instance_registry.log"
+    $RegistryLogFile = Join-Path $logsRoot "instance_registry.log"
 } elseif (-not [System.IO.Path]::IsPathRooted($RegistryLogFile)) {
     $RegistryLogFile = Join-Path $repoRoot $RegistryLogFile
+}
+$registryLogParent = Split-Path -Parent $RegistryLogFile
+if (-not [string]::IsNullOrWhiteSpace($registryLogParent) -and -not (Test-Path $registryLogParent)) {
+    New-Item -ItemType Directory -Path $registryLogParent -Force | Out-Null
 }
 
 if ($LaunchBootstrapInstance) {

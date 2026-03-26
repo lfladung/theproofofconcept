@@ -72,6 +72,7 @@ const _DOOR_CLAMP_Y_EXT := 7.02
 const _PLAYER_CLAMP_R := 1.2676448
 const _MOB_CLAMP_R := 1.15
 const _REVIVE_TRIGGER_DISTANCE := _PLAYER_CLAMP_R * 2.0
+const _TEAM_REVIVE_HEALTH := 50
 ## Do not pull actors far outside the door (other rooms).
 const _W_EXT_X := 65.0
 const _E_EXT_X := 143.0
@@ -3144,7 +3145,7 @@ func _try_revive_downed_players(roster: Array[CharacterBody2D]) -> bool:
 			if dist > _REVIVE_TRIGGER_DISTANCE:
 				continue
 			if downed_player.has_method(&"revive"):
-				downed_player.call(&"revive")
+				downed_player.call(&"revive", _TEAM_REVIVE_HEALTH)
 				revived_any = true
 				revived = true
 				break
@@ -3242,9 +3243,3 @@ func _set_info_base_text(text: String) -> void:
 func _refresh_info_label_with_room_type() -> void:
 	if _info_controller != null:
 		_info_controller.refresh()
-
-
-
-
-
-

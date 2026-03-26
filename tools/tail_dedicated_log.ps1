@@ -9,9 +9,10 @@ $ErrorActionPreference = "Stop"
 
 $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $repoRoot = (Resolve-Path (Join-Path $scriptDir "..")).Path
+$logsRoot = Join-Path $repoRoot "logs"
 
 if ([string]::IsNullOrWhiteSpace($LogFile)) {
-    $explicitLogPath = Join-Path $repoRoot "dedicated_server.log"
+    $explicitLogPath = Join-Path $logsRoot "dedicated_server.log"
 } elseif ([System.IO.Path]::IsPathRooted($LogFile)) {
     $explicitLogPath = $LogFile
 } else {
@@ -20,6 +21,7 @@ if ([string]::IsNullOrWhiteSpace($LogFile)) {
 
 $candidates = @(
     $explicitLogPath,
+    (Join-Path $repoRoot "dedicated_server.log"),
     (Join-Path $env:APPDATA "Godot\app_userdata"),
     (Join-Path $env:LOCALAPPDATA "Godot\app_userdata"),
     (Join-Path $repoRoot ".godot_cli_profile\Godot\app_userdata"),

@@ -36,9 +36,11 @@ Use desktop executable instead of console (not recommended for server runs):
 ```
 
 Default logs:
-- Registry stdout (if auto-started): `instance_registry.log`
-- Registry stderr (if auto-started): `instance_registry.log.err`
-- Spawned game instances: `inst_*.log` and `inst_*_engine.log`
+- Registry stdout (if auto-started): `logs\instance_registry.log`
+- Registry stderr (if auto-started): `logs\instance_registry.log.err`
+- Dedicated engine log: `logs\dedicated_server_engine.log`
+- Dedicated gameplay log: `logs\dedicated_server.log`
+- Spawned game instances: `logs\inst_*.log` and `logs\inst_*_engine.log`
 
 ## Start Player Client
 
@@ -61,7 +63,7 @@ Default logs:
 ## Tail Engine Log
 
 ```powershell
-Get-Content .\dedicated_server_engine.log -Wait
+Get-Content .\logs\dedicated_server_engine.log -Wait
 ```
 
 ## Start Registry
@@ -71,3 +73,19 @@ Get-Content .\dedicated_server_engine.log -Wait
 ```
 
 Normally not required anymore if you launch with `.\tools\start_dedicated_server.ps1`.
+
+## Fast Lane Asset Pipeline
+
+Pipeline docs and templates:
+
+- `tools/asset_pipeline/FAST_LANE_PIPELINE.md`
+- `tools/asset_pipeline/meshy_prompt_templates.md`
+- `tools/asset_pipeline/asset_checklist.md`
+
+Quick GLB audit commands:
+
+```powershell
+python tools/asset_pipeline/audit_glb.py --path art/characters/player/Base_Model_V01.glb
+python tools/asset_pipeline/audit_glb.py --path art/equipment/weapons/Sword_texture.glb --category weapon --anchor art/characters/player/Base_Model_V01.glb
+python tools/asset_pipeline/audit_glb.py --path art/equipment/weapons/Shield_texture.glb --category shield --anchor art/characters/player/Base_Model_V01.glb
+```

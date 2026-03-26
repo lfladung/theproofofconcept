@@ -185,6 +185,14 @@ func _update_attack_state(delta: float) -> void:
 		_sync_visual_anim_speed(0.0)
 		return
 	_refresh_target_player(delta, not _is_telegraphing and not _is_dashing)
+	if _is_player_downed_node(_target_player):
+		_target_player = _pick_target_player()
+		_is_telegraphing = false
+		_is_dashing = false
+		_telegraph_time = 0.0
+		_dash_time = 0.0
+		_dash_hit_applied = false
+		velocity = Vector2.ZERO
 	if _target_player == null or not is_instance_valid(_target_player):
 		velocity = Vector2.ZERO
 		_is_telegraphing = false
@@ -281,6 +289,8 @@ func _update_dash(delta: float) -> void:
 
 func _try_apply_dash_hit() -> void:
 	if _target_player == null or not is_instance_valid(_target_player):
+		return
+	if _is_player_downed_node(_target_player):
 		return
 	var hit := _point_in_dash_sweep(_target_player.global_position)
 	if not hit:

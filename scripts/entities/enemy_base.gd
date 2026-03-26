@@ -250,6 +250,20 @@ func _rpc_show_damage_text(damage: int, world_pos: Vector2) -> void:
 	_show_floating_damage_text_at(damage, world_pos)
 
 
+func _is_player_downed_node(candidate: Node2D) -> bool:
+	if candidate == null or not is_instance_valid(candidate):
+		return false
+	if candidate.has_method(&"is_downed"):
+		return bool(candidate.call(&"is_downed"))
+	return false
+
+
+func _is_targetable_player(candidate: Node2D) -> bool:
+	if candidate == null or not is_instance_valid(candidate):
+		return false
+	return not _is_player_downed_node(candidate)
+
+
 func _pick_nearest_player_target() -> Node2D:
 	var candidates: Array[Dictionary] = []
 	var tree: SceneTree = get_tree()
@@ -259,7 +273,7 @@ func _pick_nearest_player_target() -> Node2D:
 		if node is not Node2D:
 			continue
 		var candidate := node as Node2D
-		if candidate == null or not is_instance_valid(candidate):
+		if not _is_targetable_player(candidate):
 			continue
 		var peer_id := int(candidate.get_meta(&"peer_id", 0))
 		if peer_id <= 0 and candidate.has_meta(&"network_owner_peer_id"):
@@ -290,6 +304,3 @@ func _pick_nearest_player_target() -> Node2D:
 	)
 	var best_v: Variant = candidates[0].get("node", null)
 	return best_v as Node2D
-
-
-

@@ -8,6 +8,7 @@ signal downed_state_changed(is_downed: bool)
 const ARROW_PROJECTILE_SCENE := preload("res://scenes/entities/arrow_projectile.tscn")
 const PLAYER_BOMB_SCENE := preload("res://scenes/entities/player_bomb.tscn")
 const PLAYER_VISUAL_SCENE := preload("res://scenes/visuals/player_visual.tscn")
+const REVIVE_HEALTH := 50
 
 enum WeaponMode { SWORD, GUN, BOMB }
 
@@ -18,7 +19,6 @@ enum WeaponMode { SWORD, GUN, BOMB }
 ## Max planar center distance for a kill; filters spurious Area2D body_entered at large separation.
 @export var mob_kill_max_planar_dist := 6.5
 @export var max_health := 100
-@export var revive_health := 50
 @export var mob_hit_damage := 25
 @export var hit_invulnerability_duration := 2.0
 ## Extra transparency during flash (0 = opaque, 1 = invisible). Alternates with fully opaque.
@@ -186,6 +186,8 @@ func _ready() -> void:
 	_authoritative_ranged_cooldown_remaining = 0.0
 	_authoritative_bomb_cooldown_remaining = 0.0
 	_apply_visual_downed_state()
+	_sync_sword_visual()
+	call_deferred("_sync_sword_visual")
 
 
 func set_network_owner_peer_id(peer_id: int) -> void:
@@ -273,6 +275,13 @@ func _apply_visual_downed_state() -> void:
 		return
 	if _visual.has_method(&"set_downed_state"):
 		_visual.call(&"set_downed_state", _is_dead)
+
+
+func _sync_sword_visual() -> void:
+	if _visual == null or not is_instance_valid(_visual):
+		return
+	if _visual.has_method(&"set_sword_active"):
+		_visual.call(&"set_sword_active", weapon_mode == WeaponMode.SWORD)
 
 
 func _set_downed_state(next_downed: bool, emit_hit_signal: bool = false) -> void:
@@ -423,6 +432,7 @@ func _rpc_receive_server_state(
 	_authoritative_ranged_cooldown_remaining = maxf(0.0, ranged_cooldown_remaining_value)
 	_authoritative_bomb_cooldown_remaining = maxf(0.0, bomb_cooldown_remaining_value)
 	_set_downed_state(dead_state)
+	_sync_sword_visual()
 	_facing_lock_time_remaining = maxf(0.0, facing_lock_time_remaining_value)
 	if _facing_lock_time_remaining > 0.0:
 		_facing_lock_planar = _facing_planar
@@ -458,6 +468,12 @@ func _prune_acknowledged_pending_inputs(ack_sequence: int) -> void:
 
 func _apply_local_reconciliation(_delta: float) -> void:
 	if not _reconcile_has_target:
+		return
+	if _is_dead:
+		global_position = _reconcile_target_position
+		velocity = Vector2.ZERO
+		_pending_input_commands.clear()
+		_reconcile_has_target = false
 		return
 	# Reconciliation for owner client: reset to authoritative server state, then replay
 	# still-pending local commands so responsiveness remains while staying correct.
@@ -1047,6 +1063,10 @@ func _physics_process_multiplayer(delta: float) -> void:
 	_run_shared_cooldown_and_debug_tick(delta)
 	_handle_local_multiplayer_combat_input()
 	if _is_dead:
+		if _is_server_peer():
+			_broadcast_server_state(delta)
+		elif _is_local_owner_peer():
+			_apply_local_reconciliation(delta)
 		return
 	if _is_server_peer():
 		_server_authoritative_step(delta)
@@ -1109,6 +1129,7 @@ func _cycle_weapon() -> void:
 		_:
 			weapon_mode = WeaponMode.SWORD
 	weapon_mode_changed.emit(get_weapon_mode_display())
+	_sync_sword_visual()
 
 
 func _face_toward_mouse_planar() -> void:
@@ -1547,6 +1568,7 @@ func reset_for_retry(world_pos: Vector2) -> void:
 	_clear_pending_rmb_attack()
 	weapon_mode = WeaponMode.SWORD
 	weapon_mode_changed.emit(get_weapon_mode_display())
+	_sync_sword_visual()
 	heal_to_full()
 	global_position = world_pos
 	velocity = Vector2.ZERO
@@ -1571,7 +1593,7 @@ func revive(health_after_revive: int = -1) -> void:
 		return
 	var resolved_health := health_after_revive
 	if resolved_health <= 0:
-		resolved_health = revive_health
+		resolved_health = REVIVE_HEALTH
 	health = clampi(resolved_health, 1, max_health)
 	health_changed.emit(health, max_health)
 	_set_downed_state(false)
@@ -1609,5 +1631,3 @@ func _on_mob_detector_body_entered(body: Node2D) -> void:
 	if planar_d > mob_kill_max_planar_dist:
 		return
 	take_damage(mob_hit_damage)
-
-

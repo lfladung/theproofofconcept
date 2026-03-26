@@ -220,4 +220,3 @@ func _resolve_picker_peer_id(body: Node2D) -> int:
 	if peer_id <= 0 and body.has_meta(&"network_owner_peer_id"):
 		peer_id = int(body.get_meta(&"network_owner_peer_id", 0))
 	return maxi(0, peer_id)
-

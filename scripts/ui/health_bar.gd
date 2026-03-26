@@ -8,6 +8,7 @@ extends Control
 
 var _ratio: float = 1.0
 var _bound_player: Node
+var _bound_player_is_downed := false
 
 
 func _ready() -> void:
@@ -35,15 +36,28 @@ func _try_bind_local_player() -> void:
 		_on_player_health_changed
 	):
 		_bound_player.health_changed.disconnect(_on_player_health_changed)
+	if (
+		_bound_player != null
+		and _bound_player.has_signal(&"downed_state_changed")
+		and _bound_player.downed_state_changed.is_connected(_on_player_downed_state_changed)
+	):
+		_bound_player.downed_state_changed.disconnect(_on_player_downed_state_changed)
 	_bound_player = p
 	if _bound_player.has_signal(&"health_changed") and not _bound_player.health_changed.is_connected(
 		_on_player_health_changed
 	):
 		_bound_player.health_changed.connect(_on_player_health_changed)
+	if _bound_player.has_signal(&"downed_state_changed") and not _bound_player.downed_state_changed.is_connected(
+		_on_player_downed_state_changed
+	):
+		_bound_player.downed_state_changed.connect(_on_player_downed_state_changed)
 	var mx: Variant = _bound_player.get(&"max_health")
 	var cur: Variant = _bound_player.get(&"health")
 	var mxi := int(mx) if mx != null else 100
 	var curi := int(cur) if cur != null else mxi
+	_bound_player_is_downed = false
+	if _bound_player.has_method(&"is_downed"):
+		_bound_player_is_downed = bool(_bound_player.call(&"is_downed"))
 	_on_player_health_changed(curi, mxi)
 
 
@@ -62,6 +76,21 @@ func _find_local_player() -> Node:
 func _on_player_health_changed(current: int, maximum: int) -> void:
 	var m := maxi(1, maximum)
 	_ratio = clampf(float(current) / float(m), 0.0, 1.0)
+	if _bound_player_is_downed:
+		_ratio = 0.0
+	_apply_fill_width()
+
+
+func _on_player_downed_state_changed(is_downed: bool) -> void:
+	_bound_player_is_downed = is_downed
+	if is_downed:
+		_ratio = 0.0
+	else:
+		var mx: Variant = _bound_player.get(&"max_health") if _bound_player != null else 100
+		var cur: Variant = _bound_player.get(&"health") if _bound_player != null else mx
+		var mxi := int(mx) if mx != null else 100
+		var curi := int(cur) if cur != null else mxi
+		_ratio = clampf(float(curi) / float(maxi(1, mxi)), 0.0, 1.0)
 	_apply_fill_width()
 
 

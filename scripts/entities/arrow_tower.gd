@@ -128,7 +128,10 @@ func _refresh_target_lock(range_world: float) -> void:
 			entrants.append(candidate)
 	var keep_target := false
 	if _target_player != null and is_instance_valid(_target_player):
-		keep_target = current_presence.has(_target_player.get_instance_id())
+		keep_target = (
+			current_presence.has(_target_player.get_instance_id())
+			and not _is_player_downed_node(_target_player)
+		)
 	if not keep_target:
 		_target_player = null
 		if not entrants.is_empty():
@@ -150,7 +153,7 @@ func _collect_players_in_range(range_world: float) -> Array[Dictionary]:
 		if node is not Node2D:
 			continue
 		var candidate := node as Node2D
-		if candidate == null or not is_instance_valid(candidate):
+		if not _is_targetable_player(candidate):
 			continue
 		var d2 := global_position.distance_squared_to(candidate.global_position)
 		if d2 > range_world_sq:
