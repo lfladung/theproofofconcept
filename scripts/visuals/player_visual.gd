@@ -1,25 +1,62 @@
 @tool
 extends Node3D
 
+enum EditorPreviewMode {
+	RUNTIME_MATCH,
+	T_POSE_SETUP,
+	CUSTOM,
+}
+
+enum EditorAnimationPreview {
+	IDLE,
+	WALK,
+	MELEE,
+	RANGED,
+	BOMB,
+	DEFEND,
+	DOWNED,
+}
+
 ## Drives role-based animation clips (idle/run/melee/ranged/bomb/downed).
 @export var preview_in_editor: bool = true
-@export var editor_live_bone_follow: bool = false
-@export var editor_t_pose_preview: bool = true
+@export var editor_preview_mode: EditorPreviewMode = EditorPreviewMode.RUNTIME_MATCH
+@export var editor_preview_animation: EditorAnimationPreview = EditorAnimationPreview.IDLE
+@export var editor_preview_apply: bool = false
+@export_range(0.1, 2.5, 0.05) var editor_preview_walk_speed_scale: float = 1.0
+@export var editor_live_bone_follow: bool = true
+@export var editor_t_pose_preview: bool = false
+@export var editor_lock_current_placement_to_rig: bool = false
+@export var persist_locked_offsets_to_exports: bool = true
+@export var bake_current_offsets_to_rig_on_runtime_ready: bool = false
 @export var sword_root_path: NodePath = NodePath("SwordAttachment")
 @export var sword_offset_node_name: StringName = &"SwordOffset"
-@export var sword_preserve_editor_offset: bool = true
+@export var sword_preserve_editor_offset: bool = false
+@export var runtime_use_scene_authored_offsets: bool = true
 @export var runtime_spawn_sword_if_missing: bool = false
 
 # Sword attachment tuning.
 # This is applied by programmatically attaching the sword to a bone inside the imported GLB skeleton,
 # then toggling the whole `SwordAttachment` container via `set_sword_active()`.
 @export var sword_mesh_path: String = "res://scenes/equipment/weapons/sword_texture.tscn"
-@export var sword_bone_name_override: StringName = &"LeftHand"
+@export var sword_bone_name_override: StringName = &"RightHand"
 @export var sword_bone_keywords: Array[String] = ["hand", "weapon", "sword", "blade", "arm"]
-@export var sword_local_offset: Vector3 = Vector3(1.6, -0.6, 0.9)
-@export var sword_local_rotation_deg: Vector3 = Vector3(90.0, -10.0, 90.0) # Euler degrees
-@export var sword_local_scale: Vector3 = Vector3(32.0, 32.0, 32.0)
+@export var sword_local_offset: Vector3 = Vector3(-0.20, -0.48, 0.54)
+@export var sword_local_rotation_deg: Vector3 = Vector3(90.0, 0.0, 90.0) # Euler degrees
+@export var sword_local_scale: Vector3 = Vector3(1.45, 1.45, 1.45)
+@export var sword_use_state_offsets: bool = true
+@export var sword_walk_offset_delta: Vector3 = Vector3.ZERO
+@export var sword_walk_rotation_delta_deg: Vector3 = Vector3.ZERO
+@export var sword_walk_scale_mult: Vector3 = Vector3.ONE
+@export var sword_attack_use_motion_profile: bool = true
+@export var sword_attack_windup_offset_delta: Vector3 = Vector3(-0.22, 0.05, -0.20)
+@export var sword_attack_windup_rotation_delta_deg: Vector3 = Vector3(0.0, 52.0, 18.0)
+@export var sword_attack_offset_delta: Vector3 = Vector3(0.30, -0.02, 0.30)
+@export var sword_attack_rotation_delta_deg: Vector3 = Vector3(0.0, -74.0, -18.0)
+@export var sword_attack_recover_offset_delta: Vector3 = Vector3(0.14, -0.06, 0.12)
+@export var sword_attack_recover_rotation_delta_deg: Vector3 = Vector3(0.0, -28.0, -6.0)
+@export var sword_attack_scale_mult: Vector3 = Vector3.ONE
 @export var sword_force_visibility_material: bool = true
+@export var equipment_force_visibility_material: bool = true
 @export var sword_show_debug_proxy: bool = false
 @export var sword_show_mode_beacon: bool = false
 @export var sword_use_body_anchor_fallback: bool = false
@@ -28,34 +65,42 @@ extends Node3D
 @export var sword_debug_log_visibility: bool = false
 @export var sword_debug_print_bones: bool = false
 @export var modular_equipment_enabled: bool = true
+@export var equipment_legs_enabled: bool = false
 @export var equipment_chest_root_path: NodePath = NodePath("ArmorAttachment")
 @export var equipment_legs_root_path: NodePath = NodePath("LegsAttachment")
 @export var equipment_helmet_root_path: NodePath = NodePath("HelmetAttachment")
-@export var equipment_preserve_editor_offsets: bool = true
+@export var equipment_shield_root_path: NodePath = NodePath("ShieldAttachment")
+@export var equipment_preserve_editor_offsets: bool = false
 @export var runtime_spawn_equipment_if_missing: bool = false
-@export var equipment_chest_scene_path: String = "res://scenes/equipment/armor/chestplate_v01.tscn"
+@export var equipment_chest_scene_path: String = "res://scenes/equipment/armor/chestplate_v02.tscn"
 @export var equipment_legs_scene_path: String = "res://scenes/equipment/armor/legs_v02.tscn"
-@export var equipment_helmet_scene_path: String = "res://scenes/equipment/helmet/helmet_v01.tscn"
-@export var equipment_chest_bone_override: StringName = &"Spine2"
+@export var equipment_helmet_scene_path: String = "res://scenes/equipment/helmet/helmet_v02.tscn"
+@export var equipment_shield_scene_path: String = "res://scenes/equipment/shields/base_model_v01_shield.tscn"
+@export var equipment_chest_bone_override: StringName = &"Spine"
 @export var equipment_legs_bone_override: StringName = &"Hips"
 @export var equipment_helmet_bone_override: StringName = &"Head"
-@export var equipment_chest_local_offset: Vector3 = Vector3.ZERO
+@export var equipment_shield_bone_override: StringName = &"LeftHand"
+@export var equipment_chest_local_offset: Vector3 = Vector3(0.0, 0.04, 0.30)
 @export var equipment_legs_local_offset: Vector3 = Vector3.ZERO
-@export var equipment_helmet_local_offset: Vector3 = Vector3.ZERO
+@export var equipment_helmet_local_offset: Vector3 = Vector3(0.0, 0.80, 0.08)
+@export var equipment_shield_local_offset: Vector3 = Vector3(0.02, -0.08, 0.0)
 @export var equipment_chest_local_rotation_deg: Vector3 = Vector3.ZERO
 @export var equipment_legs_local_rotation_deg: Vector3 = Vector3.ZERO
 @export var equipment_helmet_local_rotation_deg: Vector3 = Vector3.ZERO
-@export var equipment_chest_local_scale: Vector3 = Vector3.ONE
+@export var equipment_shield_local_rotation_deg: Vector3 = Vector3(0.0, 0.0, 90.0)
+@export var equipment_chest_local_scale: Vector3 = Vector3(1.55, 1.55, 1.55)
 @export var equipment_legs_local_scale: Vector3 = Vector3.ONE
-@export var equipment_helmet_local_scale: Vector3 = Vector3.ONE
+@export var equipment_helmet_local_scale: Vector3 = Vector3(1.45, 1.45, 1.45)
+@export var equipment_shield_local_scale: Vector3 = Vector3.ONE
 
 @export var walk_speed_threshold := 8.0
-@export var attack_duration_seconds := 0.2
+@export var attack_duration_seconds := 1.0
 @export var idle_clip_hint := "idle"
-@export var run_clip_hint := "run"
+@export var run_clip_hint := "walk"
 @export var melee_clip_hint := "attack"
 @export var ranged_clip_hint := "attack"
 @export var bomb_clip_hint := "attack"
+@export var defend_clip_hint := "block"
 @export var downed_clip_hint := "dying"
 
 const _IDLE_GLB_CANDIDATES := [
@@ -72,10 +117,17 @@ const _BASE_MODEL_TPOSE_GLB_CANDIDATES := [
 	"res://art/characters/player/Base_Model_V01_Idle.glb",
 ]
 const _RUN_GLB_CANDIDATES := [
+	"res://art/characters/player/replacements/Base_Model_V01_Walking_Replacement.glb",
+	"res://art/characters/player/Base_Model_V01_Animation_Walking.glb",
 	"res://art/characters/player/Base_Model_V01_Running.glb",
 ]
 const _SLASH_GLB_CANDIDATES := [
+	"res://art/characters/player/replacements/Base_Model_V01_Attack_Replacement.glb",
 	"res://art/characters/player/Base_Model_V01_Attack.glb",
+]
+const _DEFEND_GLB_CANDIDATES := [
+	"res://art/characters/player/replacements/Base_Model_V01_Defend_Replacement.glb",
+	"res://art/characters/player/Base_Model_V01_Block.glb",
 ]
 const _DOWNED_GLB_CANDIDATES := [
 	"res://art/characters/player/Base_Model_V01_dying_backwards.glb",
@@ -83,18 +135,23 @@ const _DOWNED_GLB_CANDIDATES := [
 const _EQUIPMENT_CHEST_BONE_KEYWORDS: Array[String] = ["spine", "chest", "upperchest", "torso"]
 const _EQUIPMENT_LEGS_BONE_KEYWORDS: Array[String] = ["hips", "pelvis", "spine"]
 const _EQUIPMENT_HELMET_BONE_KEYWORDS: Array[String] = ["head", "neck"]
+const _EQUIPMENT_SHIELD_BONE_KEYWORDS: Array[String] = ["lefthand", "left_hand", "hand", "forearm", "arm"]
 
 var _anim: AnimationPlayer
 var _attack_playing: bool = false
 var _attack_nonce := 0
+var _attack_profile_elapsed := 0.0
+var _attack_profile_duration := 1.0
 var _idle_clip: StringName = &""
 var _run_clip: StringName = &""
 var _melee_clip: StringName = &""
 var _ranged_clip: StringName = &""
 var _bomb_clip: StringName = &""
+var _defend_clip: StringName = &""
 var _downed_clip: StringName = &""
 var _last_locomotion_moving := false
 var _last_locomotion_speed_scale := 1.0
+var _defending_hold_active := false
 var _downed_hold_active := false
 var _downed_play_nonce := 0
 
@@ -102,7 +159,51 @@ var _sword_root: Node3D
 var _sword_mode_beacon: MeshInstance3D
 var _sword_follow_skeleton: Skeleton3D
 var _sword_follow_bone_idx: int = -1
+var _sword_local_from_bone: Transform3D = Transform3D.IDENTITY
+var _sword_offset_node: Node3D
+var _sword_base_offset_position: Vector3 = Vector3.ZERO
+var _sword_base_offset_rotation_deg: Vector3 = Vector3.ZERO
+var _sword_base_offset_scale: Vector3 = Vector3.ONE
+var _sword_base_offset_captured: bool = false
 var _equipment_follow_targets: Dictionary = {}
+
+
+func _effective_editor_t_pose_preview() -> bool:
+	if not Engine.is_editor_hint():
+		return false
+	match editor_preview_mode:
+		EditorPreviewMode.RUNTIME_MATCH:
+			return false
+		EditorPreviewMode.T_POSE_SETUP:
+			return true
+		EditorPreviewMode.CUSTOM:
+			return editor_t_pose_preview
+	return editor_t_pose_preview
+
+
+func _effective_editor_live_bone_follow() -> bool:
+	if not Engine.is_editor_hint():
+		return false
+	match editor_preview_mode:
+		EditorPreviewMode.RUNTIME_MATCH:
+			return true
+		EditorPreviewMode.T_POSE_SETUP:
+			return true
+		EditorPreviewMode.CUSTOM:
+			return editor_live_bone_follow
+	return editor_live_bone_follow
+
+
+func _should_preserve_sword_offset() -> bool:
+	if runtime_use_scene_authored_offsets:
+		return true
+	return sword_preserve_editor_offset
+
+
+func _should_preserve_equipment_offsets() -> bool:
+	if runtime_use_scene_authored_offsets:
+		return true
+	return equipment_preserve_editor_offsets
 
 
 func _ready() -> void:
@@ -115,9 +216,10 @@ func _ready() -> void:
 		_merge_anim_libraries_from_candidates(_IDLE_GLB_CANDIDATES, &"base_idle")
 		_merge_anim_libraries_from_candidates(_RUN_GLB_CANDIDATES, &"base_run")
 		_merge_anim_libraries_from_candidates(_SLASH_GLB_CANDIDATES, &"base_attack")
+		_merge_anim_libraries_from_candidates(_DEFEND_GLB_CANDIDATES, &"base_defend")
 		_merge_anim_libraries_from_candidates(_DOWNED_GLB_CANDIDATES, &"base_downed")
 		_cache_role_clips()
-		if not (Engine.is_editor_hint() and editor_t_pose_preview):
+		if not (Engine.is_editor_hint() and _effective_editor_t_pose_preview()):
 			_play_locomotion(false, 1.0)
 	_setup_modular_equipment()
 
@@ -138,7 +240,9 @@ func _ready() -> void:
 		_sword_root.visible = true
 		_ensure_sword_mode_beacon()
 		_setup_sword_attachment()
-	if Engine.is_editor_hint() and not editor_live_bone_follow:
+	if not Engine.is_editor_hint() and bake_current_offsets_to_rig_on_runtime_ready:
+		_bake_current_offsets_to_rig()
+	if Engine.is_editor_hint() and not _effective_editor_live_bone_follow():
 		# Align once in editor, then let user move offset nodes without snapping.
 		_update_sword_manual_bone_follow()
 		_update_modular_equipment_bone_follow()
@@ -154,10 +258,60 @@ func _mark_editor_owned(node: Node) -> void:
 func _process(_delta: float) -> void:
 	if Engine.is_editor_hint() and not preview_in_editor:
 		return
-	if Engine.is_editor_hint() and not editor_live_bone_follow:
+	if _attack_playing:
+		_attack_profile_elapsed = min(_attack_profile_elapsed + _delta, _attack_profile_duration)
+	if _defending_hold_active and _anim != null and not _anim.is_playing() and _defend_clip != &"":
+		_anim.play(_defend_clip)
+		_anim.speed_scale = 1.0
+	if Engine.is_editor_hint() and editor_preview_apply:
+		editor_preview_apply = false
+		_apply_editor_animation_preview()
+	if Engine.is_editor_hint() and editor_lock_current_placement_to_rig:
+		_lock_current_placement_to_rig()
+		editor_lock_current_placement_to_rig = false
 		return
+	if Engine.is_editor_hint() and not _effective_editor_live_bone_follow():
+		return
+	_apply_sword_state_offset_profile()
 	_update_sword_manual_bone_follow()
 	_update_modular_equipment_bone_follow()
+
+
+func _apply_editor_animation_preview() -> void:
+	if not Engine.is_editor_hint():
+		return
+	if _anim == null:
+		_anim = _find_animation_player(self)
+	if _anim == null:
+		return
+
+	match editor_preview_animation:
+		EditorAnimationPreview.IDLE:
+			set_downed_state(false)
+			set_defending_state(false)
+			_play_locomotion(false, 1.0)
+		EditorAnimationPreview.WALK:
+			set_downed_state(false)
+			set_defending_state(false)
+			_play_locomotion(true, maxf(editor_preview_walk_speed_scale, 0.1))
+		EditorAnimationPreview.MELEE:
+			set_downed_state(false)
+			set_defending_state(false)
+			try_play_attack_for_mode(&"melee")
+		EditorAnimationPreview.RANGED:
+			set_downed_state(false)
+			set_defending_state(false)
+			try_play_attack_for_mode(&"ranged")
+		EditorAnimationPreview.BOMB:
+			set_downed_state(false)
+			set_defending_state(false)
+			try_play_attack_for_mode(&"bomb")
+		EditorAnimationPreview.DEFEND:
+			set_downed_state(false)
+			set_defending_state(true)
+		EditorAnimationPreview.DOWNED:
+			set_defending_state(false)
+			set_downed_state(true)
 
 
 func set_sword_active(active: bool) -> void:
@@ -221,31 +375,41 @@ func _setup_sword_attachment() -> void:
 	if _sword_root.get_parent() == null:
 		add_child(_sword_root)
 		_mark_editor_owned(_sword_root)
-	_sword_root.position = Vector3.ZERO
-	_sword_root.rotation = Vector3.ZERO
-	_sword_root.scale = Vector3.ONE
+	if runtime_use_scene_authored_offsets:
+		# SwordAttachment is a pure anchor that should not carry persistent placement.
+		# Keep authored placement on SwordOffset instead so reopening the scene is stable.
+		_sword_root.transform = Transform3D.IDENTITY
 
 	if sword_use_body_anchor_fallback:
 		_sword_follow_skeleton = null
 		_sword_follow_bone_idx = -1
+		_sword_local_from_bone = Transform3D.IDENTITY
 		_apply_sword_body_anchor_fallback()
 	else:
 		_sword_follow_skeleton = skeleton
 		_sword_follow_bone_idx = bone_idx
+		if runtime_use_scene_authored_offsets:
+			# Preserve only SwordOffset transform; root stays anchored directly to the bone.
+			_sword_local_from_bone = Transform3D.IDENTITY
+		elif _should_preserve_sword_offset():
+			var follow_bone_world: Transform3D = _compute_bone_world_no_scale(
+				_sword_follow_skeleton, _sword_follow_bone_idx
+			)
+			_sword_local_from_bone = follow_bone_world.affine_inverse() * _sword_root.global_transform
+		else:
+			_sword_local_from_bone = Transform3D.IDENTITY
 
 	var offset: Node3D = _sword_root.get_node_or_null(NodePath(String(sword_offset_node_name))) as Node3D
 	if offset == null:
 		offset = Node3D.new()
 		offset.name = String(sword_offset_node_name)
-		offset.position = sword_local_offset
-		offset.rotation = Vector3(
-			deg_to_rad(sword_local_rotation_deg.x),
-			deg_to_rad(sword_local_rotation_deg.y),
-			deg_to_rad(sword_local_rotation_deg.z)
-		)
-		offset.scale = sword_local_scale
+		_apply_offset_transform(offset, sword_local_offset, sword_local_rotation_deg, sword_local_scale)
 		_sword_root.add_child(offset)
 		_mark_editor_owned(offset)
+	elif not _should_preserve_sword_offset():
+		_apply_offset_transform(offset, sword_local_offset, sword_local_rotation_deg, sword_local_scale)
+	_sword_offset_node = offset
+	_capture_sword_base_offset_from_node()
 
 	var sword_node: Node = offset.get_node_or_null("SwordMesh")
 	if sword_node == null:
@@ -273,6 +437,177 @@ func _setup_sword_attachment() -> void:
 		_print_skeleton_bones_debug(skeleton, chosen_bone)
 
 
+func _capture_sword_base_offset_from_node() -> void:
+	if _sword_offset_node == null or not is_instance_valid(_sword_offset_node):
+		_sword_base_offset_captured = false
+		return
+	_sword_base_offset_position = _sword_offset_node.position
+	_sword_base_offset_rotation_deg = _sword_offset_node.rotation_degrees
+	_sword_base_offset_scale = _sword_offset_node.scale
+	_sword_base_offset_captured = true
+
+
+func _apply_sword_state_offset_profile() -> void:
+	if _sword_offset_node == null or not is_instance_valid(_sword_offset_node):
+		return
+	if Engine.is_editor_hint() and not _attack_playing and not _last_locomotion_moving:
+		# In editor idle pose, treat manual gizmo edits as the authored base profile.
+		_capture_sword_base_offset_from_node()
+	if not _sword_base_offset_captured:
+		_capture_sword_base_offset_from_node()
+	if not _sword_base_offset_captured:
+		return
+
+	var target_pos: Vector3 = _sword_base_offset_position
+	var target_rot_deg: Vector3 = _sword_base_offset_rotation_deg
+	var target_scale: Vector3 = _sword_base_offset_scale
+	if sword_use_state_offsets:
+		if _attack_playing:
+			var attack_offset_delta: Vector3 = sword_attack_offset_delta
+			var attack_rotation_delta: Vector3 = sword_attack_rotation_delta_deg
+			if sword_attack_use_motion_profile:
+				var t: float = _attack_profile_t()
+				attack_offset_delta = _sample_attack_profile_vec3(
+					t,
+					sword_attack_windup_offset_delta,
+					sword_attack_offset_delta,
+					sword_attack_recover_offset_delta
+				)
+				attack_rotation_delta = _sample_attack_profile_vec3(
+					t,
+					sword_attack_windup_rotation_delta_deg,
+					sword_attack_rotation_delta_deg,
+					sword_attack_recover_rotation_delta_deg
+				)
+			target_pos += attack_offset_delta
+			target_rot_deg += attack_rotation_delta
+			target_scale = Vector3(
+				_sword_base_offset_scale.x * sword_attack_scale_mult.x,
+				_sword_base_offset_scale.y * sword_attack_scale_mult.y,
+				_sword_base_offset_scale.z * sword_attack_scale_mult.z
+			)
+		elif _last_locomotion_moving:
+			target_pos += sword_walk_offset_delta
+			target_rot_deg += sword_walk_rotation_delta_deg
+			target_scale = Vector3(
+				_sword_base_offset_scale.x * sword_walk_scale_mult.x,
+				_sword_base_offset_scale.y * sword_walk_scale_mult.y,
+				_sword_base_offset_scale.z * sword_walk_scale_mult.z
+			)
+	_apply_offset_transform(_sword_offset_node, target_pos, target_rot_deg, target_scale)
+
+
+func _attack_profile_t() -> float:
+	if _attack_profile_duration <= 0.0001:
+		return 1.0
+	return clampf(_attack_profile_elapsed / _attack_profile_duration, 0.0, 1.0)
+
+
+func _sample_attack_profile_vec3(
+	t: float, windup_delta: Vector3, swing_delta: Vector3, recover_delta: Vector3
+) -> Vector3:
+	if t <= 0.0:
+		return Vector3.ZERO
+	if t < 0.2:
+		return Vector3.ZERO.lerp(windup_delta, smoothstep(0.0, 1.0, t / 0.2))
+	if t < 0.55:
+		return windup_delta.lerp(swing_delta, smoothstep(0.0, 1.0, (t - 0.2) / 0.35))
+	if t < 0.85:
+		return swing_delta.lerp(recover_delta, smoothstep(0.0, 1.0, (t - 0.55) / 0.30))
+	return recover_delta.lerp(Vector3.ZERO, smoothstep(0.0, 1.0, (t - 0.85) / 0.15))
+
+
+func _lock_current_placement_to_rig() -> void:
+	# Bakes current t-pose placement into offset nodes, then binds roots to bones.
+	_setup_modular_equipment()
+	_setup_sword_attachment()
+	_bake_current_offsets_to_rig()
+	_update_sword_manual_bone_follow()
+	_update_modular_equipment_bone_follow()
+
+
+func _bake_current_offsets_to_rig() -> void:
+	_lock_sword_offset_to_bone()
+	_lock_equipment_offset_to_bone("Chest")
+	if equipment_legs_enabled:
+		_lock_equipment_offset_to_bone("Legs")
+	_lock_equipment_offset_to_bone("Helmet")
+	_lock_equipment_offset_to_bone("Shield")
+
+
+func _lock_sword_offset_to_bone() -> void:
+	if _sword_root == null or not is_instance_valid(_sword_root):
+		return
+	if _sword_follow_skeleton == null or not is_instance_valid(_sword_follow_skeleton):
+		return
+	if _sword_follow_bone_idx < 0 or _sword_follow_bone_idx >= _sword_follow_skeleton.get_bone_count():
+		return
+	var offset: Node3D = _sword_root.get_node_or_null(NodePath(String(sword_offset_node_name))) as Node3D
+	if offset == null or not is_instance_valid(offset):
+		return
+	var desired_offset_world: Transform3D = offset.global_transform
+	var bone_world: Transform3D = _compute_bone_world_no_scale(
+		_sword_follow_skeleton, _sword_follow_bone_idx
+	)
+	_sword_local_from_bone = bone_world.affine_inverse() * _sword_root.global_transform
+	var baked_local: Transform3D = _sword_root.global_transform.affine_inverse() * desired_offset_world
+	var preserved_scale: Vector3 = offset.scale
+	offset.transform = Transform3D(baked_local.basis.orthonormalized(), baked_local.origin)
+	offset.scale = preserved_scale
+	if persist_locked_offsets_to_exports:
+		sword_local_offset = offset.position
+		sword_local_rotation_deg = offset.rotation_degrees
+		sword_local_scale = offset.scale
+
+
+func _lock_equipment_offset_to_bone(slot_name: String) -> void:
+	var record_v: Variant = _equipment_follow_targets.get(slot_name, null)
+	if not (record_v is Dictionary):
+		return
+	var record: Dictionary = record_v as Dictionary
+	var root_node: Node3D = record.get("root", null) as Node3D
+	var skeleton: Skeleton3D = record.get("skeleton", null) as Skeleton3D
+	var bone_idx: int = int(record.get("bone_idx", -1))
+	if root_node == null or not is_instance_valid(root_node):
+		return
+	if skeleton == null or not is_instance_valid(skeleton):
+		return
+	if bone_idx < 0 or bone_idx >= skeleton.get_bone_count():
+		return
+	var offset_name: String = "%sOffset" % [slot_name]
+	var offset_node: Node3D = root_node.get_node_or_null(NodePath(offset_name)) as Node3D
+	if offset_node == null:
+		offset_node = _find_first_node3d_child(root_node)
+	if offset_node == null:
+		return
+	var desired_offset_world: Transform3D = offset_node.global_transform
+	var bone_world: Transform3D = _compute_bone_world_no_scale(skeleton, bone_idx)
+	var baked_local: Transform3D = bone_world.affine_inverse() * desired_offset_world
+	var preserved_scale: Vector3 = offset_node.scale
+	root_node.global_transform = bone_world
+	offset_node.transform = Transform3D(baked_local.basis.orthonormalized(), baked_local.origin)
+	offset_node.scale = preserved_scale
+	if not persist_locked_offsets_to_exports:
+		return
+	match slot_name:
+		"Chest":
+			equipment_chest_local_offset = offset_node.position
+			equipment_chest_local_rotation_deg = offset_node.rotation_degrees
+			equipment_chest_local_scale = offset_node.scale
+		"Legs":
+			equipment_legs_local_offset = offset_node.position
+			equipment_legs_local_rotation_deg = offset_node.rotation_degrees
+			equipment_legs_local_scale = offset_node.scale
+		"Helmet":
+			equipment_helmet_local_offset = offset_node.position
+			equipment_helmet_local_rotation_deg = offset_node.rotation_degrees
+			equipment_helmet_local_scale = offset_node.scale
+		"Shield":
+			equipment_shield_local_offset = offset_node.position
+			equipment_shield_local_rotation_deg = offset_node.rotation_degrees
+			equipment_shield_local_scale = offset_node.scale
+
+
 func _update_sword_manual_bone_follow() -> void:
 	if _sword_root == null or not is_instance_valid(_sword_root):
 		return
@@ -283,9 +618,10 @@ func _update_sword_manual_bone_follow() -> void:
 		return
 	if _sword_follow_bone_idx < 0 or _sword_follow_bone_idx >= _sword_follow_skeleton.get_bone_count():
 		return
-	var bone_pose: Transform3D = _sword_follow_skeleton.get_bone_global_pose(_sword_follow_bone_idx)
-	var bone_world: Transform3D = _sword_follow_skeleton.global_transform * bone_pose
-	_sword_root.global_transform = bone_world
+	var bone_world: Transform3D = _compute_bone_world_no_scale(
+		_sword_follow_skeleton, _sword_follow_bone_idx
+	)
+	_sword_root.global_transform = bone_world * _sword_local_from_bone
 
 
 func _apply_sword_body_anchor_fallback() -> void:
@@ -346,6 +682,56 @@ func _build_sword_visible_material(source_mat: Material) -> Material:
 	return fallback
 
 
+func _apply_equipment_visibility_material_override(root: Node, slot_name: String) -> void:
+	var stack: Array[Node] = [root]
+	while not stack.is_empty():
+		var n: Node = stack.pop_back()
+		if n is MeshInstance3D:
+			var mi := n as MeshInstance3D
+			var mesh: Mesh = mi.mesh
+			if mesh != null:
+				var surface_count: int = mesh.get_surface_count()
+				for i in range(surface_count):
+					var source_mat: Material = mi.get_surface_override_material(i)
+					if source_mat == null:
+						source_mat = mesh.surface_get_material(i)
+					var visible_mat: Material = _build_equipment_visible_material(source_mat, slot_name)
+					if visible_mat != null:
+						mi.set_surface_override_material(i, visible_mat)
+		for c in n.get_children():
+			var child: Node = c
+			stack.append(child)
+
+
+func _build_equipment_visible_material(source_mat: Material, slot_name: String) -> Material:
+	var tint: Color = Color(0.68, 0.74, 0.84, 1.0)
+	if slot_name == "Helmet":
+		tint = Color(0.92, 0.95, 1.0, 1.0)
+	elif slot_name == "Chest":
+		tint = Color(0.64, 0.70, 0.80, 1.0)
+	elif slot_name == "Shield":
+		tint = Color(0.78, 0.84, 0.98, 1.0)
+	var visible: StandardMaterial3D = StandardMaterial3D.new()
+	visible.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	visible.transparency = BaseMaterial3D.TRANSPARENCY_DISABLED
+	visible.cull_mode = BaseMaterial3D.CULL_DISABLED
+	visible.albedo_color = tint
+	if source_mat != null and source_mat is BaseMaterial3D:
+		var src: BaseMaterial3D = source_mat as BaseMaterial3D
+		if src.albedo_texture != null:
+			visible.albedo_texture = src.albedo_texture
+		visible.texture_filter = src.texture_filter
+		visible.texture_repeat = src.texture_repeat
+		visible.uv1_scale = src.uv1_scale
+		visible.uv1_offset = src.uv1_offset
+	visible.render_priority = 3
+	if slot_name == "Helmet":
+		# Helmet should respect depth/culling to avoid rendering the front while facing away.
+		visible.cull_mode = BaseMaterial3D.CULL_BACK
+		visible.no_depth_test = false
+	return visible
+
+
 func _create_debug_sword_proxy() -> MeshInstance3D:
 	var proxy_mesh := MeshInstance3D.new()
 	proxy_mesh.name = "SwordDebugProxy"
@@ -389,19 +775,20 @@ func _setup_modular_equipment() -> void:
 		equipment_chest_local_rotation_deg,
 		equipment_chest_local_scale
 	)
-	_bind_or_spawn_modular_equipment_piece(
-		"Legs",
-		equipment_legs_root_path,
-		"LegsAttachment",
-		"LegsOffset",
-		equipment_legs_scene_path,
-		skeleton,
-		equipment_legs_bone_override,
-		_EQUIPMENT_LEGS_BONE_KEYWORDS,
-		equipment_legs_local_offset,
-		equipment_legs_local_rotation_deg,
-		equipment_legs_local_scale
-	)
+	if equipment_legs_enabled:
+		_bind_or_spawn_modular_equipment_piece(
+			"Legs",
+			equipment_legs_root_path,
+			"LegsAttachment",
+			"LegsOffset",
+			equipment_legs_scene_path,
+			skeleton,
+			equipment_legs_bone_override,
+			_EQUIPMENT_LEGS_BONE_KEYWORDS,
+			equipment_legs_local_offset,
+			equipment_legs_local_rotation_deg,
+			equipment_legs_local_scale
+		)
 	_bind_or_spawn_modular_equipment_piece(
 		"Helmet",
 		equipment_helmet_root_path,
@@ -415,11 +802,27 @@ func _setup_modular_equipment() -> void:
 		equipment_helmet_local_rotation_deg,
 		equipment_helmet_local_scale
 	)
+	_bind_or_spawn_modular_equipment_piece(
+		"Shield",
+		equipment_shield_root_path,
+		"ShieldAttachment",
+		"ShieldOffset",
+		equipment_shield_scene_path,
+		skeleton,
+		equipment_shield_bone_override,
+		_EQUIPMENT_SHIELD_BONE_KEYWORDS,
+		equipment_shield_local_offset,
+		equipment_shield_local_rotation_deg,
+		equipment_shield_local_scale
+	)
 
 
 func _resolve_or_create_attachment_root(path: NodePath, fallback_name: String) -> Node3D:
 	var existing: Node3D = get_node_or_null(path) as Node3D
 	if existing != null and is_instance_valid(existing):
+		if runtime_use_scene_authored_offsets:
+			# Attachment roots are runtime anchors, not authored offsets.
+			existing.transform = Transform3D.IDENTITY
 		return existing
 	var root := Node3D.new()
 	root.name = fallback_name
@@ -438,18 +841,30 @@ func _resolve_or_create_offset_root(
 		return null
 	var existing_offset: Node3D = attachment_root.get_node_or_null(NodePath(offset_name)) as Node3D
 	if existing_offset != null and is_instance_valid(existing_offset):
+		if not _should_preserve_equipment_offsets():
+			_apply_offset_transform(
+				existing_offset, local_offset, local_rotation_deg, local_scale
+			)
 		return existing_offset
 	var local_offset_root: Node3D = Node3D.new()
 	local_offset_root.name = offset_name
-	local_offset_root.position = local_offset
-	local_offset_root.rotation = Vector3(
+	_apply_offset_transform(local_offset_root, local_offset, local_rotation_deg, local_scale)
+	attachment_root.add_child(local_offset_root)
+	return local_offset_root
+
+
+func _apply_offset_transform(
+	node: Node3D, local_offset: Vector3, local_rotation_deg: Vector3, local_scale: Vector3
+) -> void:
+	if node == null:
+		return
+	node.position = local_offset
+	node.rotation = Vector3(
 		deg_to_rad(local_rotation_deg.x),
 		deg_to_rad(local_rotation_deg.y),
 		deg_to_rad(local_rotation_deg.z)
 	)
-	local_offset_root.scale = local_scale
-	attachment_root.add_child(local_offset_root)
-	return local_offset_root
+	node.scale = local_scale
 
 
 func _bind_or_spawn_modular_equipment_piece(
@@ -488,6 +903,9 @@ func _bind_or_spawn_modular_equipment_piece(
 
 	if piece_instance == null:
 		push_warning("[PlayerVisual] Missing equipment mesh under %s/%s. Add the scene as a child for %s." % [attachment_root.name, offset_name, slot_name])
+	else:
+		if equipment_force_visibility_material:
+			_apply_equipment_visibility_material_override(piece_instance, slot_name)
 
 	var bone_idx: int = _resolve_equipment_bone_idx(skeleton, bone_name_override, bone_keywords)
 	if bone_idx < 0:
@@ -546,8 +964,17 @@ func _update_modular_equipment_bone_follow() -> void:
 			continue
 		if bone_idx < 0 or bone_idx >= skeleton.get_bone_count():
 			continue
-		var bone_pose: Transform3D = skeleton.get_bone_global_pose(bone_idx)
-		root_node.global_transform = skeleton.global_transform * bone_pose
+		root_node.global_transform = _compute_bone_world_no_scale(skeleton, bone_idx)
+
+
+func _compute_bone_world_no_scale(skeleton: Skeleton3D, bone_idx: int) -> Transform3D:
+	if skeleton == null or not is_instance_valid(skeleton):
+		return Transform3D.IDENTITY
+	if bone_idx < 0 or bone_idx >= skeleton.get_bone_count():
+		return Transform3D(skeleton.global_transform.basis.orthonormalized(), skeleton.global_transform.origin)
+	var bone_pose: Transform3D = skeleton.get_bone_global_pose(bone_idx)
+	var bone_world: Transform3D = skeleton.global_transform * bone_pose
+	return Transform3D(bone_world.basis.orthonormalized(), bone_world.origin)
 
 
 func _find_first_skeleton_3d(root: Node) -> Skeleton3D:
@@ -663,7 +1090,7 @@ func _ensure_preferred_base_model() -> void:
 	var desired_path: String = ""
 	var desired_scene: PackedScene = null
 	var preferred_candidates: Array = _BASE_MODEL_GLB_CANDIDATES
-	if Engine.is_editor_hint() and editor_t_pose_preview:
+	if Engine.is_editor_hint() and _effective_editor_t_pose_preview():
 		preferred_candidates = _BASE_MODEL_TPOSE_GLB_CANDIDATES
 	for candidate in preferred_candidates:
 		var path: String = String(candidate)
@@ -757,7 +1184,7 @@ func _find_clip_by_hint_or_keywords(hint: String, keywords: Array) -> StringName
 
 func _cache_role_clips() -> void:
 	_idle_clip = _find_clip_by_hint_or_keywords(idle_clip_hint, ["idle", "stand", "walk"])
-	_run_clip = _find_clip_by_hint_or_keywords(run_clip_hint, ["run", "running", "sprint"])
+	_run_clip = _find_clip_by_hint_or_keywords(run_clip_hint, ["walk", "walking", "run", "running", "sprint"])
 	_melee_clip = _find_clip_by_hint_or_keywords(melee_clip_hint, ["slash", "attack"])
 	_ranged_clip = _find_clip_by_hint_or_keywords(
 		ranged_clip_hint, ["shoot", "ranged", "slash", "attack"]
@@ -765,6 +1192,7 @@ func _cache_role_clips() -> void:
 	_bomb_clip = _find_clip_by_hint_or_keywords(
 		bomb_clip_hint, ["bomb", "throw", "slash", "attack"]
 	)
+	_defend_clip = _find_clip_by_hint_or_keywords(defend_clip_hint, ["block", "defend", "guard"])
 	_downed_clip = _find_clip_by_hint_or_keywords(
 		downed_clip_hint, ["shot", "fall", "down", "hit"]
 	)
@@ -792,7 +1220,7 @@ func _pick_locomotion_clip(running: bool) -> StringName:
 
 
 func _play_locomotion(moving: bool, speed_scale: float) -> void:
-	if _anim == null or _attack_playing or _downed_hold_active:
+	if _anim == null or _attack_playing or _downed_hold_active or _defending_hold_active:
 		return
 	var clip := _pick_locomotion_clip(moving and speed_scale * 14.0 >= walk_speed_threshold)
 	if clip == &"":
@@ -805,7 +1233,7 @@ func _play_locomotion(moving: bool, speed_scale: float) -> void:
 
 
 func set_locomotion_from_planar_speed(planar_speed: float, max_speed: float) -> void:
-	if _attack_playing or _downed_hold_active:
+	if _attack_playing or _downed_hold_active or _defending_hold_active:
 		return
 	var moving := planar_speed > 0.05
 	var t := clampf(planar_speed / max(max_speed, 0.001), 0.0, 2.5)
@@ -846,7 +1274,7 @@ func get_attack_duration_seconds() -> float:
 
 
 func try_play_attack_for_mode(mode: StringName = &"melee") -> void:
-	if _anim == null or _attack_playing or _downed_hold_active:
+	if _anim == null or _attack_playing or _downed_hold_active or _defending_hold_active:
 		return
 	var clip := _clip_for_attack_mode(mode)
 	if clip == &"":
@@ -856,6 +1284,7 @@ func try_play_attack_for_mode(mode: StringName = &"melee") -> void:
 		return
 	_attack_playing = true
 	_attack_nonce += 1
+	_attack_profile_elapsed = 0.0
 	var attack_nonce := _attack_nonce
 	_anim.play(clip)
 	var target_duration := get_attack_duration_seconds_for_mode(mode)
@@ -867,6 +1296,7 @@ func try_play_attack_for_mode(mode: StringName = &"melee") -> void:
 		_anim.speed_scale = anim_len / target_duration
 	else:
 		target_duration = maxf(anim_len, 0.01)
+	_attack_profile_duration = maxf(target_duration, 0.01)
 	await get_tree().create_timer(maxf(target_duration, 0.01)).timeout
 	if attack_nonce != _attack_nonce:
 		return
@@ -878,12 +1308,41 @@ func try_play_attack() -> void:
 	try_play_attack_for_mode(&"melee")
 
 
+func set_defending_state(active: bool) -> void:
+	if _anim == null:
+		return
+	if active:
+		if _downed_hold_active:
+			return
+		if _defending_hold_active:
+			return
+		_defending_hold_active = true
+		_attack_nonce += 1
+		_attack_playing = false
+		var clip: StringName = _defend_clip
+		if clip == &"":
+			_cache_role_clips()
+			clip = _defend_clip
+		if clip == &"":
+			_defending_hold_active = false
+			return
+		_anim.play(clip)
+		_anim.speed_scale = 1.0
+		return
+	if not _defending_hold_active:
+		return
+	_defending_hold_active = false
+	_anim.speed_scale = 1.0
+	_play_locomotion(_last_locomotion_moving, _last_locomotion_speed_scale)
+
+
 func set_downed_state(is_downed: bool) -> void:
 	if _anim == null:
 		return
 	if is_downed:
 		if _downed_hold_active:
 			return
+		_defending_hold_active = false
 		_downed_hold_active = true
 		_attack_nonce += 1
 		_attack_playing = false
@@ -893,6 +1352,7 @@ func set_downed_state(is_downed: bool) -> void:
 	if not _downed_hold_active:
 		return
 	_downed_hold_active = false
+	_defending_hold_active = false
 	_downed_play_nonce += 1
 	_attack_playing = false
 	_anim.speed_scale = 1.0

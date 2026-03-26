@@ -1,0 +1,24 @@
+{
+  "target_character_glb": "art/characters/player/Base_Model_V01_rigged.glb",
+  "bone_map": "tools/animation_pipeline/bone_maps/mixamo_to_base_model_v01.json",
+  "clips": [
+    {
+      "id": "attack",
+      "source": "tools/animation_pipeline/work/mocap/attack.fbx",
+      "output": "art/characters/player/replacements/Base_Model_V01_Attack_Replacement.glb",
+      "action_name": "Attack_Replacement"
+    },
+    {
+      "id": "walk",
+      "source": "tools/animation_pipeline/work/mocap/walk.fbx",
+      "output": "art/characters/player/replacements/Base_Model_V01_Walking_Replacement.glb",
+      "action_name": "Walking_Replacement"
+    },
+    {
+      "id": "defend",
+      "source": "tools/animation_pipeline/work/mocap/defend.fbx",
+      "output": "art/characters/player/replacements/Base_Model_V01_Defend_Replacement.glb",
+      "action_name": "Defend_Replacement"
+    }
+  ]
+}

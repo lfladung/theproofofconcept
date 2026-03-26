@@ -89,3 +89,27 @@ python tools/asset_pipeline/audit_glb.py --path art/characters/player/Base_Model
 python tools/asset_pipeline/audit_glb.py --path art/equipment/weapons/Sword_texture.glb --category weapon --anchor art/characters/player/Base_Model_V01.glb
 python tools/asset_pipeline/audit_glb.py --path art/equipment/weapons/Shield_texture.glb --category shield --anchor art/characters/player/Base_Model_V01.glb
 ```
+
+## Animation Replacement Pipeline
+
+Pipeline docs:
+
+- `tools/animation_pipeline/README.md`
+
+Prepare your example videos (normalizes and stages them):
+
+```powershell
+.\tools\animation_pipeline\prepare_example_clips.ps1
+```
+
+After converting staged videos to mocap FBX/BVH (attack/walk/defend), run retarget:
+
+```powershell
+.\tools\animation_pipeline\run_retarget_pipeline.ps1 -BlenderExe "C:\Program Files\Blender Foundation\Blender 4.2\blender.exe"
+```
+
+Force Godot to import generated replacement GLBs:
+
+```powershell
+.\Godot_v4.6.1-stable_win64.exe\Godot_v4.6.1-stable_win64_console.exe --headless --path . --import
+```

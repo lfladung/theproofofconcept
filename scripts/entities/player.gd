@@ -45,6 +45,8 @@ enum WeaponMode { SWORD, GUN, BOMB }
 @export var dodge_speed := 36.0
 @export var dodge_duration := 0.16
 @export var dodge_cooldown := 0.05
+@export var defend_move_speed_multiplier := 0.42
+@export var defend_damage_multiplier := 0.35
 ## Ranged (gun) — aligned loosely with arrow towers.
 @export var ranged_cooldown := 0.45
 @export var ranged_damage := 15
@@ -86,6 +88,7 @@ var _dodge_time_remaining := 0.0
 var _dodge_cooldown_remaining := 0.0
 var _dodge_direction := Vector2.ZERO
 var _is_dead := false
+var _is_defending := false
 var _attack_hitbox_visual_time_remaining := 0.0
 var _facing_lock_time_remaining := 0.0
 var _facing_lock_planar := Vector2(0.0, -1.0)
@@ -109,6 +112,7 @@ var _server_input_move_active := false
 var _server_input_target_world := Vector2.ZERO
 var _server_input_dodge_down := false
 var _server_prev_dodge_down := false
+var _server_input_defend_down := false
 var _server_has_received_input := false
 var _local_weapon_switch_request_sequence := 0
 var _server_last_weapon_switch_request_sequence := -1
@@ -142,6 +146,7 @@ var _authoritative_weapon_mode_id := int(WeaponMode.SWORD)
 var _authoritative_melee_cooldown_remaining := 0.0
 var _authoritative_ranged_cooldown_remaining := 0.0
 var _authoritative_bomb_cooldown_remaining := 0.0
+var _authoritative_is_defending := false
 
 
 func _ready() -> void:
@@ -185,7 +190,9 @@ func _ready() -> void:
 	_authoritative_melee_cooldown_remaining = 0.0
 	_authoritative_ranged_cooldown_remaining = 0.0
 	_authoritative_bomb_cooldown_remaining = 0.0
+	_authoritative_is_defending = false
 	_apply_visual_downed_state()
+	_apply_visual_defending_state()
 	_sync_sword_visual()
 	call_deferred("_sync_sword_visual")
 
@@ -277,6 +284,13 @@ func _apply_visual_downed_state() -> void:
 		_visual.call(&"set_downed_state", _is_dead)
 
 
+func _apply_visual_defending_state() -> void:
+	if _visual == null:
+		return
+	if _visual.has_method(&"set_defending_state"):
+		_visual.call(&"set_defending_state", _is_defending)
+
+
 func _sync_sword_visual() -> void:
 	if _visual == null or not is_instance_valid(_visual):
 		return
@@ -284,10 +298,20 @@ func _sync_sword_visual() -> void:
 		_visual.call(&"set_sword_active", weapon_mode == WeaponMode.SWORD)
 
 
+func _set_defending_state(next_defending: bool) -> void:
+	var resolved_defending: bool = next_defending and not _is_dead and weapon_mode == WeaponMode.SWORD
+	if _is_defending == resolved_defending:
+		return
+	_is_defending = resolved_defending
+	_apply_visual_defending_state()
+
+
 func _set_downed_state(next_downed: bool, emit_hit_signal: bool = false) -> void:
 	if _is_dead == next_downed:
 		return
 	_is_dead = next_downed
+	if _is_dead:
+		_set_defending_state(false)
 	if _is_dead:
 		velocity = Vector2.ZERO
 		height = 0.0
@@ -364,7 +388,8 @@ func _broadcast_server_state(delta: float) -> void:
 		_melee_attack_cooldown_remaining,
 		_ranged_cooldown_remaining,
 		_bomb_cooldown_remaining,
-		_server_last_input_sequence
+		_server_last_input_sequence,
+		_is_defending
 	)
 
 
@@ -373,7 +398,8 @@ func _rpc_submit_movement_input(
 	sequence: int,
 	move_active: bool,
 	target_world: Vector2,
-	dodge_down: bool
+	dodge_down: bool,
+	defend_down: bool
 ) -> void:
 	if not _is_server_peer():
 		return
@@ -387,6 +413,7 @@ func _rpc_submit_movement_input(
 	_server_input_move_active = move_active
 	_server_input_target_world = target_world
 	_server_input_dodge_down = dodge_down
+	_server_input_defend_down = defend_down
 
 
 @rpc("any_peer", "call_remote", "unreliable")
@@ -404,7 +431,8 @@ func _rpc_receive_server_state(
 	melee_cooldown_remaining_value: float,
 	ranged_cooldown_remaining_value: float,
 	bomb_cooldown_remaining_value: float,
-	ack_input_sequence: int
+	ack_input_sequence: int,
+	defending_state: bool
 ) -> void:
 	if _is_server_peer():
 		return
@@ -431,7 +459,9 @@ func _rpc_receive_server_state(
 	_authoritative_melee_cooldown_remaining = maxf(0.0, melee_cooldown_remaining_value)
 	_authoritative_ranged_cooldown_remaining = maxf(0.0, ranged_cooldown_remaining_value)
 	_authoritative_bomb_cooldown_remaining = maxf(0.0, bomb_cooldown_remaining_value)
+	_authoritative_is_defending = defending_state
 	_set_downed_state(dead_state)
+	_set_defending_state(defending_state)
 	_sync_sword_visual()
 	_facing_lock_time_remaining = maxf(0.0, facing_lock_time_remaining_value)
 	if _facing_lock_time_remaining > 0.0:
@@ -492,13 +522,14 @@ func _apply_local_reconciliation(_delta: float) -> void:
 			target_world_variant if target_world_variant is Vector2 else global_position
 		)
 		var dodge_pressed := bool(command.get("dodge_pressed", false))
+		var defend_down := bool(command.get("defend_down", false))
 		var command_delta := float(command.get("delta", 1.0 / maxf(1.0, float(Engine.physics_ticks_per_second))))
-		_apply_movement_step(command_delta, move_active, target_world, dodge_pressed)
+		_apply_movement_step(command_delta, move_active, target_world, dodge_pressed, defend_down)
 	_reconcile_has_target = false
 
 
 func _apply_movement_step(
-	delta: float, move_active: bool, target_world: Vector2, dodge_pressed: bool
+	delta: float, move_active: bool, target_world: Vector2, dodge_pressed: bool, defend_down: bool
 ) -> float:
 	var direction := Vector2.ZERO
 	if move_active:
@@ -506,10 +537,12 @@ func _apply_movement_step(
 		if to_target.length_squared() > 0.01:
 			direction = to_target.normalized()
 	_update_facing_planar(direction, false)
+	var wants_defending: bool = defend_down and weapon_mode == WeaponMode.SWORD and _dodge_time_remaining <= 0.0
+	_set_defending_state(wants_defending)
 	_dodge_cooldown_remaining = maxf(0.0, _dodge_cooldown_remaining - delta)
 	if _dodge_time_remaining > 0.0:
 		_dodge_time_remaining = maxf(0.0, _dodge_time_remaining - delta)
-	elif dodge_pressed and _dodge_cooldown_remaining <= 0.0:
+	elif dodge_pressed and _dodge_cooldown_remaining <= 0.0 and not _is_defending:
 		_dodge_direction = _facing_planar.normalized()
 		if _dodge_direction.length_squared() <= 1e-6:
 			_dodge_direction = Vector2(0.0, -1.0)
@@ -520,8 +553,11 @@ func _apply_movement_step(
 		velocity = _dodge_direction * dodge_speed
 		planar_speed = dodge_speed
 	elif direction != Vector2.ZERO:
-		velocity = direction * speed
-		planar_speed = speed
+		var resolved_speed := speed
+		if _is_defending:
+			resolved_speed *= clampf(defend_move_speed_multiplier, 0.0, 1.0)
+		velocity = direction * resolved_speed
+		planar_speed = resolved_speed
 	else:
 		velocity = Vector2.ZERO
 	move_and_slide()
@@ -533,18 +569,21 @@ func _server_authoritative_step(delta: float) -> void:
 	var move_active := false
 	var target_world := global_position
 	var dodge_down := false
+	var defend_down := false
 	if _is_local_owner_peer():
 		move_active = _mouse_steering_active()
 		target_world = _mouse_planar_world()
 		dodge_down = Input.is_action_pressed(&"dodge")
+		defend_down = Input.is_action_pressed(&"defend")
 		_server_last_input_sequence += 1
 	elif _server_has_received_input:
 		move_active = _server_input_move_active
 		target_world = _server_input_target_world
 		dodge_down = _server_input_dodge_down
+		defend_down = _server_input_defend_down
 	var dodge_pressed := dodge_down and not _server_prev_dodge_down
 	_server_prev_dodge_down = dodge_down
-	_apply_movement_step(delta, move_active, target_world, dodge_pressed)
+	_apply_movement_step(delta, move_active, target_world, dodge_pressed, defend_down)
 	_broadcast_server_state(delta)
 
 
@@ -552,6 +591,7 @@ func _client_predicted_step(delta: float) -> void:
 	var move_active := _mouse_steering_active()
 	var target_world := _mouse_planar_world()
 	var dodge_down := Input.is_action_pressed(&"dodge")
+	var defend_down := Input.is_action_pressed(&"defend")
 	var dodge_pressed := dodge_down and not _local_prev_dodge_down
 	_local_prev_dodge_down = dodge_down
 	var sequence := _input_sequence
@@ -561,12 +601,13 @@ func _client_predicted_step(delta: float) -> void:
 		"move_active": move_active,
 		"target_world": target_world,
 		"dodge_down": dodge_down,
+		"defend_down": defend_down,
 		"dodge_pressed": dodge_pressed,
 		"delta": delta,
 	}
 	_pending_input_commands.append(command)
-	_apply_movement_step(delta, move_active, target_world, dodge_pressed)
-	_rpc_submit_movement_input.rpc(sequence, move_active, target_world, dodge_down)
+	_apply_movement_step(delta, move_active, target_world, dodge_pressed, defend_down)
+	_rpc_submit_movement_input.rpc(sequence, move_active, target_world, dodge_down, defend_down)
 	_apply_local_reconciliation(delta)
 
 
@@ -602,6 +643,7 @@ func _run_shared_cooldown_and_debug_tick(delta: float) -> void:
 		_authoritative_melee_cooldown_remaining = _melee_attack_cooldown_remaining
 		_authoritative_ranged_cooldown_remaining = _ranged_cooldown_remaining
 		_authoritative_bomb_cooldown_remaining = _bomb_cooldown_remaining
+		_authoritative_is_defending = _is_defending
 	else:
 		_authoritative_melee_cooldown_remaining = maxf(
 			0.0, _authoritative_melee_cooldown_remaining - delta
@@ -731,6 +773,8 @@ func _spawn_player_bomb(
 func _try_execute_server_melee_attack(requested_facing: Vector2) -> bool:
 	if not _is_server_peer() or _is_dead:
 		return false
+	if _is_defending:
+		return false
 	if weapon_mode != WeaponMode.SWORD:
 		return false
 	if _melee_attack_cooldown_remaining > 0.0:
@@ -764,6 +808,8 @@ func _try_execute_server_melee_attack(requested_facing: Vector2) -> bool:
 func _try_execute_server_ranged_attack(requested_facing: Vector2) -> bool:
 	if not _is_server_peer() or _is_dead:
 		return false
+	if _is_defending:
+		return false
 	if weapon_mode != WeaponMode.GUN:
 		return false
 	if _ranged_cooldown_remaining > 0.0:
@@ -794,6 +840,8 @@ func _try_execute_server_ranged_attack(requested_facing: Vector2) -> bool:
 func _try_execute_server_bomb_attack(requested_facing: Vector2) -> bool:
 	if not _is_server_peer() or _is_dead:
 		return false
+	if _is_defending:
+		return false
 	if weapon_mode != WeaponMode.BOMB:
 		return false
 	if _bomb_cooldown_remaining > 0.0:
@@ -821,7 +869,7 @@ func _try_execute_server_bomb_attack(requested_facing: Vector2) -> bool:
 
 
 func _submit_local_melee_attack_request() -> void:
-	if weapon_mode != WeaponMode.SWORD or _melee_attack_cooldown_remaining > 0.0:
+	if weapon_mode != WeaponMode.SWORD or _melee_attack_cooldown_remaining > 0.0 or _is_defending:
 		return
 	if _is_server_peer():
 		_try_execute_server_melee_attack(_facing_planar)
@@ -834,7 +882,7 @@ func _submit_local_melee_attack_request() -> void:
 
 
 func _submit_local_ranged_attack_request() -> void:
-	if weapon_mode != WeaponMode.GUN or _ranged_cooldown_remaining > 0.0:
+	if weapon_mode != WeaponMode.GUN or _ranged_cooldown_remaining > 0.0 or _is_defending:
 		return
 	if _is_server_peer():
 		_try_execute_server_ranged_attack(_facing_planar)
@@ -846,7 +894,7 @@ func _submit_local_ranged_attack_request() -> void:
 
 
 func _submit_local_bomb_attack_request() -> void:
-	if weapon_mode != WeaponMode.BOMB or _bomb_cooldown_remaining > 0.0:
+	if weapon_mode != WeaponMode.BOMB or _bomb_cooldown_remaining > 0.0 or _is_defending:
 		return
 	if _is_server_peer():
 		_try_execute_server_bomb_attack(_facing_planar)
@@ -871,16 +919,17 @@ func _submit_local_weapon_switch_request() -> void:
 func _handle_local_multiplayer_combat_input() -> void:
 	if not _is_local_owner_peer() or _is_dead:
 		return
+	var defend_down := Input.is_action_pressed(&"defend") and weapon_mode == WeaponMode.SWORD
 	if Input.is_action_just_pressed(&"weapon_switch"):
 		_clear_pending_rmb_attack()
 		_submit_local_weapon_switch_request()
-	if weapon_mode == WeaponMode.SWORD and Input.is_action_just_pressed(&"melee_attack"):
+	if not defend_down and weapon_mode == WeaponMode.SWORD and Input.is_action_just_pressed(&"melee_attack"):
 		_submit_local_melee_attack_request()
 	var rmb := Input.is_mouse_button_pressed(MOUSE_BUTTON_RIGHT)
 	var rmb_click := rmb and not _rmb_down
 	_rmb_down = rmb
 	var ui_blocks_attack := get_viewport().gui_get_hovered_control() != null
-	if rmb_click and not ui_blocks_attack:
+	if not defend_down and rmb_click and not ui_blocks_attack:
 		_face_toward_mouse_planar()
 		match weapon_mode:
 			WeaponMode.GUN:
@@ -1090,6 +1139,8 @@ func get_combat_debug_snapshot() -> Dictionary:
 		"authoritative_melee_cooldown": maxf(0.0, _authoritative_melee_cooldown_remaining),
 		"authoritative_ranged_cooldown": maxf(0.0, _authoritative_ranged_cooldown_remaining),
 		"authoritative_bomb_cooldown": maxf(0.0, _authoritative_bomb_cooldown_remaining),
+		"is_defending": _is_defending,
+		"authoritative_is_defending": _authoritative_is_defending,
 		"facing_lock_time": maxf(0.0, _facing_lock_time_remaining),
 		"is_server_peer": _is_server_peer(),
 		"is_local_owner_peer": _is_local_owner_peer(),
@@ -1128,6 +1179,8 @@ func _cycle_weapon() -> void:
 			weapon_mode = WeaponMode.BOMB
 		_:
 			weapon_mode = WeaponMode.SWORD
+	if weapon_mode != WeaponMode.SWORD:
+		_set_defending_state(false)
 	weapon_mode_changed.emit(get_weapon_mode_display())
 	_sync_sword_visual()
 
@@ -1156,6 +1209,9 @@ func _queue_rmb_attack_after_facing_mouse() -> void:
 
 
 func _execute_pending_rmb_attack_if_any() -> void:
+	if _is_defending:
+		_pending_rmb_kind = &""
+		return
 	if _pending_rmb_kind == &"":
 		return
 	var kind := _pending_rmb_kind
@@ -1204,7 +1260,10 @@ func take_damage(amount: int) -> void:
 		return
 	if _invuln_time_remaining > 0.0:
 		return
-	health = maxi(0, health - amount)
+	var resolved_amount := amount
+	if _is_defending and weapon_mode == WeaponMode.SWORD:
+		resolved_amount = maxi(1, int(round(float(amount) * clampf(defend_damage_multiplier, 0.0, 1.0))))
+	health = maxi(0, health - resolved_amount)
 	health_changed.emit(health, max_health)
 	if health <= 0:
 		_reset_player_visual_transparency()
@@ -1467,6 +1526,9 @@ func _physics_process(delta: float) -> void:
 		_clear_pending_rmb_attack()
 		_cycle_weapon()
 
+	var defend_down := Input.is_action_pressed(&"defend") and weapon_mode == WeaponMode.SWORD
+	_set_defending_state(defend_down)
+
 	var rmb := Input.is_mouse_button_pressed(MOUSE_BUTTON_RIGHT)
 	var rmb_click := rmb and not _rmb_down
 	_rmb_down = rmb
@@ -1485,7 +1547,7 @@ func _physics_process(delta: float) -> void:
 	_dodge_cooldown_remaining = maxf(0.0, _dodge_cooldown_remaining - delta)
 	if _dodge_time_remaining > 0.0:
 		_dodge_time_remaining = maxf(0.0, _dodge_time_remaining - delta)
-	elif Input.is_action_just_pressed(&"dodge") and _dodge_cooldown_remaining <= 0.0:
+	elif Input.is_action_just_pressed(&"dodge") and _dodge_cooldown_remaining <= 0.0 and not _is_defending:
 		_dodge_direction = _facing_planar.normalized()
 		if _dodge_direction.length_squared() <= 1e-6:
 			_dodge_direction = Vector2(0.0, -1.0)
@@ -1497,14 +1559,17 @@ func _physics_process(delta: float) -> void:
 		velocity = _dodge_direction * dodge_speed
 		planar_speed = dodge_speed
 	elif direction != Vector2.ZERO:
-		velocity = direction * speed
-		planar_speed = speed
+		var resolved_speed := speed
+		if _is_defending:
+			resolved_speed *= clampf(defend_move_speed_multiplier, 0.0, 1.0)
+		velocity = direction * resolved_speed
+		planar_speed = resolved_speed
 	else:
 		velocity = Vector2.ZERO
 
 	move_and_slide()
 
-	if rmb_click and not ui_blocks_attack:
+	if rmb_click and not ui_blocks_attack and not _is_defending:
 		_queue_rmb_attack_after_facing_mouse()
 
 	if _visual:
@@ -1517,7 +1582,7 @@ func _physics_process(delta: float) -> void:
 	if weapon_mode == WeaponMode.SWORD:
 		if Input.is_action_just_pressed(&"melee_attack"):
 			want_melee = true
-	if want_melee and _melee_attack_cooldown_remaining <= 0.0:
+	if want_melee and _melee_attack_cooldown_remaining <= 0.0 and not _is_defending:
 		_play_attack_animation_presentation(&"melee")
 		_start_facing_lock(_facing_planar)
 		_squash_mobs_in_melee_hit()
@@ -1565,6 +1630,7 @@ func die() -> void:
 
 func reset_for_retry(world_pos: Vector2) -> void:
 	_set_downed_state(false)
+	_set_defending_state(false)
 	_clear_pending_rmb_attack()
 	weapon_mode = WeaponMode.SWORD
 	weapon_mode_changed.emit(get_weapon_mode_display())
@@ -1597,6 +1663,7 @@ func revive(health_after_revive: int = -1) -> void:
 	health = clampi(resolved_health, 1, max_health)
 	health_changed.emit(health, max_health)
 	_set_downed_state(false)
+	_set_defending_state(false)
 
 
 func revive_to_full() -> void:

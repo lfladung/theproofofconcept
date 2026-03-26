@@ -1,0 +1,5 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="PackedScene" path="res://art/equipment/shields/Base_Model_V01_shield.glb" id="1_source"]
+
+[node name="ShieldV01" instance=ExtResource("1_source")]

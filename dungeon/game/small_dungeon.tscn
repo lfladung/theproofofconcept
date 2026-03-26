@@ -131,7 +131,6 @@ mesh = SubResource("5_portal_mesh")
 
 [node name="DirectionalLight3D" type="DirectionalLight3D" parent="VisualWorld3D" unique_id=393589882]
 transform = Transform3D(0.5, -0.777049, 0.382355, 0, 0.441506, 0.897258, -0.866025, -0.448629, 0.220753, 0, 28, 24)
-shadow_enabled = false
 shadow_bias = 0.04
 shadow_blur = 1.5
 directional_shadow_max_distance = 260.0
@@ -222,7 +221,7 @@ offset_right = 700.0
 offset_bottom = 80.0
 text = "Small dungeon loaded."
 
-[node name="LeaveRunButton" type="Button" parent="CanvasLayer/UI"]
+[node name="LeaveRunButton" type="Button" parent="CanvasLayer/UI" unique_id=1651856289]
 layout_mode = 1
 anchors_preset = 3
 anchor_left = 1.0
@@ -240,4 +239,3 @@ text = "Leave Run"
 [connection signal="body_entered" from="GameWorld2D/Triggers/BossExitPortal" to="." method="_on_boss_exit_portal_body_entered"]
 [connection signal="body_entered" from="GameWorld2D/Triggers/DebugSpawnExitPortal" to="." method="_on_debug_spawn_exit_portal_body_entered"]
 [connection signal="pressed" from="CanvasLayer/UI/LeaveRunButton" to="." method="_on_leave_run_pressed"]
-
