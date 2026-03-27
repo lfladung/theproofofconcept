@@ -295,7 +295,9 @@ func _try_apply_dash_hit() -> void:
 	var hit := _point_in_dash_sweep(_target_player.global_position)
 	if not hit:
 		return
-	if _target_player.has_method(&"take_damage"):
+	if _target_player.has_method(&"take_attack_damage"):
+		_target_player.call(&"take_attack_damage", dash_damage, global_position, _dash_dir)
+	elif _target_player.has_method(&"take_damage"):
 		_target_player.call(&"take_damage", dash_damage)
 	_dash_hit_applied = true
 

@@ -1,0 +1,15 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/ui/loadout/loadout_category_section.gd" id="1_script"]
+
+[node name="LoadoutCategorySection" type="VBoxContainer"]
+theme_override_constants/separation = 6
+script = ExtResource("1_script")
+
+[node name="HeaderButton" type="Button" parent="."]
+custom_minimum_size = Vector2(0, 34)
+text = "▼ Category"
+alignment = 0
+
+[node name="ItemsBox" type="VBoxContainer" parent="."]
+theme_override_constants/separation = 4

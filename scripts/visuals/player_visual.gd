@@ -1,6 +1,8 @@
 @tool
 extends Node3D
 
+const LoadoutConstants = preload("res://scripts/loadout/loadout_constants.gd")
+
 enum EditorPreviewMode {
 	RUNTIME_MATCH,
 	T_POSE_SETUP,
@@ -71,30 +73,42 @@ enum EditorAnimationPreview {
 @export var equipment_legs_root_path: NodePath = NodePath("LegsAttachment")
 @export var equipment_helmet_root_path: NodePath = NodePath("HelmetAttachment")
 @export var equipment_shield_root_path: NodePath = NodePath("ShieldAttachment")
+@export var equipment_handgun_root_path: NodePath = NodePath("HandgunAttachment")
+@export var equipment_bomb_root_path: NodePath = NodePath("BombAttachment")
 @export var equipment_preserve_editor_offsets: bool = false
 @export var runtime_spawn_equipment_if_missing: bool = false
 @export var equipment_chest_scene_path: String = "res://scenes/equipment/armor/chestplate_v02.tscn"
 @export var equipment_legs_scene_path: String = "res://scenes/equipment/armor/legs_v02.tscn"
-@export var equipment_helmet_scene_path: String = "res://scenes/equipment/helmet/helmet_v02.tscn"
+@export var equipment_helmet_scene_path: String = "res://scenes/equipment/helmet/helmet_knight_base.tscn"
 @export var equipment_shield_scene_path: String = "res://scenes/equipment/shields/base_model_v01_shield.tscn"
+@export var equipment_handgun_scene_path: String = "res://scenes/equipment/weapons/handgun_placeholder.tscn"
+@export var equipment_bomb_scene_path: String = "res://scenes/equipment/bombs/bomb_round_placeholder.tscn"
 @export var equipment_chest_bone_override: StringName = &"Spine02"
 @export var equipment_legs_bone_override: StringName = &"Hips"
 @export var equipment_helmet_bone_override: StringName = &"Head"
 @export var equipment_helmet_rotation_bone_override: StringName = &"Spine02"
 @export var equipment_helmet_yaw_only_follow: bool = true
 @export var equipment_shield_bone_override: StringName = &"LeftHand"
+@export var equipment_handgun_bone_override: StringName = &"RightHand"
+@export var equipment_bomb_bone_override: StringName = &"Spine02"
 @export var equipment_chest_local_offset: Vector3 = Vector3(0.0, 0.04, 0.30)
 @export var equipment_legs_local_offset: Vector3 = Vector3.ZERO
 @export var equipment_helmet_local_offset: Vector3 = Vector3(0.0, 1.08, 0.08)
 @export var equipment_shield_local_offset: Vector3 = Vector3(0.02, -0.08, 0.0)
+@export var equipment_handgun_local_offset: Vector3 = Vector3(0.06, -0.02, -0.04)
+@export var equipment_bomb_local_offset: Vector3 = Vector3(0.14, 0.08, -0.12)
 @export var equipment_chest_local_rotation_deg: Vector3 = Vector3.ZERO
 @export var equipment_legs_local_rotation_deg: Vector3 = Vector3.ZERO
 @export var equipment_helmet_local_rotation_deg: Vector3 = Vector3.ZERO
 @export var equipment_shield_local_rotation_deg: Vector3 = Vector3(0.0, 0.0, 90.0)
+@export var equipment_handgun_local_rotation_deg: Vector3 = Vector3(0.0, 0.0, 90.0)
+@export var equipment_bomb_local_rotation_deg: Vector3 = Vector3(0.0, 0.0, 0.0)
 @export var equipment_chest_local_scale: Vector3 = Vector3(1.55, 1.55, 1.55)
 @export var equipment_legs_local_scale: Vector3 = Vector3.ONE
 @export var equipment_helmet_local_scale: Vector3 = Vector3(2.20, 2.20, 2.20)
 @export var equipment_shield_local_scale: Vector3 = Vector3.ONE
+@export var equipment_handgun_local_scale: Vector3 = Vector3(0.22, 0.22, 0.22)
+@export var equipment_bomb_local_scale: Vector3 = Vector3(0.45, 0.45, 0.45)
 @export var hide_base_head_when_helmet_equipped: bool = true
 @export var hidden_head_bone_scale: Vector3 = Vector3(0.001, 0.001, 0.001)
 
@@ -149,6 +163,8 @@ const _EQUIPMENT_CHEST_BONE_KEYWORDS: Array[String] = ["spine", "chest", "upperc
 const _EQUIPMENT_LEGS_BONE_KEYWORDS: Array[String] = ["hips", "pelvis", "spine"]
 const _EQUIPMENT_HELMET_BONE_KEYWORDS: Array[String] = ["head", "neck"]
 const _EQUIPMENT_SHIELD_BONE_KEYWORDS: Array[String] = ["lefthand", "left_hand", "hand", "forearm", "arm"]
+const _EQUIPMENT_HANDGUN_BONE_KEYWORDS: Array[String] = ["righthand", "right_hand", "hand", "weapon", "arm"]
+const _EQUIPMENT_BOMB_BONE_KEYWORDS: Array[String] = ["spine", "chest", "torso", "back", "hips"]
 
 var _anim: AnimationPlayer
 var _attack_playing: bool = false
@@ -183,6 +199,11 @@ var _head_bone_original_scales: Dictionary = {}
 var _head_hide_skeleton: Skeleton3D
 var _head_hide_bone_indices: Array[int] = []
 var _head_hide_active: bool = false
+var _helmet_equipped := true
+var _sword_equipped := true
+var _sword_active := true
+var _handgun_equipped := true
+var _handgun_active := false
 
 
 func _effective_editor_t_pose_preview() -> bool:
@@ -336,11 +357,18 @@ func set_sword_active(active: bool) -> void:
 	# Toggles sword visibility. The sword is attached to the skeleton in `_setup_sword_attachment()`.
 	if _sword_root == null or not is_instance_valid(_sword_root):
 		return
-	_sword_root.visible = active
+	_sword_active = active
+	_sword_root.visible = _sword_equipped and _sword_active
 	if _sword_mode_beacon != null and is_instance_valid(_sword_mode_beacon):
-		_sword_mode_beacon.visible = active
+		_sword_mode_beacon.visible = _sword_equipped and _sword_active
 	if sword_debug_log_visibility and OS.is_debug_build():
 		print("[PlayerVisual] set_sword_active=", active, " node=", _sword_root.get_path())
+
+
+func set_handgun_active(active: bool) -> void:
+	_handgun_active = active
+	var handgun_root := _resolve_or_create_attachment_root(equipment_handgun_root_path, "HandgunAttachment")
+	_apply_attachment_visibility(handgun_root, _handgun_equipped and _handgun_active)
 
 
 func _ensure_sword_mode_beacon() -> void:
@@ -730,19 +758,28 @@ func _build_equipment_visible_material(source_mat: Material, slot_name: String) 
 		tint = Color(0.64, 0.70, 0.80, 1.0)
 	elif slot_name == "Shield":
 		tint = Color(0.78, 0.84, 0.98, 1.0)
+	elif slot_name == "Handgun":
+		tint = Color(0.30, 0.33, 0.38, 1.0)
+	elif slot_name == "Bomb":
+		tint = Color(0.84, 0.24, 0.16, 1.0)
+	var preserve_source_albedo := slot_name == "Handgun" or slot_name == "Bomb"
 	var visible: StandardMaterial3D = StandardMaterial3D.new()
 	visible.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	visible.transparency = BaseMaterial3D.TRANSPARENCY_DISABLED
 	visible.cull_mode = BaseMaterial3D.CULL_DISABLED
-	visible.albedo_color = tint
 	if source_mat != null and source_mat is BaseMaterial3D:
 		var src: BaseMaterial3D = source_mat as BaseMaterial3D
+		if preserve_source_albedo:
+			tint = src.albedo_color
 		if src.albedo_texture != null:
 			visible.albedo_texture = src.albedo_texture
+			if preserve_source_albedo:
+				tint = Color(1.0, 1.0, 1.0, 1.0)
 		visible.texture_filter = src.texture_filter
 		visible.texture_repeat = src.texture_repeat
 		visible.uv1_scale = src.uv1_scale
 		visible.uv1_offset = src.uv1_offset
+	visible.albedo_color = tint
 	visible.render_priority = 3
 	if slot_name == "Helmet":
 		# Helmet should respect depth/culling to avoid rendering the front while facing away.
@@ -841,6 +878,268 @@ func _setup_modular_equipment() -> void:
 	_apply_head_hide_from_helmet_state(skeleton)
 
 
+func apply_loadout_visuals(snapshot: Dictionary) -> void:
+	if snapshot.is_empty():
+		return
+	var equipped_slots_v: Variant = snapshot.get("equipped_slots", {})
+	var definitions_v: Variant = snapshot.get("item_definitions", {})
+	if equipped_slots_v is not Dictionary or definitions_v is not Dictionary:
+		return
+	var equipped_slots: Dictionary = equipped_slots_v as Dictionary
+	var definitions_by_id: Dictionary = definitions_v as Dictionary
+	var sword_scene_path := _loadout_scene_path_for_slot(
+		equipped_slots, definitions_by_id, LoadoutConstants.SLOT_SWORD
+	)
+	var armor_scene_path := _loadout_scene_path_for_slot(
+		equipped_slots, definitions_by_id, LoadoutConstants.SLOT_ARMOR
+	)
+	var helmet_scene_path := _loadout_scene_path_for_slot(
+		equipped_slots, definitions_by_id, LoadoutConstants.SLOT_HELMET
+	)
+	var shield_scene_path := _loadout_scene_path_for_slot(
+		equipped_slots, definitions_by_id, LoadoutConstants.SLOT_SHIELD
+	)
+	var handgun_scene_path := _loadout_scene_path_for_slot(
+		equipped_slots, definitions_by_id, LoadoutConstants.SLOT_HANDGUN
+	)
+
+	_sword_equipped = not sword_scene_path.is_empty()
+	_handgun_equipped = not handgun_scene_path.is_empty()
+	_helmet_equipped = not helmet_scene_path.is_empty()
+	_replace_attachment_child(_resolve_sword_offset_root(), "SwordMesh", sword_scene_path, true, "Sword")
+	_apply_attachment_visibility(_sword_root, _sword_equipped and _sword_active)
+	_apply_loadout_attachment_scene(
+		equipment_chest_root_path,
+		"ArmorAttachment",
+		"ChestOffset",
+		"EquipmentChestMesh",
+		armor_scene_path,
+		equipment_chest_local_offset,
+		equipment_chest_local_rotation_deg,
+		equipment_chest_local_scale,
+		"Chest"
+	)
+	_apply_loadout_attachment_scene(
+		equipment_helmet_root_path,
+		"HelmetAttachment",
+		"HelmetOffset",
+		"EquipmentHelmetMesh",
+		helmet_scene_path,
+		equipment_helmet_local_offset,
+		equipment_helmet_local_rotation_deg,
+		equipment_helmet_local_scale,
+		"Helmet"
+	)
+	_apply_loadout_attachment_scene(
+		equipment_shield_root_path,
+		"ShieldAttachment",
+		"ShieldOffset",
+		"EquipmentShieldMesh",
+		shield_scene_path,
+		equipment_shield_local_offset,
+		equipment_shield_local_rotation_deg,
+		equipment_shield_local_scale,
+		"Shield"
+	)
+	_ensure_dynamic_loadout_attachment(
+		"Handgun",
+		equipment_handgun_root_path,
+		"HandgunAttachment",
+		"HandgunOffset",
+		equipment_handgun_bone_override,
+		&"",
+		_EQUIPMENT_HANDGUN_BONE_KEYWORDS,
+		equipment_handgun_local_offset,
+		equipment_handgun_local_rotation_deg,
+		equipment_handgun_local_scale,
+		handgun_scene_path
+	)
+	set_handgun_active(_handgun_active)
+	_ensure_dynamic_loadout_attachment(
+		"Bomb",
+		equipment_bomb_root_path,
+		"BombAttachment",
+		"BombOffset",
+		equipment_bomb_bone_override,
+		&"",
+		_EQUIPMENT_BOMB_BONE_KEYWORDS,
+		equipment_bomb_local_offset,
+		equipment_bomb_local_rotation_deg,
+		equipment_bomb_local_scale,
+		""
+	)
+	_apply_attachment_visibility(
+		_resolve_or_create_attachment_root(equipment_bomb_root_path, "BombAttachment"),
+		false
+	)
+	_apply_head_hide_from_helmet_state(_find_first_skeleton_3d(self))
+	_enforce_head_hide_pose()
+	_update_sword_manual_bone_follow()
+	_update_modular_equipment_bone_follow()
+
+
+func _loadout_scene_path_for_slot(
+	equipped_slots: Dictionary, definitions_by_id: Dictionary, slot_id: StringName
+) -> String:
+	var item_id := String(equipped_slots.get(String(slot_id), ""))
+	if item_id.is_empty():
+		return ""
+	var definition_v: Variant = definitions_by_id.get(item_id, {})
+	if definition_v is not Dictionary:
+		return ""
+	var visual_v: Variant = (definition_v as Dictionary).get("visual", {})
+	if visual_v is not Dictionary:
+		return ""
+	return String((visual_v as Dictionary).get("equipment_scene_path", ""))
+
+
+func _apply_loadout_attachment_scene(
+	root_path: NodePath,
+	root_fallback_name: String,
+	offset_name: String,
+	child_name: String,
+	scene_path: String,
+	local_offset: Vector3,
+	local_rotation_deg: Vector3,
+	local_scale: Vector3,
+	slot_name: String
+) -> void:
+	var attachment_root: Node3D = _resolve_or_create_attachment_root(root_path, root_fallback_name)
+	if attachment_root == null:
+		return
+	var offset_root: Node3D = _resolve_or_create_offset_root(
+		attachment_root, offset_name, local_offset, local_rotation_deg, local_scale
+	)
+	if offset_root == null:
+		return
+	_replace_attachment_child(offset_root, child_name, scene_path, false, slot_name)
+	_apply_attachment_visibility(attachment_root, not scene_path.is_empty())
+
+
+func _ensure_dynamic_loadout_attachment(
+	slot_name: String,
+	root_path: NodePath,
+	root_fallback_name: String,
+	offset_name: String,
+	bone_name_override: StringName,
+	rotation_bone_name_override: StringName,
+	bone_keywords: Array[String],
+	local_offset: Vector3,
+	local_rotation_deg: Vector3,
+	local_scale: Vector3,
+	scene_path: String
+) -> void:
+	var skeleton := _find_first_skeleton_3d(self)
+	if skeleton == null:
+		return
+	var force_identity_follow := slot_name == "Handgun"
+	if not _equipment_follow_targets.has(slot_name):
+		var attachment_root: Node3D = _resolve_or_create_attachment_root(root_path, root_fallback_name)
+		var offset_root: Node3D = _resolve_or_create_offset_root(
+			attachment_root, offset_name, local_offset, local_rotation_deg, local_scale
+		)
+		if offset_root == null:
+			return
+		var bone_idx := _resolve_equipment_bone_idx(skeleton, bone_name_override, bone_keywords)
+		if bone_idx < 0:
+			return
+		var rotation_bone_idx := bone_idx
+		if rotation_bone_name_override != &"":
+			var explicit_rotation_idx: int = skeleton.find_bone(String(rotation_bone_name_override))
+			if explicit_rotation_idx >= 0:
+				rotation_bone_idx = explicit_rotation_idx
+		_equipment_follow_targets[slot_name] = {
+			"root": attachment_root,
+			"skeleton": skeleton,
+			"bone_idx": bone_idx,
+			"rotation_bone_idx": rotation_bone_idx,
+			"yaw_only_follow": false,
+			"local_from_bone": (
+				Transform3D.IDENTITY
+				if force_identity_follow
+				else _compute_equipment_anchor_world(
+					skeleton,
+					bone_idx,
+					rotation_bone_idx,
+					false
+				).affine_inverse() * attachment_root.global_transform
+			),
+		}
+	elif force_identity_follow:
+		var handgun_record := (_equipment_follow_targets.get(slot_name, {}) as Dictionary).duplicate(true)
+		handgun_record["local_from_bone"] = Transform3D.IDENTITY
+		_equipment_follow_targets[slot_name] = handgun_record
+	var attachment_root_v: Variant = (_equipment_follow_targets.get(slot_name, {}) as Dictionary).get(
+		"root",
+		null
+	)
+	var attachment_root: Node3D = attachment_root_v as Node3D
+	if attachment_root == null:
+		return
+	var offset_root: Node3D = _resolve_or_create_offset_root(
+		attachment_root, offset_name, local_offset, local_rotation_deg, local_scale
+	)
+	if offset_root == null:
+		return
+	_replace_attachment_child(offset_root, "%sMesh" % [slot_name], scene_path, false, slot_name)
+	_apply_attachment_visibility(attachment_root, not scene_path.is_empty())
+
+
+func _resolve_sword_offset_root() -> Node3D:
+	if _sword_root == null or not is_instance_valid(_sword_root):
+		_sword_root = _resolve_or_create_attachment_root(sword_root_path, "SwordAttachment")
+	if _sword_root == null:
+		return null
+	var offset: Node3D = _sword_root.get_node_or_null(NodePath(String(sword_offset_node_name))) as Node3D
+	if offset != null and is_instance_valid(offset):
+		return offset
+	offset = Node3D.new()
+	offset.name = String(sword_offset_node_name)
+	_apply_offset_transform(offset, sword_local_offset, sword_local_rotation_deg, sword_local_scale)
+	_sword_root.add_child(offset)
+	_mark_editor_owned(offset)
+	_sword_offset_node = offset
+	_capture_sword_base_offset_from_node()
+	return offset
+
+
+func _replace_attachment_child(
+	offset_root: Node3D, child_name: String, scene_path: String, use_sword_material: bool, slot_name: String
+) -> void:
+	if offset_root == null:
+		return
+	var existing := _find_first_node3d_child(offset_root)
+	if existing != null and is_instance_valid(existing):
+		var existing_path := String(existing.get_meta(&"loadout_scene_path", ""))
+		if existing_path == scene_path:
+			return
+		existing.queue_free()
+	if scene_path.is_empty():
+		return
+	var scene_res := load(scene_path) as PackedScene
+	if scene_res == null:
+		push_warning("[PlayerVisual] Could not load loadout scene '%s' for %s." % [scene_path, slot_name])
+		return
+	var scene_instance := scene_res.instantiate() as Node3D
+	if scene_instance == null:
+		push_warning("[PlayerVisual] Loadout scene '%s' is not a Node3D for %s." % [scene_path, slot_name])
+		return
+	scene_instance.name = child_name
+	scene_instance.set_meta(&"loadout_scene_path", scene_path)
+	offset_root.add_child(scene_instance)
+	_mark_editor_owned(scene_instance)
+	if use_sword_material and sword_force_visibility_material:
+		_apply_sword_visibility_material_override(scene_instance)
+	elif equipment_force_visibility_material:
+		_apply_equipment_visibility_material_override(scene_instance, slot_name)
+
+
+func _apply_attachment_visibility(root: Node3D, visible: bool) -> void:
+	if root == null or not is_instance_valid(root):
+		return
+	root.visible = visible
+
+
 func _find_bone_idx_case_insensitive(skeleton: Skeleton3D, target_name: String) -> int:
 	if skeleton == null or target_name.is_empty():
 		return -1
@@ -862,7 +1161,9 @@ func _find_bone_name_case_insensitive(skeleton: Skeleton3D, target_name: String)
 func _apply_head_hide_from_helmet_state(skeleton: Skeleton3D) -> void:
 	if skeleton == null:
 		return
-	var should_hide_head: bool = hide_base_head_when_helmet_equipped and modular_equipment_enabled
+	var should_hide_head: bool = (
+		hide_base_head_when_helmet_equipped and modular_equipment_enabled and _helmet_equipped
+	)
 	# Keep the white base head hidden whenever this feature is enabled.
 	_head_hide_skeleton = skeleton
 	_head_hide_bone_indices.clear()
@@ -1029,6 +1330,8 @@ func _resolve_equipment_bone_idx(
 		return -1
 	if bone_name_override != &"":
 		var explicit_idx: int = skeleton.find_bone(String(bone_name_override))
+		if explicit_idx < 0:
+			explicit_idx = _find_bone_idx_case_insensitive(skeleton, String(bone_name_override))
 		if explicit_idx >= 0:
 			return explicit_idx
 

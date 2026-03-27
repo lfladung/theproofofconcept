@@ -1,0 +1,11 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="PackedScene" path="res://art/equipment/shields/Shield_V2_texture.glb" id="1_source"]
+
+[node name="ShieldV2" type="Node3D"]
+
+[node name="ShieldFlip" type="Node3D" parent="."]
+transform = Transform3D(-1, 0, 0, 0, -1, 0, 0, 0, 1, 0, 0, 0)
+
+[node name="ShieldGeometry" parent="ShieldFlip" instance=ExtResource("1_source")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0.3)

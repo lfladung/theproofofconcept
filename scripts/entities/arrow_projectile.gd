@@ -5,6 +5,7 @@ signal projectile_finished(final_position: Vector2)
 
 const ARROW_VISUAL_SCENE := preload("res://art/combat/projectiles/a_regular_wooden_arrow_texture.glb")
 const PLAYER_PROJECTILE_VISUAL_SCENE := preload("res://art/combat/projectiles/projectile_red_texture.glb")
+const PLAYER_PROJECTILE_BLUE_VISUAL_SCENE := preload("res://art/combat/projectiles/projectile_blue_texture.glb")
 
 @export var speed := 42.0
 @export var max_distance := 30.0
@@ -29,19 +30,22 @@ var _vw: Node3D
 var _fired_by_player := false
 var _authoritative_damage := true
 var _finished := false
+var _projectile_style_id: StringName = &"red"
 
 
 func configure(
 	spawn_position: Vector2,
 	direction: Vector2,
 	owner_visual_world: Node3D,
-	fired_by_player: bool = false
+	fired_by_player: bool = false,
+	projectile_style_id: StringName = &"red"
 ) -> void:
 	global_position = spawn_position
 	_start_pos = spawn_position
 	_direction = direction.normalized() if direction.length_squared() > 0.0001 else Vector2.RIGHT
 	_vw = owner_visual_world
 	_fired_by_player = fired_by_player
+	_projectile_style_id = projectile_style_id
 
 
 func set_authoritative_damage(enabled: bool) -> void:
@@ -62,9 +66,13 @@ func _ready() -> void:
 func _deferred_setup_visual() -> void:
 	if _vw == null:
 		return
-	var vis_scene: PackedScene = (
-		PLAYER_PROJECTILE_VISUAL_SCENE if _fired_by_player else ARROW_VISUAL_SCENE
-	)
+	var vis_scene: PackedScene = ARROW_VISUAL_SCENE
+	if _fired_by_player:
+		vis_scene = (
+			PLAYER_PROJECTILE_BLUE_VISUAL_SCENE
+			if _projectile_style_id == &"blue"
+			else PLAYER_PROJECTILE_VISUAL_SCENE
+		)
 	if vis_scene != null:
 		var vis := vis_scene.instantiate() as Node3D
 		if vis != null:
@@ -82,7 +90,11 @@ func _deferred_setup_visual() -> void:
 		var mat := StandardMaterial3D.new()
 		mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 		mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-		mat.albedo_color = Color(1.0, 0.15, 0.15, 0.45)
+		mat.albedo_color = (
+			Color(0.2, 0.45, 1.0, 0.45)
+			if _fired_by_player and _projectile_style_id == &"blue"
+			else Color(1.0, 0.15, 0.15, 0.45)
+		)
 		mat.cull_mode = BaseMaterial3D.CULL_DISABLED
 		box.material = mat
 		_debug_hitbox.mesh = box
@@ -123,7 +135,9 @@ func _on_body_entered(body: Node2D) -> void:
 		_finish_projectile()
 		return
 	if body.is_in_group(&"player"):
-		if _authoritative_damage and body.has_method(&"take_damage"):
+		if _authoritative_damage and body.has_method(&"take_attack_damage"):
+			body.call(&"take_attack_damage", damage, global_position, _direction)
+		elif _authoritative_damage and body.has_method(&"take_damage"):
 			body.call(&"take_damage", damage)
 		_finish_projectile()
 

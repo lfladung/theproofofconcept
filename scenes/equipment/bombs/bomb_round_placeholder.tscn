@@ -1,0 +1,27 @@
+[gd_scene load_steps=4 format=3]
+
+[sub_resource type="StandardMaterial3D" id="1_material"]
+albedo_color = Color(0.8, 0.2, 0.16, 1)
+metallic = 0.1
+roughness = 0.82
+
+[sub_resource type="SphereMesh" id="2_body_mesh"]
+radius = 0.34
+height = 0.68
+material = SubResource("1_material")
+
+[sub_resource type="CylinderMesh" id="3_fuse_mesh"]
+top_radius = 0.04
+bottom_radius = 0.04
+height = 0.22
+radial_segments = 10
+material = SubResource("1_material")
+
+[node name="BombRoundPlaceholder" type="Node3D"]
+
+[node name="Body" type="MeshInstance3D" parent="."]
+mesh = SubResource("2_body_mesh")
+
+[node name="Fuse" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, -4.37114e-08, 1, 0, -1, -4.37114e-08, 0, 0.36, 0)
+mesh = SubResource("3_fuse_mesh")

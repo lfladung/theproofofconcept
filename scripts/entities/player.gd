@@ -2,12 +2,16 @@ extends CharacterBody2D
 
 signal hit
 signal health_changed(current: int, max_health: int)
+signal stamina_changed(current: float, max_stamina: float)
 signal weapon_mode_changed(display_name: String)
 signal downed_state_changed(is_downed: bool)
+signal loadout_changed(snapshot: Dictionary)
+signal loadout_request_failed(message: String)
 
 const ARROW_PROJECTILE_SCENE := preload("res://scenes/entities/arrow_projectile.tscn")
 const PLAYER_BOMB_SCENE := preload("res://scenes/entities/player_bomb.tscn")
 const PLAYER_VISUAL_SCENE := preload("res://scenes/visuals/player_visual.tscn")
+const LoadoutConstants = preload("res://scripts/loadout/loadout_constants.gd")
 const REVIVE_HEALTH := 50
 
 enum WeaponMode { SWORD, GUN, BOMB }
@@ -41,12 +45,18 @@ enum WeaponMode { SWORD, GUN, BOMB }
 @export var hitbox_debug_ground_y := 0.028
 @export var show_player_hitbox_debug := true
 @export var show_mob_hitbox_debug := true
+@export var show_shield_block_debug := false
 @export var hitbox_debug_circle_segments := 40
 @export var dodge_speed := 36.0
 @export var dodge_duration := 0.16
 @export var dodge_cooldown := 0.05
 @export var defend_move_speed_multiplier := 0.42
-@export var defend_damage_multiplier := 0.35
+@export var defend_damage_multiplier := 1.0
+@export var max_stamina := 100.0
+@export var block_arc_degrees := 120.0
+@export var stamina_regen_per_second := 10.0
+@export var stamina_regen_delay := 1.0
+@export var stamina_break_regen_delay := 5.0
 ## Ranged (gun) — aligned loosely with arrow towers.
 @export var ranged_cooldown := 0.45
 @export var ranged_damage := 15
@@ -74,7 +84,10 @@ enum WeaponMode { SWORD, GUN, BOMB }
 @onready var _body_shape: CollisionShape2D = $CollisionShape2D
 
 var health: int = 100
+var stamina := 100.0
 var _invuln_time_remaining := 0.0
+var _stamina_regen_cooldown_remaining := 0.0
+var _stamina_broken := false
 ## Last planar facing (2D x,y ↔ 3D x,z); default “forward” for attacks when idle.
 var _facing_planar := Vector2(0.0, -1.0)
 
@@ -84,6 +97,8 @@ var _player_hitbox_mi: MeshInstance3D
 var _player_hitbox_mat: StandardMaterial3D
 var _mob_hitboxes_mi: MeshInstance3D
 var _mob_hitbox_mat: StandardMaterial3D
+var _shield_block_debug_mi: MeshInstance3D
+var _shield_block_debug_mat: StandardMaterial3D
 var _dodge_time_remaining := 0.0
 var _dodge_cooldown_remaining := 0.0
 var _dodge_direction := Vector2.ZERO
@@ -147,6 +162,21 @@ var _authoritative_melee_cooldown_remaining := 0.0
 var _authoritative_ranged_cooldown_remaining := 0.0
 var _authoritative_bomb_cooldown_remaining := 0.0
 var _authoritative_is_defending := false
+var _authoritative_stamina := 100.0
+var _authoritative_stamina_broken := false
+var _loadout_host: Node
+var _loadout_owner_id: StringName = &""
+var _loadout_snapshot: Dictionary = {}
+var _loadout_room_type_provider: Callable = Callable()
+var _menu_input_blocked := false
+var _local_loadout_request_sequence := 0
+var _server_last_loadout_request_sequence := -1
+var _base_speed := 0.0
+var _base_max_health := 0
+var _base_melee_attack_damage := 0
+var _base_ranged_damage := 0
+var _base_bomb_damage := 0
+var _base_defend_damage_multiplier := 1.0
 
 
 func _ready() -> void:
@@ -183,23 +213,114 @@ func _ready() -> void:
 		_mob_hitboxes_mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		vw.add_child(_mob_hitboxes_mi)
 
+		_shield_block_debug_mi = MeshInstance3D.new()
+		_shield_block_debug_mi.name = &"ShieldBlockDebugMesh"
+		_shield_block_debug_mat = StandardMaterial3D.new()
+		_shield_block_debug_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		_shield_block_debug_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+		_shield_block_debug_mat.albedo_color = Color(0.18, 0.48, 1.0, 0.4)
+		_shield_block_debug_mat.cull_mode = BaseMaterial3D.CULL_DISABLED
+		_shield_block_debug_mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		_shield_block_debug_mi.visible = false
+		_shield_block_debug_mi.material_override = _shield_block_debug_mat
+		vw.add_child(_shield_block_debug_mi)
+
+	_capture_base_stats()
 	health = max_health
 	health_changed.emit(health, max_health)
+	stamina = _max_stamina_value()
+	stamina_changed.emit(stamina, _max_stamina_value())
 	network_owner_peer_id = get_multiplayer_authority()
 	_authoritative_weapon_mode_id = int(weapon_mode)
 	_authoritative_melee_cooldown_remaining = 0.0
 	_authoritative_ranged_cooldown_remaining = 0.0
 	_authoritative_bomb_cooldown_remaining = 0.0
 	_authoritative_is_defending = false
+	_authoritative_stamina = stamina
+	_authoritative_stamina_broken = false
 	_apply_visual_downed_state()
 	_apply_visual_defending_state()
 	_sync_sword_visual()
 	call_deferred("_sync_sword_visual")
 
 
+func bind_loadout_runtime(loadout_host: Node, room_type_provider: Callable, owner_id: StringName = &"") -> void:
+	_loadout_host = loadout_host
+	_loadout_room_type_provider = room_type_provider
+	if owner_id != &"":
+		_loadout_owner_id = owner_id
+	elif network_owner_peer_id > 0:
+		_loadout_owner_id = StringName("peer_%s" % [network_owner_peer_id])
+	if _loadout_host != null and _loadout_host.has_method(&"get_player_loadout_snapshot"):
+		var snapshot_v: Variant = _loadout_host.call(&"get_player_loadout_snapshot", self)
+		if snapshot_v is Dictionary:
+			apply_authoritative_loadout_snapshot(snapshot_v as Dictionary)
+
+
+func set_menu_input_blocked(blocked: bool) -> void:
+	_menu_input_blocked = blocked
+	if _menu_input_blocked:
+		_clear_pending_rmb_attack()
+		_set_defending_state(false)
+		velocity = Vector2.ZERO
+		_rmb_down = true
+	else:
+		_rmb_down = Input.is_mouse_button_pressed(MOUSE_BUTTON_RIGHT)
+
+
+func request_equip_item(item_id: StringName) -> void:
+	if _loadout_host == null:
+		loadout_request_failed.emit("Loadout backend is unavailable.")
+		return
+	var normalized_item_id := StringName(String(item_id))
+	if normalized_item_id == &"":
+		loadout_request_failed.emit("Choose an item to equip.")
+		return
+	if _is_server_peer() or not _multiplayer_active():
+		_request_local_or_server_loadout_change(&"equip", normalized_item_id)
+		return
+	_local_loadout_request_sequence += 1
+	_rpc_request_loadout_equip.rpc_id(1, _local_loadout_request_sequence, normalized_item_id)
+
+
+func request_unequip_slot(slot_id: StringName) -> void:
+	if _loadout_host == null:
+		loadout_request_failed.emit("Loadout backend is unavailable.")
+		return
+	var normalized_slot_id := StringName(String(slot_id))
+	if normalized_slot_id == &"":
+		loadout_request_failed.emit("Choose a slot to unequip.")
+		return
+	if _is_server_peer() or not _multiplayer_active():
+		_request_local_or_server_loadout_change(&"unequip", normalized_slot_id)
+		return
+	_local_loadout_request_sequence += 1
+	_rpc_request_loadout_unequip.rpc_id(1, _local_loadout_request_sequence, normalized_slot_id)
+
+
+func get_loadout_view_model() -> Dictionary:
+	return _loadout_snapshot.duplicate(true)
+
+
+func apply_authoritative_loadout_snapshot(snapshot: Dictionary) -> void:
+	if snapshot.is_empty():
+		return
+	_loadout_snapshot = snapshot.duplicate(true)
+	if _loadout_owner_id == &"":
+		_loadout_owner_id = StringName(String(_loadout_snapshot.get("owner_id", "")))
+	_apply_loadout_stats(_loadout_snapshot.get("aggregated_stats", {}) as Dictionary)
+	if _visual != null and is_instance_valid(_visual) and _visual.has_method(&"apply_loadout_visuals"):
+		_visual.call(&"apply_loadout_visuals", _loadout_snapshot)
+	_coerce_weapon_mode_to_available(true)
+	_sync_sword_visual()
+	loadout_changed.emit(_loadout_snapshot.duplicate(true))
+
+
 func set_network_owner_peer_id(peer_id: int) -> void:
 	network_owner_peer_id = max(1, peer_id)
 	set_multiplayer_authority(network_owner_peer_id, true)
+	if _loadout_owner_id == &"":
+		_loadout_owner_id = StringName("peer_%s" % [network_owner_peer_id])
 	if OS.is_debug_build():
 		var has_peer := multiplayer.multiplayer_peer != null
 		var local_peer := multiplayer.get_unique_id() if has_peer else 1
@@ -212,6 +333,15 @@ func set_network_owner_peer_id(peer_id: int) -> void:
 				local_authority,
 			]
 		)
+
+
+func _capture_base_stats() -> void:
+	_base_speed = speed
+	_base_max_health = max_health
+	_base_melee_attack_damage = melee_attack_damage
+	_base_ranged_damage = ranged_damage
+	_base_bomb_damage = bomb_damage
+	_base_defend_damage_multiplier = defend_damage_multiplier
 
 
 func _resolve_or_create_visual_root(vw: Node3D) -> Node3D:
@@ -255,8 +385,216 @@ func _can_broadcast_world_replication() -> bool:
 		return bool(session.call("can_broadcast_world_replication"))
 	return true
 
+
 func _is_local_owner_peer() -> bool:
 	return network_owner_peer_id == _local_peer_id()
+
+
+func _is_safe_room_for_loadout() -> bool:
+	if not _loadout_room_type_provider.is_valid():
+		return false
+	var room_type_v: Variant = _loadout_room_type_provider.call(global_position)
+	return String(room_type_v) == "safe"
+
+
+func _loadout_request_context() -> Dictionary:
+	return {
+		"safe_room_only": true,
+		"is_safe_room": _is_safe_room_for_loadout(),
+	}
+
+
+func _request_local_or_server_loadout_change(action: StringName, value: StringName) -> void:
+	if _loadout_host == null:
+		loadout_request_failed.emit("Loadout backend is unavailable.")
+		return
+	if not _loadout_host.has_method(&"handle_player_loadout_request"):
+		loadout_request_failed.emit("Loadout backend is missing request handling.")
+		return
+	var result_v: Variant = _loadout_host.call(&"handle_player_loadout_request", self, action, value)
+	if result_v is not Dictionary:
+		loadout_request_failed.emit("Loadout backend returned an invalid response.")
+		return
+	var result: Dictionary = result_v as Dictionary
+	if not bool(result.get("ok", false)):
+		var failure_message := String(result.get("message", "Loadout request rejected."))
+		if _multiplayer_active() and _is_server_peer() and network_owner_peer_id != _local_peer_id():
+			_rpc_receive_loadout_request_failed.rpc_id(network_owner_peer_id, failure_message)
+		else:
+			loadout_request_failed.emit(failure_message)
+		var failed_snapshot_v: Variant = result.get("snapshot", {})
+		if failed_snapshot_v is Dictionary and not (failed_snapshot_v as Dictionary).is_empty():
+			apply_authoritative_loadout_snapshot(failed_snapshot_v as Dictionary)
+		return
+	var snapshot_v: Variant = result.get("snapshot", {})
+	if snapshot_v is Dictionary:
+		apply_authoritative_loadout_snapshot(snapshot_v as Dictionary)
+
+
+func _loadout_slot_item_id(slot_id: StringName) -> StringName:
+	if _loadout_snapshot.is_empty():
+		return &""
+	var equipped_slots_v: Variant = _loadout_snapshot.get("equipped_slots", {})
+	if equipped_slots_v is not Dictionary:
+		return &""
+	return StringName(String((equipped_slots_v as Dictionary).get(String(slot_id), "")))
+
+
+func _loadout_item_definition(item_id: StringName) -> Dictionary:
+	if _loadout_snapshot.is_empty():
+		return {}
+	var definitions_v: Variant = _loadout_snapshot.get("item_definitions", {})
+	if definitions_v is not Dictionary:
+		return {}
+	return ((definitions_v as Dictionary).get(String(item_id), {}) as Dictionary)
+
+
+func _loadout_item_stat_total(stat_key: StringName) -> float:
+	if _loadout_snapshot.is_empty():
+		return 0.0
+	var stats_v: Variant = _loadout_snapshot.get("aggregated_stats", {})
+	if stats_v is not Dictionary:
+		return 0.0
+	var stats: Dictionary = stats_v as Dictionary
+	if stats.has(stat_key):
+		return float(stats.get(stat_key, 0.0))
+	if stats.has(String(stat_key)):
+		return float(stats.get(String(stat_key), 0.0))
+	return 0.0
+
+
+func _has_equipped_item(slot_id: StringName) -> bool:
+	if _loadout_snapshot.is_empty():
+		return true
+	return _loadout_slot_item_id(slot_id) != &""
+
+
+func _has_equipped_sword() -> bool:
+	return _has_equipped_item(LoadoutConstants.SLOT_SWORD)
+
+
+func _has_equipped_handgun() -> bool:
+	return _has_equipped_item(LoadoutConstants.SLOT_HANDGUN)
+
+
+func _has_equipped_shield() -> bool:
+	return _has_equipped_item(LoadoutConstants.SLOT_SHIELD)
+
+
+func _has_equipped_bomb() -> bool:
+	return _has_equipped_item(LoadoutConstants.SLOT_BOMB)
+
+
+func _can_defend_in_current_mode() -> bool:
+	if _is_dead or not _has_equipped_shield():
+		return false
+	match weapon_mode:
+		WeaponMode.SWORD:
+			return _has_equipped_sword()
+		WeaponMode.GUN:
+			return _has_equipped_handgun()
+		_:
+			return false
+
+
+func _equipped_handgun_projectile_style() -> StringName:
+	var handgun_item_id := _loadout_slot_item_id(LoadoutConstants.SLOT_HANDGUN)
+	if handgun_item_id == &"":
+		return LoadoutConstants.PROJECTILE_STYLE_RED
+	var definition := _loadout_item_definition(handgun_item_id)
+	var visual_v: Variant = definition.get("visual", {})
+	if visual_v is Dictionary:
+		return StringName(String((visual_v as Dictionary).get("projectile_style_id", "red")))
+	return LoadoutConstants.PROJECTILE_STYLE_RED
+
+
+func _equipped_bomb_visual_style() -> StringName:
+	var bomb_item_id := _loadout_slot_item_id(LoadoutConstants.SLOT_BOMB)
+	if bomb_item_id == &"":
+		return LoadoutConstants.PROJECTILE_STYLE_RED
+	var definition := _loadout_item_definition(bomb_item_id)
+	var visual_v: Variant = definition.get("visual", {})
+	if visual_v is Dictionary:
+		return StringName(String((visual_v as Dictionary).get("projectile_style_id", "red")))
+	return LoadoutConstants.PROJECTILE_STYLE_RED
+
+
+func _available_main_weapon_modes() -> Array:
+	var modes: Array = []
+	if _has_equipped_sword():
+		modes.append(WeaponMode.SWORD)
+	if _has_equipped_handgun():
+		modes.append(WeaponMode.GUN)
+	return modes
+
+
+func _coerce_weapon_mode_to_available(force_emit: bool = false) -> void:
+	var previous_mode := weapon_mode
+	var available_modes: Array = _available_main_weapon_modes()
+	if available_modes.is_empty():
+		if previous_mode != WeaponMode.SWORD:
+			weapon_mode = WeaponMode.SWORD
+		if _is_defending and not _can_defend_in_current_mode():
+			_set_defending_state(false)
+		if previous_mode != weapon_mode or force_emit:
+			weapon_mode_changed.emit(get_weapon_mode_display())
+		_sync_sword_visual()
+		return
+	if available_modes.find(weapon_mode) < 0:
+		weapon_mode = available_modes[0]
+	if _is_defending and not _can_defend_in_current_mode():
+		_set_defending_state(false)
+	if previous_mode != weapon_mode or force_emit:
+		weapon_mode_changed.emit(get_weapon_mode_display())
+	_sync_sword_visual()
+
+
+func _apply_loadout_stats(aggregated_stats: Dictionary) -> void:
+	var previous_max_health := maxi(1, max_health)
+	var previous_health := clampi(health, 0, previous_max_health)
+	var totals := aggregated_stats.duplicate(true)
+	speed = maxf(0.0, _base_speed + _loadout_stat_from_totals(totals, LoadoutConstants.STAT_SPEED))
+	melee_attack_damage = maxi(
+		0,
+		int(roundf(_base_melee_attack_damage + _loadout_stat_from_totals(totals, LoadoutConstants.STAT_MELEE_DAMAGE)))
+	)
+	ranged_damage = maxi(
+		0,
+		int(roundf(_base_ranged_damage + _loadout_stat_from_totals(totals, LoadoutConstants.STAT_RANGED_DAMAGE)))
+	)
+	bomb_damage = maxi(
+		0,
+		int(roundf(_base_bomb_damage + _loadout_stat_from_totals(totals, LoadoutConstants.STAT_BOMB_DAMAGE)))
+	)
+	defend_damage_multiplier = clampf(
+		_base_defend_damage_multiplier
+			+ _loadout_stat_from_totals(totals, LoadoutConstants.STAT_DEFEND_DAMAGE_MULTIPLIER),
+		0.1,
+		4.0
+	)
+	var next_max_health := maxi(
+		1,
+		int(roundf(_base_max_health + _loadout_stat_from_totals(totals, LoadoutConstants.STAT_MAX_HEALTH)))
+	)
+	if max_health != next_max_health:
+		max_health = next_max_health
+		if previous_health <= 0:
+			health = 0
+		elif previous_health >= previous_max_health:
+			health = max_health
+		else:
+			var health_ratio := float(previous_health) / float(previous_max_health)
+			health = clampi(int(roundf(health_ratio * float(max_health))), 1, max_health)
+		health_changed.emit(health, max_health)
+
+
+func _loadout_stat_from_totals(totals: Dictionary, stat_key: StringName) -> float:
+	if totals.has(stat_key):
+		return float(totals.get(stat_key, 0.0))
+	if totals.has(String(stat_key)):
+		return float(totals.get(String(stat_key), 0.0))
+	return 0.0
+
 
 
 func _update_remote_proxy_visual() -> void:
@@ -295,11 +633,13 @@ func _sync_sword_visual() -> void:
 	if _visual == null or not is_instance_valid(_visual):
 		return
 	if _visual.has_method(&"set_sword_active"):
-		_visual.call(&"set_sword_active", weapon_mode == WeaponMode.SWORD)
+		_visual.call(&"set_sword_active", weapon_mode == WeaponMode.SWORD and _has_equipped_sword())
+	if _visual.has_method(&"set_handgun_active"):
+		_visual.call(&"set_handgun_active", weapon_mode == WeaponMode.GUN and _has_equipped_handgun())
 
 
 func _set_defending_state(next_defending: bool) -> void:
-	var resolved_defending: bool = next_defending and not _is_dead and weapon_mode == WeaponMode.SWORD
+	var resolved_defending: bool = next_defending and _can_defend_in_current_mode()
 	if _is_defending == resolved_defending:
 		return
 	_is_defending = resolved_defending
@@ -365,6 +705,89 @@ func _is_facing_locked() -> bool:
 	return _facing_lock_time_remaining > 0.0
 
 
+func _max_stamina_value() -> float:
+	return maxf(1.0, max_stamina)
+
+
+func _set_stamina_value(next_stamina: float) -> void:
+	var resolved := clampf(next_stamina, 0.0, _max_stamina_value())
+	var changed := not is_equal_approx(stamina, resolved)
+	stamina = resolved
+	_stamina_broken = stamina <= 0.001
+	if not _multiplayer_active() or _is_server_peer():
+		_authoritative_stamina = stamina
+		_authoritative_stamina_broken = _stamina_broken
+	if changed:
+		stamina_changed.emit(stamina, _max_stamina_value())
+
+
+func _restore_stamina_to_full() -> void:
+	_stamina_regen_cooldown_remaining = 0.0
+	_set_stamina_value(_max_stamina_value())
+
+
+func _resolve_attack_origin_direction(
+	source_position: Vector2, incoming_direction: Vector2 = Vector2.ZERO
+) -> Vector2:
+	if incoming_direction.length_squared() > 0.0001:
+		return (-incoming_direction).normalized()
+	var to_source := source_position - global_position
+	if to_source.length_squared() > 0.0001:
+		return to_source.normalized()
+	return Vector2.ZERO
+
+
+func _is_attack_inside_block_arc(
+	source_position: Vector2, incoming_direction: Vector2 = Vector2.ZERO
+) -> bool:
+	if not _is_defending or not _can_defend_in_current_mode() or stamina <= 0.0:
+		return false
+	var attack_origin_dir := _resolve_attack_origin_direction(source_position, incoming_direction)
+	if attack_origin_dir.length_squared() <= 0.0001:
+		return false
+	var guard_facing := _facing_planar
+	if guard_facing.length_squared() <= 0.0001:
+		guard_facing = Vector2(0.0, -1.0)
+	else:
+		guard_facing = guard_facing.normalized()
+	var half_arc_radians := deg_to_rad(clampf(block_arc_degrees, 0.0, 360.0) * 0.5)
+	return guard_facing.dot(attack_origin_dir) >= cos(half_arc_radians)
+
+
+func _apply_guard_stamina_damage(amount: int) -> void:
+	if amount <= 0:
+		return
+	var scaled_amount := maxf(1.0, float(amount) * maxf(0.1, defend_damage_multiplier))
+	var broke_guard := stamina - scaled_amount <= 0.0
+	_set_stamina_value(stamina - scaled_amount)
+	_stamina_regen_cooldown_remaining = (
+		maxf(0.0, stamina_break_regen_delay) if broke_guard else maxf(0.0, stamina_regen_delay)
+	)
+
+
+func _apply_health_damage(amount: int) -> void:
+	health = maxi(0, health - amount)
+	health_changed.emit(health, max_health)
+	if health <= 0:
+		_reset_player_visual_transparency()
+		die()
+		return
+	_invuln_time_remaining = hit_invulnerability_duration
+	_update_invulnerability_flash_visual()
+
+
+func _tick_stamina_regen(delta: float) -> void:
+	if _is_dead or _is_defending or stamina >= _max_stamina_value():
+		return
+	if _stamina_regen_cooldown_remaining > 0.0:
+		_stamina_regen_cooldown_remaining = maxf(0.0, _stamina_regen_cooldown_remaining - delta)
+		return
+	var regen_amount := maxf(0.0, stamina_regen_per_second) * maxf(0.0, delta)
+	if regen_amount <= 0.0:
+		return
+	_set_stamina_value(stamina + regen_amount)
+
+
 func _broadcast_server_state(delta: float) -> void:
 	if not _is_server_peer():
 		return
@@ -379,6 +802,7 @@ func _broadcast_server_state(delta: float) -> void:
 		velocity,
 		_facing_planar,
 		health,
+		stamina,
 		int(weapon_mode),
 		_is_dead,
 		_dodge_time_remaining,
@@ -422,6 +846,7 @@ func _rpc_receive_server_state(
 	planar_velocity: Vector2,
 	facing_planar: Vector2,
 	health_value: int,
+	stamina_value: float,
 	weapon_value: int,
 	dead_state: bool,
 	dodge_time_remaining_value: float,
@@ -444,6 +869,10 @@ func _rpc_receive_server_state(
 	if health != normalized_health:
 		health = normalized_health
 		health_changed.emit(health, max_health)
+	var normalized_stamina := clampf(stamina_value, 0.0, _max_stamina_value())
+	_authoritative_stamina = normalized_stamina
+	_authoritative_stamina_broken = normalized_stamina <= 0.001
+	_set_stamina_value(normalized_stamina)
 	var next_weapon := weapon_mode
 	match weapon_value:
 		1:
@@ -452,9 +881,7 @@ func _rpc_receive_server_state(
 			next_weapon = WeaponMode.BOMB
 		_:
 			next_weapon = WeaponMode.SWORD
-	if weapon_mode != next_weapon:
-		weapon_mode = next_weapon
-		weapon_mode_changed.emit(get_weapon_mode_display())
+	weapon_mode = next_weapon
 	_authoritative_weapon_mode_id = int(next_weapon)
 	_authoritative_melee_cooldown_remaining = maxf(0.0, melee_cooldown_remaining_value)
 	_authoritative_ranged_cooldown_remaining = maxf(0.0, ranged_cooldown_remaining_value)
@@ -462,7 +889,7 @@ func _rpc_receive_server_state(
 	_authoritative_is_defending = defending_state
 	_set_downed_state(dead_state)
 	_set_defending_state(defending_state)
-	_sync_sword_visual()
+	_coerce_weapon_mode_to_available(true)
 	_facing_lock_time_remaining = maxf(0.0, facing_lock_time_remaining_value)
 	if _facing_lock_time_remaining > 0.0:
 		_facing_lock_planar = _facing_planar
@@ -537,7 +964,7 @@ func _apply_movement_step(
 		if to_target.length_squared() > 0.01:
 			direction = to_target.normalized()
 	_update_facing_planar(direction, false)
-	var wants_defending: bool = defend_down and weapon_mode == WeaponMode.SWORD and _dodge_time_remaining <= 0.0
+	var wants_defending: bool = defend_down and _can_defend_in_current_mode() and _dodge_time_remaining <= 0.0
 	_set_defending_state(wants_defending)
 	_dodge_cooldown_remaining = maxf(0.0, _dodge_cooldown_remaining - delta)
 	if _dodge_time_remaining > 0.0:
@@ -570,7 +997,7 @@ func _server_authoritative_step(delta: float) -> void:
 	var target_world := global_position
 	var dodge_down := false
 	var defend_down := false
-	if _is_local_owner_peer():
+	if _is_local_owner_peer() and not _menu_input_blocked:
 		move_active = _mouse_steering_active()
 		target_world = _mouse_planar_world()
 		dodge_down = Input.is_action_pressed(&"dodge")
@@ -584,14 +1011,20 @@ func _server_authoritative_step(delta: float) -> void:
 	var dodge_pressed := dodge_down and not _server_prev_dodge_down
 	_server_prev_dodge_down = dodge_down
 	_apply_movement_step(delta, move_active, target_world, dodge_pressed, defend_down)
+	_tick_stamina_regen(delta)
 	_broadcast_server_state(delta)
 
 
 func _client_predicted_step(delta: float) -> void:
-	var move_active := _mouse_steering_active()
-	var target_world := _mouse_planar_world()
-	var dodge_down := Input.is_action_pressed(&"dodge")
-	var defend_down := Input.is_action_pressed(&"defend")
+	var move_active := false
+	var target_world := global_position
+	var dodge_down := false
+	var defend_down := false
+	if not _menu_input_blocked:
+		move_active = _mouse_steering_active()
+		target_world = _mouse_planar_world()
+		dodge_down = Input.is_action_pressed(&"dodge")
+		defend_down = Input.is_action_pressed(&"defend")
 	var dodge_pressed := dodge_down and not _local_prev_dodge_down
 	_local_prev_dodge_down = dodge_down
 	var sequence := _input_sequence
@@ -644,6 +1077,8 @@ func _run_shared_cooldown_and_debug_tick(delta: float) -> void:
 		_authoritative_ranged_cooldown_remaining = _ranged_cooldown_remaining
 		_authoritative_bomb_cooldown_remaining = _bomb_cooldown_remaining
 		_authoritative_is_defending = _is_defending
+		_authoritative_stamina = stamina
+		_authoritative_stamina_broken = _stamina_broken
 	else:
 		_authoritative_melee_cooldown_remaining = maxf(
 			0.0, _authoritative_melee_cooldown_remaining - delta
@@ -663,6 +1098,10 @@ func _run_shared_cooldown_and_debug_tick(delta: float) -> void:
 		_rebuild_player_hitbox_debug()
 	elif _player_hitbox_mi:
 		_player_hitbox_mi.visible = false
+	if show_shield_block_debug:
+		_rebuild_shield_block_debug_mesh()
+	elif _shield_block_debug_mi:
+		_shield_block_debug_mi.visible = false
 	if show_mob_hitbox_debug:
 		_rebuild_mob_hitboxes_debug()
 	elif _mob_hitboxes_mi:
@@ -709,7 +1148,8 @@ func _spawn_player_ranged_arrow(
 	facing: Vector2,
 	authoritative_damage: bool,
 	apply_cooldown: bool,
-	projectile_event_id: int = -1
+	projectile_event_id: int = -1,
+	projectile_style_id: StringName = LoadoutConstants.PROJECTILE_STYLE_RED
 ) -> bool:
 	var parent := get_parent()
 	if parent == null:
@@ -728,7 +1168,7 @@ func _spawn_player_ranged_arrow(
 	arrow.knockback_strength = ranged_knockback
 	if arrow.has_method(&"set_authoritative_damage"):
 		arrow.call(&"set_authoritative_damage", authoritative_damage)
-	arrow.configure(spawn_position, facing, vw, true)
+	arrow.configure(spawn_position, facing, vw, true, projectile_style_id)
 	parent.add_child(arrow)
 	if authoritative_damage and _is_server_peer() and projectile_event_id > 0 and arrow.has_signal(&"projectile_finished"):
 		arrow.projectile_finished.connect(
@@ -743,7 +1183,11 @@ func _spawn_player_ranged_arrow(
 
 
 func _spawn_player_bomb(
-	spawn_position: Vector2, facing: Vector2, authoritative_damage: bool, apply_cooldown: bool
+	spawn_position: Vector2,
+	facing: Vector2,
+	authoritative_damage: bool,
+	apply_cooldown: bool,
+	visual_style_id: StringName = LoadoutConstants.PROJECTILE_STYLE_RED
 ) -> bool:
 	var parent := get_parent()
 	if parent == null:
@@ -762,7 +1206,8 @@ func _spawn_player_bomb(
 		bomb_flight_time,
 		bomb_arc_start_height,
 		bomb_knockback_strength,
-		authoritative_damage
+		authoritative_damage,
+		visual_style_id
 	)
 	parent.add_child(bomb)
 	if apply_cooldown:
@@ -775,7 +1220,7 @@ func _try_execute_server_melee_attack(requested_facing: Vector2) -> bool:
 		return false
 	if _is_defending:
 		return false
-	if weapon_mode != WeaponMode.SWORD:
+	if weapon_mode != WeaponMode.SWORD or not _has_equipped_sword():
 		return false
 	if _melee_attack_cooldown_remaining > 0.0:
 		return false
@@ -810,7 +1255,7 @@ func _try_execute_server_ranged_attack(requested_facing: Vector2) -> bool:
 		return false
 	if _is_defending:
 		return false
-	if weapon_mode != WeaponMode.GUN:
+	if weapon_mode != WeaponMode.GUN or not _has_equipped_handgun():
 		return false
 	if _ranged_cooldown_remaining > 0.0:
 		return false
@@ -821,11 +1266,19 @@ func _try_execute_server_ranged_attack(requested_facing: Vector2) -> bool:
 	var spawn := _compute_ranged_spawn(_facing_planar)
 	_server_ranged_event_sequence += 1
 	var event_sequence := _server_ranged_event_sequence
-	if not _spawn_player_ranged_arrow(spawn, _facing_planar, true, true, event_sequence):
+	var projectile_style_id := _equipped_handgun_projectile_style()
+	if not _spawn_player_ranged_arrow(
+		spawn, _facing_planar, true, true, event_sequence, projectile_style_id
+	):
 		return false
 	_last_applied_ranged_event_sequence = max(_last_applied_ranged_event_sequence, event_sequence)
 	if _can_broadcast_world_replication():
-		_rpc_receive_ranged_attack_event.rpc(event_sequence, spawn, _facing_planar)
+		_rpc_receive_ranged_attack_event.rpc(
+			event_sequence,
+			spawn,
+			_facing_planar,
+			String(projectile_style_id)
+		)
 	if OS.is_debug_build():
 		print(
 			"[M4][Ranged] peer=%s attack_event=%s spawn=%s" % [
@@ -842,7 +1295,7 @@ func _try_execute_server_bomb_attack(requested_facing: Vector2) -> bool:
 		return false
 	if _is_defending:
 		return false
-	if weapon_mode != WeaponMode.BOMB:
+	if not _has_equipped_bomb():
 		return false
 	if _bomb_cooldown_remaining > 0.0:
 		return false
@@ -850,13 +1303,19 @@ func _try_execute_server_bomb_attack(requested_facing: Vector2) -> bool:
 	_facing_planar = resolved_facing
 	_start_facing_lock(_facing_planar)
 	_play_attack_animation_presentation(&"bomb")
-	if not _spawn_player_bomb(global_position, _facing_planar, true, true):
+	var bomb_visual_style_id := _equipped_bomb_visual_style()
+	if not _spawn_player_bomb(global_position, _facing_planar, true, true, bomb_visual_style_id):
 		return false
 	_server_bomb_event_sequence += 1
 	var event_sequence := _server_bomb_event_sequence
 	_last_applied_bomb_event_sequence = max(_last_applied_bomb_event_sequence, event_sequence)
 	if _can_broadcast_world_replication():
-		_rpc_receive_bomb_attack_event.rpc(event_sequence, global_position, _facing_planar)
+		_rpc_receive_bomb_attack_event.rpc(
+			event_sequence,
+			global_position,
+			_facing_planar,
+			String(bomb_visual_style_id)
+		)
 	if OS.is_debug_build():
 		print(
 			"[M4][Bomb] peer=%s attack_event=%s origin=%s" % [
@@ -869,7 +1328,12 @@ func _try_execute_server_bomb_attack(requested_facing: Vector2) -> bool:
 
 
 func _submit_local_melee_attack_request() -> void:
-	if weapon_mode != WeaponMode.SWORD or _melee_attack_cooldown_remaining > 0.0 or _is_defending:
+	if (
+		weapon_mode != WeaponMode.SWORD
+		or not _has_equipped_sword()
+		or _melee_attack_cooldown_remaining > 0.0
+		or _is_defending
+	):
 		return
 	if _is_server_peer():
 		_try_execute_server_melee_attack(_facing_planar)
@@ -882,7 +1346,12 @@ func _submit_local_melee_attack_request() -> void:
 
 
 func _submit_local_ranged_attack_request() -> void:
-	if weapon_mode != WeaponMode.GUN or _ranged_cooldown_remaining > 0.0 or _is_defending:
+	if (
+		weapon_mode != WeaponMode.GUN
+		or not _has_equipped_handgun()
+		or _ranged_cooldown_remaining > 0.0
+		or _is_defending
+	):
 		return
 	if _is_server_peer():
 		_try_execute_server_ranged_attack(_facing_planar)
@@ -894,7 +1363,7 @@ func _submit_local_ranged_attack_request() -> void:
 
 
 func _submit_local_bomb_attack_request() -> void:
-	if weapon_mode != WeaponMode.BOMB or _bomb_cooldown_remaining > 0.0 or _is_defending:
+	if not _has_equipped_bomb() or _bomb_cooldown_remaining > 0.0 or _is_defending:
 		return
 	if _is_server_peer():
 		_try_execute_server_bomb_attack(_facing_planar)
@@ -908,6 +1377,9 @@ func _submit_local_bomb_attack_request() -> void:
 func _submit_local_weapon_switch_request() -> void:
 	if _is_dead:
 		return
+	if _available_main_weapon_modes().is_empty():
+		_coerce_weapon_mode_to_available(true)
+		return
 	if _is_server_peer():
 		_cycle_weapon()
 		return
@@ -919,10 +1391,18 @@ func _submit_local_weapon_switch_request() -> void:
 func _handle_local_multiplayer_combat_input() -> void:
 	if not _is_local_owner_peer() or _is_dead:
 		return
-	var defend_down := Input.is_action_pressed(&"defend") and weapon_mode == WeaponMode.SWORD
+	if _menu_input_blocked:
+		_rmb_down = Input.is_mouse_button_pressed(MOUSE_BUTTON_RIGHT)
+		_clear_pending_rmb_attack()
+		return
+	var defend_down := Input.is_action_pressed(&"defend") and _can_defend_in_current_mode()
 	if Input.is_action_just_pressed(&"weapon_switch"):
 		_clear_pending_rmb_attack()
 		_submit_local_weapon_switch_request()
+	if Input.is_action_just_pressed(&"bomb_throw"):
+		_clear_pending_rmb_attack()
+		_face_toward_mouse_planar()
+		_submit_local_bomb_attack_request()
 	if not defend_down and weapon_mode == WeaponMode.SWORD and Input.is_action_just_pressed(&"melee_attack"):
 		_submit_local_melee_attack_request()
 	var rmb := Input.is_mouse_button_pressed(MOUSE_BUTTON_RIGHT)
@@ -934,8 +1414,6 @@ func _handle_local_multiplayer_combat_input() -> void:
 		match weapon_mode:
 			WeaponMode.GUN:
 				_submit_local_ranged_attack_request()
-			WeaponMode.BOMB:
-				_submit_local_bomb_attack_request()
 			_:
 				_submit_local_melee_attack_request()
 
@@ -993,6 +1471,32 @@ func _rpc_request_bomb_attack(request_sequence: int, facing_planar: Vector2) -> 
 
 
 @rpc("any_peer", "call_remote", "reliable")
+func _rpc_request_loadout_equip(request_sequence: int, item_id: StringName) -> void:
+	if not _is_server_peer():
+		return
+	var sender_peer := multiplayer.get_remote_sender_id()
+	if sender_peer != network_owner_peer_id:
+		return
+	if request_sequence <= _server_last_loadout_request_sequence:
+		return
+	_server_last_loadout_request_sequence = request_sequence
+	_request_local_or_server_loadout_change(&"equip", item_id)
+
+
+@rpc("any_peer", "call_remote", "reliable")
+func _rpc_request_loadout_unequip(request_sequence: int, slot_id: StringName) -> void:
+	if not _is_server_peer():
+		return
+	var sender_peer := multiplayer.get_remote_sender_id()
+	if sender_peer != network_owner_peer_id:
+		return
+	if request_sequence <= _server_last_loadout_request_sequence:
+		return
+	_server_last_loadout_request_sequence = request_sequence
+	_request_local_or_server_loadout_change(&"unequip", slot_id)
+
+
+@rpc("any_peer", "call_remote", "reliable")
 func _rpc_receive_melee_attack_event(
 	event_sequence: int, facing_planar: Vector2, hit_count: int
 ) -> void:
@@ -1020,7 +1524,7 @@ func _rpc_receive_melee_attack_event(
 
 @rpc("any_peer", "call_remote", "reliable")
 func _rpc_receive_ranged_attack_event(
-	event_sequence: int, spawn_position: Vector2, facing_planar: Vector2
+	event_sequence: int, spawn_position: Vector2, facing_planar: Vector2, projectile_style_id: String
 ) -> void:
 	if _is_server_peer():
 		return
@@ -1033,7 +1537,14 @@ func _rpc_receive_ranged_attack_event(
 	_facing_planar = dir
 	_start_facing_lock(_facing_planar)
 	_play_attack_animation_presentation(&"ranged")
-	_spawn_player_ranged_arrow(spawn_position, dir, false, false, event_sequence)
+	_spawn_player_ranged_arrow(
+		spawn_position,
+		dir,
+		false,
+		false,
+		event_sequence,
+		StringName(projectile_style_id)
+	)
 	_ranged_cooldown_remaining = maxf(_ranged_cooldown_remaining, ranged_cooldown)
 	if OS.is_debug_build():
 		print(
@@ -1047,7 +1558,10 @@ func _rpc_receive_ranged_attack_event(
 
 @rpc("any_peer", "call_remote", "reliable")
 func _rpc_receive_bomb_attack_event(
-	event_sequence: int, spawn_position: Vector2, facing_planar: Vector2
+	event_sequence: int,
+	spawn_position: Vector2,
+	facing_planar: Vector2,
+	bomb_visual_style: String = "red"
 ) -> void:
 	if _is_server_peer():
 		return
@@ -1057,10 +1571,11 @@ func _rpc_receive_bomb_attack_event(
 		return
 	_last_applied_bomb_event_sequence = event_sequence
 	var dir := _normalized_attack_facing(facing_planar)
+	var bomb_visual_style_id := StringName(bomb_visual_style)
 	_facing_planar = dir
 	_start_facing_lock(_facing_planar)
 	_play_attack_animation_presentation(&"bomb")
-	_spawn_player_bomb(spawn_position, dir, false, false)
+	_spawn_player_bomb(spawn_position, dir, false, false, bomb_visual_style_id)
 	_bomb_cooldown_remaining = maxf(_bomb_cooldown_remaining, bomb_cooldown)
 	if OS.is_debug_build():
 		print(
@@ -1108,6 +1623,20 @@ func _rpc_receive_ranged_projectile_finished(
 	_remote_ranged_projectiles_by_event_id.erase(projectile_event_id)
 
 
+@rpc("any_peer", "call_remote", "reliable")
+func _rpc_receive_loadout_snapshot(snapshot: Dictionary) -> void:
+	if _multiplayer_active() and not _is_server_peer() and multiplayer.get_remote_sender_id() != 1:
+		return
+	apply_authoritative_loadout_snapshot(snapshot)
+
+
+@rpc("any_peer", "call_remote", "reliable")
+func _rpc_receive_loadout_request_failed(message: String) -> void:
+	if _multiplayer_active() and not _is_server_peer() and multiplayer.get_remote_sender_id() != 1:
+		return
+	loadout_request_failed.emit(message)
+
+
 func _physics_process_multiplayer(delta: float) -> void:
 	_run_shared_cooldown_and_debug_tick(delta)
 	_handle_local_multiplayer_combat_input()
@@ -1127,12 +1656,22 @@ func _physics_process_multiplayer(delta: float) -> void:
 
 
 func get_combat_debug_snapshot() -> Dictionary:
+	var authoritative_weapon_display := _weapon_mode_display_from_id(_authoritative_weapon_mode_id)
+	if _loadout_snapshot.is_empty():
+		authoritative_weapon_display = _weapon_mode_display_from_id(_authoritative_weapon_mode_id)
+	elif not _has_equipped_sword() and not _has_equipped_handgun():
+		authoritative_weapon_display = "None"
 	return {
 		"weapon_mode": get_weapon_mode_display(),
 		"weapon_mode_id": int(weapon_mode),
-		"authoritative_weapon_mode": _weapon_mode_display_from_id(_authoritative_weapon_mode_id),
+		"authoritative_weapon_mode": authoritative_weapon_display,
 		"authoritative_weapon_mode_id": _authoritative_weapon_mode_id,
 		"is_downed": _is_dead,
+		"stamina": stamina,
+		"authoritative_stamina": _authoritative_stamina,
+		"stamina_broken": _stamina_broken,
+		"authoritative_stamina_broken": _authoritative_stamina_broken,
+		"stamina_regen_cooldown": maxf(0.0, _stamina_regen_cooldown_remaining),
 		"melee_cooldown": maxf(0.0, _melee_attack_cooldown_remaining),
 		"ranged_cooldown": maxf(0.0, _ranged_cooldown_remaining),
 		"bomb_cooldown": maxf(0.0, _bomb_cooldown_remaining),
@@ -1155,13 +1694,16 @@ func _weapon_mode_display_from_id(mode_id: int) -> String:
 	match mode_id:
 		int(WeaponMode.GUN):
 			return "Gun"
-		int(WeaponMode.BOMB):
-			return "Bomb"
 		_:
 			return "Sword"
 
 
 func get_weapon_mode_display() -> String:
+	var available_modes: Array = _available_main_weapon_modes()
+	if available_modes.is_empty():
+		return "None"
+	if available_modes.find(weapon_mode) < 0:
+		return _weapon_mode_display_from_id(int(available_modes[0]))
 	return _weapon_mode_display_from_id(int(weapon_mode))
 
 
@@ -1172,17 +1714,20 @@ func is_downed() -> bool:
 func _cycle_weapon() -> void:
 	if _is_dead:
 		return
-	match weapon_mode:
-		WeaponMode.SWORD:
-			weapon_mode = WeaponMode.GUN
-		WeaponMode.GUN:
-			weapon_mode = WeaponMode.BOMB
-		_:
-			weapon_mode = WeaponMode.SWORD
-	if weapon_mode != WeaponMode.SWORD:
-		_set_defending_state(false)
-	weapon_mode_changed.emit(get_weapon_mode_display())
-	_sync_sword_visual()
+	var available_modes: Array = _available_main_weapon_modes()
+	if available_modes.is_empty():
+		_coerce_weapon_mode_to_available(true)
+		return
+	if available_modes.size() == 1:
+		weapon_mode = available_modes[0]
+		_coerce_weapon_mode_to_available(true)
+		return
+	var mode_index := available_modes.find(weapon_mode)
+	if mode_index < 0:
+		weapon_mode = available_modes[0]
+	else:
+		weapon_mode = available_modes[(mode_index + 1) % available_modes.size()]
+	_coerce_weapon_mode_to_available(true)
 
 
 func _face_toward_mouse_planar() -> void:
@@ -1200,12 +1745,10 @@ func _clear_pending_rmb_attack() -> void:
 func _queue_rmb_attack_after_facing_mouse() -> void:
 	_face_toward_mouse_planar()
 	_pending_rmb_facing = _facing_planar
-	if weapon_mode == WeaponMode.GUN and _ranged_cooldown_remaining <= 0.0:
+	if weapon_mode == WeaponMode.GUN and _has_equipped_handgun() and _ranged_cooldown_remaining <= 0.0:
 		_pending_rmb_kind = &"gun"
-	elif weapon_mode == WeaponMode.SWORD and _melee_attack_cooldown_remaining <= 0.0:
+	elif weapon_mode == WeaponMode.SWORD and _has_equipped_sword() and _melee_attack_cooldown_remaining <= 0.0:
 		_pending_rmb_kind = &"melee"
-	elif weapon_mode == WeaponMode.BOMB and _bomb_cooldown_remaining <= 0.0:
-		_pending_rmb_kind = &"bomb"
 
 
 func _execute_pending_rmb_attack_if_any() -> void:
@@ -1218,12 +1761,12 @@ func _execute_pending_rmb_attack_if_any() -> void:
 	_pending_rmb_kind = &""
 	_facing_planar = _pending_rmb_facing
 	if kind == &"gun":
-		if weapon_mode != WeaponMode.GUN or _ranged_cooldown_remaining > 0.0:
+		if weapon_mode != WeaponMode.GUN or not _has_equipped_handgun() or _ranged_cooldown_remaining > 0.0:
 			return
 		_play_attack_animation_presentation(&"ranged")
 		_try_fire_ranged_arrow()
 	elif kind == &"melee":
-		if weapon_mode != WeaponMode.SWORD or _melee_attack_cooldown_remaining > 0.0:
+		if weapon_mode != WeaponMode.SWORD or not _has_equipped_sword() or _melee_attack_cooldown_remaining > 0.0:
 			return
 		_play_attack_animation_presentation(&"melee")
 		_start_facing_lock(_facing_planar)
@@ -1233,24 +1776,24 @@ func _execute_pending_rmb_attack_if_any() -> void:
 			_attack_hitbox_visual_time_remaining,
 			attack_hitbox_visual_duration
 		)
-	elif kind == &"bomb":
-		if weapon_mode != WeaponMode.BOMB or _bomb_cooldown_remaining > 0.0:
-			return
-		_play_attack_animation_presentation(&"bomb")
-		_try_throw_bomb()
 
 
-func _try_throw_bomb() -> void:
+func _try_throw_bomb() -> bool:
+	if not _has_equipped_bomb() or _bomb_cooldown_remaining > 0.0 or _is_defending:
+		return false
 	var dir := _normalized_attack_facing(_facing_planar)
 	_facing_planar = dir
-	_spawn_player_bomb(global_position, dir, true, true)
+	_start_facing_lock(_facing_planar)
+	return _spawn_player_bomb(global_position, dir, true, true, _equipped_bomb_visual_style())
 
 
 func _try_fire_ranged_arrow() -> void:
+	if not _has_equipped_handgun():
+		return
 	var dir := _normalized_attack_facing(_facing_planar)
 	_facing_planar = dir
 	var spawn := _compute_ranged_spawn(dir)
-	_spawn_player_ranged_arrow(spawn, dir, true, true)
+	_spawn_player_ranged_arrow(spawn, dir, true, true, -1, _equipped_handgun_projectile_style())
 
 
 func take_damage(amount: int) -> void:
@@ -1260,17 +1803,22 @@ func take_damage(amount: int) -> void:
 		return
 	if _invuln_time_remaining > 0.0:
 		return
-	var resolved_amount := amount
-	if _is_defending and weapon_mode == WeaponMode.SWORD:
-		resolved_amount = maxi(1, int(round(float(amount) * clampf(defend_damage_multiplier, 0.0, 1.0))))
-	health = maxi(0, health - resolved_amount)
-	health_changed.emit(health, max_health)
-	if health <= 0:
-		_reset_player_visual_transparency()
-		die()
+	_apply_health_damage(amount)
+
+
+func take_attack_damage(
+	amount: int, source_position: Vector2, incoming_direction: Vector2 = Vector2.ZERO
+) -> void:
+	if _multiplayer_active() and not _is_server_peer():
 		return
-	_invuln_time_remaining = hit_invulnerability_duration
-	_update_invulnerability_flash_visual()
+	if amount <= 0 or health <= 0 or _is_dead:
+		return
+	if _invuln_time_remaining > 0.0:
+		return
+	if _is_attack_inside_block_arc(source_position, incoming_direction):
+		_apply_guard_stamina_damage(amount)
+		return
+	_apply_health_damage(amount)
 
 
 func _set_mesh_instances_transparency(root: Node, transparency_amount: float) -> void:
@@ -1444,6 +1992,69 @@ func _append_circle_fan_xz(
 	imm.surface_end()
 
 
+func _append_sector_fan_xz(
+	imm: ImmediateMesh,
+	mat: Material,
+	center2: Vector2,
+	facing2: Vector2,
+	radius: float,
+	ground_y: float,
+	total_angle_radians: float,
+	segments: int
+) -> void:
+	if radius <= 0.0 or segments < 1 or total_angle_radians <= 0.0:
+		return
+	imm.surface_begin(Mesh.PRIMITIVE_TRIANGLES, mat)
+	var up := Vector3.UP
+	var c := Vector3(center2.x, ground_y, center2.y)
+	var center_angle := atan2(facing2.y, facing2.x)
+	var half_angle := total_angle_radians * 0.5
+	for i in range(segments):
+		var t0 := float(i) / float(segments)
+		var t1 := float(i + 1) / float(segments)
+		var a0 := center_angle - half_angle + total_angle_radians * t0
+		var a1 := center_angle - half_angle + total_angle_radians * t1
+		var e0 := Vector3(center2.x + cos(a0) * radius, ground_y, center2.y + sin(a0) * radius)
+		var e1 := Vector3(center2.x + cos(a1) * radius, ground_y, center2.y + sin(a1) * radius)
+		for v in [c, e0, e1]:
+			imm.surface_set_normal(up)
+			imm.surface_add_vertex(v)
+	imm.surface_end()
+
+
+func _rebuild_shield_block_debug_mesh() -> void:
+	if _shield_block_debug_mi == null or _shield_block_debug_mat == null:
+		return
+	if not _is_defending or not _can_defend_in_current_mode() or stamina <= 0.0:
+		_shield_block_debug_mi.visible = false
+		return
+	var total_angle_radians := deg_to_rad(clampf(block_arc_degrees, 0.0, 360.0))
+	if total_angle_radians <= 0.0:
+		_shield_block_debug_mi.visible = false
+		return
+	var facing2 := _facing_planar
+	if facing2.length_squared() <= 1e-6:
+		facing2 = Vector2(0.0, -1.0)
+	else:
+		facing2 = facing2.normalized()
+	var radius := _get_player_body_radius() + 2.25
+	var segments := maxi(6, int(ceil(clampf(block_arc_degrees, 0.0, 360.0) / 12.0)))
+	var imm := ImmediateMesh.new()
+	_append_sector_fan_xz(
+		imm,
+		_shield_block_debug_mat,
+		global_position,
+		facing2,
+		radius,
+		hitbox_debug_ground_y + 0.006,
+		total_angle_radians,
+		segments
+	)
+	_shield_block_debug_mi.visible = true
+	_shield_block_debug_mi.material_override = _shield_block_debug_mat
+	_shield_block_debug_mi.mesh = imm
+
+
 func _rebuild_player_hitbox_debug() -> void:
 	if _player_hitbox_mi == null:
 		return
@@ -1522,32 +2133,53 @@ func _physics_process(delta: float) -> void:
 	_ranged_cooldown_remaining = maxf(0.0, _ranged_cooldown_remaining - delta)
 	_bomb_cooldown_remaining = maxf(0.0, _bomb_cooldown_remaining - delta)
 
-	if Input.is_action_just_pressed(&"weapon_switch"):
+	if _menu_input_blocked:
+		_clear_pending_rmb_attack()
+		_rmb_down = Input.is_mouse_button_pressed(MOUSE_BUTTON_RIGHT)
+	elif Input.is_action_just_pressed(&"weapon_switch"):
 		_clear_pending_rmb_attack()
 		_cycle_weapon()
+	if not _menu_input_blocked and Input.is_action_just_pressed(&"bomb_throw"):
+		_clear_pending_rmb_attack()
+		_face_toward_mouse_planar()
+		if _try_throw_bomb():
+			_play_attack_animation_presentation(&"bomb")
 
-	var defend_down := Input.is_action_pressed(&"defend") and weapon_mode == WeaponMode.SWORD
+	var defend_down := (
+		not _menu_input_blocked
+		and Input.is_action_pressed(&"defend")
+		and _can_defend_in_current_mode()
+	)
 	_set_defending_state(defend_down)
+	_tick_stamina_regen(delta)
 
-	var rmb := Input.is_mouse_button_pressed(MOUSE_BUTTON_RIGHT)
+	var rmb := Input.is_mouse_button_pressed(MOUSE_BUTTON_RIGHT) if not _menu_input_blocked else false
 	var rmb_click := rmb and not _rmb_down
 	_rmb_down = rmb
 	var ui_blocks_attack := get_viewport().gui_get_hovered_control() != null
 
 	var direction := Vector2.ZERO
-	if _mouse_steering_active():
+	if not _menu_input_blocked and _mouse_steering_active():
 		var target := _mouse_planar_world()
 		var to_target := target - global_position
 		if to_target.length_squared() > 0.01:
 			direction = to_target.normalized()
 
 	_update_facing_planar(direction)
-	_execute_pending_rmb_attack_if_any()
+	if not _menu_input_blocked:
+		_execute_pending_rmb_attack_if_any()
+	else:
+		velocity = Vector2.ZERO
 
 	_dodge_cooldown_remaining = maxf(0.0, _dodge_cooldown_remaining - delta)
 	if _dodge_time_remaining > 0.0:
 		_dodge_time_remaining = maxf(0.0, _dodge_time_remaining - delta)
-	elif Input.is_action_just_pressed(&"dodge") and _dodge_cooldown_remaining <= 0.0 and not _is_defending:
+	elif (
+		not _menu_input_blocked
+		and Input.is_action_just_pressed(&"dodge")
+		and _dodge_cooldown_remaining <= 0.0
+		and not _is_defending
+	):
 		_dodge_direction = _facing_planar.normalized()
 		if _dodge_direction.length_squared() <= 1e-6:
 			_dodge_direction = Vector2(0.0, -1.0)
@@ -1569,7 +2201,7 @@ func _physics_process(delta: float) -> void:
 
 	move_and_slide()
 
-	if rmb_click and not ui_blocks_attack and not _is_defending:
+	if rmb_click and not ui_blocks_attack and not _is_defending and not _menu_input_blocked:
 		_queue_rmb_attack_after_facing_mouse()
 
 	if _visual:
@@ -1579,7 +2211,7 @@ func _physics_process(delta: float) -> void:
 			_visual.set_locomotion_from_planar_speed(planar_speed, speed)
 
 	var want_melee := false
-	if weapon_mode == WeaponMode.SWORD:
+	if weapon_mode == WeaponMode.SWORD and not _menu_input_blocked and _has_equipped_sword():
 		if Input.is_action_just_pressed(&"melee_attack"):
 			want_melee = true
 	if want_melee and _melee_attack_cooldown_remaining <= 0.0 and not _is_defending:
@@ -1602,6 +2234,10 @@ func _physics_process(delta: float) -> void:
 		_rebuild_player_hitbox_debug()
 	elif _player_hitbox_mi:
 		_player_hitbox_mi.visible = false
+	if show_shield_block_debug:
+		_rebuild_shield_block_debug_mesh()
+	elif _shield_block_debug_mi:
+		_shield_block_debug_mi.visible = false
 
 	if show_mob_hitbox_debug:
 		_rebuild_mob_hitboxes_debug()
@@ -1633,13 +2269,13 @@ func reset_for_retry(world_pos: Vector2) -> void:
 	_set_defending_state(false)
 	_clear_pending_rmb_attack()
 	weapon_mode = WeaponMode.SWORD
-	weapon_mode_changed.emit(get_weapon_mode_display())
-	_sync_sword_visual()
+	_coerce_weapon_mode_to_available(true)
 	heal_to_full()
 	global_position = world_pos
 	velocity = Vector2.ZERO
 	height = 0.0
 	_invuln_time_remaining = 0.0
+	_stamina_regen_cooldown_remaining = 0.0
 	_dodge_time_remaining = 0.0
 	_dodge_cooldown_remaining = 0.0
 	_facing_lock_time_remaining = 0.0
@@ -1662,6 +2298,7 @@ func revive(health_after_revive: int = -1) -> void:
 		resolved_health = REVIVE_HEALTH
 	health = clampi(resolved_health, 1, max_health)
 	health_changed.emit(health, max_health)
+	_restore_stamina_to_full()
 	_set_downed_state(false)
 	_set_defending_state(false)
 
@@ -1673,15 +2310,17 @@ func revive_to_full() -> void:
 func heal_to_full() -> void:
 	health = max_health
 	health_changed.emit(health, max_health)
+	_restore_stamina_to_full()
 
 
 func _free_world_debug_meshes() -> void:
-	for mi in [_melee_debug_mi, _player_hitbox_mi, _mob_hitboxes_mi]:
+	for mi in [_melee_debug_mi, _player_hitbox_mi, _mob_hitboxes_mi, _shield_block_debug_mi]:
 		if mi != null and is_instance_valid(mi):
 			mi.queue_free()
 	_melee_debug_mi = null
 	_player_hitbox_mi = null
 	_mob_hitboxes_mi = null
+	_shield_block_debug_mi = null
 
 
 func get_shadow_visual_root() -> Node3D:
@@ -1697,4 +2336,4 @@ func _on_mob_detector_body_entered(body: Node2D) -> void:
 	var planar_d := body.global_position.distance_to(global_position)
 	if planar_d > mob_kill_max_planar_dist:
 		return
-	take_damage(mob_hit_damage)
+	take_attack_damage(mob_hit_damage, body.global_position)

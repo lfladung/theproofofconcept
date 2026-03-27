@@ -1,0 +1,10 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/ui/loadout/loadout_slot_button.gd" id="1_script"]
+
+[node name="LoadoutSlotButton" type="Button"]
+custom_minimum_size = Vector2(200, 54)
+text = "Slot"
+alignment = 0
+text_overrun_behavior = 3
+script = ExtResource("1_script")

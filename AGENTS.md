@@ -35,6 +35,7 @@ As of 2026-03-27:
 - Multiplayer milestones 1-3 are complete.
 - Milestone 4 authoritative combat is in progress.
 - Melee already has owner-client request -> server validation -> replicated event flow.
+- Sword blocking now uses a server-authoritative directional stamina guard: front-blocked hostile hits drain stamina instead of HP, and stamina regen is delayed after use/break.
 - Lobby/session-code flow and peer-slot mapping are implemented.
 - `small_dungeon.gd` is session-aware and manages roster, encounter state, doors, coins, camera, and replication helpers.
 
@@ -45,6 +46,7 @@ As of 2026-03-27:
 - The project uses an authoritative server model for 2-4 players.
 - `NetworkSession` owns session lifecycle, lobby state, registry/session-code lookups, peer slots, readiness, and host/client/dedicated-server roles.
 - `Player` owns authority assignment, prediction/reconciliation, weapon mode state, and combat request sequencing.
+- Guard-aware hostile damage should call `Player.take_attack_damage(...)`; direct environmental damage should stay on `take_damage(...)`.
 - If a change affects replication or player authority, inspect both `network_session.gd` and `player.gd`, then confirm how `small_dungeon.gd` consumes that behavior.
 
 ### Dungeon And World

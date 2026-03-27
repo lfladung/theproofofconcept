@@ -45,6 +45,8 @@ const ROOM_BASE_SCENE := preload("res://dungeon/rooms/base/room_base.tscn")
 const TRAP_TILE_SCENE := preload("res://dungeon/modules/gameplay/trap_tile_2d.tscn")
 const DUNGEON_CELL_DOOR_SCENE := preload("res://dungeon/visuals/dungeon_cell_door_3d.tscn")
 const PLAYER_SCENE := preload("res://scenes/entities/player.tscn")
+const LOADOUT_OVERLAY_SCENE := preload("res://scenes/ui/loadout/loadout_overlay.tscn")
+const LoadoutRepositoryScript = preload("res://scripts/loadout/loadout_repository.gd")
 const ELEVATOR_VISUAL_SCENE := preload("res://art/props/interactables/elevator_texture.glb")
 const ENEMY_SCENE_KIND_DASHER := 1
 const ENEMY_SCENE_KIND_ARROW_TOWER := 2
@@ -163,6 +165,8 @@ var _debug_spawn_exit_elevator_visual: Node3D
 var _player: CharacterBody2D
 var _players_by_peer: Dictionary = {}
 var _peer_slots: Dictionary = {}
+var _loadout_repository: Node
+var _loadout_overlay: Control
 var _network_session: Node
 var _networked_run := false
 var _bound_hit_player: CharacterBody2D
@@ -195,6 +199,7 @@ func _ready() -> void:
 		and not _network_session.peer_slot_map_changed.is_connected(_on_network_slot_map_changed)
 	):
 		_network_session.peer_slot_map_changed.connect(_on_network_slot_map_changed)
+	_ensure_loadout_repository()
 	_initialize_player_roster()
 	_ensure_coin_totals_for_roster()
 	_refresh_local_coin_ui()
@@ -217,6 +222,7 @@ func _ready() -> void:
 	_door_lock_controller.resolve_room_name_for_body = _door_resolve_room_name_for_body
 	add_child(_door_lock_controller)
 	_ensure_combat_debug_overlay()
+	_ensure_loadout_overlay()
 	_regenerate_level(true)
 	_bind_local_player_runtime_hooks()
 
@@ -470,6 +476,7 @@ func _apply_player_roster_from_slot_map(raw_slot_map: Dictionary) -> void:
 		if p == null:
 			continue
 		_players_by_peer[peer_id] = p
+		_bind_player_loadout_runtime(p, peer_id)
 		seen[peer_id] = true
 	for key in _players_by_peer.keys():
 		var peer_id := int(key)
@@ -489,6 +496,7 @@ func _apply_player_roster_from_slot_map(raw_slot_map: Dictionary) -> void:
 			resolved_local = _ensure_player_node_for_peer(local_peer)
 			if resolved_local != null:
 				_players_by_peer[local_peer] = resolved_local
+				_bind_player_loadout_runtime(resolved_local, local_peer)
 	_player = resolved_local
 	_ensure_coin_totals_for_roster()
 	_refresh_local_coin_ui()
@@ -504,6 +512,108 @@ func _apply_player_roster_from_slot_map(raw_slot_map: Dictionary) -> void:
 
 func _on_network_slot_map_changed(slot_map: Dictionary) -> void:
 	_apply_player_roster_from_slot_map(slot_map)
+
+
+func _ensure_loadout_repository() -> void:
+	if _loadout_repository != null and is_instance_valid(_loadout_repository):
+		return
+	_loadout_repository = LoadoutRepositoryScript.new()
+	_loadout_repository.name = "LoadoutRepository"
+	add_child(_loadout_repository)
+
+
+func _ensure_loadout_overlay() -> void:
+	var ui_root := get_node_or_null("CanvasLayer/UI") as Control
+	if ui_root == null:
+		return
+	if _loadout_overlay != null and is_instance_valid(_loadout_overlay):
+		return
+	var existing := ui_root.get_node_or_null("LoadoutOverlay") as Control
+	if existing != null:
+		_loadout_overlay = existing
+	else:
+		var overlay := LOADOUT_OVERLAY_SCENE.instantiate() as Control
+		if overlay == null:
+			return
+		overlay.name = "LoadoutOverlay"
+		ui_root.add_child(overlay)
+		_loadout_overlay = overlay
+	if _loadout_overlay != null and _loadout_overlay.has_method(&"bind_player"):
+		_loadout_overlay.call(&"bind_player", _player, Callable(self, "_room_type_at"))
+
+
+func _loadout_owner_id_for_peer(peer_id: int) -> StringName:
+	return StringName("peer_%s" % [maxi(1, peer_id)])
+
+
+func _loadout_owner_id_for_player(player: CharacterBody2D) -> StringName:
+	if player == null:
+		return &""
+	var peer_id := int(player.get_meta(&"peer_id", player.get_multiplayer_authority()))
+	return _loadout_owner_id_for_peer(peer_id)
+
+
+func _bind_player_loadout_runtime(player: CharacterBody2D, peer_id: int) -> void:
+	if player == null:
+		return
+	var owner_id := _loadout_owner_id_for_peer(peer_id)
+	if _is_authoritative_world() and _loadout_repository != null and _loadout_repository.has_method(&"ensure_owner_initialized"):
+		_loadout_repository.call(&"ensure_owner_initialized", owner_id)
+	if player.has_method(&"bind_loadout_runtime"):
+		player.call(&"bind_loadout_runtime", self, Callable(self, "_room_type_at"), owner_id)
+	if (
+		_is_authoritative_world()
+		and _loadout_repository != null
+		and _loadout_repository.has_method(&"get_snapshot")
+		and player.has_method(&"apply_authoritative_loadout_snapshot")
+	):
+		var snapshot_v: Variant = _loadout_repository.call(&"get_snapshot", owner_id)
+		if snapshot_v is Dictionary:
+			player.call(&"apply_authoritative_loadout_snapshot", snapshot_v as Dictionary)
+
+
+func get_player_loadout_snapshot(player: CharacterBody2D) -> Dictionary:
+	if player == null:
+		return {}
+	if _is_authoritative_world() and _loadout_repository != null and _loadout_repository.has_method(&"get_snapshot"):
+		return _loadout_repository.call(&"get_snapshot", _loadout_owner_id_for_player(player)) as Dictionary
+	if player.has_method(&"get_loadout_view_model"):
+		var snapshot_v: Variant = player.call(&"get_loadout_view_model")
+		if snapshot_v is Dictionary:
+			return snapshot_v as Dictionary
+	return {}
+
+
+func handle_player_loadout_request(player: CharacterBody2D, action: StringName, value: StringName) -> Dictionary:
+	if player == null or _loadout_repository == null:
+		return {"ok": false, "message": "Loadout repository is unavailable.", "snapshot": {}}
+	var owner_id := _loadout_owner_id_for_player(player)
+	var context := {
+		"safe_room_only": true,
+		"is_safe_room": _room_type_at(player.global_position, 1.25) == "safe",
+	}
+	var result: Dictionary = {}
+	match action:
+		&"equip":
+			result = _loadout_repository.call(&"request_equip", owner_id, value, context) as Dictionary
+		&"unequip":
+			result = _loadout_repository.call(&"request_unequip", owner_id, value, context) as Dictionary
+		_:
+			result = {"ok": false, "message": "Unsupported loadout action.", "snapshot": {}}
+	if bool(result.get("ok", false)):
+		var snapshot_v: Variant = result.get("snapshot", {})
+		if snapshot_v is Dictionary:
+			_apply_loadout_snapshot_to_player_and_replicate(player, snapshot_v as Dictionary)
+	return result
+
+
+func _apply_loadout_snapshot_to_player_and_replicate(player: CharacterBody2D, snapshot: Dictionary) -> void:
+	if player == null or snapshot.is_empty():
+		return
+	if player.has_method(&"apply_authoritative_loadout_snapshot"):
+		player.call(&"apply_authoritative_loadout_snapshot", snapshot)
+	if _networked_run and _is_server_peer() and _has_multiplayer_peer() and _can_broadcast_world_replication():
+		player.rpc(&"_rpc_receive_loadout_snapshot", snapshot)
 
 
 func _bind_local_player_runtime_hooks() -> void:
@@ -528,6 +638,8 @@ func _bind_local_player_runtime_hooks() -> void:
 		_camera_follow.player = _player
 	if _info_controller != null:
 		_info_controller.player = _player
+	if _loadout_overlay != null and _loadout_overlay.has_method(&"bind_player"):
+		_loadout_overlay.call(&"bind_player", _player, Callable(self, "_room_type_at"))
 	_refresh_combat_debug_overlay()
 
 
@@ -655,18 +767,28 @@ func _refresh_combat_debug_overlay() -> void:
 			var auth_melee_cd := float(snapshot.get("authoritative_melee_cooldown", local_melee_cd))
 			var auth_ranged_cd := float(snapshot.get("authoritative_ranged_cooldown", local_ranged_cd))
 			var auth_bomb_cd := float(snapshot.get("authoritative_bomb_cooldown", local_bomb_cd))
+			var local_stamina := float(snapshot.get("stamina", 0.0))
+			var auth_stamina := float(snapshot.get("authoritative_stamina", local_stamina))
+			var local_guard_broken := bool(snapshot.get("stamina_broken", false))
+			var auth_guard_broken := bool(
+				snapshot.get("authoritative_stamina_broken", local_guard_broken)
+			)
 			var owner_peer := int(snapshot.get("network_owner_peer_id", 1))
 			var authority_peer := int(snapshot.get("multiplayer_authority", owner_peer))
 			var is_local_owner := bool(snapshot.get("is_local_owner_peer", false))
 			var is_downed := bool(snapshot.get("is_downed", false))
 			var local_marker := "*" if peer_id == local_peer else "-"
 			var row := (
-				"%s peer=%s W[a/l]=%s/%s CD[a]=%.2f/%.2f/%.2f CD[l]=%.2f/%.2f/%.2f down=%s own=%s auth=%s lo=%s"
+				"%s peer=%s W[a/l]=%s/%s ST[a/l]=%.1f/%.1f GB[a/l]=%s/%s CD[a]=%.2f/%.2f/%.2f CD[l]=%.2f/%.2f/%.2f down=%s own=%s auth=%s lo=%s"
 			) % [
 				local_marker,
 				peer_id,
 				auth_weapon,
 				local_weapon,
+				auth_stamina,
+				local_stamina,
+				auth_guard_broken,
+				local_guard_broken,
 				auth_melee_cd,
 				auth_ranged_cd,
 				auth_bomb_cd,
@@ -2707,6 +2829,17 @@ func _send_runtime_snapshot_to_peer(peer_id: int) -> void:
 	_rpc_set_puzzle_gate_solved.rpc_id(peer_id, _puzzle_solved, false)
 	_ensure_coin_totals_for_roster()
 	_rpc_sync_coin_totals.rpc_id(peer_id, _coin_totals_by_peer)
+	for player_peer_id in _players_by_peer.keys():
+		var player_v: Variant = _players_by_peer.get(player_peer_id, null)
+		if player_v is not CharacterBody2D or not is_instance_valid(player_v):
+			continue
+		var player := player_v as CharacterBody2D
+		if player == null or not player.has_method(&"get_loadout_view_model"):
+			continue
+		var snapshot := get_player_loadout_snapshot(player)
+		if snapshot.is_empty():
+			continue
+		player.rpc_id(peer_id, &"_rpc_receive_loadout_snapshot", snapshot)
 	_rpc_runtime_snapshot_complete.rpc_id(peer_id)
 
 @rpc("any_peer", "call_remote", "reliable")

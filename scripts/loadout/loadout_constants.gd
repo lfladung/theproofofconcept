@@ -1,0 +1,102 @@
+extends RefCounted
+class_name LoadoutConstants
+
+const SLOT_ARMOR: StringName = &"armor"
+const SLOT_HELMET: StringName = &"helmet"
+const SLOT_SWORD: StringName = &"sword"
+const SLOT_HANDGUN: StringName = &"handgun"
+const SLOT_BOMB: StringName = &"bomb"
+const SLOT_SHIELD: StringName = &"shield"
+
+const SLOT_ORDER: Array[StringName] = [
+	SLOT_HELMET,
+	SLOT_ARMOR,
+	SLOT_SWORD,
+	SLOT_HANDGUN,
+	SLOT_BOMB,
+	SLOT_SHIELD,
+]
+
+const SLOT_DISPLAY_NAMES := {
+	SLOT_ARMOR: "Armor",
+	SLOT_HELMET: "Helmet",
+	SLOT_SWORD: "Sword",
+	SLOT_HANDGUN: "Handgun",
+	SLOT_BOMB: "Bomb",
+	SLOT_SHIELD: "Shield",
+}
+
+const STAT_MAX_HEALTH: StringName = &"max_health"
+const STAT_SPEED: StringName = &"speed"
+const STAT_MELEE_DAMAGE: StringName = &"melee_attack_damage"
+const STAT_RANGED_DAMAGE: StringName = &"ranged_damage"
+const STAT_BOMB_DAMAGE: StringName = &"bomb_damage"
+const STAT_DEFEND_DAMAGE_MULTIPLIER: StringName = &"defend_damage_multiplier"
+
+const STAT_ORDER: Array[StringName] = [
+	STAT_MAX_HEALTH,
+	STAT_SPEED,
+	STAT_MELEE_DAMAGE,
+	STAT_RANGED_DAMAGE,
+	STAT_BOMB_DAMAGE,
+	STAT_DEFEND_DAMAGE_MULTIPLIER,
+]
+
+const PROJECTILE_STYLE_RED: StringName = &"red"
+const PROJECTILE_STYLE_BLUE: StringName = &"blue"
+
+
+static func create_empty_equipped_slots() -> Dictionary:
+	var slots := {}
+	for slot_id in SLOT_ORDER:
+		slots[slot_id] = &""
+	return slots
+
+
+static func slot_display_name(slot_id: StringName) -> String:
+	return String(SLOT_DISPLAY_NAMES.get(slot_id, String(slot_id).capitalize()))
+
+
+static func normalize_stat_key(stat_key: Variant) -> StringName:
+	return StringName(String(stat_key))
+
+
+static func sort_item_ids_by_slot_and_name(item_ids: Array, definitions_by_id: Dictionary) -> Array[StringName]:
+	var normalized: Array[StringName] = []
+	for item_id in item_ids:
+		normalized.append(StringName(String(item_id)))
+	normalized.sort_custom(
+		func(a: StringName, b: StringName) -> bool:
+			var def_a: Dictionary = definitions_by_id.get(String(a), {})
+			var def_b: Dictionary = definitions_by_id.get(String(b), {})
+			var slot_a: StringName = StringName(String(def_a.get("slot_id", "")))
+			var slot_b: StringName = StringName(String(def_b.get("slot_id", "")))
+			var slot_idx_a := SLOT_ORDER.find(slot_a)
+			var slot_idx_b := SLOT_ORDER.find(slot_b)
+			if slot_idx_a != slot_idx_b:
+				return slot_idx_a < slot_idx_b
+			var name_a := String(def_a.get("display_name", String(a)))
+			var name_b := String(def_b.get("display_name", String(b)))
+			return name_a.naturalnocasecmp_to(name_b) < 0
+	)
+	return normalized
+
+
+static func format_stat_modifier_lines(stat_modifiers: Dictionary) -> PackedStringArray:
+	var lines := PackedStringArray()
+	for stat_key in STAT_ORDER:
+		if not stat_modifiers.has(stat_key):
+			continue
+		var value: Variant = stat_modifiers.get(stat_key, 0)
+		var amount := float(value)
+		if is_zero_approx(amount):
+			continue
+		var sign := "+" if amount > 0.0 else ""
+		var stat_label := String(stat_key).replace("_", " ").capitalize()
+		if stat_key == STAT_DEFEND_DAMAGE_MULTIPLIER:
+			lines.append("%s%.2f %s" % [sign, amount, stat_label])
+		elif absf(amount - roundf(amount)) <= 0.001:
+			lines.append("%s%d %s" % [sign, int(roundf(amount)), stat_label])
+		else:
+			lines.append("%s%.2f %s" % [sign, amount, stat_label])
+	return lines

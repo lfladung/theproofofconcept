@@ -2,6 +2,8 @@ extends Node2D
 class_name PlayerBomb
 
 const BOMB_VISUAL_SCENE := preload("res://art/combat/projectiles/black_projectile_texture.glb")
+const STYLE_RED: StringName = &"red"
+const STYLE_BLUE: StringName = &"blue"
 
 @export var mesh_scale := Vector3(2.0, 2.0, 2.0)
 @export var mesh_yaw_offset_deg := 90.0
@@ -26,6 +28,7 @@ var _visual: Node3D
 var _aoe_preview: MeshInstance3D
 var _facing := Vector2(0.0, -1.0)
 var _authoritative_damage := true
+var _visual_style_id: StringName = STYLE_RED
 
 
 func configure(
@@ -38,7 +41,8 @@ func configure(
 	flight_duration: float,
 	arc_start_height: float,
 	knockback: float,
-	authoritative_damage: bool = true
+	authoritative_damage: bool = true,
+	visual_style_id: StringName = STYLE_RED
 ) -> void:
 	_start_2d = spawn_planar
 	_facing = direction.normalized() if direction.length_squared() > 1e-6 else Vector2(0.0, -1.0)
@@ -50,6 +54,7 @@ func configure(
 	_arc_start_y = arc_start_height
 	_knockback_strength = knockback
 	_authoritative_damage = authoritative_damage
+	_visual_style_id = visual_style_id if visual_style_id != &"" else STYLE_RED
 
 
 func _ready() -> void:
@@ -84,6 +89,7 @@ func _deferred_setup_visual() -> void:
 	vis.scale = mesh_scale
 	_vw.add_child(vis)
 	_visual = vis
+	_apply_visual_style(_visual)
 	_sync_visual(0.0)
 
 
@@ -125,7 +131,7 @@ func _setup_aoe_preview() -> void:
 	var mat := StandardMaterial3D.new()
 	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	mat.albedo_color = Color(1.0, 0.45, 0.08, 0.42)
+	mat.albedo_color = _aoe_preview_color()
 	mat.cull_mode = BaseMaterial3D.CULL_DISABLED
 	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	mi.material_override = mat
@@ -167,3 +173,35 @@ func _exit_tree() -> void:
 	if _aoe_preview != null and is_instance_valid(_aoe_preview):
 		_aoe_preview.queue_free()
 	_aoe_preview = null
+
+
+func _apply_visual_style(root: Node) -> void:
+	if root == null:
+		return
+	var tint := _bomb_tint_color()
+	if root is MeshInstance3D:
+		(root as MeshInstance3D).material_override = _create_tint_material(tint)
+	for child in root.get_children():
+		_apply_visual_style(child)
+
+
+func _create_tint_material(tint: Color) -> StandardMaterial3D:
+	var mat := StandardMaterial3D.new()
+	mat.albedo_color = tint
+	mat.metallic = 0.1
+	mat.roughness = 0.28
+	mat.emission_enabled = true
+	mat.emission = tint * 0.18
+	return mat
+
+
+func _bomb_tint_color() -> Color:
+	if _visual_style_id == STYLE_BLUE:
+		return Color(0.18, 0.48, 1.0, 1.0)
+	return Color(0.92, 0.18, 0.15, 1.0)
+
+
+func _aoe_preview_color() -> Color:
+	if _visual_style_id == STYLE_BLUE:
+		return Color(0.18, 0.48, 1.0, 0.42)
+	return Color(0.96, 0.28, 0.12, 0.42)
