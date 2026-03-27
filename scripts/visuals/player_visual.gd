@@ -80,6 +80,8 @@ enum EditorAnimationPreview {
 @export var equipment_chest_bone_override: StringName = &"Spine02"
 @export var equipment_legs_bone_override: StringName = &"Hips"
 @export var equipment_helmet_bone_override: StringName = &"Head"
+@export var equipment_helmet_rotation_bone_override: StringName = &"Spine02"
+@export var equipment_helmet_yaw_only_follow: bool = true
 @export var equipment_shield_bone_override: StringName = &"LeftHand"
 @export var equipment_chest_local_offset: Vector3 = Vector3(0.0, 0.04, 0.30)
 @export var equipment_legs_local_offset: Vector3 = Vector3.ZERO
@@ -100,18 +102,20 @@ enum EditorAnimationPreview {
 @export var attack_duration_seconds := 1.0
 @export var idle_clip_hint := "idle"
 @export var run_clip_hint := "run"
-@export var melee_clip_hint := "attack"
+@export var melee_clip_hint := "left_slash"
 @export var ranged_clip_hint := "attack"
 @export var bomb_clip_hint := "attack"
 @export var defend_clip_hint := "parry"
 @export var downed_clip_hint := "death"
 
 const _IDLE_GLB_CANDIDATES := [
+	"res://art/characters/player/Model_Idle_v2.glb",
 	"res://art/characters/player/Model_Idle.glb",
 	"res://art/characters/player/Base_Model_V01_Idle.glb",
 ]
 const _BASE_MODEL_GLB_CANDIDATES := [
 	"res://art/characters/player/Model_model.glb",
+	"res://art/characters/player/Model_Idle_v2.glb",
 	"res://art/characters/player/Model_Idle.glb",
 	"res://art/characters/player/Base_Model_V01_rigged.glb",
 	"res://art/characters/player/Base_Model_V01_Idle.glb",
@@ -129,6 +133,7 @@ const _RUN_GLB_CANDIDATES := [
 	"res://art/characters/player/Base_Model_V01_Running.glb",
 ]
 const _SLASH_GLB_CANDIDATES := [
+	"res://art/characters/player/Attack_left_slash.glb",
 	"res://art/characters/player/Model_Attack.glb",
 	"res://art/characters/player/Base_Model_V01_Attack.glb",
 ]
@@ -784,6 +789,7 @@ func _setup_modular_equipment() -> void:
 		equipment_chest_scene_path,
 		skeleton,
 		equipment_chest_bone_override,
+		&"",
 		_EQUIPMENT_CHEST_BONE_KEYWORDS,
 		equipment_chest_local_offset,
 		equipment_chest_local_rotation_deg,
@@ -798,6 +804,7 @@ func _setup_modular_equipment() -> void:
 			equipment_legs_scene_path,
 			skeleton,
 			equipment_legs_bone_override,
+			&"",
 			_EQUIPMENT_LEGS_BONE_KEYWORDS,
 			equipment_legs_local_offset,
 			equipment_legs_local_rotation_deg,
@@ -811,6 +818,7 @@ func _setup_modular_equipment() -> void:
 		equipment_helmet_scene_path,
 		skeleton,
 		equipment_helmet_bone_override,
+		equipment_helmet_rotation_bone_override,
 		_EQUIPMENT_HELMET_BONE_KEYWORDS,
 		equipment_helmet_local_offset,
 		equipment_helmet_local_rotation_deg,
@@ -824,6 +832,7 @@ func _setup_modular_equipment() -> void:
 		equipment_shield_scene_path,
 		skeleton,
 		equipment_shield_bone_override,
+		&"",
 		_EQUIPMENT_SHIELD_BONE_KEYWORDS,
 		equipment_shield_local_offset,
 		equipment_shield_local_rotation_deg,
@@ -946,6 +955,7 @@ func _bind_or_spawn_modular_equipment_piece(
 	scene_path: String,
 	skeleton: Skeleton3D,
 	bone_name_override: StringName,
+	rotation_bone_name_override: StringName,
 	bone_keywords: Array[String],
 	local_offset: Vector3,
 	local_rotation_deg: Vector3,
@@ -986,17 +996,27 @@ func _bind_or_spawn_modular_equipment_piece(
 	if bone_idx < 0:
 		push_warning("[PlayerVisual] Could not resolve bone for %s equipment '%s'." % [slot_name, scene_path])
 		return
-	var bone_world: Transform3D = _compute_bone_world_no_scale(skeleton, bone_idx)
+	var rotation_bone_idx: int = bone_idx
+	if rotation_bone_name_override != &"":
+		var explicit_rotation_idx: int = skeleton.find_bone(String(rotation_bone_name_override))
+		if explicit_rotation_idx >= 0:
+			rotation_bone_idx = explicit_rotation_idx
+	var yaw_only_follow: bool = slot_name == "Helmet" and equipment_helmet_yaw_only_follow
+	var anchor_world: Transform3D = _compute_equipment_anchor_world(
+		skeleton, bone_idx, rotation_bone_idx, yaw_only_follow
+	)
 	var local_from_bone: Transform3D = Transform3D.IDENTITY
 	if strict_hand_attachment and slot_name == "Shield":
 		local_from_bone = Transform3D.IDENTITY
 	elif runtime_use_scene_authored_offsets or _should_preserve_equipment_offsets():
-		local_from_bone = bone_world.affine_inverse() * attachment_root.global_transform
+		local_from_bone = anchor_world.affine_inverse() * attachment_root.global_transform
 
 	var follow_record: Dictionary = {
 		"root": attachment_root,
 		"skeleton": skeleton,
 		"bone_idx": bone_idx,
+		"rotation_bone_idx": rotation_bone_idx,
+		"yaw_only_follow": yaw_only_follow,
 		"local_from_bone": local_from_bone,
 	}
 	_equipment_follow_targets[slot_name] = follow_record
@@ -1035,12 +1055,16 @@ func _update_modular_equipment_bone_follow() -> void:
 		var root_v: Variant = record.get("root", null)
 		var skeleton_v: Variant = record.get("skeleton", null)
 		var bone_idx_v: Variant = record.get("bone_idx", -1)
+		var rotation_bone_idx_v: Variant = record.get("rotation_bone_idx", -1)
+		var yaw_only_follow_v: Variant = record.get("yaw_only_follow", false)
 		var local_from_bone_v: Variant = record.get("local_from_bone", Transform3D.IDENTITY)
 		if not (root_v is Node3D) or not (skeleton_v is Skeleton3D):
 			continue
 		var root_node: Node3D = root_v as Node3D
 		var skeleton: Skeleton3D = skeleton_v as Skeleton3D
 		var bone_idx: int = int(bone_idx_v)
+		var rotation_bone_idx: int = int(rotation_bone_idx_v)
+		var yaw_only_follow: bool = bool(yaw_only_follow_v)
 		var local_from_bone: Transform3D = (
 			local_from_bone_v as Transform3D if local_from_bone_v is Transform3D else Transform3D.IDENTITY
 		)
@@ -1050,8 +1074,34 @@ func _update_modular_equipment_bone_follow() -> void:
 			continue
 		if bone_idx < 0 or bone_idx >= skeleton.get_bone_count():
 			continue
-		var bone_world: Transform3D = _compute_bone_world_no_scale(skeleton, bone_idx)
-		root_node.global_transform = bone_world * local_from_bone
+		var anchor_world: Transform3D = _compute_equipment_anchor_world(
+			skeleton, bone_idx, rotation_bone_idx, yaw_only_follow
+		)
+		root_node.global_transform = anchor_world * local_from_bone
+
+
+func _compute_equipment_anchor_world(
+	skeleton: Skeleton3D, position_bone_idx: int, rotation_bone_idx: int, yaw_only_follow: bool = false
+) -> Transform3D:
+	var position_world: Transform3D = _compute_bone_world_no_scale(skeleton, position_bone_idx)
+	var rotation_world: Transform3D = _compute_bone_world_no_scale(
+		skeleton, rotation_bone_idx if rotation_bone_idx >= 0 else position_bone_idx
+	)
+	if yaw_only_follow:
+		var up_axis: Vector3 = rotation_world.basis.y.normalized()
+		var forward_axis: Vector3 = position_world.basis.z - up_axis * position_world.basis.z.dot(up_axis)
+		if forward_axis.length_squared() < 0.0001:
+			forward_axis = rotation_world.basis.z - up_axis * rotation_world.basis.z.dot(up_axis)
+		if forward_axis.length_squared() < 0.0001:
+			forward_axis = rotation_world.basis.z
+		forward_axis = forward_axis.normalized()
+		var right_axis: Vector3 = up_axis.cross(forward_axis)
+		if right_axis.length_squared() < 0.0001:
+			right_axis = rotation_world.basis.x
+		right_axis = right_axis.normalized()
+		forward_axis = right_axis.cross(up_axis).normalized()
+		return Transform3D(Basis(right_axis, up_axis, forward_axis), position_world.origin)
+	return Transform3D(rotation_world.basis, position_world.origin)
 
 
 func _compute_bone_world_no_scale(skeleton: Skeleton3D, bone_idx: int) -> Transform3D:
