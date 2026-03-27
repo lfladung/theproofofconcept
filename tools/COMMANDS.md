@@ -102,7 +102,25 @@ Prepare your example videos (normalizes and stages them):
 .\tools\animation_pipeline\prepare_example_clips.ps1
 ```
 
-After converting staged videos to mocap FBX/BVH (attack/walk/defend), run retarget:
+Install local mocap dependencies:
+
+```powershell
+python -m pip install -r .\tools\animation_pipeline\requirements_mocap.txt
+```
+
+If permissions block system install:
+
+```powershell
+python -m pip install --user -r .\tools\animation_pipeline\requirements_mocap.txt
+```
+
+Convert staged videos to mocap FBX locally:
+
+```powershell
+.\tools\animation_pipeline\convert_example_clips_to_mocap.ps1 -BlenderExe "C:\Program Files\Blender Foundation\Blender 4.2\blender.exe"
+```
+
+Then run retarget:
 
 ```powershell
 .\tools\animation_pipeline\run_retarget_pipeline.ps1 -BlenderExe "C:\Program Files\Blender Foundation\Blender 4.2\blender.exe"
@@ -113,3 +131,27 @@ Force Godot to import generated replacement GLBs:
 ```powershell
 .\Godot_v4.6.1-stable_win64.exe\Godot_v4.6.1-stable_win64_console.exe --headless --path . --import
 ```
+
+## Player Visual Auto-Capture
+
+Generate one still frame for a mode (`idle`, `walk`, `attack`, `defend`):
+
+```powershell
+.\tools\capture_player_still.ps1 -Mode attack
+```
+
+Capture from a left-profile style angle:
+
+```powershell
+.\tools\capture_player_still.ps1 -Mode idle -CameraYaw -90 -CameraPitch -22 -CameraHeightOffset 0.8
+```
+
+Generate short walk/attack clips with Godot Movie Maker:
+
+```powershell
+.\tools\capture_player_clips.ps1 -Modes walk,attack -DurationSeconds 2.0 -CameraYaw -90 -CameraPitch -22 -CameraHeightOffset 0.8
+```
+
+Output folders:
+- `logs\captures\stills`
+- `logs\captures\videos`

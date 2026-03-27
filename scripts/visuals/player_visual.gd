@@ -31,8 +31,9 @@ enum EditorAnimationPreview {
 @export var sword_root_path: NodePath = NodePath("SwordAttachment")
 @export var sword_offset_node_name: StringName = &"SwordOffset"
 @export var sword_preserve_editor_offset: bool = false
-@export var runtime_use_scene_authored_offsets: bool = true
+@export var runtime_use_scene_authored_offsets: bool = false
 @export var runtime_spawn_sword_if_missing: bool = false
+@export var strict_hand_attachment: bool = true
 
 # Sword attachment tuning.
 # This is applied by programmatically attaching the sword to a bone inside the imported GLB skeleton,
@@ -40,10 +41,10 @@ enum EditorAnimationPreview {
 @export var sword_mesh_path: String = "res://scenes/equipment/weapons/sword_texture.tscn"
 @export var sword_bone_name_override: StringName = &"RightHand"
 @export var sword_bone_keywords: Array[String] = ["hand", "weapon", "sword", "blade", "arm"]
-@export var sword_local_offset: Vector3 = Vector3(-0.20, -0.48, 0.54)
-@export var sword_local_rotation_deg: Vector3 = Vector3(90.0, 0.0, 90.0) # Euler degrees
+@export var sword_local_offset: Vector3 = Vector3.ZERO
+@export var sword_local_rotation_deg: Vector3 = Vector3.ZERO # Euler degrees
 @export var sword_local_scale: Vector3 = Vector3(1.45, 1.45, 1.45)
-@export var sword_use_state_offsets: bool = true
+@export var sword_use_state_offsets: bool = false
 @export var sword_walk_offset_delta: Vector3 = Vector3.ZERO
 @export var sword_walk_rotation_delta_deg: Vector3 = Vector3.ZERO
 @export var sword_walk_scale_mult: Vector3 = Vector3.ONE
@@ -76,13 +77,13 @@ enum EditorAnimationPreview {
 @export var equipment_legs_scene_path: String = "res://scenes/equipment/armor/legs_v02.tscn"
 @export var equipment_helmet_scene_path: String = "res://scenes/equipment/helmet/helmet_v02.tscn"
 @export var equipment_shield_scene_path: String = "res://scenes/equipment/shields/base_model_v01_shield.tscn"
-@export var equipment_chest_bone_override: StringName = &"Spine"
+@export var equipment_chest_bone_override: StringName = &"Spine02"
 @export var equipment_legs_bone_override: StringName = &"Hips"
 @export var equipment_helmet_bone_override: StringName = &"Head"
 @export var equipment_shield_bone_override: StringName = &"LeftHand"
 @export var equipment_chest_local_offset: Vector3 = Vector3(0.0, 0.04, 0.30)
 @export var equipment_legs_local_offset: Vector3 = Vector3.ZERO
-@export var equipment_helmet_local_offset: Vector3 = Vector3(0.0, 0.80, 0.08)
+@export var equipment_helmet_local_offset: Vector3 = Vector3(0.0, 1.08, 0.08)
 @export var equipment_shield_local_offset: Vector3 = Vector3(0.02, -0.08, 0.0)
 @export var equipment_chest_local_rotation_deg: Vector3 = Vector3.ZERO
 @export var equipment_legs_local_rotation_deg: Vector3 = Vector3.ZERO
@@ -90,46 +91,53 @@ enum EditorAnimationPreview {
 @export var equipment_shield_local_rotation_deg: Vector3 = Vector3(0.0, 0.0, 90.0)
 @export var equipment_chest_local_scale: Vector3 = Vector3(1.55, 1.55, 1.55)
 @export var equipment_legs_local_scale: Vector3 = Vector3.ONE
-@export var equipment_helmet_local_scale: Vector3 = Vector3(1.45, 1.45, 1.45)
+@export var equipment_helmet_local_scale: Vector3 = Vector3(2.20, 2.20, 2.20)
 @export var equipment_shield_local_scale: Vector3 = Vector3.ONE
+@export var hide_base_head_when_helmet_equipped: bool = true
+@export var hidden_head_bone_scale: Vector3 = Vector3(0.001, 0.001, 0.001)
 
 @export var walk_speed_threshold := 8.0
 @export var attack_duration_seconds := 1.0
 @export var idle_clip_hint := "idle"
-@export var run_clip_hint := "walk"
+@export var run_clip_hint := "run"
 @export var melee_clip_hint := "attack"
 @export var ranged_clip_hint := "attack"
 @export var bomb_clip_hint := "attack"
-@export var defend_clip_hint := "block"
-@export var downed_clip_hint := "dying"
+@export var defend_clip_hint := "parry"
+@export var downed_clip_hint := "death"
 
 const _IDLE_GLB_CANDIDATES := [
+	"res://art/characters/player/Model_Idle.glb",
 	"res://art/characters/player/Base_Model_V01_Idle.glb",
 ]
 const _BASE_MODEL_GLB_CANDIDATES := [
-	"res://art/characters/player/Base_Model_V01_Idle.glb",
+	"res://art/characters/player/Model_model.glb",
+	"res://art/characters/player/Model_Idle.glb",
 	"res://art/characters/player/Base_Model_V01_rigged.glb",
+	"res://art/characters/player/Base_Model_V01_Idle.glb",
 	"res://art/characters/player/Base_Model_V01.glb",
 ]
 const _BASE_MODEL_TPOSE_GLB_CANDIDATES := [
+	"res://art/characters/player/Model_model.glb",
 	"res://art/characters/player/Base_Model_V01.glb",
 	"res://art/characters/player/Base_Model_V01_rigged.glb",
 	"res://art/characters/player/Base_Model_V01_Idle.glb",
 ]
 const _RUN_GLB_CANDIDATES := [
-	"res://art/characters/player/replacements/Base_Model_V01_Walking_Replacement.glb",
+	"res://art/characters/player/Model_Running.glb",
 	"res://art/characters/player/Base_Model_V01_Animation_Walking.glb",
 	"res://art/characters/player/Base_Model_V01_Running.glb",
 ]
 const _SLASH_GLB_CANDIDATES := [
-	"res://art/characters/player/replacements/Base_Model_V01_Attack_Replacement.glb",
+	"res://art/characters/player/Model_Attack.glb",
 	"res://art/characters/player/Base_Model_V01_Attack.glb",
 ]
 const _DEFEND_GLB_CANDIDATES := [
-	"res://art/characters/player/replacements/Base_Model_V01_Defend_Replacement.glb",
+	"res://art/characters/player/Model_Block.glb",
 	"res://art/characters/player/Base_Model_V01_Block.glb",
 ]
 const _DOWNED_GLB_CANDIDATES := [
+	"res://art/characters/player/Model_Death.glb",
 	"res://art/characters/player/Base_Model_V01_dying_backwards.glb",
 ]
 const _EQUIPMENT_CHEST_BONE_KEYWORDS: Array[String] = ["spine", "chest", "upperchest", "torso"]
@@ -166,6 +174,10 @@ var _sword_base_offset_rotation_deg: Vector3 = Vector3.ZERO
 var _sword_base_offset_scale: Vector3 = Vector3.ONE
 var _sword_base_offset_captured: bool = false
 var _equipment_follow_targets: Dictionary = {}
+var _head_bone_original_scales: Dictionary = {}
+var _head_hide_skeleton: Skeleton3D
+var _head_hide_bone_indices: Array[int] = []
+var _head_hide_active: bool = false
 
 
 func _effective_editor_t_pose_preview() -> bool:
@@ -272,6 +284,7 @@ func _process(_delta: float) -> void:
 		return
 	if Engine.is_editor_hint() and not _effective_editor_live_bone_follow():
 		return
+	_enforce_head_hide_pose()
 	_apply_sword_state_offset_profile()
 	_update_sword_manual_bone_follow()
 	_update_modular_equipment_bone_follow()
@@ -357,6 +370,10 @@ func _setup_sword_attachment() -> void:
 		return
 
 	var chosen_bone := _choose_sword_bone_name(skeleton)
+	if strict_hand_attachment:
+		var right_hand_bone_name: StringName = _find_bone_name_case_insensitive(skeleton, "RightHand")
+		if right_hand_bone_name != &"":
+			chosen_bone = right_hand_bone_name
 	if chosen_bone.is_empty():
 		push_warning("[PlayerVisual] Could not choose a bone name for sword attachment.")
 		return
@@ -375,10 +392,7 @@ func _setup_sword_attachment() -> void:
 	if _sword_root.get_parent() == null:
 		add_child(_sword_root)
 		_mark_editor_owned(_sword_root)
-	if runtime_use_scene_authored_offsets:
-		# SwordAttachment is a pure anchor that should not carry persistent placement.
-		# Keep authored placement on SwordOffset instead so reopening the scene is stable.
-		_sword_root.transform = Transform3D.IDENTITY
+	var follow_bone_world: Transform3D = _compute_bone_world_no_scale(skeleton, bone_idx)
 
 	if sword_use_body_anchor_fallback:
 		_sword_follow_skeleton = null
@@ -388,13 +402,9 @@ func _setup_sword_attachment() -> void:
 	else:
 		_sword_follow_skeleton = skeleton
 		_sword_follow_bone_idx = bone_idx
-		if runtime_use_scene_authored_offsets:
-			# Preserve only SwordOffset transform; root stays anchored directly to the bone.
+		if strict_hand_attachment:
 			_sword_local_from_bone = Transform3D.IDENTITY
-		elif _should_preserve_sword_offset():
-			var follow_bone_world: Transform3D = _compute_bone_world_no_scale(
-				_sword_follow_skeleton, _sword_follow_bone_idx
-			)
+		elif runtime_use_scene_authored_offsets or _should_preserve_sword_offset():
 			_sword_local_from_bone = follow_bone_world.affine_inverse() * _sword_root.global_transform
 		else:
 			_sword_local_from_bone = Transform3D.IDENTITY
@@ -582,11 +592,15 @@ func _lock_equipment_offset_to_bone(slot_name: String) -> void:
 		return
 	var desired_offset_world: Transform3D = offset_node.global_transform
 	var bone_world: Transform3D = _compute_bone_world_no_scale(skeleton, bone_idx)
-	var baked_local: Transform3D = bone_world.affine_inverse() * desired_offset_world
+	var local_from_bone: Transform3D = bone_world.affine_inverse() * root_node.global_transform
+	var root_world: Transform3D = bone_world * local_from_bone
+	var baked_local: Transform3D = root_world.affine_inverse() * desired_offset_world
 	var preserved_scale: Vector3 = offset_node.scale
-	root_node.global_transform = bone_world
+	root_node.global_transform = root_world
 	offset_node.transform = Transform3D(baked_local.basis.orthonormalized(), baked_local.origin)
 	offset_node.scale = preserved_scale
+	record["local_from_bone"] = local_from_bone
+	_equipment_follow_targets[slot_name] = record
 	if not persist_locked_offsets_to_exports:
 		return
 	match slot_name:
@@ -815,14 +829,71 @@ func _setup_modular_equipment() -> void:
 		equipment_shield_local_rotation_deg,
 		equipment_shield_local_scale
 	)
+	_apply_head_hide_from_helmet_state(skeleton)
+
+
+func _find_bone_idx_case_insensitive(skeleton: Skeleton3D, target_name: String) -> int:
+	if skeleton == null or target_name.is_empty():
+		return -1
+	var target_lower: String = target_name.to_lower()
+	for i in range(skeleton.get_bone_count()):
+		var bone_name: String = String(skeleton.get_bone_name(i)).to_lower()
+		if bone_name == target_lower:
+			return i
+	return -1
+
+
+func _find_bone_name_case_insensitive(skeleton: Skeleton3D, target_name: String) -> StringName:
+	var idx: int = _find_bone_idx_case_insensitive(skeleton, target_name)
+	if idx < 0:
+		return &""
+	return skeleton.get_bone_name(idx)
+
+
+func _apply_head_hide_from_helmet_state(skeleton: Skeleton3D) -> void:
+	if skeleton == null:
+		return
+	var should_hide_head: bool = hide_base_head_when_helmet_equipped and modular_equipment_enabled
+	# Keep the white base head hidden whenever this feature is enabled.
+	_head_hide_skeleton = skeleton
+	_head_hide_bone_indices.clear()
+	_head_hide_active = should_hide_head
+
+	var head_bones: Array[String] = ["Head", "head_end", "headfront", "neck"]
+	for bone_name in head_bones:
+		var idx: int = _find_bone_idx_case_insensitive(skeleton, bone_name)
+		if idx < 0:
+			continue
+		_head_hide_bone_indices.append(idx)
+		var key: String = str(idx)
+		if not _head_bone_original_scales.has(key):
+			_head_bone_original_scales[key] = skeleton.get_bone_pose_scale(idx)
+		if should_hide_head:
+			skeleton.set_bone_pose_scale(idx, hidden_head_bone_scale)
+		else:
+			var restore_scale_v: Variant = _head_bone_original_scales.get(key, Vector3.ONE)
+			var restore_scale: Vector3 = (
+				restore_scale_v as Vector3 if restore_scale_v is Vector3 else Vector3.ONE
+			)
+			skeleton.set_bone_pose_scale(idx, restore_scale)
+
+
+func _enforce_head_hide_pose() -> void:
+	if not _head_hide_active:
+		return
+	if _head_hide_skeleton == null or not is_instance_valid(_head_hide_skeleton):
+		return
+	if _head_hide_bone_indices.is_empty():
+		return
+	for idx in _head_hide_bone_indices:
+		if idx < 0 or idx >= _head_hide_skeleton.get_bone_count():
+			continue
+		_head_hide_skeleton.set_bone_pose_scale(idx, hidden_head_bone_scale)
 
 
 func _resolve_or_create_attachment_root(path: NodePath, fallback_name: String) -> Node3D:
 	var existing: Node3D = get_node_or_null(path) as Node3D
 	if existing != null and is_instance_valid(existing):
-		if runtime_use_scene_authored_offsets:
-			# Attachment roots are runtime anchors, not authored offsets.
-			existing.transform = Transform3D.IDENTITY
 		return existing
 	var root := Node3D.new()
 	root.name = fallback_name
@@ -908,14 +979,25 @@ func _bind_or_spawn_modular_equipment_piece(
 			_apply_equipment_visibility_material_override(piece_instance, slot_name)
 
 	var bone_idx: int = _resolve_equipment_bone_idx(skeleton, bone_name_override, bone_keywords)
+	if strict_hand_attachment and slot_name == "Shield":
+		var forced_left_hand_idx: int = _find_bone_idx_case_insensitive(skeleton, "LeftHand")
+		if forced_left_hand_idx >= 0:
+			bone_idx = forced_left_hand_idx
 	if bone_idx < 0:
 		push_warning("[PlayerVisual] Could not resolve bone for %s equipment '%s'." % [slot_name, scene_path])
 		return
+	var bone_world: Transform3D = _compute_bone_world_no_scale(skeleton, bone_idx)
+	var local_from_bone: Transform3D = Transform3D.IDENTITY
+	if strict_hand_attachment and slot_name == "Shield":
+		local_from_bone = Transform3D.IDENTITY
+	elif runtime_use_scene_authored_offsets or _should_preserve_equipment_offsets():
+		local_from_bone = bone_world.affine_inverse() * attachment_root.global_transform
 
 	var follow_record: Dictionary = {
 		"root": attachment_root,
 		"skeleton": skeleton,
 		"bone_idx": bone_idx,
+		"local_from_bone": local_from_bone,
 	}
 	_equipment_follow_targets[slot_name] = follow_record
 
@@ -953,18 +1035,23 @@ func _update_modular_equipment_bone_follow() -> void:
 		var root_v: Variant = record.get("root", null)
 		var skeleton_v: Variant = record.get("skeleton", null)
 		var bone_idx_v: Variant = record.get("bone_idx", -1)
+		var local_from_bone_v: Variant = record.get("local_from_bone", Transform3D.IDENTITY)
 		if not (root_v is Node3D) or not (skeleton_v is Skeleton3D):
 			continue
 		var root_node: Node3D = root_v as Node3D
 		var skeleton: Skeleton3D = skeleton_v as Skeleton3D
 		var bone_idx: int = int(bone_idx_v)
+		var local_from_bone: Transform3D = (
+			local_from_bone_v as Transform3D if local_from_bone_v is Transform3D else Transform3D.IDENTITY
+		)
 		if root_node == null or not is_instance_valid(root_node):
 			continue
 		if skeleton == null or not is_instance_valid(skeleton):
 			continue
 		if bone_idx < 0 or bone_idx >= skeleton.get_bone_count():
 			continue
-		root_node.global_transform = _compute_bone_world_no_scale(skeleton, bone_idx)
+		var bone_world: Transform3D = _compute_bone_world_no_scale(skeleton, bone_idx)
+		root_node.global_transform = bone_world * local_from_bone
 
 
 func _compute_bone_world_no_scale(skeleton: Skeleton3D, bone_idx: int) -> Transform3D:
@@ -1081,7 +1168,8 @@ func _first_existing_path(paths: Array) -> String:
 		var path := String(p)
 		if path.is_empty():
 			continue
-		if ResourceLoader.exists(path):
+		var abs_path: String = ProjectSettings.globalize_path(path)
+		if ResourceLoader.exists(path) or FileAccess.file_exists(abs_path):
 			return path
 	return ""
 
@@ -1125,18 +1213,19 @@ func _ensure_preferred_base_model() -> void:
 	move_child(desired_instance, insert_index)
 
 
-func _merge_anim_libraries_from_glb(glb_path: String, library_prefix: StringName) -> void:
+func _merge_anim_libraries_from_glb(glb_path: String, library_prefix: StringName) -> bool:
 	if _anim == null:
-		return
+		return false
 	var ps: PackedScene = load(glb_path) as PackedScene
 	if ps == null:
-		return
+		return false
 	var inst: Node = ps.instantiate()
 	var tmp: AnimationPlayer = _find_animation_player(inst)
 	if tmp == null:
 		inst.free()
-		return
+		return false
 	var idx := 0
+	var merged_any := false
 	for lib_key in tmp.get_animation_library_list():
 		var lib: AnimationLibrary = tmp.get_animation_library(lib_key)
 		if lib == null:
@@ -1146,17 +1235,20 @@ func _merge_anim_libraries_from_glb(glb_path: String, library_prefix: StringName
 		if _anim.has_animation_library(new_name):
 			continue
 		_anim.add_animation_library(new_name, lib.duplicate(true))
+		merged_any = true
 	inst.free()
+	return merged_any
 
 
 func _merge_anim_libraries_from_candidates(
 	glb_candidates: Array, library_prefix: StringName
 ) -> void:
 	for path in glb_candidates:
-		if not ResourceLoader.exists(path):
+		var candidate_path: String = String(path)
+		if candidate_path.is_empty():
 			continue
-		_merge_anim_libraries_from_glb(path, library_prefix)
-		return
+		if _merge_anim_libraries_from_glb(candidate_path, library_prefix):
+			return
 
 
 func _find_clip_by_hint_or_keywords(hint: String, keywords: Array) -> StringName:

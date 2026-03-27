@@ -25,6 +25,8 @@ def _parse_args() -> argparse.Namespace:
     parser.add_argument("--bone-map", default="")
     parser.add_argument("--root-bone", default="Hips")
     parser.add_argument("--root-motion-scale", type=float, default=1.0)
+    parser.add_argument("--copy-root-location", action="store_true")
+    parser.add_argument("--copy-root-rotation", action="store_true")
     parser.add_argument("--frame-start", type=int, default=1)
     parser.add_argument("--frame-end", type=int, default=-1)
     return parser.parse_args(_argv_after_double_dash())
@@ -112,7 +114,12 @@ def _build_mapping(
 
 
 def _add_constraints(
-    target_arm: bpy.types.Object, source_arm: bpy.types.Object, mapping: dict[str, str], root_bone: str
+    target_arm: bpy.types.Object,
+    source_arm: bpy.types.Object,
+    mapping: dict[str, str],
+    root_bone: str,
+    copy_root_location: bool,
+    copy_root_rotation: bool,
 ) -> None:
     bpy.context.view_layer.objects.active = target_arm
     bpy.ops.object.mode_set(mode="POSE")
@@ -122,12 +129,14 @@ def _add_constraints(
         sb = source_arm.pose.bones.get(sname)
         if tb is None or sb is None:
             continue
-        c_rot = tb.constraints.new(type="COPY_ROTATION")
-        c_rot.target = source_arm
-        c_rot.subtarget = sname
-        c_rot.target_space = "WORLD"
-        c_rot.owner_space = "WORLD"
-        if _norm_name(tname) == root_norm:
+        is_root = _norm_name(tname) == root_norm
+        if (not is_root) or copy_root_rotation:
+            c_rot = tb.constraints.new(type="COPY_ROTATION")
+            c_rot.target = source_arm
+            c_rot.subtarget = sname
+            c_rot.target_space = "WORLD"
+            c_rot.owner_space = "WORLD"
+        if is_root and copy_root_location:
             c_loc = tb.constraints.new(type="COPY_LOCATION")
             c_loc.target = source_arm
             c_loc.subtarget = sname
@@ -149,14 +158,12 @@ def _frame_range_from_source(source_arm: bpy.types.Object, start_hint: int, end_
 
 def _bake_to_target(target_arm: bpy.types.Object, frame_start: int, frame_end: int) -> bpy.types.Action:
     bpy.ops.object.mode_set(mode="POSE")
-    for pb in target_arm.pose.bones:
-        pb.bone.select = True
     bpy.context.view_layer.objects.active = target_arm
     bpy.ops.nla.bake(
         frame_start=frame_start,
         frame_end=frame_end,
         step=1,
-        only_selected=True,
+        only_selected=False,
         visual_keying=True,
         clear_constraints=True,
         clear_parents=False,
@@ -189,16 +196,19 @@ def _remove_objects(objects: list[bpy.types.Object]) -> None:
             bpy.data.objects.remove(obj, do_unlink=True)
 
 
-def _select_hierarchy(root_obj: bpy.types.Object) -> None:
-    bpy.ops.object.select_all(action="DESELECT")
-
-    def visit(obj: bpy.types.Object) -> None:
-        obj.select_set(True)
-        for child in obj.children:
-            visit(child)
-
-    visit(root_obj)
-    bpy.context.view_layer.objects.active = root_obj
+def _keep_only_action(target_arm: bpy.types.Object, keep_action: bpy.types.Action) -> None:
+    if target_arm.animation_data is None:
+        target_arm.animation_data_create()
+    target_arm.animation_data.action = keep_action
+    # Clear any NLA strips that may reference imported source actions.
+    if target_arm.animation_data is not None:
+        for track in list(target_arm.animation_data.nla_tracks):
+            target_arm.animation_data.nla_tracks.remove(track)
+    # Retain only the baked action so Godot cannot accidentally pick a stale mocap clip.
+    for action in list(bpy.data.actions):
+        if action == keep_action:
+            continue
+        bpy.data.actions.remove(action, do_unlink=True)
 
 
 def _export_glb(output_glb: Path) -> None:
@@ -206,7 +216,7 @@ def _export_glb(output_glb: Path) -> None:
     bpy.ops.export_scene.gltf(
         filepath=str(output_glb),
         export_format="GLB",
-        use_selection=True,
+        use_selection=False,
         export_animations=True,
         export_nla_strips=False,
         export_force_sampling=True,
@@ -237,7 +247,14 @@ def main() -> None:
         raise SystemExit("No bones mapped between source and target armatures.")
 
     print(f"[retarget] mapped bones: {len(mapping)}")
-    _add_constraints(target_arm, source_arm, mapping, args.root_bone)
+    _add_constraints(
+        target_arm,
+        source_arm,
+        mapping,
+        args.root_bone,
+        copy_root_location=bool(args.copy_root_location),
+        copy_root_rotation=bool(args.copy_root_rotation),
+    )
     frame_start, frame_end = _frame_range_from_source(source_arm, args.frame_start, args.frame_end)
     print(f"[retarget] frame range: {frame_start} -> {frame_end}")
     action = _bake_to_target(target_arm, frame_start, frame_end)
@@ -245,7 +262,7 @@ def main() -> None:
     _scale_root_motion(action, args.root_bone, args.root_motion_scale)
 
     _remove_objects(source_objs)
-    _select_hierarchy(target_arm)
+    _keep_only_action(target_arm, action)
     _export_glb(output_glb)
     print(f"[retarget] exported: {output_glb}")
 

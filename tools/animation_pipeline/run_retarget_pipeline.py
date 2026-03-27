@@ -6,6 +6,7 @@ import json
 import os
 import subprocess
 import sys
+import time
 from pathlib import Path
 
 
@@ -78,10 +79,13 @@ def main() -> None:
         if bone_map_abs is not None and not bone_map_abs.exists():
             raise SystemExit(f"Missing bone map for '{clip_id}': {bone_map_abs}")
         output_glb.parent.mkdir(parents=True, exist_ok=True)
+        before_mtime = output_glb.stat().st_mtime if output_glb.exists() else -1.0
 
         cmd = [
             blender_exe,
             "-b",
+            "--python-exit-code",
+            "1",
             "-P",
             str(blender_script),
             "--",
@@ -101,6 +105,17 @@ def main() -> None:
         if bone_map_abs is not None:
             cmd.extend(["--bone-map", str(bone_map_abs)])
         _run(cmd, cwd=repo_root)
+        if not output_glb.exists():
+            raise SystemExit(f"Retarget failed for '{clip_id}': output not created: {output_glb}")
+        after_mtime = output_glb.stat().st_mtime
+        if before_mtime >= 0 and after_mtime <= before_mtime:
+            # Small delay to avoid same-timestamp false positive on coarse FS clocks.
+            time.sleep(0.05)
+            after_mtime = output_glb.stat().st_mtime
+            if after_mtime <= before_mtime:
+                raise SystemExit(
+                    f"Retarget may have failed for '{clip_id}': output file was not updated: {output_glb}"
+                )
 
     print("Retarget pipeline complete.")
     print("Next: run Godot import so replacement GLBs are available in engine cache.")

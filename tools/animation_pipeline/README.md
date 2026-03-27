@@ -11,7 +11,7 @@ It is designed for this repo and outputs replacement GLBs that `PlayerVisual` al
 ## What the pipeline does
 
 1. Normalizes your example videos (`attackExample`, `walkingExample`, `defendexample`).
-2. Stages expected mocap source files (`attack.fbx`, `walk.fbx`, `defend.fbx`).
+2. Converts staged videos into local mocap FBX clips (`attack.fbx`, `walk.fbx`, `defend.fbx`) using MediaPipe + Blender.
 3. Retargets mocap data to your player rig in Blender via script.
 4. Exports Godot-ready GLB replacement clips.
 
@@ -19,8 +19,20 @@ It is designed for this repo and outputs replacement GLBs that `PlayerVisual` al
 
 - Python 3.10+
 - Blender (4.x recommended) available via CLI
-- A video-to-mocap output for each clip (FBX/BVH), generated from your staged videos
-  - You can use your preferred tool/service (Rokoko Vision, DeepMotion, Plask, etc.)
+- Python dependencies:
+
+```powershell
+python -m pip install -r .\tools\animation_pipeline\requirements_mocap.txt
+```
+
+If system-wide install is blocked:
+
+```powershell
+python -m pip install --user -r .\tools\animation_pipeline\requirements_mocap.txt
+```
+
+- First run auto-downloads `pose_landmarker_heavy.task` to:
+  - `tools/animation_pipeline/models/pose_landmarker_heavy.task`
 
 ## One-command flow
 
@@ -32,11 +44,22 @@ Run from repo root.
 .\tools\animation_pipeline\prepare_example_clips.ps1
 ```
 
-2) Convert staged videos to mocap externally and place files here:
+2) Convert staged videos to mocap FBX locally:
 
+```powershell
+.\tools\animation_pipeline\convert_example_clips_to_mocap.ps1 -BlenderExe "C:\Program Files\Blender Foundation\Blender 4.2\blender.exe"
+```
+
+The converter auto-prefers V2 clip names when present:
+- `AttackV2.mov` / `AttackV2.mp4` (fallback `attack.mov` / `attack.mp4`)
+- `WalkingV2.mov` / `WalkingV2.mp4` (fallback `walk.mov` / `walk.mp4`)
+- `DefendV2.mov` / `DefendV2.mp4` (fallback `defend.mov` / `defend.mp4`)
+
+Generated files:
 - `tools/animation_pipeline/work/mocap/attack.fbx`
 - `tools/animation_pipeline/work/mocap/walk.fbx`
 - `tools/animation_pipeline/work/mocap/defend.fbx`
+- `tools/animation_pipeline/work/mocap/*.pose.json` (debug pose data)
 
 3) Retarget + export replacement animation GLBs:
 
@@ -62,3 +85,8 @@ Edit `tools/animation_pipeline/retarget_jobs.json` if your mocap provider uses d
 
 - The game now prefers replacement clips first in `scripts/visuals/player_visual.gd`.
 - If a replacement file is missing, it automatically falls back to the existing clip.
+- If you want to inspect mocap extraction quality before FBX export, run:
+
+```powershell
+python .\tools\animation_pipeline\video_to_mocap_fbx.py --input-video .\tools\animation_pipeline\work\videos\attack.mp4 --output-json .\tools\animation_pipeline\work\mocap\attack.pose.json --output-fbx .\tools\animation_pipeline\work\mocap\attack.fbx --skip-fbx
+```

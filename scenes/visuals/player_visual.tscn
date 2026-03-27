@@ -9,41 +9,51 @@
 [node name="PlayerVisual" type="Node3D" unique_id=721425659]
 transform = Transform3D(4, 0, 0, 0, 4, 0, 0, 0, 4, 0, 3.7297654, 0)
 script = ExtResource("1_pv")
-editor_preview_animation = 2
-run_clip_hint = "run"
+sword_local_offset = Vector3(0.61, 0.57, 0.53)
+sword_local_rotation_deg = Vector3(27.8, 63, -34.8)
+equipment_chest_local_offset = Vector3(-0.389675, -0.334253, -0.180313)
+equipment_helmet_local_offset = Vector3(-0.519946, 0.70, 1.06)
+equipment_shield_local_offset = Vector3(0, 0.15, 0)
+equipment_chest_local_rotation_deg = Vector3(19.80039, -49.75077, -10.35424)
+equipment_helmet_local_rotation_deg = Vector3(30.48942, -6.218935, 7.61498)
+equipment_shield_local_rotation_deg = Vector3(0, 180, 90)
+equipment_chest_local_scale = Vector3(1.55, 1.549999, 1.550001)
+equipment_helmet_local_scale = Vector3(2.05, 2.05, 2.05)
+equipment_shield_local_scale = Vector3(0.999999, 1, 1)
 
 [node name="SwordAttachment" type="Node3D" parent="." unique_id=1423052459]
-transform = Transform3D(0.19310766, -0.13839911, -0.07781467, -0.15787798, -0.18037938, -0.07097764, -0.016851678, 0.1039662, -0.22673124, -0.45427397, 0.62365234, -0.15168843)
+transform = Transform3D(0.135267, -0.16426654, 0.13122247, -0.14995356, -0.18474789, -0.076695174, 0.14736612, -0.037211798, -0.19849057, -0.33318198, 0.6264814, -0.0765244)
 
 [node name="SwordOffset" type="Node3D" parent="SwordAttachment" unique_id=151781569]
-transform = Transform3D(-0.44812068, -0.62869614, -1.2273674, 1.3398422, 0.10693754, -0.5439614, 0.3263717, -1.3022306, 0.547884, 0.2300396, 0.8248553, -1.134619)
+transform = Transform3D(-0.7106104, 0.70937127, 1.0461007, -1.051698, 0.3337849, -0.9407551, -0.7010461, -1.2197878, 0.35093307, 0.3422141, 0.5921545, -0.6360917)
 
 [node name="SwordMesh" parent="SwordAttachment/SwordOffset" unique_id=1281859366 instance=ExtResource("3_sword")]
-transform = Transform3D(1.1979004, 0.07071668, -0.005804342, -0.06696431, 1.1592017, 0.3029309, 0.023458892, -0.30207697, 1.1611198, 0.07541299, 0.18943216, -0.09109682)
+transform = Transform3D(0.998825, 0.0008973479, -0.048453696, -0.011887923, 0.97381663, -0.2270233, 0.04698131, 0.22733252, 0.97268313, -0.010439634, -0.08085874, 0.23256338)
 
 [node name="ShieldAttachment" type="Node3D" parent="." unique_id=198724310]
-transform = Transform3D(0.18128681, 0.025806446, 0.17020316, 0.10983605, -0.20766672, -0.08550186, 0.13255616, 0.1367792, -0.16192687, 0.20830512, 0.6027869, 0.454712)
+transform = Transform3D(0.019973233, 0.115692176, -0.2207179, 0.09073825, -0.20960188, -0.10165446, -0.23209403, -0.071988754, -0.05873653, 0.39062968, 0.6246507, -0.05974862)
 
 [node name="ShieldOffset" type="Node3D" parent="ShieldAttachment" unique_id=198724311]
-transform = Transform3D(-0.9199321, 0.3846098, 0.07616082, -0.38571718, -0.85292023, -0.35178125, -0.070338964, -0.352991, 0.93297905, 0.90072536, 0.92942214, -1.1003013)
+transform = Transform3D(0.8962226, 0.24079068, 0.3725624, 0.24823326, -0.96827567, 0.028663788, 0.3676448, 0.06679331, -0.927564, 0.20370817, 0.5153768, -0.3006971)
 
 [node name="EquipmentShieldMesh" parent="ShieldAttachment/ShieldOffset" unique_id=198724312 instance=ExtResource("7_shield")]
-transform = Transform3D(-1.5102303, 0.116232336, -1.3060216, -0.8756593, 1.3933426, 1.1365802, 0.9759223, 1.430064, -1.0012441, 0.64468765, 0.013430119, 0.74494576)
+transform = Transform3D(1.5, 0, 0, 0, 1.5, 0, 0, 0, 1.5, 0, 0, 0)
 
 [node name="ArmorAttachment" type="Node3D" parent="." unique_id=1869934819]
-transform = Transform3D(0.19100824, -0.0031306373, -0.16126391, -0.0028278818, 0.24984947, -0.0081998315, 0.16126952, 0.008089081, 0.19085781, -0.06035487, 0.8199434, 0.07952665)
+transform = Transform3D(0.24926363, 0.0055313767, -0.01835882, -0.0031985748, 0.24801272, 0.031296305, 0.018905332, -0.030969236, 0.24735297, 0.02651468, 0.689294, 0.06563849)
+visible = false
 
 [node name="ChestOffset" type="Node3D" parent="ArmorAttachment" unique_id=719528939]
-transform = Transform3D(1.5500013, 2.6077032e-08, 4.172325e-07, 3.7252903e-09, 1.5500014, -1.4901161e-08, 6.556511e-07, 3.3527613e-08, 1.5500014, -0.19458345, -0.33160162, 0.07674068)
+transform = Transform3D(1.0571945, -0.21421766, -1.1130824, -0.26211652, 1.4346118, -0.5250541, 1.102785, 0.54634863, 0.942268, -0.389675, -0.334253, -0.180313)
 
 [node name="EquipmentChestMesh" parent="ArmorAttachment/ChestOffset" unique_id=1981844057 instance=ExtResource("4_chest")]
-transform = Transform3D(1.1745207, 0.11195071, 0.16291893, -0.118273266, 0.88425404, -0.15802374, -0.21567014, 0.124749824, 0.9739025, 0.09554311, -0.0018854141, -0.09032596)
+transform = Transform3D(1.1, 0, 0, 0, 1.1, 0, 0, 0, 1.1, 0, 0, 0)
 
 [node name="HelmetAttachment" type="Node3D" parent="." unique_id=1775494116]
-transform = Transform3D(0.24399038, -0.04923735, -0.023332011, 0.005317201, 0.12806164, -0.21464375, 0.0542257, 0.2089878, 0.12603045, -0.0782099, 0.9882238, 0.10620216)
+transform = Transform3D(0.24888484, -0.023548877, 0.0013353163, 0.022107486, 0.22796886, -0.10020709, 0.008221415, 0.09987819, 0.2290344, 0.022841096, 0.9804059, 0.009558418)
 
 [node name="HelmetOffset" type="Node3D" parent="HelmetAttachment" unique_id=1337884735]
-transform = Transform3D(1.4497609, 0.015228823, 0.021466002, -0.021305308, 1.3733968, 0.46457103, -0.015452743, -0.46481004, 1.3733945, 0.01616101, 1.1892285, -0.57238483)
+transform = Transform3D(1.9967456, -0.25229535, -0.38968456, -0.15337034, 1.2656791, -1.6053134, 0.43816048, 1.5927658, 1.2139244, -0.23561174, 0.35120583, 1.3703912)
 
 [node name="EquipmentHelmetMesh" parent="HelmetAttachment/HelmetOffset" unique_id=2110715839 instance=ExtResource("6_helmet")]
-transform = Transform3D(1.1970615, -0.047386862, 0.069270566, 0.023603877, 1.1405342, 0.37232333, -0.08054056, -0.37004906, 1.1386734, -0.029800713, -0.14270735, -0.08588076)
+transform = Transform3D(0.67465, -0.0879291, 0.16466886, -0.155722, 0.07543846, 0.678277, -0.102946654, -0.6903459, 0.053145804, 0.007586479, -0.43321502, -0.6463158)
