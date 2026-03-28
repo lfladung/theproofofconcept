@@ -13,6 +13,7 @@ var _active_clip_root: Node3D
 var _active_anim_player: AnimationPlayer
 var _active_clip_name: StringName = &""
 var _playback_speed_scale := 1.0
+var _playback_paused := false
 
 
 func _ready() -> void:
@@ -40,13 +41,18 @@ func set_state(state: StringName, restart: bool = false) -> float:
 	if needs_reload:
 		_swap_active_clip(desired_scene)
 	_current_state = resolved_state
+	_apply_scene_config(config)
 	return _play_current_animation(config, restart or needs_reload)
 
 
 func set_playback_speed_scale(scale_value: float) -> void:
 	_playback_speed_scale = maxf(0.01, scale_value)
-	if _active_anim_player != null:
-		_active_anim_player.speed_scale = _playback_speed_scale
+	_apply_active_anim_speed()
+
+
+func set_playback_paused(paused: bool) -> void:
+	_playback_paused = paused
+	_apply_active_anim_speed()
 
 
 func get_current_state() -> StringName:
@@ -76,6 +82,14 @@ func get_current_animation_duration_seconds() -> float:
 		return 0.0
 	var anim := _active_anim_player.get_animation(clip_name)
 	return maxf(0.0, anim.length) if anim != null else 0.0
+
+
+func seek_current_animation_seconds(time_seconds: float) -> void:
+	if _active_anim_player == null:
+		return
+	var duration := get_current_animation_duration_seconds()
+	var clamped_time := clampf(time_seconds, 0.0, duration)
+	_active_anim_player.seek(clamped_time, true)
 
 
 func _resolve_state_name(state: StringName) -> StringName:
@@ -116,9 +130,20 @@ func _play_current_animation(config: Dictionary, restart: bool) -> float:
 	var current_name := String(_active_anim_player.current_animation)
 	if restart or current_name != String(_active_clip_name) or not _active_anim_player.is_playing():
 		_active_anim_player.play(_active_clip_name)
-	_active_anim_player.speed_scale = _playback_speed_scale
+	_apply_active_anim_speed()
 	var anim := _active_anim_player.get_animation(_active_clip_name)
 	return maxf(0.0, anim.length) if anim != null else 0.0
+
+
+func _apply_scene_config(config: Dictionary) -> void:
+	if _active_clip_root == null:
+		return
+	var scene_scale_v: Variant = config.get("scene_scale", Vector3.ONE)
+	if scene_scale_v is Vector3:
+		_active_clip_root.scale = scene_scale_v as Vector3
+	else:
+		var scale_scalar := float(scene_scale_v)
+		_active_clip_root.scale = Vector3.ONE * scale_scalar
 
 
 func _pick_animation_name(config: Dictionary) -> StringName:
@@ -127,7 +152,10 @@ func _pick_animation_name(config: Dictionary) -> StringName:
 	var clip_hint := String(config.get("clip_hint", ""))
 	var keywords := config.get("keywords", []) as Array
 	if not _active_anim_player.get_animation_list().is_empty():
-		return _find_animation_name_from_list(_active_anim_player.get_animation_list(), clip_hint, keywords)
+		var clip_names: Array = []
+		for clip_name in _active_anim_player.get_animation_list():
+			clip_names.append(clip_name)
+		return _find_animation_name_from_list(clip_names, clip_hint, keywords)
 	for library_name in _active_anim_player.get_animation_library_list():
 		var library := _active_anim_player.get_animation_library(library_name)
 		if library == null:
@@ -144,7 +172,7 @@ func _pick_animation_name(config: Dictionary) -> StringName:
 
 
 func _find_animation_name_from_list(
-	names: Array[StringName], clip_hint: String, keywords: Array
+	names: Array, clip_hint: String, keywords: Array
 ) -> StringName:
 	var hint_lower := clip_hint.to_lower()
 	if not hint_lower.is_empty():
@@ -182,3 +210,9 @@ func _find_animation_player(node: Node) -> AnimationPlayer:
 		if found != null:
 			return found
 	return null
+
+
+func _apply_active_anim_speed() -> void:
+	if _active_anim_player == null:
+		return
+	_active_anim_player.speed_scale = 0.0 if _playback_paused else _playback_speed_scale

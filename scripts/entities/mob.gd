@@ -2,6 +2,7 @@ class_name DasherMob
 extends EnemyBase
 
 const LEGACY_MOB_VISUAL_SCENE := preload("res://scenes/visuals/mob_visual.tscn")
+const EnemyStateVisualScript = preload("res://scripts/visuals/enemy_state_visual.gd")
 const SHARDLING_IDLE_SCENE_PATH := "res://art/characters/enemies/shardling_texture.glb"
 const SHARDLING_WALK_SCENE_PATH := "res://art/characters/enemies/shardling_walk.glb"
 
@@ -25,9 +26,11 @@ const SHARDLING_WALK_SCENE_PATH := "res://art/characters/enemies/shardling_walk.
 @export var hit_stun_duration := 1.0
 @export var hit_knockback_duration := 0.22
 @export var target_refresh_interval := 0.3
+@export var mesh_ground_y := 0.24
+@export var mesh_scale := Vector3(2.0, 2.0, 2.0)
 
 var _squash_applied: bool = false
-var _visual: EnemyStateVisual
+var _visual
 var _vw: Node3D
 var _telegraph_mesh: MeshInstance3D
 var _outline_mat: StandardMaterial3D
@@ -86,11 +89,11 @@ func _ready() -> void:
 	var vw := get_node_or_null("../../VisualWorld3D")
 	_vw = vw as Node3D
 	if vw:
-		var vis := EnemyStateVisual.new()
+		var vis = EnemyStateVisualScript.new()
 		vis.name = &"DasherVisual"
-		vis.mesh_ground_y = 0.0
-		vis.mesh_scale = Vector3.ONE
-		vis.facing_yaw_offset_deg = 180.0
+		vis.mesh_ground_y = mesh_ground_y
+		vis.mesh_scale = mesh_scale
+		vis.facing_yaw_offset_deg = 0.0
 		vis.configure_states(_build_visual_state_config())
 		vw.add_child(vis)
 		_visual = vis
@@ -494,6 +497,7 @@ func _build_visual_state_config() -> Dictionary:
 		},
 		&"walk": {
 			"scene": walk_scene,
+			"scene_scale": 114.0,
 			"keywords": ["walk", "run", "moving"],
 		},
 	}

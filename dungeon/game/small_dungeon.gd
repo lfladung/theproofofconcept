@@ -35,6 +35,8 @@ const ENTRANCE_MARKER_SCENE := preload("res://dungeon/modules/connectivity/entra
 const EXIT_MARKER_SCENE := preload("res://dungeon/modules/connectivity/exit_marker_2d.tscn")
 const DASHER_SCENE := preload("res://scenes/entities/dasher.tscn")
 const ARROW_TOWER_SCENE := preload("res://scenes/entities/arrow_tower.tscn")
+const IRON_SENTINEL_SCENE := preload("res://scenes/entities/iron_sentinel.tscn")
+const ROBOT_MOB_SCENE := preload("res://scenes/entities/robot_mob.tscn")
 const SPAWN_POINT_SCENE := preload("res://dungeon/modules/encounter/enemy_spawn_point_2d.tscn")
 const SPAWN_VOLUME_SCENE := preload("res://dungeon/modules/encounter/enemy_spawn_volume_2d.tscn")
 const ROOM_TRIGGER_SCENE := preload("res://dungeon/modules/encounter/room_encounter_trigger_2d.tscn")
@@ -47,9 +49,13 @@ const DUNGEON_CELL_DOOR_SCENE := preload("res://dungeon/visuals/dungeon_cell_doo
 const PLAYER_SCENE := preload("res://scenes/entities/player.tscn")
 const LOADOUT_OVERLAY_SCENE := preload("res://scenes/ui/loadout/loadout_overlay.tscn")
 const LoadoutRepositoryScript = preload("res://scripts/loadout/loadout_repository.gd")
+const IRON_SENTINEL_SCRIPT = preload("res://scripts/entities/iron_sentinel.gd")
+const ROBOT_MOB_SCRIPT = preload("res://scripts/entities/robot_mob.gd")
 const ELEVATOR_VISUAL_SCENE := preload("res://art/props/interactables/elevator_texture.glb")
 const ENEMY_SCENE_KIND_DASHER := 1
 const ENEMY_SCENE_KIND_ARROW_TOWER := 2
+const ENEMY_SCENE_KIND_IRON_SENTINEL := 3
+const ENEMY_SCENE_KIND_ROBOT_MOB := 4
 ## World units per texture repeat on floors (4x4 gameplay tiles at 3 units per tile).
 const FLOOR_TEXTURE_TILE_WORLD := 12.0
 ## Match floor tile size so wall stone pattern lines up at room corners.
@@ -295,12 +301,20 @@ func _next_enemy_network_id() -> int:
 func _enemy_scene_kind_from_scene(scene: PackedScene) -> int:
 	if scene == ARROW_TOWER_SCENE:
 		return ENEMY_SCENE_KIND_ARROW_TOWER
+	if scene == IRON_SENTINEL_SCENE:
+		return ENEMY_SCENE_KIND_IRON_SENTINEL
+	if scene == ROBOT_MOB_SCENE:
+		return ENEMY_SCENE_KIND_ROBOT_MOB
 	return ENEMY_SCENE_KIND_DASHER
 
 
 func _enemy_scene_kind_from_enemy_instance(enemy: EnemyBase) -> int:
 	if enemy is ArrowTowerMob:
 		return ENEMY_SCENE_KIND_ARROW_TOWER
+	if enemy != null and enemy.get_script() == IRON_SENTINEL_SCRIPT:
+		return ENEMY_SCENE_KIND_IRON_SENTINEL
+	if enemy != null and enemy.get_script() == ROBOT_MOB_SCRIPT:
+		return ENEMY_SCENE_KIND_ROBOT_MOB
 	return ENEMY_SCENE_KIND_DASHER
 
 
@@ -308,6 +322,10 @@ func _enemy_scene_from_kind(kind: int) -> PackedScene:
 	match kind:
 		ENEMY_SCENE_KIND_ARROW_TOWER:
 			return ARROW_TOWER_SCENE
+		ENEMY_SCENE_KIND_IRON_SENTINEL:
+			return IRON_SENTINEL_SCENE
+		ENEMY_SCENE_KIND_ROBOT_MOB:
+			return ROBOT_MOB_SCENE
 		_:
 			return DASHER_SCENE
 
@@ -2653,12 +2671,15 @@ func _spawn_encounter_wave(encounter_id: StringName, total_count: int, speed_mul
 	var volumes: Array = _spawn_volumes_by_encounter.get(encounter_id, []) as Array
 	var player_pos := _reference_player_position()
 	var planned_scenes: Array[PackedScene] = []
+	if total_count >= 1:
+		planned_scenes.append(_pick_melee_enemy_scene(encounter_id))
 	if total_count >= 2:
-		# Guarantee mixed waves: at least one dasher + one tower when possible.
-		planned_scenes.append(DASHER_SCENE)
-		planned_scenes.append(ARROW_TOWER_SCENE)
+		planned_scenes.append(_pick_ranged_enemy_scene(encounter_id))
+	if total_count >= 3:
+		planned_scenes.append(IRON_SENTINEL_SCENE if randf() < 0.65 else DASHER_SCENE)
 	for i in range(planned_scenes.size(), total_count):
 		planned_scenes.append(_pick_enemy_scene(encounter_id))
+	planned_scenes.shuffle()
 	for point_node in points:
 		if spawned >= total_count:
 			break
@@ -3084,9 +3105,34 @@ func _resolve_encounter_for_spawn(requested_encounter_id: StringName, spawn_pos:
 
 
 func _pick_enemy_scene(encounter_id: StringName) -> PackedScene:
-	# Arena encounters mix towers; boss keeps lower tower frequency.
-	var tower_weight := 0.35 if String(encounter_id) != "boss" else 0.25
-	return ARROW_TOWER_SCENE if randf() < tower_weight else DASHER_SCENE
+	var roll := randf()
+	if String(encounter_id) == "boss":
+		if roll < 0.22:
+			return ARROW_TOWER_SCENE
+		if roll < 0.45:
+			return ROBOT_MOB_SCENE
+		if roll < 0.76:
+			return IRON_SENTINEL_SCENE
+		return DASHER_SCENE
+	if roll < 0.22:
+		return ARROW_TOWER_SCENE
+	if roll < 0.48:
+		return ROBOT_MOB_SCENE
+	if roll < 0.72:
+		return IRON_SENTINEL_SCENE
+	return DASHER_SCENE
+
+
+func _pick_melee_enemy_scene(encounter_id: StringName) -> PackedScene:
+	if String(encounter_id) == "boss":
+		return IRON_SENTINEL_SCENE if randf() < 0.6 else DASHER_SCENE
+	return IRON_SENTINEL_SCENE if randf() < 0.45 else DASHER_SCENE
+
+
+func _pick_ranged_enemy_scene(encounter_id: StringName) -> PackedScene:
+	if String(encounter_id) == "boss":
+		return ROBOT_MOB_SCENE if randf() < 0.55 else ARROW_TOWER_SCENE
+	return ROBOT_MOB_SCENE if randf() < 0.6 else ARROW_TOWER_SCENE
 
 
 func _on_encounter_mob_removed(encounter_id: StringName, mob: EnemyBase) -> void:
