@@ -2,6 +2,7 @@ extends Node2D
 class_name PlayerBomb
 
 const BOMB_VISUAL_SCENE := preload("res://art/combat/projectiles/black_projectile_texture.glb")
+const DamagePacketScript = preload("res://scripts/combat/damage_packet.gd")
 const STYLE_RED: StringName = &"red"
 const STYLE_BLUE: StringName = &"blue"
 
@@ -29,6 +30,7 @@ var _aoe_preview: MeshInstance3D
 var _facing := Vector2(0.0, -1.0)
 var _authoritative_damage := true
 var _visual_style_id: StringName = STYLE_RED
+var _attack_instance_id := -1
 
 
 func configure(
@@ -42,7 +44,8 @@ func configure(
 	arc_start_height: float,
 	knockback: float,
 	authoritative_damage: bool = true,
-	visual_style_id: StringName = STYLE_RED
+	visual_style_id: StringName = STYLE_RED,
+	attack_instance_id: int = -1
 ) -> void:
 	_start_2d = spawn_planar
 	_facing = direction.normalized() if direction.length_squared() > 1e-6 else Vector2(0.0, -1.0)
@@ -55,6 +58,7 @@ func configure(
 	_knockback_strength = knockback
 	_authoritative_damage = authoritative_damage
 	_visual_style_id = visual_style_id if visual_style_id != &"" else STYLE_RED
+	_attack_instance_id = attack_instance_id
 
 
 func _ready() -> void:
@@ -145,24 +149,53 @@ func _explode() -> void:
 	if not _authoritative_damage:
 		queue_free()
 		return
-	var tree := get_tree()
-	if tree != null:
-		for node in tree.get_nodes_in_group(&"mob"):
-			if node is not CharacterBody2D:
+	var world_2d := get_world_2d()
+	if world_2d != null:
+		var circle := CircleShape2D.new()
+		circle.radius = _aoe_radius
+		var params := PhysicsShapeQueryParameters2D.new()
+		params.shape = circle
+		params.transform = Transform2D(0.0, _end_2d)
+		params.collision_mask = 16
+		params.collide_with_areas = true
+		params.collide_with_bodies = false
+		var hits := world_2d.direct_space_state.intersect_shape(params, 32)
+		var hit_hurtboxes: Dictionary = {}
+		for hit_v in hits:
+			var hit: Dictionary = hit_v
+			var collider_v: Variant = hit.get("collider", null)
+			if collider_v is not Hurtbox2D:
 				continue
-			var mob := node as CharacterBody2D
-			var mob_poly := HitboxOverlap2D.mob_collision_polygon_world(mob)
-			var in_blast := false
-			if mob_poly.size() >= 3:
-				in_blast = HitboxOverlap2D.circle_overlaps_polygon(_end_2d, _aoe_radius, mob_poly)
-			else:
-				in_blast = mob.global_position.distance_to(_end_2d) <= _aoe_radius
-			if not in_blast:
+			var hurtbox := collider_v as Hurtbox2D
+			if not hurtbox.is_active():
 				continue
-			if mob.has_method(&"take_hit"):
-				var away := mob.global_position - _end_2d
-				var kb_dir := away.normalized() if away.length_squared() > 1e-6 else Vector2.ZERO
-				mob.call(&"take_hit", _damage, kb_dir, _knockback_strength)
+			var target_uid := hurtbox.get_target_uid()
+			if hit_hurtboxes.has(target_uid):
+				continue
+			hit_hurtboxes[target_uid] = hurtbox
+		for hurtbox_v in hit_hurtboxes.values():
+			var hurtbox := hurtbox_v as Hurtbox2D
+			var receiver := hurtbox.get_receiver_component()
+			if receiver == null:
+				continue
+			var target_node := hurtbox.get_target_node() as Node2D
+			var away := Vector2.ZERO
+			if target_node != null:
+				away = target_node.global_position - _end_2d
+			var kb_dir := away.normalized() if away.length_squared() > 1e-6 else Vector2.ZERO
+			var packet := DamagePacketScript.new() as DamagePacket
+			packet.amount = _damage
+			packet.kind = &"bomb"
+			packet.source_node = self
+			packet.source_uid = get_instance_id()
+			packet.attack_instance_id = _attack_instance_id if _attack_instance_id > 0 else get_instance_id()
+			packet.origin = _end_2d
+			packet.direction = kb_dir
+			packet.knockback = _knockback_strength
+			packet.apply_iframes = false
+			packet.blockable = false
+			packet.debug_label = &"player_bomb"
+			receiver.receive_damage(packet, hurtbox)
 	queue_free()
 
 

@@ -117,15 +117,45 @@ func _physics_process(delta: float) -> void:
 
 
 func _refresh_target_lock(range_world: float) -> void:
-	var in_range_candidates := _collect_players_in_range(range_world)
 	var current_presence: Dictionary = {}
-	var entrants: Array[Dictionary] = []
-	for candidate in in_range_candidates:
-		var instance_id := int(candidate.get("instance_id", 0))
-		current_presence[instance_id] = true
-		var was_in_range := bool(_in_range_presence_by_instance_id.get(instance_id, false))
-		if not was_in_range:
-			entrants.append(candidate)
+	var best_entrant: Node2D = null
+	var best_entrant_d2 := INF
+	var best_entrant_peer_id := 0
+	var best_entrant_name := ""
+	var tree := get_tree()
+	if tree != null:
+		var range_world_sq := range_world * range_world
+		for node in tree.get_nodes_in_group(&"player"):
+			if node is not Node2D:
+				continue
+			var candidate := node as Node2D
+			if not _is_targetable_player(candidate):
+				continue
+			var candidate_d2 := global_position.distance_squared_to(candidate.global_position)
+			if candidate_d2 > range_world_sq:
+				continue
+			var instance_id := candidate.get_instance_id()
+			current_presence[instance_id] = true
+			var was_in_range := bool(_in_range_presence_by_instance_id.get(instance_id, false))
+			if was_in_range:
+				continue
+			var candidate_peer_id := _peer_id_for_player_candidate(candidate)
+			var candidate_name := String(candidate.name)
+			if (
+				best_entrant == null
+				or _is_better_player_target_choice(
+					candidate_d2,
+					candidate_peer_id,
+					candidate_name,
+					best_entrant_d2,
+					best_entrant_peer_id,
+					best_entrant_name
+				)
+			):
+				best_entrant = candidate
+				best_entrant_d2 = candidate_d2
+				best_entrant_peer_id = candidate_peer_id
+				best_entrant_name = candidate_name
 	var keep_target := false
 	if _target_player != null and is_instance_valid(_target_player):
 		keep_target = (
@@ -133,56 +163,11 @@ func _refresh_target_lock(range_world: float) -> void:
 			and not _is_player_downed_node(_target_player)
 		)
 	if not keep_target:
-		_target_player = null
-		if not entrants.is_empty():
-			var picked_v: Variant = entrants[0].get("node", null)
-			if picked_v is Node2D:
-				_target_player = picked_v as Node2D
-				# New lock always starts from a full charge to keep behavior predictable.
-				_cooldown_remaining = maxf(0.01, fire_cooldown)
+		_target_player = best_entrant
+		if _target_player != null:
+			# New lock always starts from a full charge to keep behavior predictable.
+			_cooldown_remaining = maxf(0.01, fire_cooldown)
 	_in_range_presence_by_instance_id = current_presence
-
-
-func _collect_players_in_range(range_world: float) -> Array[Dictionary]:
-	var tree := get_tree()
-	var in_range: Array[Dictionary] = []
-	if tree == null:
-		return in_range
-	var range_world_sq := range_world * range_world
-	for node in tree.get_nodes_in_group(&"player"):
-		if node is not Node2D:
-			continue
-		var candidate := node as Node2D
-		if not _is_targetable_player(candidate):
-			continue
-		var d2 := global_position.distance_squared_to(candidate.global_position)
-		if d2 > range_world_sq:
-			continue
-		var peer_id := int(candidate.get_meta(&"peer_id", 0))
-		in_range.append(
-			{
-				"node": candidate,
-				"d2": d2,
-				"peer_id": peer_id,
-				"name": String(candidate.name),
-				"instance_id": candidate.get_instance_id(),
-			}
-		)
-	in_range.sort_custom(
-		func(a: Dictionary, b: Dictionary) -> bool:
-			var d2_a := float(a.get("d2", INF))
-			var d2_b := float(b.get("d2", INF))
-			if not is_equal_approx(d2_a, d2_b):
-				return d2_a < d2_b
-			var peer_a := int(a.get("peer_id", 0))
-			var peer_b := int(b.get("peer_id", 0))
-			if peer_a != peer_b:
-				return peer_a < peer_b
-			var name_a := String(a.get("name", ""))
-			var name_b := String(b.get("name", ""))
-			return name_a < name_b
-	)
-	return in_range
 
 
 func _enemy_network_compact_state() -> Dictionary:
@@ -245,7 +230,7 @@ func _spawn_tower_arrow(
 	arrow.damage = arrow_damage
 	if arrow.has_method(&"set_authoritative_damage"):
 		arrow.call(&"set_authoritative_damage", authoritative_damage)
-	arrow.configure(spawn_position, dir, _vw)
+	arrow.configure(spawn_position, dir, _vw, false, &"red", projectile_event_id)
 	parent.add_child(arrow)
 	if authoritative_damage and _is_server_peer() and projectile_event_id > 0 and arrow.has_signal(&"projectile_finished"):
 		arrow.projectile_finished.connect(

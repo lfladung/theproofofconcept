@@ -1,13 +1,20 @@
-[gd_scene load_steps=4 format=3 uid="uid://ceuu150fmggvr"]
+[gd_scene load_steps=9 format=3 uid="uid://ceuu150fmggvr"]
 
 [ext_resource type="Script" path="res://scripts/entities/player.gd" id="1"]
 [ext_resource type="Script" path="res://scripts/entities/fake_shadow_3d.gd" id="2"]
+[ext_resource type="Script" path="res://scripts/combat/health_component.gd" id="3"]
+[ext_resource type="Script" path="res://scripts/combat/player_damage_receiver_component.gd" id="4"]
+[ext_resource type="Script" path="res://scripts/combat/hurtbox_2d.gd" id="5"]
+[ext_resource type="Script" path="res://scripts/combat/hitbox_2d.gd" id="6"]
 
 [sub_resource type="CircleShape2D" id="CircleShape2D_body"]
 radius = 2.5352896
 
-[sub_resource type="CircleShape2D" id="CircleShape2D_detector"]
-radius = 2.944
+[sub_resource type="CircleShape2D" id="CircleShape2D_hurtbox"]
+radius = 2.5352896
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_melee"]
+size = Vector2(6, 6)
 
 [node name="Player" type="CharacterBody2D" groups=["player"]]
 collision_layer = 1
@@ -22,10 +29,42 @@ show_shield_block_debug = true
 [node name="CollisionShape2D" type="CollisionShape2D" parent="."]
 shape = SubResource("CircleShape2D_body")
 
-[node name="MobDetector" type="Area2D" parent="."]
-collision_layer = 0
-collision_mask = 2
+[node name="HealthComponent" type="Node" parent="."]
+script = ExtResource("3")
+max_health = 100
+starting_health = 100
+invulnerability_duration = 0.4
+debug_label = &"player_health"
+
+[node name="DamageReceiver" type="Node" parent="."]
+script = ExtResource("4")
+owner_path = NodePath("..")
+health_component_path = NodePath("../HealthComponent")
+player_path = NodePath("..")
+debug_label = &"player_receiver"
+
+[node name="PlayerHurtbox" type="Area2D" parent="."]
+collision_layer = 8
+collision_mask = 0
+monitoring = false
+monitorable = true
+script = ExtResource("5")
+receiver_path = NodePath("../DamageReceiver")
+owner_path = NodePath("..")
+faction = &"player"
+debug_label = &"player_hurtbox"
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="PlayerHurtbox"]
+shape = SubResource("CircleShape2D_hurtbox")
+
+[node name="PlayerMeleeHitbox" type="Area2D" parent="."]
+collision_layer = 32
+collision_mask = 16
+monitoring = false
 monitorable = false
+script = ExtResource("6")
+owner_path = NodePath("..")
+debug_label = &"player_melee"
 
 [node name="FakeShadow3D" type="Node" parent="."]
 script = ExtResource("2")
@@ -35,8 +74,5 @@ base_alpha = 0.9
 min_alpha = 0.65
 floor_offset = 0.08
 
-[node name="CollisionShape2D" type="CollisionShape2D" parent="MobDetector"]
-position = Vector2(0, 3.36)
-shape = SubResource("CircleShape2D_detector")
-
-[connection signal="body_entered" from="MobDetector" to="." method="_on_mob_detector_body_entered"]
+[node name="CollisionShape2D" type="CollisionShape2D" parent="PlayerMeleeHitbox"]
+shape = SubResource("RectangleShape2D_melee")

@@ -2,6 +2,7 @@ extends Node2D
 class_name TrapTile2D
 
 const _DEFAULT_TRAP_MESH := preload("res://art/hazards/spike_trap_texture.glb")
+const DamagePacketScript = preload("res://scripts/combat/damage_packet.gd")
 
 @export var damage := 18
 @export var hit_cooldown_sec := 1.1
@@ -14,9 +15,8 @@ const _DEFAULT_TRAP_MESH := preload("res://art/hazards/spike_trap_texture.glb")
 @export var mesh_scale := Vector3(2.8, 2.8, 2.8)
 
 @onready var _visual: Polygon2D = $Visual
-@onready var _hurtbox: Area2D = $Hurtbox
+@onready var _damage_hitbox: Hitbox2D = $DamageHitbox
 
-var _next_hit_time: Dictionary = {}
 var _trap_3d: Node3D
 var _authoritative_damage := true
 
@@ -43,8 +43,7 @@ static func _find_visual_world(from: Node) -> Node3D:
 
 func _ready() -> void:
 	_rebuild_visual()
-	_setup_hurtbox()
-	_hurtbox.body_exited.connect(_on_hurtbox_body_exited)
+	_setup_hitbox_shape()
 	_apply_authoritative_damage_runtime()
 	call_deferred(&"_deferred_setup_trap_mesh")
 
@@ -93,37 +92,20 @@ func _rebuild_visual() -> void:
 	])
 
 
-func _setup_hurtbox() -> void:
-	var cs := _hurtbox.get_node("CollisionShape2D") as CollisionShape2D
-	if cs == null or not cs.shape is RectangleShape2D:
+func _setup_hitbox_shape() -> void:
+	if _damage_hitbox == null:
 		return
-	var r := cs.shape as RectangleShape2D
-	r.size = footprint
+	var cs := _damage_hitbox.get_node_or_null("CollisionShape2D") as CollisionShape2D
+	if cs == null or cs.shape is not RectangleShape2D:
+		return
+	var rect := cs.shape as RectangleShape2D
+	rect.size = footprint
+	_damage_hitbox.repeat_mode = Hitbox2D.RepeatMode.INTERVAL
+	_damage_hitbox.repeat_interval_sec = maxf(0.0, hit_cooldown_sec)
 
 
 func _physics_process(_delta: float) -> void:
 	_sync_trap_mesh_transform()
-	if not _authoritative_damage:
-		return
-	for body in _hurtbox.get_overlapping_bodies():
-		if body is Node2D and body.is_in_group(&"player"):
-			_try_damage(body as Node2D)
-
-
-func _on_hurtbox_body_exited(body: Node2D) -> void:
-	if body != null:
-		_next_hit_time.erase(body.get_instance_id())
-
-
-func _try_damage(body: Node2D) -> void:
-	var now := Time.get_ticks_msec() / 1000.0
-	var id := body.get_instance_id()
-	var due: float = float(_next_hit_time.get(id, 0.0))
-	if now < due:
-		return
-	if body.has_method(&"take_damage"):
-		body.call(&"take_damage", damage)
-	_next_hit_time[id] = now + hit_cooldown_sec
 
 
 func set_authoritative_damage(enabled: bool) -> void:
@@ -133,7 +115,20 @@ func set_authoritative_damage(enabled: bool) -> void:
 
 
 func _apply_authoritative_damage_runtime() -> void:
-	if _hurtbox == null:
+	if _damage_hitbox == null:
 		return
-	_hurtbox.set_deferred("monitoring", _authoritative_damage)
-	_hurtbox.set_deferred("monitorable", _authoritative_damage)
+	_damage_hitbox.deactivate()
+	if not _authoritative_damage:
+		return
+	var packet := DamagePacketScript.new() as DamagePacket
+	packet.amount = damage
+	packet.kind = &"hazard"
+	packet.source_node = self
+	packet.source_uid = get_instance_id()
+	packet.origin = global_position
+	packet.direction = Vector2.ZERO
+	packet.knockback = 0.0
+	packet.apply_iframes = true
+	packet.blockable = false
+	packet.debug_label = &"trap_tile"
+	_damage_hitbox.activate(packet)

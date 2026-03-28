@@ -1,6 +1,7 @@
-[gd_scene load_steps=3 format=3 uid="uid://trap_tile_2d_scene"]
+[gd_scene load_steps=4 format=3 uid="uid://trap_tile_2d_scene"]
 
 [ext_resource type="Script" path="res://dungeon/modules/gameplay/trap_tile_2d.gd" id="1_script"]
+[ext_resource type="Script" path="res://scripts/combat/hitbox_2d.gd" id="2_hitbox"]
 
 [sub_resource type="RectangleShape2D" id="1_rect"]
 size = Vector2(6, 6)
@@ -13,10 +14,15 @@ z_index = 1
 color = Color(1, 0.89, 0.1, 0.92)
 polygon = PackedVector2Array(-3, -3, 3, -3, 3, 3, -3, 3)
 
-[node name="Hurtbox" type="Area2D" parent="."]
-collision_layer = 0
-collision_mask = 1
-monitoring = true
+[node name="DamageHitbox" type="Area2D" parent="."]
+collision_layer = 64
+collision_mask = 8
+monitoring = false
+monitorable = false
+script = ExtResource("2_hitbox")
+repeat_mode = 1
+repeat_interval_sec = 1.1
+debug_label = &"trap_hitbox"
 
-[node name="CollisionShape2D" type="CollisionShape2D" parent="Hurtbox"]
+[node name="CollisionShape2D" type="CollisionShape2D" parent="DamageHitbox"]
 shape = SubResource("1_rect")

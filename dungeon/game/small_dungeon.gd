@@ -83,6 +83,7 @@ const _BOSS_PORTAL_INSET := 1.5
 const _ROOM_SIZE_SCALE := 1.5
 const _BACK_HALF_MIN_RATIO := 0.22
 const _ELEVATOR_PLAYER_SIZE_MULT := 4.0
+const _ELEVATOR_VISUAL_CLEARANCE_Y := 0.12
 const _DEBUG_ELEVATOR_YAW_OFFSET_DEG := 180.0
 ## Arrow towers are biased toward room center; keep planned spawns apart so two never share one spot.
 const _TOWER_SPAWN_MIN_SEP := 4.5
@@ -98,6 +99,7 @@ const _TOWER_SPAWN_MIN_SEP := 4.5
 @onready var _camera_pivot: Marker3D = $VisualWorld3D/CameraPivot
 @onready var _camera_3d: Camera3D = $VisualWorld3D/CameraPivot/Camera
 @onready var _info_label: Label = $CanvasLayer/UI/InfoLabel
+@onready var _minimap_panel: Control = $CanvasLayer/UI/MinimapPanel
 @onready var _weapon_mode_label: Label = $CanvasLayer/UI/WeaponModeLabel
 @onready var _boss_exit_portal: Area2D = $GameWorld2D/Triggers/BossExitPortal
 @onready var _debug_spawn_exit_portal: Area2D = $GameWorld2D/Triggers/DebugSpawnExitPortal
@@ -183,8 +185,15 @@ var _awaiting_layout_snapshot := false
 var _backdrop_offset_cam := Vector3.ZERO
 var _prev_backdrop_camera_ref := Vector3.ZERO
 @export var show_combat_debug_overlay := true
+@export var show_fps_counter := true
+@export var combat_debug_update_interval := 0.25
+@export var fps_counter_update_interval := 0.25
 var _combat_debug_label: Label
 var _combat_debug_last_text := ""
+var _combat_debug_refresh_time_remaining := 0.0
+var _fps_counter_label: Label
+var _fps_counter_last_text := ""
+var _fps_counter_refresh_time_remaining := 0.0
 
 func _ready() -> void:
 	_rng.randomize()
@@ -211,6 +220,7 @@ func _ready() -> void:
 	_info_controller.player = _player
 	_info_controller.room_queries = _room_queries
 	add_child(_info_controller)
+	_bind_minimap_runtime()
 	_camera_follow = CameraFollowController.new()
 	_camera_follow.camera_pivot = _camera_pivot
 	_camera_follow.player = _player
@@ -222,6 +232,7 @@ func _ready() -> void:
 	_door_lock_controller.resolve_room_name_for_body = _door_resolve_room_name_for_body
 	add_child(_door_lock_controller)
 	_ensure_combat_debug_overlay()
+	_ensure_fps_counter()
 	_ensure_loadout_overlay()
 	_regenerate_level(true)
 	_bind_local_player_runtime_hooks()
@@ -617,6 +628,7 @@ func _apply_loadout_snapshot_to_player_and_replicate(player: CharacterBody2D, sn
 
 
 func _bind_local_player_runtime_hooks() -> void:
+	_bind_minimap_runtime()
 	if _player == null:
 		return
 	if _bound_hit_player != null and _bound_hit_player.has_signal(&"hit") and _bound_hit_player.hit.is_connected(
@@ -640,7 +652,18 @@ func _bind_local_player_runtime_hooks() -> void:
 		_info_controller.player = _player
 	if _loadout_overlay != null and _loadout_overlay.has_method(&"bind_player"):
 		_loadout_overlay.call(&"bind_player", _player, Callable(self, "_room_type_at"))
-	_refresh_combat_debug_overlay()
+	_refresh_combat_debug_overlay(0.0, true)
+
+
+func _bind_minimap_runtime() -> void:
+	if _minimap_panel == null:
+		return
+	if _minimap_panel.has_method(&"bind_rooms_root"):
+		_minimap_panel.call(&"bind_rooms_root", _rooms_root)
+	if _minimap_panel.has_method(&"bind_player"):
+		_minimap_panel.call(&"bind_player", _player)
+	if _minimap_panel.has_method(&"refresh"):
+		_minimap_panel.call(&"refresh")
 
 
 func _connect_player_weapon_ui() -> void:
@@ -671,7 +694,8 @@ func _process(delta: float) -> void:
 	if _camera_follow != null:
 		_camera_follow.tick(delta)
 	_refresh_info_label_with_room_type()
-	_refresh_combat_debug_overlay()
+	_refresh_combat_debug_overlay(delta)
+	_refresh_fps_counter(delta)
 	if _is_authoritative_world():
 		_process_authoritative_revive_and_wipe()
 		_refresh_encounter_state()
@@ -704,7 +728,58 @@ func _ensure_combat_debug_overlay() -> void:
 		_combat_debug_label = lbl
 	_combat_debug_label.offset_bottom = maxf(_combat_debug_label.offset_bottom, 246.0)
 	_combat_debug_label.visible = show_combat_debug_overlay
-	_refresh_combat_debug_overlay()
+	_refresh_combat_debug_overlay(0.0, true)
+
+
+func _ensure_fps_counter() -> void:
+	var ui_root := get_node_or_null("CanvasLayer/UI") as Control
+	if ui_root == null:
+		return
+	var existing := ui_root.get_node_or_null("FpsCounterLabel") as Label
+	if existing != null:
+		_fps_counter_label = existing
+	else:
+		var lbl := Label.new()
+		lbl.name = "FpsCounterLabel"
+		lbl.layout_mode = 1
+		lbl.anchors_preset = 1
+		lbl.anchor_left = 1.0
+		lbl.anchor_right = 1.0
+		lbl.offset_left = -188.0
+		lbl.offset_top = 244.0
+		lbl.offset_right = -14.0
+		lbl.offset_bottom = 270.0
+		lbl.grow_horizontal = 0
+		lbl.add_theme_font_size_override("font_size", 18)
+		lbl.add_theme_color_override("font_color", Color(0.0, 0.0, 0.0, 1.0))
+		lbl.add_theme_color_override("font_outline_color", Color(1.0, 1.0, 1.0, 0.85))
+		lbl.add_theme_constant_override("outline_size", 2)
+		lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+		lbl.text = "FPS: --"
+		ui_root.add_child(lbl)
+		_fps_counter_label = lbl
+	_fps_counter_label.visible = show_fps_counter
+	_refresh_fps_counter(0.0)
+
+
+func _refresh_fps_counter(delta: float) -> void:
+	if _fps_counter_label == null:
+		return
+	_fps_counter_label.visible = show_fps_counter
+	if not show_fps_counter:
+		return
+	_fps_counter_refresh_time_remaining = maxf(0.0, _fps_counter_refresh_time_remaining - delta)
+	if _fps_counter_refresh_time_remaining > 0.0:
+		return
+	_fps_counter_refresh_time_remaining = maxf(0.05, fps_counter_update_interval)
+	var fps := Engine.get_frames_per_second()
+	var ms := 1000.0 / float(fps) if fps > 0 else 0.0
+	var text := "FPS: %d  |  %.1f ms" % [fps, ms]
+	if text == _fps_counter_last_text:
+		return
+	_fps_counter_last_text = text
+	_fps_counter_label.text = text
 
 
 func _set_combat_debug_overlay_text(text: String) -> void:
@@ -726,79 +801,67 @@ func _overlay_sorted_player_peer_ids() -> Array[int]:
 	return peer_ids
 
 
-func _refresh_combat_debug_overlay() -> void:
+func _refresh_combat_debug_overlay(delta: float = 0.0, force: bool = false) -> void:
 	if _combat_debug_label == null:
 		return
 	_combat_debug_label.visible = show_combat_debug_overlay
 	if not show_combat_debug_overlay:
+		_combat_debug_refresh_time_remaining = 0.0
 		return
-	var world_mode := "offline"
-	if _has_multiplayer_peer():
-		world_mode = "server" if _is_server_peer() else "client"
-	var local_peer := _local_peer_id()
+	_combat_debug_refresh_time_remaining = maxf(0.0, _combat_debug_refresh_time_remaining - delta)
+	if not force and _combat_debug_refresh_time_remaining > 0.0:
+		return
+	_combat_debug_refresh_time_remaining = maxf(0.05, combat_debug_update_interval)
 	var ordered_peer_ids: Array[int] = _overlay_sorted_player_peer_ids()
 	var lines: PackedStringArray = PackedStringArray()
-	lines.append("CombatDebug [%s] local=%s players=%s" % [world_mode, local_peer, ordered_peer_ids.size()])
+	lines.append("CombatDebug players=%s" % [ordered_peer_ids.size()])
 	if ordered_peer_ids.is_empty():
-		lines.append("peer roster empty")
+		lines.append("player roster empty")
 	else:
-		for peer_id in ordered_peer_ids:
+		for idx in range(ordered_peer_ids.size()):
+			var peer_id := ordered_peer_ids[idx]
+			var player_label := "P%s" % [idx + 1]
 			var player_v: Variant = _players_by_peer.get(peer_id, null)
 			if player_v is not CharacterBody2D:
-				lines.append("peer=%s missing player node" % [peer_id])
+				lines.append("%s missing player node" % [player_label])
 				continue
 			var player_node: CharacterBody2D = player_v as CharacterBody2D
 			if player_node == null or not is_instance_valid(player_node):
-				lines.append("peer=%s invalid player node" % [peer_id])
+				lines.append("%s invalid player node" % [player_label])
 				continue
 			if not player_node.has_method(&"get_combat_debug_snapshot"):
-				lines.append("peer=%s debug snapshot missing" % [peer_id])
+				lines.append("%s debug snapshot missing" % [player_label])
 				continue
 			var snapshot_v: Variant = player_node.call(&"get_combat_debug_snapshot")
 			if snapshot_v is not Dictionary:
-				lines.append("peer=%s debug snapshot invalid" % [peer_id])
+				lines.append("%s debug snapshot invalid" % [player_label])
 				continue
 			var snapshot: Dictionary = snapshot_v as Dictionary
 			var local_weapon := String(snapshot.get("weapon_mode", "?"))
-			var auth_weapon := String(snapshot.get("authoritative_weapon_mode", local_weapon))
+			var weapon := String(snapshot.get("authoritative_weapon_mode", local_weapon))
 			var local_melee_cd := float(snapshot.get("melee_cooldown", 0.0))
 			var local_ranged_cd := float(snapshot.get("ranged_cooldown", 0.0))
 			var local_bomb_cd := float(snapshot.get("bomb_cooldown", 0.0))
-			var auth_melee_cd := float(snapshot.get("authoritative_melee_cooldown", local_melee_cd))
-			var auth_ranged_cd := float(snapshot.get("authoritative_ranged_cooldown", local_ranged_cd))
-			var auth_bomb_cd := float(snapshot.get("authoritative_bomb_cooldown", local_bomb_cd))
+			var melee_cd := float(snapshot.get("authoritative_melee_cooldown", local_melee_cd))
+			var ranged_cd := float(snapshot.get("authoritative_ranged_cooldown", local_ranged_cd))
+			var bomb_cd := float(snapshot.get("authoritative_bomb_cooldown", local_bomb_cd))
 			var local_stamina := float(snapshot.get("stamina", 0.0))
-			var auth_stamina := float(snapshot.get("authoritative_stamina", local_stamina))
+			var stamina := float(snapshot.get("authoritative_stamina", local_stamina))
 			var local_guard_broken := bool(snapshot.get("stamina_broken", false))
-			var auth_guard_broken := bool(
-				snapshot.get("authoritative_stamina_broken", local_guard_broken)
-			)
-			var owner_peer := int(snapshot.get("network_owner_peer_id", 1))
-			var authority_peer := int(snapshot.get("multiplayer_authority", owner_peer))
-			var is_local_owner := bool(snapshot.get("is_local_owner_peer", false))
+			var guard_broken := bool(snapshot.get("authoritative_stamina_broken", local_guard_broken))
+			var local_defending := bool(snapshot.get("is_defending", false))
+			var defending := bool(snapshot.get("authoritative_is_defending", local_defending))
 			var is_downed := bool(snapshot.get("is_downed", false))
-			var local_marker := "*" if peer_id == local_peer else "-"
-			var row := (
-				"%s peer=%s W[a/l]=%s/%s ST[a/l]=%.1f/%.1f GB[a/l]=%s/%s CD[a]=%.2f/%.2f/%.2f CD[l]=%.2f/%.2f/%.2f down=%s own=%s auth=%s lo=%s"
-			) % [
-				local_marker,
-				peer_id,
-				auth_weapon,
-				local_weapon,
-				auth_stamina,
-				local_stamina,
-				auth_guard_broken,
-				local_guard_broken,
-				auth_melee_cd,
-				auth_ranged_cd,
-				auth_bomb_cd,
-				local_melee_cd,
-				local_ranged_cd,
-				local_bomb_cd,
+			var row := "%s %s ST=%.1f guard=%s defend=%s down=%s CD[m/r/b]=%.2f/%.2f/%.2f" % [
+				player_label,
+				weapon,
+				stamina,
+				"broken" if guard_broken else "ready",
+				defending,
 				is_downed,
-				owner_peer,
-				authority_peer,
-				is_local_owner,
+				melee_cd,
+				ranged_cd,
+				bomb_cd,
 			]
 			lines.append(row)
 	_set_combat_debug_overlay_text("\n".join(lines))
@@ -941,6 +1004,7 @@ func _regenerate_level(randomize_layout: bool) -> void:
 	if _networked_run and not _is_authoritative_world():
 		_request_runtime_snapshot_from_server()
 	_apply_layout_backdrop_from_layout()
+	_bind_minimap_runtime()
 	if _is_authoritative_world():
 		_broadcast_layout_snapshot_if_server()
 
@@ -1127,17 +1191,15 @@ func _set_elevator_visual_transform(
 ) -> void:
 	if visual == null or not is_instance_valid(visual):
 		return
-	visual.position = Vector3(
-		portal_position.x,
-		FLOOR_SLAB_TOP_Y + 0.05,
-		portal_position.y
-	)
 	var src := _get_elevator_visual_aabb()
 	var player_diameter := maxf(0.01, _PLAYER_CLAMP_R * 2.0)
 	var target_footprint := player_diameter * _ELEVATOR_PLAYER_SIZE_MULT
 	var base_footprint := maxf(0.01, maxf(src.size.x, src.size.z))
 	var uniform_scale := target_footprint / base_footprint
 	visual.scale = Vector3.ONE * uniform_scale
+	var visual_bottom_offset := src.position.y * uniform_scale
+	var visual_y := FLOOR_SLAB_TOP_Y - visual_bottom_offset + _ELEVATOR_VISUAL_CLEARANCE_Y
+	visual.position = Vector3(portal_position.x, visual_y, portal_position.y)
 	var door_target := Vector3(
 		facing_target.x,
 		visual.position.y,

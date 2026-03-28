@@ -5,6 +5,7 @@ signal squashed
 signal coin_drop_requested(spawn_position: Vector2, coin_value: int)
 
 const DROPPED_COIN_SCENE := preload("res://dungeon/modules/gameplay/dropped_coin.tscn")
+const DamagePacketScript = preload("res://scripts/combat/damage_packet.gd")
 
 @export var max_health := 50
 @export var drops_coin_on_death := true
@@ -18,6 +19,10 @@ const DROPPED_COIN_SCENE := preload("res://dungeon/modules/gameplay/dropped_coin
 @export var remote_interpolation_lerp_rate := 14.0
 @export var remote_interpolation_snap_distance := 6.0
 
+@onready var _health_component: HealthComponent = $HealthComponent
+@onready var _damage_receiver: DamageReceiverComponent = $DamageReceiver
+@onready var _hurtbox: Hurtbox2D = $EnemyHurtbox
+
 var _health := 0
 var _dead := false
 var _last_authoritative_hit_event_id := -1
@@ -28,11 +33,27 @@ var _remote_has_state := false
 
 
 func _ready() -> void:
-	_health = max_health
+	if _health_component != null:
+		_health_component.max_health = max_health
+		_health_component.starting_health = max_health
+		_health_component.set_current_health(max_health)
+		_health_component.health_changed.connect(_on_health_component_changed)
+		_health_component.depleted.connect(_on_health_component_depleted)
+		_health = _health_component.current_health
+	if _damage_receiver != null:
+		_damage_receiver.damage_applied.connect(_on_receiver_damage_applied)
 	if _multiplayer_active() and not _is_server_peer():
 		# Client enemy nodes are visual proxies only; server owns gameplay collisions.
 		set_deferred(&"collision_layer", 0)
 		set_deferred(&"collision_mask", 0)
+		if _hurtbox != null:
+			_hurtbox.set_active(false)
+	elif _hurtbox != null:
+		_hurtbox.set_active(true)
+
+
+func is_damage_authority() -> bool:
+	return not _multiplayer_active() or _is_server_peer()
 
 
 func _multiplayer_api_safe() -> MultiplayerAPI:
@@ -61,6 +82,7 @@ func _can_broadcast_world_replication() -> bool:
 	if session != null and session.has_method("can_broadcast_world_replication"):
 		return bool(session.call("can_broadcast_world_replication"))
 	return true
+
 
 func _enemy_network_compact_state() -> Dictionary:
 	return {}
@@ -129,23 +151,77 @@ func apply_authoritative_hit_event(
 		return false
 	if hit_event_id >= 0:
 		_last_authoritative_hit_event_id = hit_event_id
-	take_hit(damage, knockback_dir, knockback_strength)
+	var packet := _build_damage_packet(
+		damage,
+		&"player_attack",
+		global_position - knockback_dir.normalized(),
+		knockback_dir,
+		knockback_strength,
+		false,
+		hit_event_id
+	)
+	_receive_packet(packet)
 	return true
 
 
 func take_hit(damage: int, knockback_dir: Vector2, knockback_strength: float) -> void:
-	if _multiplayer_active() and not _is_server_peer():
+	var packet := _build_damage_packet(
+		damage,
+		&"player_attack",
+		global_position - knockback_dir.normalized(),
+		knockback_dir,
+		knockback_strength,
+		false
+	)
+	_receive_packet(packet)
+
+
+func _receive_packet(packet: DamagePacket) -> void:
+	if _damage_receiver == null:
 		return
-	if damage <= 0 or _dead:
+	_damage_receiver.receive_damage(packet, _hurtbox)
+
+
+func _build_damage_packet(
+	damage: int,
+	kind: StringName,
+	origin: Vector2,
+	direction: Vector2,
+	knockback_strength: float,
+	blockable: bool,
+	attack_instance_id: int = -1
+) -> DamagePacket:
+	var packet := DamagePacketScript.new() as DamagePacket
+	packet.amount = damage
+	packet.kind = kind
+	packet.origin = origin
+	packet.direction = direction.normalized() if direction.length_squared() > 0.0001 else Vector2.ZERO
+	packet.knockback = knockback_strength
+	packet.blockable = blockable
+	packet.apply_iframes = false
+	packet.attack_instance_id = attack_instance_id
+	packet.debug_label = &"enemy_receive"
+	return packet
+
+
+func _on_receiver_damage_applied(packet: DamagePacket, hp_damage: int, _hurtbox_area: Area2D) -> void:
+	if hp_damage <= 0:
 		return
+	_health = _health_component.current_health if _health_component != null else _health
 	if show_damage_text:
-		_show_floating_damage_text(damage)
-		_broadcast_damage_text(damage)
-	_health = maxi(0, _health - damage)
-	if _health <= 0:
-		squash()
-		return
-	_on_nonlethal_hit(knockback_dir, knockback_strength)
+		_show_floating_damage_text(hp_damage)
+		_broadcast_damage_text(hp_damage)
+	if _health > 0:
+		_on_nonlethal_hit(packet.direction, packet.knockback)
+
+
+func _on_health_component_changed(current: int, _maximum: int) -> void:
+	_health = current
+
+
+func _on_health_component_depleted(_packet: DamagePacket) -> void:
+	_health = 0
+	squash()
 
 
 func _on_nonlethal_hit(_knockback_dir: Vector2, _knockback_strength: float) -> void:
@@ -264,43 +340,60 @@ func _is_targetable_player(candidate: Node2D) -> bool:
 	return not _is_player_downed_node(candidate)
 
 
+func _peer_id_for_player_candidate(candidate: Node2D) -> int:
+	if candidate == null:
+		return 0
+	var peer_id := int(candidate.get_meta(&"peer_id", 0))
+	if peer_id <= 0 and candidate.has_meta(&"network_owner_peer_id"):
+		peer_id = int(candidate.get_meta(&"network_owner_peer_id", 0))
+	return peer_id
+
+
+func _is_better_player_target_choice(
+	candidate_d2: float,
+	candidate_peer_id: int,
+	candidate_name: String,
+	best_d2: float,
+	best_peer_id: int,
+	best_name: String
+) -> bool:
+	if not is_equal_approx(candidate_d2, best_d2):
+		return candidate_d2 < best_d2
+	if candidate_peer_id != best_peer_id:
+		return candidate_peer_id < best_peer_id
+	return candidate_name < best_name
+
+
 func _pick_nearest_player_target() -> Node2D:
-	var candidates: Array[Dictionary] = []
 	var tree: SceneTree = get_tree()
 	if tree == null:
 		return null
+	var best_node: Node2D = null
+	var best_d2 := INF
+	var best_peer_id := 0
+	var best_name := ""
 	for node in tree.get_nodes_in_group(&"player"):
 		if node is not Node2D:
 			continue
 		var candidate := node as Node2D
 		if not _is_targetable_player(candidate):
 			continue
-		var peer_id := int(candidate.get_meta(&"peer_id", 0))
-		if peer_id <= 0 and candidate.has_meta(&"network_owner_peer_id"):
-			peer_id = int(candidate.get_meta(&"network_owner_peer_id", 0))
-		candidates.append(
-			{
-				"node": candidate,
-				"d2": global_position.distance_squared_to(candidate.global_position),
-				"peer_id": peer_id,
-				"name": String(candidate.name),
-			}
-		)
-	if candidates.is_empty():
-		return null
-	candidates.sort_custom(
-		func(a: Dictionary, b: Dictionary) -> bool:
-			var d2_a := float(a.get("d2", INF))
-			var d2_b := float(b.get("d2", INF))
-			if not is_equal_approx(d2_a, d2_b):
-				return d2_a < d2_b
-			var peer_a := int(a.get("peer_id", 0))
-			var peer_b := int(b.get("peer_id", 0))
-			if peer_a != peer_b:
-				return peer_a < peer_b
-			var name_a := String(a.get("name", ""))
-			var name_b := String(b.get("name", ""))
-			return name_a < name_b
-	)
-	var best_v: Variant = candidates[0].get("node", null)
-	return best_v as Node2D
+		var candidate_d2 := global_position.distance_squared_to(candidate.global_position)
+		var candidate_peer_id := _peer_id_for_player_candidate(candidate)
+		var candidate_name := String(candidate.name)
+		if (
+			best_node == null
+			or _is_better_player_target_choice(
+				candidate_d2,
+				candidate_peer_id,
+				candidate_name,
+				best_d2,
+				best_peer_id,
+				best_name
+			)
+		):
+			best_node = candidate
+			best_d2 = candidate_d2
+			best_peer_id = candidate_peer_id
+			best_name = candidate_name
+	return best_node

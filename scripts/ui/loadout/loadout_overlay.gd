@@ -1,14 +1,13 @@
 extends Control
 
 const LoadoutConstants = preload("res://scripts/loadout/loadout_constants.gd")
-const SLOT_BUTTON_SCENE := preload("res://scenes/ui/loadout/loadout_slot_button.tscn")
 const CATEGORY_SECTION_SCENE := preload("res://scenes/ui/loadout/loadout_category_section.tscn")
 
 @onready var _open_button: Button = $OpenButton
-@onready var _panels_root: HBoxContainer = $LoadoutPanels
-@onready var _slots_box: VBoxContainer = $LoadoutPanels/LoadoutPanel/LoadoutMargin/LoadoutVBox/SlotsBox
-@onready var _category_list: VBoxContainer = $LoadoutPanels/OwnedItemsPanel/OwnedItemsMargin/OwnedItemsVBox/OwnedScroll/CategoryList
-@onready var _status_label: Label = $LoadoutPanels/OwnedItemsPanel/OwnedItemsMargin/OwnedItemsVBox/StatusLabel
+@onready var _panel_root: PanelContainer = $LoadoutPanel
+@onready var _owned_scroll: ScrollContainer = $LoadoutPanel/LoadoutMargin/LoadoutVBox/OwnedScroll
+@onready var _category_list: VBoxContainer = $LoadoutPanel/LoadoutMargin/LoadoutVBox/OwnedScroll/CategoryList
+@onready var _status_label: Label = $LoadoutPanel/LoadoutMargin/LoadoutVBox/StatusLabel
 @onready var _tooltip_panel: PanelContainer = $TooltipPanel
 @onready var _tooltip_label: Label = $TooltipPanel/TooltipMargin/TooltipLabel
 
@@ -22,7 +21,7 @@ func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_open_button.pressed.connect(_toggle_panel)
-	_panels_root.visible = false
+	_panel_root.visible = false
 	_tooltip_panel.visible = false
 	_status_label.text = ""
 	for slot_id in LoadoutConstants.SLOT_ORDER:
@@ -81,7 +80,7 @@ func _open_panel() -> void:
 	if not _can_open_loadout():
 		return
 	_panel_open = true
-	_panels_root.visible = true
+	_panel_root.visible = true
 	_status_label.text = ""
 	_sync_player_input_block_state()
 	_refresh_from_player()
@@ -89,7 +88,7 @@ func _open_panel() -> void:
 
 func _close_panel() -> void:
 	_panel_open = false
-	_panels_root.visible = false
+	_panel_root.visible = false
 	_tooltip_panel.visible = false
 	_sync_player_input_block_state()
 
@@ -107,16 +106,18 @@ func _refresh_from_player() -> void:
 	if _player == null or not is_instance_valid(_player) or not _player.has_method(&"get_loadout_view_model"):
 		_clear_dynamic_ui()
 		return
+	var preserve_scroll := _panel_open and _category_list.get_child_count() > 0
+	var previous_scroll := _owned_scroll.scroll_vertical if preserve_scroll else 0
 	var snapshot_v: Variant = _player.call(&"get_loadout_view_model")
 	if snapshot_v is not Dictionary:
 		_clear_dynamic_ui()
 		return
 	_rebuild_from_snapshot(snapshot_v as Dictionary)
+	if preserve_scroll:
+		call_deferred("_restore_scroll_position", previous_scroll)
 
 
 func _clear_dynamic_ui() -> void:
-	for child in _slots_box.get_children():
-		child.queue_free()
 	for child in _category_list.get_children():
 		child.queue_free()
 
@@ -128,24 +129,6 @@ func _rebuild_from_snapshot(snapshot: Dictionary) -> void:
 	var owned_items_by_slot: Dictionary = snapshot.get("owned_items_by_slot", {}) as Dictionary
 	for slot_id in LoadoutConstants.SLOT_ORDER:
 		var equipped_item_id := String(equipped_slots.get(String(slot_id), ""))
-		var equipped_definition: Dictionary = definitions_by_id.get(equipped_item_id, {}) as Dictionary
-		var slot_button := SLOT_BUTTON_SCENE.instantiate()
-		if slot_button == null:
-			continue
-		_slots_box.add_child(slot_button)
-		slot_button.call(
-			&"configure",
-			slot_id,
-			LoadoutConstants.slot_display_name(slot_id),
-			equipped_definition,
-			_make_slot_tooltip(slot_id, equipped_definition)
-		)
-		if slot_button.has_signal(&"unequip_requested"):
-			slot_button.connect(&"unequip_requested", _on_slot_unequip_requested)
-		if slot_button.has_signal(&"tooltip_requested"):
-			slot_button.connect(&"tooltip_requested", _show_tooltip)
-		if slot_button.has_signal(&"tooltip_cleared"):
-			slot_button.connect(&"tooltip_cleared", _hide_tooltip)
 		var category_rows: Array = []
 		var owned_item_ids: Array = owned_items_by_slot.get(String(slot_id), []) as Array
 		for item_id_v in owned_item_ids:
@@ -179,14 +162,6 @@ func _rebuild_from_snapshot(snapshot: Dictionary) -> void:
 			category_section.connect(&"expansion_changed", _on_category_expansion_changed)
 
 
-func _on_slot_unequip_requested(slot_id: StringName) -> void:
-	var slot_name := LoadoutConstants.slot_display_name(slot_id)
-	_status_label.text = "%s always needs an equipped item. Select another %s below to replace it." % [
-		slot_name,
-		slot_name.to_lower(),
-	]
-
-
 func _on_item_equip_requested(item_id: StringName) -> void:
 	if _player != null and _player.has_method(&"request_equip_item"):
 		_player.call(&"request_equip_item", item_id)
@@ -203,26 +178,6 @@ func _on_loadout_request_failed(message: String) -> void:
 
 func _on_category_expansion_changed(slot_id: StringName, expanded: bool) -> void:
 	_category_expanded_by_slot[slot_id] = expanded
-
-
-func _make_slot_tooltip(slot_id: StringName, item_definition: Dictionary) -> Dictionary:
-	if item_definition.is_empty():
-		return {
-			"title": "%s Slot" % LoadoutConstants.slot_display_name(slot_id),
-			"body_lines": PackedStringArray(
-				[
-					"Slot: %s" % LoadoutConstants.slot_display_name(slot_id),
-					"Empty",
-					"Click an item in the list to equip it.",
-				]
-			),
-		}
-	var tooltip := _make_item_tooltip(item_definition)
-	var body_lines: PackedStringArray = tooltip.get("body_lines", PackedStringArray()) as PackedStringArray
-	body_lines.append("This slot must stay equipped.")
-	body_lines.append("Choose another item below to replace it.")
-	tooltip["body_lines"] = body_lines
-	return tooltip
 
 
 func _make_item_tooltip(item_definition: Dictionary) -> Dictionary:
@@ -281,6 +236,12 @@ func _sync_player_input_block_state() -> void:
 		return
 	if _player.has_method(&"set_menu_input_blocked"):
 		_player.call(&"set_menu_input_blocked", _panel_open)
+
+
+func _restore_scroll_position(scroll_value: int) -> void:
+	if _owned_scroll == null or not is_instance_valid(_owned_scroll):
+		return
+	_owned_scroll.scroll_vertical = maxi(0, scroll_value)
 
 
 func _exit_tree() -> void:

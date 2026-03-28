@@ -20,57 +20,36 @@ offset_right = 132.0
 offset_bottom = 188.0
 text = "Loadout [L]"
 
-[node name="LoadoutPanels" type="HBoxContainer" parent="."]
+[node name="LoadoutPanel" type="PanelContainer" parent="."]
 visible = false
 layout_mode = 1
 offset_left = 18.0
 offset_top = 210.0
-offset_right = 738.0
+offset_right = 350.0
 offset_bottom = 730.0
-theme_override_constants/separation = 14
+mouse_filter = 1
 
-[node name="LoadoutPanel" type="PanelContainer" parent="LoadoutPanels"]
-custom_minimum_size = Vector2(220, 460)
-
-[node name="LoadoutMargin" type="MarginContainer" parent="LoadoutPanels/LoadoutPanel"]
-theme_override_constants/margin_left = 12
+[node name="LoadoutMargin" type="MarginContainer" parent="LoadoutPanel"]
+theme_override_constants/margin_left = 10
 theme_override_constants/margin_top = 12
-theme_override_constants/margin_right = 12
+theme_override_constants/margin_right = 10
 theme_override_constants/margin_bottom = 12
 
-[node name="LoadoutVBox" type="VBoxContainer" parent="LoadoutPanels/LoadoutPanel/LoadoutMargin"]
+[node name="LoadoutVBox" type="VBoxContainer" parent="LoadoutPanel/LoadoutMargin"]
 theme_override_constants/separation = 10
 
-[node name="LoadoutTitle" type="Label" parent="LoadoutPanels/LoadoutPanel/LoadoutMargin/LoadoutVBox"]
-text = "Equipped"
+[node name="LoadoutTitle" type="Label" parent="LoadoutPanel/LoadoutMargin/LoadoutVBox"]
+text = "Loadout"
 
-[node name="SlotsBox" type="VBoxContainer" parent="LoadoutPanels/LoadoutPanel/LoadoutMargin/LoadoutVBox"]
-theme_override_constants/separation = 8
-
-[node name="OwnedItemsPanel" type="PanelContainer" parent="LoadoutPanels"]
-custom_minimum_size = Vector2(470, 460)
-
-[node name="OwnedItemsMargin" type="MarginContainer" parent="LoadoutPanels/OwnedItemsPanel"]
-theme_override_constants/margin_left = 12
-theme_override_constants/margin_top = 12
-theme_override_constants/margin_right = 12
-theme_override_constants/margin_bottom = 12
-
-[node name="OwnedItemsVBox" type="VBoxContainer" parent="LoadoutPanels/OwnedItemsPanel/OwnedItemsMargin"]
-theme_override_constants/separation = 10
-
-[node name="OwnedItemsTitle" type="Label" parent="LoadoutPanels/OwnedItemsPanel/OwnedItemsMargin/OwnedItemsVBox"]
-text = "Owned Items"
-
-[node name="OwnedScroll" type="ScrollContainer" parent="LoadoutPanels/OwnedItemsPanel/OwnedItemsMargin/OwnedItemsVBox"]
+[node name="OwnedScroll" type="ScrollContainer" parent="LoadoutPanel/LoadoutMargin/LoadoutVBox"]
 custom_minimum_size = Vector2(0, 380)
 size_flags_vertical = 3
 
-[node name="CategoryList" type="VBoxContainer" parent="LoadoutPanels/OwnedItemsPanel/OwnedItemsMargin/OwnedItemsVBox/OwnedScroll"]
+[node name="CategoryList" type="VBoxContainer" parent="LoadoutPanel/LoadoutMargin/LoadoutVBox/OwnedScroll"]
 size_flags_horizontal = 3
 theme_override_constants/separation = 10
 
-[node name="StatusLabel" type="Label" parent="LoadoutPanels/OwnedItemsPanel/OwnedItemsMargin/OwnedItemsVBox"]
+[node name="StatusLabel" type="Label" parent="LoadoutPanel/LoadoutMargin/LoadoutVBox"]
 text = ""
 autowrap_mode = 2
 

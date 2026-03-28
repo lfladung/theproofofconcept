@@ -12,6 +12,7 @@ const ARROW_PROJECTILE_SCENE := preload("res://scenes/entities/arrow_projectile.
 const PLAYER_BOMB_SCENE := preload("res://scenes/entities/player_bomb.tscn")
 const PLAYER_VISUAL_SCENE := preload("res://scenes/visuals/player_visual.tscn")
 const LoadoutConstants = preload("res://scripts/loadout/loadout_constants.gd")
+const DamagePacketScript = preload("res://scripts/combat/damage_packet.gd")
 const REVIVE_HEALTH := 50
 
 enum WeaponMode { SWORD, GUN, BOMB }
@@ -24,7 +25,7 @@ enum WeaponMode { SWORD, GUN, BOMB }
 @export var mob_kill_max_planar_dist := 6.5
 @export var max_health := 100
 @export var mob_hit_damage := 25
-@export var hit_invulnerability_duration := 2.0
+@export var hit_invulnerability_duration := 0.4
 ## Extra transparency during flash (0 = opaque, 1 = invisible). Alternates with fully opaque.
 @export var hit_flash_transparency := 0.42
 @export var hit_flash_blink_interval := 0.1
@@ -46,6 +47,7 @@ enum WeaponMode { SWORD, GUN, BOMB }
 @export var show_player_hitbox_debug := true
 @export var show_mob_hitbox_debug := true
 @export var show_shield_block_debug := false
+@export var debug_visual_update_interval := 0.05
 @export var hitbox_debug_circle_segments := 40
 @export var dodge_speed := 36.0
 @export var dodge_duration := 0.16
@@ -82,6 +84,11 @@ enum WeaponMode { SWORD, GUN, BOMB }
 
 @onready var _visual: Node3D
 @onready var _body_shape: CollisionShape2D = $CollisionShape2D
+@onready var _health_component: HealthComponent = $HealthComponent
+@onready var _damage_receiver: PlayerDamageReceiverComponent = $DamageReceiver
+@onready var _player_hurtbox: Hurtbox2D = $PlayerHurtbox
+@onready var _melee_hitbox: Hitbox2D = $PlayerMeleeHitbox
+@onready var _melee_hitbox_shape: CollisionShape2D = $PlayerMeleeHitbox/CollisionShape2D
 
 var health: int = 100
 var stamina := 100.0
@@ -99,6 +106,9 @@ var _mob_hitboxes_mi: MeshInstance3D
 var _mob_hitbox_mat: StandardMaterial3D
 var _shield_block_debug_mi: MeshInstance3D
 var _shield_block_debug_mat: StandardMaterial3D
+var _cached_visual_mesh_instances: Array[MeshInstance3D] = []
+var _debug_visual_refresh_time_remaining := 0.0
+var _last_invulnerability_flash_state := -1
 var _dodge_time_remaining := 0.0
 var _dodge_cooldown_remaining := 0.0
 var _dodge_direction := Vector2.ZERO
@@ -107,6 +117,7 @@ var _is_defending := false
 var _attack_hitbox_visual_time_remaining := 0.0
 var _facing_lock_time_remaining := 0.0
 var _facing_lock_planar := Vector2(0.0, -1.0)
+var _active_melee_attack_facing := Vector2(0.0, -1.0)
 var _melee_attack_cooldown_remaining := 0.0
 var weapon_mode: WeaponMode = WeaponMode.SWORD
 var _ranged_cooldown_remaining := 0.0
@@ -226,8 +237,7 @@ func _ready() -> void:
 		vw.add_child(_shield_block_debug_mi)
 
 	_capture_base_stats()
-	health = max_health
-	health_changed.emit(health, max_health)
+	_configure_health_runtime()
 	stamina = _max_stamina_value()
 	stamina_changed.emit(stamina, _max_stamina_value())
 	network_owner_peer_id = get_multiplayer_authority()
@@ -242,6 +252,121 @@ func _ready() -> void:
 	_apply_visual_defending_state()
 	_sync_sword_visual()
 	call_deferred("_sync_sword_visual")
+	_rebuild_visual_mesh_instance_cache()
+	_sync_player_hurtbox_runtime()
+	_sync_melee_hitbox_geometry()
+
+
+func _configure_health_runtime() -> void:
+	if _health_component != null:
+		_health_component.max_health = max_health
+		_health_component.starting_health = max_health
+		_health_component.invulnerability_duration = hit_invulnerability_duration
+		_health_component.debug_logging = show_player_hitbox_debug
+		_health_component.health_changed.connect(_on_health_component_changed)
+		_health_component.depleted.connect(_on_health_component_depleted)
+		_health_component.invulnerability_started.connect(_on_health_component_invulnerability_started)
+		_health_component.invulnerability_ended.connect(_on_health_component_invulnerability_ended)
+		_health_component.set_current_health(max_health)
+		health = _health_component.current_health
+	else:
+		health = max_health
+		health_changed.emit(health, max_health)
+	if _damage_receiver != null:
+		_damage_receiver.owner_path = NodePath("..")
+		_damage_receiver.health_component_path = NodePath("../HealthComponent")
+		_damage_receiver.player_path = NodePath("..")
+		_damage_receiver.debug_logging = show_player_hitbox_debug
+	if _player_hurtbox != null:
+		_player_hurtbox.receiver_path = NodePath("../DamageReceiver")
+		_player_hurtbox.owner_path = NodePath("..")
+		_player_hurtbox.debug_draw_enabled = show_player_hitbox_debug
+	if _melee_hitbox != null:
+		_melee_hitbox.debug_draw_enabled = show_melee_hit_debug
+		_melee_hitbox.debug_logging = show_melee_hit_debug
+
+
+func _sync_health_component_state() -> void:
+	if _health_component == null:
+		return
+	_health_component.max_health = max_health
+	_health_component.invulnerability_duration = hit_invulnerability_duration
+	_health_component.set_current_health(health)
+
+
+func _on_health_component_changed(current: int, maximum: int) -> void:
+	health = current
+	max_health = maximum
+	health_changed.emit(health, max_health)
+
+
+func _on_health_component_depleted(_packet: DamagePacket) -> void:
+	_invuln_time_remaining = 0.0
+	die()
+
+
+func _on_health_component_invulnerability_started(duration: float) -> void:
+	_invuln_time_remaining = maxf(0.0, duration)
+	if _invuln_time_remaining > 0.0:
+		_update_invulnerability_flash_visual()
+
+
+func _on_health_component_invulnerability_ended() -> void:
+	_invuln_time_remaining = 0.0
+	_reset_player_visual_transparency()
+
+
+func is_damage_authority() -> bool:
+	return not _multiplayer_active() or _is_server_peer()
+
+
+func _sync_player_hurtbox_runtime() -> void:
+	if _player_hurtbox == null:
+		return
+	_player_hurtbox.set_active(is_damage_authority())
+
+
+func _sync_melee_hitbox_geometry() -> void:
+	if _melee_hitbox == null or _melee_hitbox_shape == null or _melee_hitbox_shape.shape is not RectangleShape2D:
+		return
+	var rect := _melee_hitbox_shape.shape as RectangleShape2D
+	rect.size = Vector2(melee_width, melee_depth)
+	var facing := _resolve_melee_hit_facing()
+	var center_offset := facing * (_melee_range_start() + melee_depth * 0.5)
+	_melee_hitbox.position = center_offset
+	_melee_hitbox.rotation = facing.angle() + PI * 0.5
+
+
+func _resolve_melee_hit_facing() -> Vector2:
+	if _melee_hitbox != null and _melee_hitbox.is_active():
+		return _normalized_attack_facing(_active_melee_attack_facing)
+	return _normalized_attack_facing(_facing_planar)
+
+
+func _build_incoming_damage_packet(
+	amount: int,
+	kind: StringName,
+	source_position: Vector2,
+	incoming_direction: Vector2,
+	blockable: bool,
+	attack_instance_id: int = -1,
+	source_uid: int = 0,
+	source_node: Node = null,
+	knockback: float = 0.0
+) -> DamagePacket:
+	var packet := DamagePacketScript.new() as DamagePacket
+	packet.amount = amount
+	packet.kind = kind
+	packet.source_node = source_node
+	packet.source_uid = source_uid
+	packet.attack_instance_id = attack_instance_id
+	packet.origin = source_position
+	packet.direction = incoming_direction.normalized() if incoming_direction.length_squared() > 0.0001 else Vector2.ZERO
+	packet.knockback = knockback
+	packet.apply_iframes = true
+	packet.blockable = blockable
+	packet.debug_label = &"player_receive"
+	return packet
 
 
 func bind_loadout_runtime(loadout_host: Node, room_type_provider: Callable, owner_id: StringName = &"") -> void:
@@ -311,6 +436,7 @@ func apply_authoritative_loadout_snapshot(snapshot: Dictionary) -> void:
 	_apply_loadout_stats(_loadout_snapshot.get("aggregated_stats", {}) as Dictionary)
 	if _visual != null and is_instance_valid(_visual) and _visual.has_method(&"apply_loadout_visuals"):
 		_visual.call(&"apply_loadout_visuals", _loadout_snapshot)
+	_rebuild_visual_mesh_instance_cache()
 	_coerce_weapon_mode_to_available(true)
 	_sync_sword_visual()
 	loadout_changed.emit(_loadout_snapshot.duplicate(true))
@@ -585,7 +711,8 @@ func _apply_loadout_stats(aggregated_stats: Dictionary) -> void:
 		else:
 			var health_ratio := float(previous_health) / float(previous_max_health)
 			health = clampi(int(roundf(health_ratio * float(max_health))), 1, max_health)
-		health_changed.emit(health, max_health)
+		_sync_health_component_state()
+	_sync_melee_hitbox_geometry()
 
 
 func _loadout_stat_from_totals(totals: Dictionary, stat_key: StringName) -> float:
@@ -666,6 +793,10 @@ func _set_downed_state(next_downed: bool, emit_hit_signal: bool = false) -> void
 		_invuln_time_remaining = 0.0
 	if _body_shape != null:
 		_body_shape.disabled = _is_dead
+	if _player_hurtbox != null:
+		_player_hurtbox.set_active(not _is_dead and is_damage_authority())
+	if _health_component != null:
+		_health_component.clear_invulnerability()
 	_reset_player_visual_transparency()
 	_apply_visual_downed_state()
 	if emit_hit_signal and _is_dead:
@@ -683,26 +814,24 @@ func _resolve_melee_facing_lock_duration() -> float:
 
 
 func _start_facing_lock(direction: Vector2, duration_seconds: float = -1.0) -> void:
-	var lock_dir := direction
-	if lock_dir.length_squared() <= 1e-6:
-		lock_dir = _facing_planar
-	if lock_dir.length_squared() <= 1e-6:
-		lock_dir = Vector2(0.0, -1.0)
-	_facing_lock_planar = lock_dir.normalized()
-	_facing_planar = _facing_lock_planar
-	var duration := duration_seconds if duration_seconds >= 0.0 else _resolve_melee_facing_lock_duration()
-	_facing_lock_time_remaining = maxf(_facing_lock_time_remaining, maxf(0.0, duration))
+	# Attacks still snapshot their own facing for hit resolution, but we no longer freeze
+	# the live player facing after attack start. That keeps the character responsive to
+	# mouse movement while preserving deterministic attack direction.
+	var _ignored_duration := duration_seconds
+	var lock_dir := _normalized_attack_facing(direction)
+	_facing_lock_planar = lock_dir
+	_facing_planar = lock_dir
+	_facing_lock_time_remaining = 0.0
+	_sync_melee_hitbox_geometry()
 
 
 func _tick_facing_lock(delta: float) -> void:
-	if _facing_lock_time_remaining <= 0.0:
-		return
-	_facing_lock_time_remaining = maxf(0.0, _facing_lock_time_remaining - delta)
-	_facing_planar = _facing_lock_planar
+	var _ignored_delta := delta
+	_facing_lock_time_remaining = 0.0
 
 
 func _is_facing_locked() -> bool:
-	return _facing_lock_time_remaining > 0.0
+	return false
 
 
 func _max_stamina_value() -> float:
@@ -766,14 +895,18 @@ func _apply_guard_stamina_damage(amount: int) -> void:
 
 
 func _apply_health_damage(amount: int) -> void:
-	health = maxi(0, health - amount)
-	health_changed.emit(health, max_health)
-	if health <= 0:
-		_reset_player_visual_transparency()
-		die()
+	if _health_component == null:
+		health = maxi(0, health - amount)
+		health_changed.emit(health, max_health)
+		if health <= 0:
+			_reset_player_visual_transparency()
+			die()
+			return
+		_invuln_time_remaining = hit_invulnerability_duration
+		_update_invulnerability_flash_visual()
 		return
-	_invuln_time_remaining = hit_invulnerability_duration
-	_update_invulnerability_flash_visual()
+	var packet := _build_incoming_damage_packet(amount, &"direct", global_position, Vector2.ZERO, false)
+	_health_component.apply_damage(packet, amount)
 
 
 func _tick_stamina_regen(delta: float) -> void:
@@ -868,7 +1001,10 @@ func _rpc_receive_server_state(
 	var normalized_health := clampi(health_value, 0, max_health)
 	if health != normalized_health:
 		health = normalized_health
-		health_changed.emit(health, max_health)
+		if _health_component != null:
+			_health_component.set_current_health(health)
+		else:
+			health_changed.emit(health, max_health)
 	var normalized_stamina := clampf(stamina_value, 0.0, _max_stamina_value())
 	_authoritative_stamina = normalized_stamina
 	_authoritative_stamina_broken = normalized_stamina <= 0.001
@@ -1090,28 +1226,11 @@ func _run_shared_cooldown_and_debug_tick(delta: float) -> void:
 			0.0, _authoritative_bomb_cooldown_remaining - delta
 		)
 	_attack_hitbox_visual_time_remaining = maxf(0.0, _attack_hitbox_visual_time_remaining - delta)
-	if show_melee_hit_debug and _attack_hitbox_visual_time_remaining > 0.0:
-		_rebuild_melee_debug_mesh()
-	elif _melee_debug_mi:
-		_melee_debug_mi.visible = false
-	if show_player_hitbox_debug:
-		_rebuild_player_hitbox_debug()
-	elif _player_hitbox_mi:
-		_player_hitbox_mi.visible = false
-	if show_shield_block_debug:
-		_rebuild_shield_block_debug_mesh()
-	elif _shield_block_debug_mi:
-		_shield_block_debug_mi.visible = false
-	if show_mob_hitbox_debug:
-		_rebuild_mob_hitboxes_debug()
-	elif _mob_hitboxes_mi:
-		_mob_hitboxes_mi.visible = false
+	_refresh_debug_visuals(delta)
+	if _health_component != null:
+		_invuln_time_remaining = _health_component.get_invulnerability_remaining()
 	if _invuln_time_remaining > 0.0:
-		_invuln_time_remaining = maxf(0.0, _invuln_time_remaining - delta)
-		if _invuln_time_remaining <= 0.0:
-			_reset_player_visual_transparency()
-		else:
-			_update_invulnerability_flash_visual()
+		_update_invulnerability_flash_visual()
 
 
 func _play_melee_attack_presentation() -> void:
@@ -1168,7 +1287,14 @@ func _spawn_player_ranged_arrow(
 	arrow.knockback_strength = ranged_knockback
 	if arrow.has_method(&"set_authoritative_damage"):
 		arrow.call(&"set_authoritative_damage", authoritative_damage)
-	arrow.configure(spawn_position, facing, vw, true, projectile_style_id)
+	arrow.configure(
+		spawn_position,
+		facing,
+		vw,
+		true,
+		projectile_style_id,
+		projectile_event_id
+	)
 	parent.add_child(arrow)
 	if authoritative_damage and _is_server_peer() and projectile_event_id > 0 and arrow.has_signal(&"projectile_finished"):
 		arrow.projectile_finished.connect(
@@ -1187,7 +1313,8 @@ func _spawn_player_bomb(
 	facing: Vector2,
 	authoritative_damage: bool,
 	apply_cooldown: bool,
-	visual_style_id: StringName = LoadoutConstants.PROJECTILE_STYLE_RED
+	visual_style_id: StringName = LoadoutConstants.PROJECTILE_STYLE_RED,
+	attack_event_id: int = -1
 ) -> bool:
 	var parent := get_parent()
 	if parent == null:
@@ -1207,7 +1334,8 @@ func _spawn_player_bomb(
 		bomb_arc_start_height,
 		bomb_knockback_strength,
 		authoritative_damage,
-		visual_style_id
+		visual_style_id,
+		attack_event_id
 	)
 	parent.add_child(bomb)
 	if apply_cooldown:
@@ -1304,10 +1432,17 @@ func _try_execute_server_bomb_attack(requested_facing: Vector2) -> bool:
 	_start_facing_lock(_facing_planar)
 	_play_attack_animation_presentation(&"bomb")
 	var bomb_visual_style_id := _equipped_bomb_visual_style()
-	if not _spawn_player_bomb(global_position, _facing_planar, true, true, bomb_visual_style_id):
+	var event_sequence := _server_bomb_event_sequence + 1
+	if not _spawn_player_bomb(
+		global_position,
+		_facing_planar,
+		true,
+		true,
+		bomb_visual_style_id,
+		event_sequence
+	):
 		return false
-	_server_bomb_event_sequence += 1
-	var event_sequence := _server_bomb_event_sequence
+	_server_bomb_event_sequence = event_sequence
 	_last_applied_bomb_event_sequence = max(_last_applied_bomb_event_sequence, event_sequence)
 	if _can_broadcast_world_replication():
 		_rpc_receive_bomb_attack_event.rpc(
@@ -1575,7 +1710,7 @@ func _rpc_receive_bomb_attack_event(
 	_facing_planar = dir
 	_start_facing_lock(_facing_planar)
 	_play_attack_animation_presentation(&"bomb")
-	_spawn_player_bomb(spawn_position, dir, false, false, bomb_visual_style_id)
+	_spawn_player_bomb(spawn_position, dir, false, false, bomb_visual_style_id, event_sequence)
 	_bomb_cooldown_remaining = maxf(_bomb_cooldown_remaining, bomb_cooldown)
 	if OS.is_debug_build():
 		print(
@@ -1687,7 +1822,65 @@ func get_combat_debug_snapshot() -> Dictionary:
 		"multiplayer_authority": get_multiplayer_authority(),
 		"local_peer_id": _local_peer_id(),
 		"has_peer": _multiplayer_active(),
-}
+	}
+
+
+func _any_runtime_debug_visual_enabled() -> bool:
+	return (
+		(show_melee_hit_debug and _attack_hitbox_visual_time_remaining > 0.0)
+		or show_player_hitbox_debug
+		or show_mob_hitbox_debug
+		or show_shield_block_debug
+	)
+
+
+func _refresh_debug_visuals(delta: float, force: bool = false) -> void:
+	if not _any_runtime_debug_visual_enabled():
+		_debug_visual_refresh_time_remaining = 0.0
+		if _melee_debug_mi != null:
+			_melee_debug_mi.visible = false
+		if _player_hitbox_mi != null:
+			_player_hitbox_mi.visible = false
+		if _shield_block_debug_mi != null:
+			_shield_block_debug_mi.visible = false
+		if _mob_hitboxes_mi != null:
+			_mob_hitboxes_mi.visible = false
+		return
+	_debug_visual_refresh_time_remaining = maxf(0.0, _debug_visual_refresh_time_remaining - delta)
+	if not force and _debug_visual_refresh_time_remaining > 0.0:
+		return
+	_debug_visual_refresh_time_remaining = maxf(0.02, debug_visual_update_interval)
+	if show_melee_hit_debug and _attack_hitbox_visual_time_remaining > 0.0:
+		_rebuild_melee_debug_mesh()
+	elif _melee_debug_mi:
+		_melee_debug_mi.visible = false
+	if show_player_hitbox_debug:
+		_rebuild_player_hitbox_debug()
+	elif _player_hitbox_mi:
+		_player_hitbox_mi.visible = false
+	if show_shield_block_debug:
+		_rebuild_shield_block_debug_mesh()
+	elif _shield_block_debug_mi:
+		_shield_block_debug_mi.visible = false
+	if show_mob_hitbox_debug:
+		_rebuild_mob_hitboxes_debug()
+	elif _mob_hitboxes_mi:
+		_mob_hitboxes_mi.visible = false
+
+
+func _rebuild_visual_mesh_instance_cache() -> void:
+	_cached_visual_mesh_instances.clear()
+	_last_invulnerability_flash_state = -1
+	if _visual == null or not is_instance_valid(_visual):
+		return
+	_collect_visual_mesh_instances_recursive(_visual)
+
+
+func _collect_visual_mesh_instances_recursive(root: Node) -> void:
+	for child in root.get_children():
+		if child is MeshInstance3D:
+			_cached_visual_mesh_instances.append(child as MeshInstance3D)
+		_collect_visual_mesh_instances_recursive(child)
 
 
 func _weapon_mode_display_from_id(mode_id: int) -> String:
@@ -1797,35 +1990,41 @@ func _try_fire_ranged_arrow() -> void:
 
 
 func take_damage(amount: int) -> void:
-	if _multiplayer_active() and not _is_server_peer():
+	if amount <= 0 or health <= 0 or _is_dead or _damage_receiver == null:
 		return
-	if amount <= 0 or health <= 0 or _is_dead:
-		return
-	if _invuln_time_remaining > 0.0:
-		return
-	_apply_health_damage(amount)
+	var packet := _build_incoming_damage_packet(
+		amount,
+		&"direct",
+		global_position,
+		Vector2.ZERO,
+		false
+	)
+	_damage_receiver.receive_damage(packet, _player_hurtbox)
 
 
 func take_attack_damage(
 	amount: int, source_position: Vector2, incoming_direction: Vector2 = Vector2.ZERO
 ) -> void:
-	if _multiplayer_active() and not _is_server_peer():
+	if amount <= 0 or health <= 0 or _is_dead or _damage_receiver == null:
 		return
-	if amount <= 0 or health <= 0 or _is_dead:
-		return
-	if _invuln_time_remaining > 0.0:
-		return
-	if _is_attack_inside_block_arc(source_position, incoming_direction):
-		_apply_guard_stamina_damage(amount)
-		return
-	_apply_health_damage(amount)
+	var packet := _build_incoming_damage_packet(
+		amount,
+		&"attack",
+		source_position,
+		incoming_direction,
+		true
+	)
+	_damage_receiver.receive_damage(packet, _player_hurtbox)
 
 
-func _set_mesh_instances_transparency(root: Node, transparency_amount: float) -> void:
-	for c in root.get_children():
-		if c is MeshInstance3D:
-			(c as MeshInstance3D).transparency = transparency_amount
-		_set_mesh_instances_transparency(c, transparency_amount)
+func _set_mesh_instances_transparency(_root: Node, transparency_amount: float) -> void:
+	if _visual == null or not is_instance_valid(_visual):
+		return
+	if _cached_visual_mesh_instances.is_empty():
+		_rebuild_visual_mesh_instance_cache()
+	for mesh in _cached_visual_mesh_instances:
+		if mesh != null and is_instance_valid(mesh):
+			mesh.transparency = transparency_amount
 
 
 func _update_invulnerability_flash_visual() -> void:
@@ -1833,11 +2032,16 @@ func _update_invulnerability_flash_visual() -> void:
 		return
 	var ms := maxi(1, int(roundf(hit_flash_blink_interval * 1000.0)))
 	var opaque := int(floor(float(Time.get_ticks_msec()) / float(ms))) % 2 == 0
+	var flash_state := 1 if opaque else 0
+	if _last_invulnerability_flash_state == flash_state:
+		return
+	_last_invulnerability_flash_state = flash_state
 	_set_mesh_instances_transparency(_visual, 0.0 if opaque else hit_flash_transparency)
 
 
 func _reset_player_visual_transparency() -> void:
 	if _visual:
+		_last_invulnerability_flash_state = 1
 		_set_mesh_instances_transparency(_visual, 0.0)
 
 
@@ -1868,6 +2072,7 @@ func _mouse_planar_world() -> Vector2:
 func _update_facing_planar(direction: Vector2, allow_mouse_fallback: bool = true) -> void:
 	if _is_facing_locked():
 		_facing_planar = _facing_lock_planar
+		_sync_melee_hitbox_geometry()
 		return
 	var f := direction
 	if allow_mouse_fallback and f.length_squared() <= 1e-6 and _mouse_steering_active():
@@ -1876,6 +2081,7 @@ func _update_facing_planar(direction: Vector2, allow_mouse_fallback: bool = true
 			f = t.normalized()
 	if f.length_squared() > 1e-6:
 		_facing_planar = f.normalized()
+	_sync_melee_hitbox_geometry()
 
 
 func _get_player_body_radius() -> float:
@@ -1890,7 +2096,7 @@ func _melee_range_start() -> float:
 
 func _planar_point_in_melee_hit(mob_pos: Vector2) -> bool:
 	var inner := _melee_range_start()
-	var f := _facing_planar
+	var f := _resolve_melee_hit_facing()
 	var r := Vector2(-f.y, f.x)
 	var v := mob_pos - global_position
 	var along := v.dot(f)
@@ -1900,7 +2106,7 @@ func _planar_point_in_melee_hit(mob_pos: Vector2) -> bool:
 
 
 func _melee_hit_polygon_world() -> PackedVector2Array:
-	var f := _facing_planar
+	var f := _resolve_melee_hit_facing()
 	var r := Vector2(-f.y, f.x)
 	var half_w := melee_width * 0.5
 	var inner := _melee_range_start()
@@ -1922,6 +2128,26 @@ func _melee_hit_overlaps_mob(mob: CharacterBody2D) -> bool:
 
 
 func _squash_mobs_in_melee_hit(hit_event_id: int = -1) -> int:
+	var attack_facing := _normalized_attack_facing(_facing_planar)
+	_active_melee_attack_facing = attack_facing
+	if _melee_hitbox != null:
+		_sync_melee_hitbox_geometry()
+		_melee_hitbox.repeat_mode = Hitbox2D.RepeatMode.NONE
+		_melee_hitbox.debug_draw_enabled = show_melee_hit_debug
+		var packet := DamagePacketScript.new() as DamagePacket
+		packet.amount = melee_attack_damage
+		packet.kind = &"melee"
+		packet.source_node = self
+		packet.source_uid = get_instance_id()
+		packet.attack_instance_id = hit_event_id
+		packet.origin = global_position
+		packet.direction = attack_facing
+		packet.knockback = melee_knockback_strength
+		packet.apply_iframes = false
+		packet.blockable = false
+		packet.debug_label = &"player_melee"
+		_melee_hitbox.activate(packet, attack_hitbox_visual_duration)
+		return _melee_hitbox.get_last_resolved_count()
 	var hit_count := 0
 	for node in get_tree().get_nodes_in_group(&"mob"):
 		if not node is CharacterBody2D:
@@ -1934,14 +2160,14 @@ func _squash_mobs_in_melee_hit(hit_event_id: int = -1) -> int:
 						&"apply_authoritative_hit_event",
 						hit_event_id,
 						melee_attack_damage,
-						_facing_planar,
+						attack_facing,
 						melee_knockback_strength
 					)
 				)
 				if applied:
 					hit_count += 1
 			elif mob.has_method(&"take_hit"):
-				mob.call(&"take_hit", melee_attack_damage, _facing_planar, melee_knockback_strength)
+				mob.call(&"take_hit", melee_attack_damage, attack_facing, melee_knockback_strength)
 				hit_count += 1
 	return hit_count
 
@@ -1950,7 +2176,7 @@ func _rebuild_melee_debug_mesh() -> void:
 	if _melee_debug_mi == null:
 		return
 	_melee_debug_mi.visible = true
-	var f2 := _facing_planar
+	var f2 := _resolve_melee_hit_facing()
 	var p0 := global_position
 	var f3 := Vector3(f2.x, 0.0, f2.y)
 	var r3 := Vector3(-f3.z, 0.0, f3.x)
@@ -2225,31 +2451,12 @@ func _physics_process(delta: float) -> void:
 		)
 
 	_attack_hitbox_visual_time_remaining = maxf(0.0, _attack_hitbox_visual_time_remaining - delta)
-	if show_melee_hit_debug and _attack_hitbox_visual_time_remaining > 0.0:
-		_rebuild_melee_debug_mesh()
-	elif _melee_debug_mi:
-		_melee_debug_mi.visible = false
+	_refresh_debug_visuals(delta)
 
-	if show_player_hitbox_debug:
-		_rebuild_player_hitbox_debug()
-	elif _player_hitbox_mi:
-		_player_hitbox_mi.visible = false
-	if show_shield_block_debug:
-		_rebuild_shield_block_debug_mesh()
-	elif _shield_block_debug_mi:
-		_shield_block_debug_mi.visible = false
-
-	if show_mob_hitbox_debug:
-		_rebuild_mob_hitboxes_debug()
-	elif _mob_hitboxes_mi:
-		_mob_hitboxes_mi.visible = false
-
+	if _health_component != null:
+		_invuln_time_remaining = _health_component.get_invulnerability_remaining()
 	if _invuln_time_remaining > 0.0:
-		_invuln_time_remaining = maxf(0.0, _invuln_time_remaining - delta)
-		if _invuln_time_remaining <= 0.0:
-			_reset_player_visual_transparency()
-		else:
-			_update_invulnerability_flash_visual()
+		_update_invulnerability_flash_visual()
 
 
 func _exit_tree() -> void:
@@ -2283,6 +2490,8 @@ func reset_for_retry(world_pos: Vector2) -> void:
 	_bomb_cooldown_remaining = 0.0
 	if _body_shape != null:
 		_body_shape.disabled = false
+	if _player_hurtbox != null:
+		_player_hurtbox.set_active(is_damage_authority())
 	_reset_player_visual_transparency()
 	if _visual != null:
 		_visual.global_position = Vector3(global_position.x, height, global_position.y)
@@ -2297,7 +2506,7 @@ func revive(health_after_revive: int = -1) -> void:
 	if resolved_health <= 0:
 		resolved_health = REVIVE_HEALTH
 	health = clampi(resolved_health, 1, max_health)
-	health_changed.emit(health, max_health)
+	_sync_health_component_state()
 	_restore_stamina_to_full()
 	_set_downed_state(false)
 	_set_defending_state(false)
@@ -2309,7 +2518,7 @@ func revive_to_full() -> void:
 
 func heal_to_full() -> void:
 	health = max_health
-	health_changed.emit(health, max_health)
+	_sync_health_component_state()
 	_restore_stamina_to_full()
 
 
@@ -2321,19 +2530,10 @@ func _free_world_debug_meshes() -> void:
 	_player_hitbox_mi = null
 	_mob_hitboxes_mi = null
 	_shield_block_debug_mi = null
+	_cached_visual_mesh_instances.clear()
+	_debug_visual_refresh_time_remaining = 0.0
+	_last_invulnerability_flash_state = -1
 
 
 func get_shadow_visual_root() -> Node3D:
 	return _visual
-
-
-func _on_mob_detector_body_entered(body: Node2D) -> void:
-	# Only creeps kill the player; avoids spurious Area2D overlaps (e.g. parent body quirks).
-	if body == null or body == self or not body.is_in_group(&"mob"):
-		return
-	if body.has_method(&"can_contact_damage") and not bool(body.call(&"can_contact_damage")):
-		return
-	var planar_d := body.global_position.distance_to(global_position)
-	if planar_d > mob_kill_max_planar_dist:
-		return
-	take_attack_damage(mob_hit_damage, body.global_position)

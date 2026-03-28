@@ -77,7 +77,7 @@ enum EditorAnimationPreview {
 @export var equipment_bomb_root_path: NodePath = NodePath("BombAttachment")
 @export var equipment_preserve_editor_offsets: bool = false
 @export var runtime_spawn_equipment_if_missing: bool = false
-@export var equipment_chest_scene_path: String = "res://scenes/equipment/armor/chestplate_v02.tscn"
+@export var equipment_chest_scene_path: String = "res://scenes/equipment/armor/red_chestplate.tscn"
 @export var equipment_legs_scene_path: String = "res://scenes/equipment/armor/legs_v02.tscn"
 @export var equipment_helmet_scene_path: String = "res://scenes/equipment/helmet/helmet_knight_base.tscn"
 @export var equipment_shield_scene_path: String = "res://scenes/equipment/shields/base_model_v01_shield.tscn"
@@ -762,19 +762,16 @@ func _build_equipment_visible_material(source_mat: Material, slot_name: String) 
 		tint = Color(0.30, 0.33, 0.38, 1.0)
 	elif slot_name == "Bomb":
 		tint = Color(0.84, 0.24, 0.16, 1.0)
-	var preserve_source_albedo := slot_name == "Handgun" or slot_name == "Bomb"
 	var visible: StandardMaterial3D = StandardMaterial3D.new()
 	visible.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	visible.transparency = BaseMaterial3D.TRANSPARENCY_DISABLED
 	visible.cull_mode = BaseMaterial3D.CULL_DISABLED
 	if source_mat != null and source_mat is BaseMaterial3D:
 		var src: BaseMaterial3D = source_mat as BaseMaterial3D
-		if preserve_source_albedo:
-			tint = src.albedo_color
+		tint = src.albedo_color
 		if src.albedo_texture != null:
 			visible.albedo_texture = src.albedo_texture
-			if preserve_source_albedo:
-				tint = Color(1.0, 1.0, 1.0, 1.0)
+			tint = Color(1.0, 1.0, 1.0, 1.0)
 		visible.texture_filter = src.texture_filter
 		visible.texture_repeat = src.texture_repeat
 		visible.uv1_scale = src.uv1_scale
@@ -1108,12 +1105,24 @@ func _replace_attachment_child(
 ) -> void:
 	if offset_root == null:
 		return
-	var existing := _find_first_node3d_child(offset_root)
-	if existing != null and is_instance_valid(existing):
-		var existing_path := String(existing.get_meta(&"loadout_scene_path", ""))
-		if existing_path == scene_path:
+	var existing_children: Array[Node3D] = []
+	var matching_child: Node3D
+	for child_v in offset_root.get_children():
+		if child_v is not Node3D:
+			continue
+		var child := child_v as Node3D
+		existing_children.append(child)
+		if child.name == child_name:
+			matching_child = child
+	if matching_child != null and is_instance_valid(matching_child):
+		var existing_path := String(matching_child.get_meta(&"loadout_scene_path", ""))
+		if existing_path == scene_path and existing_children.size() == 1:
 			return
-		existing.queue_free()
+	for existing in existing_children:
+		if existing == null or not is_instance_valid(existing):
+			continue
+		offset_root.remove_child(existing)
+		existing.free()
 	if scene_path.is_empty():
 		return
 	var scene_res := load(scene_path) as PackedScene

@@ -1,6 +1,10 @@
 class_name DasherMob
 extends EnemyBase
 
+const LEGACY_MOB_VISUAL_SCENE := preload("res://scenes/visuals/mob_visual.tscn")
+const SHARDLING_IDLE_SCENE_PATH := "res://art/characters/enemies/shardling_texture.glb"
+const SHARDLING_WALK_SCENE_PATH := "res://art/characters/enemies/shardling_walk.glb"
+
 @export var min_speed := 10.0
 @export var max_speed := 18.0
 ## Feet-to-ground mob; stomp when player.height exceeds this while falling.
@@ -23,7 +27,7 @@ extends EnemyBase
 @export var target_refresh_interval := 0.3
 
 var _squash_applied: bool = false
-var _visual: Node3D
+var _visual: EnemyStateVisual
 var _vw: Node3D
 var _telegraph_mesh: MeshInstance3D
 var _outline_mat: StandardMaterial3D
@@ -49,6 +53,7 @@ var _knockback_time_remaining := 0.0
 var _knockback_velocity := Vector2.ZERO
 var _aggro_enabled := true
 @onready var _nav_agent: NavigationAgent2D = $NavigationAgent2D
+@onready var _dash_contact_hitbox: Hitbox2D = $DashContactHitbox
 
 
 func configure_spawn(start_position: Vector2, player_position: Vector2) -> void:
@@ -67,6 +72,8 @@ func set_aggro_enabled(enabled: bool) -> void:
 		velocity = Vector2.ZERO
 		_is_telegraphing = false
 		_is_dashing = false
+		if _dash_contact_hitbox != null:
+			_dash_contact_hitbox.deactivate()
 		_sync_visual_anim_speed(0.0)
 
 
@@ -79,9 +86,14 @@ func _ready() -> void:
 	var vw := get_node_or_null("../../VisualWorld3D")
 	_vw = vw as Node3D
 	if vw:
-		var vis: Node = preload("res://scenes/visuals/mob_visual.tscn").instantiate()
+		var vis := EnemyStateVisual.new()
+		vis.name = &"DasherVisual"
+		vis.mesh_ground_y = 0.0
+		vis.mesh_scale = Vector3.ONE
+		vis.facing_yaw_offset_deg = 180.0
+		vis.configure_states(_build_visual_state_config())
 		vw.add_child(vis)
-		_visual = vis as Node3D
+		_visual = vis
 		_sync_visual_from_body()
 		_telegraph_mesh = MeshInstance3D.new()
 		_telegraph_mesh.name = &"MobTelegraphArrow"
@@ -111,6 +123,7 @@ func _ready() -> void:
 	else:
 		push_warning("Mob entered tree without configure_spawn; removing.")
 		queue_free()
+	_refresh_dash_contact_hitbox()
 
 
 func _exit_tree() -> void:
@@ -162,10 +175,8 @@ func _enemy_network_apply_remote_state(state: Dictionary) -> void:
 func _sync_visual_from_body() -> void:
 	if _visual == null:
 		return
-	_visual.global_position = Vector3(global_position.x, 0.0, global_position.y)
-	# Match PlayerVisual: 2D (x, y) plane maps to 3D XZ; Godot2D Node2D.rotation ≠ this heading.
-	if velocity.length_squared() > 0.0001:
-		_visual.rotation.y = atan2(velocity.x, velocity.y) + PI
+	_visual.set_state(_resolve_visual_state_name())
+	_visual.sync_from_2d(global_position, _resolve_visual_facing_direction())
 
 
 func _apply_spawn(start_position: Vector2, player_position: Vector2) -> void:
@@ -268,6 +279,7 @@ func _start_dash() -> void:
 	_dash_end = _dash_start + _dash_dir.normalized() * dash_distance
 	_dash_hit_applied = false
 	velocity = _dash_dir.normalized() * (dash_distance / maxf(0.01, dash_duration))
+	_refresh_dash_contact_hitbox()
 
 
 func _update_dash(delta: float) -> void:
@@ -279,42 +291,13 @@ func _update_dash(delta: float) -> void:
 		velocity = to_target / maxf(delta, 0.0001)
 	else:
 		velocity = Vector2.ZERO
-	if not _dash_hit_applied:
-		_try_apply_dash_hit()
+	_refresh_dash_contact_hitbox()
 	if u >= 1.0:
 		_is_dashing = false
 		velocity = Vector2.ZERO
+		if _dash_contact_hitbox != null:
+			_dash_contact_hitbox.deactivate()
 		_sync_visual_anim_speed(0.0)
-
-
-func _try_apply_dash_hit() -> void:
-	if _target_player == null or not is_instance_valid(_target_player):
-		return
-	if _is_player_downed_node(_target_player):
-		return
-	var hit := _point_in_dash_sweep(_target_player.global_position)
-	if not hit:
-		return
-	if _target_player.has_method(&"take_attack_damage"):
-		_target_player.call(&"take_attack_damage", dash_damage, global_position, _dash_dir)
-	elif _target_player.has_method(&"take_damage"):
-		_target_player.call(&"take_damage", dash_damage)
-	_dash_hit_applied = true
-
-
-func _point_in_dash_sweep(point: Vector2) -> bool:
-	var seg := _dash_end - _dash_start
-	var seg_len := seg.length()
-	if seg_len <= 0.0001:
-		return false
-	var dir := seg / seg_len
-	var rel := point - _dash_start
-	var along := rel.dot(dir)
-	if along < 0.0 or along > seg_len:
-		return false
-	var normal := Vector2(-dir.y, dir.x)
-	var lateral := absf(rel.dot(normal))
-	return lateral <= dash_hit_width * 0.5
 
 
 func _update_telegraph_visual() -> void:
@@ -359,10 +342,9 @@ func _update_telegraph_visual() -> void:
 func _sync_visual_anim_speed(for_speed: float = -1.0) -> void:
 	if _visual == null:
 		return
-	var ap: AnimationPlayer = _visual.find_child("AnimationPlayer", true, false) as AnimationPlayer
-	if ap:
-		var s := for_speed if for_speed > 0.0 else velocity.length()
-		ap.speed_scale = s / min_speed
+	var s := for_speed if for_speed > 0.0 else velocity.length()
+	var playback_scale := clampf(s / maxf(min_speed, 0.01), 0.35, 2.5) if s > 0.05 else 1.0
+	_visual.set_playback_speed_scale(playback_scale)
 
 
 func take_hit(damage: int, knockback_dir: Vector2, knockback_strength: float) -> void:
@@ -377,6 +359,8 @@ func _on_nonlethal_hit(knockback_dir: Vector2, knockback_strength: float) -> voi
 	_telegraph_time = 0.0
 	_dash_time = 0.0
 	_dash_hit_applied = false
+	if _dash_contact_hitbox != null:
+		_dash_contact_hitbox.deactivate()
 	var dir := knockback_dir.normalized() if knockback_dir.length_squared() > 0.0001 else Vector2.ZERO
 	_knockback_velocity = dir * maxf(0.0, knockback_strength) * 1.3
 	_knockback_time_remaining = hit_knockback_duration
@@ -398,7 +382,43 @@ func _update_stun(delta: float) -> void:
 
 
 func can_contact_damage() -> bool:
-	return _is_dashing
+	return false
+
+
+func _refresh_dash_contact_hitbox() -> void:
+	if _dash_contact_hitbox == null:
+		return
+	var shape_node := _dash_contact_hitbox.get_node_or_null("CollisionShape2D") as CollisionShape2D
+	if shape_node != null and shape_node.shape is RectangleShape2D:
+		var rect := shape_node.shape as RectangleShape2D
+		rect.size = Vector2(dash_hit_width, maxf(2.4, dash_hit_width * 1.6))
+	var dir := _dash_dir
+	if dir.length_squared() <= 0.0001:
+		dir = Vector2(0.0, -1.0)
+	else:
+		dir = dir.normalized()
+	_dash_contact_hitbox.position = dir * 0.9
+	_dash_contact_hitbox.rotation = dir.angle() + PI * 0.5
+	_dash_contact_hitbox.repeat_mode = Hitbox2D.RepeatMode.INTERVAL
+	_dash_contact_hitbox.repeat_interval_sec = 0.65
+	if not _is_dashing or not is_damage_authority():
+		_dash_contact_hitbox.deactivate()
+		return
+	var packet := DamagePacketScript.new() as DamagePacket
+	packet.amount = dash_damage
+	packet.kind = &"contact"
+	packet.source_node = self
+	packet.source_uid = get_instance_id()
+	packet.origin = global_position
+	packet.direction = dir
+	packet.knockback = 0.0
+	packet.apply_iframes = true
+	packet.blockable = true
+	packet.debug_label = &"dash_contact"
+	if _dash_contact_hitbox.is_active():
+		_dash_contact_hitbox.update_packet_template(packet)
+	else:
+		_dash_contact_hitbox.activate(packet, dash_duration)
 
 
 func squash() -> void:
@@ -425,3 +445,60 @@ func _refresh_target_player(delta: float, allow_retarget: bool = true) -> void:
 	):
 		_target_player = _pick_target_player()
 		_target_refresh_time_remaining = maxf(0.05, target_refresh_interval)
+
+
+func _resolve_visual_state_name() -> StringName:
+	if _is_telegraphing or _stun_time_remaining > 0.0:
+		return &"idle"
+	if _is_dashing or velocity.length_squared() > 0.01:
+		return &"walk"
+	return &"idle"
+
+
+func _resolve_visual_facing_direction() -> Vector2:
+	if (_is_telegraphing or _is_dashing) and _dash_dir.length_squared() > 0.0001:
+		return _dash_dir.normalized()
+	if velocity.length_squared() > 0.0001:
+		return velocity.normalized()
+	if _target_player != null and is_instance_valid(_target_player):
+		var to_target := _target_player.global_position - global_position
+		if to_target.length_squared() > 0.0001:
+			return to_target.normalized()
+	if _dash_dir.length_squared() > 0.0001:
+		return _dash_dir.normalized()
+	return Vector2(0.0, -1.0)
+
+
+func _build_visual_state_config() -> Dictionary:
+	var idle_scene := _load_visual_scene(SHARDLING_IDLE_SCENE_PATH)
+	var walk_scene := _load_visual_scene(SHARDLING_WALK_SCENE_PATH)
+	if idle_scene == null and walk_scene == null:
+		return {
+			&"idle": {
+				"scene": LEGACY_MOB_VISUAL_SCENE,
+				"keywords": ["float"],
+			},
+			&"walk": {
+				"scene": LEGACY_MOB_VISUAL_SCENE,
+				"keywords": ["float"],
+			},
+		}
+	if idle_scene == null:
+		idle_scene = walk_scene
+	if walk_scene == null:
+		walk_scene = idle_scene
+	return {
+		&"idle": {
+			"scene": idle_scene,
+			"keywords": ["idle", "stand", "reset"],
+		},
+		&"walk": {
+			"scene": walk_scene,
+			"keywords": ["walk", "run", "moving"],
+		},
+	}
+
+
+func _load_visual_scene(path: String) -> PackedScene:
+	var resource := load(path)
+	return resource as PackedScene if resource is PackedScene else null

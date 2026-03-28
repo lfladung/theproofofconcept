@@ -226,24 +226,24 @@ func _build_default_definitions() -> Dictionary:
 	var definitions := {}
 	definitions[&"armor_brigandine"] = LoadoutItemDefinition.new(
 		&"armor_brigandine",
-		"Brigandine Armor",
+		"Red Chestplate",
 		LoadoutConstants.SLOT_ARMOR,
-		"Standard plated armor for the safe-room loadout test.",
+		"Red chestplate variant for the safe-room loadout test.",
 		{
 			LoadoutConstants.STAT_MAX_HEALTH: 15.0,
 		},
-		LoadoutVisualDefinition.new("res://scenes/equipment/armor/chestplate_v02.tscn")
+		LoadoutVisualDefinition.new("res://scenes/equipment/armor/red_chestplate.tscn")
 	)
 	definitions[&"armor_scale"] = LoadoutItemDefinition.new(
 		&"armor_scale",
-		"Scale Armor",
+		"Blue Chestplate",
 		LoadoutConstants.SLOT_ARMOR,
-		"Alternate placeholder chest armor for swapping and stat checks.",
+		"Blue chestplate variant for swapping and stat checks.",
 		{
 			LoadoutConstants.STAT_MAX_HEALTH: 8.0,
 			LoadoutConstants.STAT_SPEED: 1.25,
 		},
-		LoadoutVisualDefinition.new("res://scenes/equipment/armor/chestplate_v01.tscn")
+		LoadoutVisualDefinition.new("res://scenes/equipment/armor/blue_chestplate.tscn")
 	)
 	definitions[&"helmet_knight"] = LoadoutItemDefinition.new(
 		&"helmet_knight",

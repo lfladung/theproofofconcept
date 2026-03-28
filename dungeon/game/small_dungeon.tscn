@@ -3,6 +3,7 @@
 [ext_resource type="Script" uid="uid://b5tbqbpc6hk1r" path="res://dungeon/game/small_dungeon.gd" id="1_script"]
 [ext_resource type="PackedScene" path="res://scenes/ui/health_bar.tscn" id="5_health_bar"]
 [ext_resource type="Script" uid="uid://bq4lq2wbf1rkc" path="res://scripts/ui/score_label.gd" id="6_coin_counter"]
+[ext_resource type="Script" path="res://scripts/ui/minimap_panel.gd" id="7_minimap_panel"]
 
 [sub_resource type="RectangleShape2D" id="1_blocker_shape"]
 size = Vector2(6, 12)
@@ -24,6 +25,20 @@ height = 1.8
 
 [sub_resource type="BoxShape3D" id="6_fake_shadow_ground_shape"]
 size = Vector3(1600, 0.02, 1600)
+
+[sub_resource type="StyleBoxFlat" id="7_minimap_style"]
+bg_color = Color(0.94902, 0.905882, 0.807843, 0.82)
+border_width_left = 2
+border_width_top = 2
+border_width_right = 2
+border_width_bottom = 2
+border_color = Color(0.227451, 0.172549, 0.117647, 0.92)
+corner_radius_top_left = 12
+corner_radius_top_right = 12
+corner_radius_bottom_right = 12
+corner_radius_bottom_left = 12
+shadow_color = Color(0, 0, 0, 0.18)
+shadow_size = 4
 
 [node name="SmallDungeon" type="Node" unique_id=1819195424]
 script = ExtResource("1_script")
@@ -220,6 +235,19 @@ offset_top = 10.0
 offset_right = 700.0
 offset_bottom = 80.0
 text = "Small dungeon loaded."
+
+[node name="MinimapPanel" type="Panel" parent="CanvasLayer/UI"]
+layout_mode = 1
+anchors_preset = 1
+anchor_left = 1.0
+anchor_right = 1.0
+offset_left = -238.0
+offset_top = 12.0
+offset_right = -14.0
+offset_bottom = 236.0
+grow_horizontal = 0
+theme_override_styles/panel = SubResource("7_minimap_style")
+script = ExtResource("7_minimap_panel")
 
 [node name="LeaveRunButton" type="Button" parent="CanvasLayer/UI" unique_id=1651856289]
 layout_mode = 1
