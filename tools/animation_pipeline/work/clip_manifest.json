@@ -4,19 +4,19 @@
       "id": "attack",
       "input_video": "C:\\Users\\logan\\Videos\\attackExample.mp4",
       "normalized_video": "C:\\git\\dungeonGame\\dungeonGameConvertToMultplayer\\tools\\animation_pipeline\\work\\videos\\attack.mp4",
-      "expected_mocap": "C:\\git\\dungeonGame\\dungeonGameConvertToMultplayer\\tools\\animation_pipeline\\work\\mocap\\attack.fbx"
+      "expected_mocap": "C:\\git\\dungeonGame\\random\\dungeonGameConvertToMultplayer\\tools\\animation_pipeline\\work\\mocap\\attack.fbx"
     },
     {
       "id": "walk",
       "input_video": "C:\\Users\\logan\\Videos\\walkingExample.mp4",
       "normalized_video": "C:\\git\\dungeonGame\\dungeonGameConvertToMultplayer\\tools\\animation_pipeline\\work\\videos\\walk.mp4",
-      "expected_mocap": "C:\\git\\dungeonGame\\dungeonGameConvertToMultplayer\\tools\\animation_pipeline\\work\\mocap\\walk.fbx"
+      "expected_mocap": "C:\\git\\dungeonGame\\random\\dungeonGameConvertToMultplayer\\tools\\animation_pipeline\\work\\mocap\\walk.fbx"
     },
     {
       "id": "defend",
       "input_video": "C:\\Users\\logan\\Videos\\defendexample.mp4",
       "normalized_video": "C:\\git\\dungeonGame\\dungeonGameConvertToMultplayer\\tools\\animation_pipeline\\work\\videos\\defend.mp4",
-      "expected_mocap": "C:\\git\\dungeonGame\\dungeonGameConvertToMultplayer\\tools\\animation_pipeline\\work\\mocap\\defend.fbx"
+      "expected_mocap": "C:\\git\\dungeonGame\\random\\dungeonGameConvertToMultplayer\\tools\\animation_pipeline\\work\\mocap\\defend.fbx"
     }
   ]
 }

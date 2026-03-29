@@ -65,7 +65,9 @@ def main() -> None:
 
     for clip in clips:
         clip_id = str(clip.get("id", "clip"))
-        source = (repo_root / clip["source"]).resolve()
+        raw_source = clip["source"]
+        src_path = Path(raw_source)
+        source = src_path.resolve() if src_path.is_absolute() else (repo_root / raw_source).resolve()
         output_glb = (repo_root / clip["output"]).resolve()
         action_name = clip.get("action_name", f"{clip_id}_Replacement")
         bone_map = clip.get("bone_map", global_bone_map)

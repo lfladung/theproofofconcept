@@ -1,5 +1,13 @@
 # Animation Replacement Pipeline
 
+Non-runtime **FBX** and **Blender (`.blend`)** sources were moved out of the repo to keep Git/LFS lean. They live under:
+
+`C:\git\dungeonGame\random\dungeonGameConvertToMultplayer\` (mirrors paths: `art\...`, `tools\animation_pipeline\work\mocap\...`).
+
+`retarget_jobs.json` points mocap FBX inputs at that folder. `convert_example_clips_to_mocap.ps1` still writes new FBX into **this repo** at `tools/animation_pipeline/work/mocap/`; copy or retarget from there if you regenerate locally.
+
+---
+
 This pipeline converts your reference clips into game-ready replacement animations for the player model.
 
 It is designed for this repo and outputs replacement GLBs that `PlayerVisual` already prioritizes:
