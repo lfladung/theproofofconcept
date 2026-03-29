@@ -121,11 +121,11 @@ func _spawn_authored_enemies() -> void:
 		var enemy := enemy_scene.instantiate() as Node2D
 		if enemy == null:
 			continue
-		_game_world_2d.add_child(enemy)
 		if enemy.has_method(&"configure_spawn"):
 			enemy.call(&"configure_spawn", zone.global_position, player_position)
 		else:
 			enemy.global_position = zone.global_position
+		_game_world_2d.add_child(enemy)
 
 
 func _enemy_scene_for_zone(zone: ZoneMarker2D) -> PackedScene:

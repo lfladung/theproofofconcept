@@ -772,6 +772,10 @@ func on_directional_guard_blocked_hit(packet: DamagePacket, _hurtbox: Area2D) ->
 func _on_nonlethal_hit(_knockback_dir: Vector2, _knockback_strength: float) -> void:
 	if _recovery_state != RecoveryState.NONE:
 		return
+	# HP damage during punch/stomp should not cancel the attack; that restarts the
+	# windup/hit timing and looks like the swing keeps resetting every player hit.
+	if _attack_state != AttackState.NONE:
+		return
 	_cancel_attack()
 	_guard_advancing = false
 	_guard_break_accumulated_damage = 0.0

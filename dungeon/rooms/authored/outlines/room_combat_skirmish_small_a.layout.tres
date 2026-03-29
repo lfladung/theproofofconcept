@@ -1,4 +1,4 @@
-[gd_resource type="Resource" script_class="RoomLayoutData" format=3 uid="uid://b6ep65jkxxpad"]
+[gd_resource type="Resource" script_class="RoomLayoutData" format=3 uid="uid://eqiiddptywwu"]
 
 [ext_resource type="Script" uid="uid://bin4dksyxldc0" path="res://addons/dungeon_room_editor/resources/room_placed_item_data.gd" id="1_4ia6d"]
 [ext_resource type="Script" uid="uid://dpj57sp322t4g" path="res://addons/dungeon_room_editor/resources/room_layout_data.gd" id="2_rcaqs"]
@@ -832,8 +832,8 @@ placement_layer = &"ground"
 
 [sub_resource type="Resource" id="Resource_kvavs"]
 script = ExtResource("1_4ia6d")
-item_id = "wall_straight_093"
-piece_id = &"wall_straight"
+item_id = "wall_corner_093"
+piece_id = &"wall_corner"
 category = &"wall"
 grid_position = Vector2i(-3, -5)
 tags = PackedStringArray("wall")
@@ -909,10 +909,11 @@ blocks_projectiles = true
 
 [sub_resource type="Resource" id="Resource_taxxa"]
 script = ExtResource("1_4ia6d")
-item_id = "wall_straight_100"
-piece_id = &"wall_straight"
+item_id = "wall_corner_100"
+piece_id = &"wall_corner"
 category = &"wall"
 grid_position = Vector2i(4, -5)
+rotation_steps = 1
 tags = PackedStringArray("wall")
 placement_layer = &"overlay"
 blocks_movement = true
@@ -924,6 +925,7 @@ item_id = "wall_straight_101"
 piece_id = &"wall_straight"
 category = &"wall"
 grid_position = Vector2i(-3, -4)
+rotation_steps = 1
 tags = PackedStringArray("wall")
 placement_layer = &"overlay"
 blocks_movement = true
@@ -935,6 +937,7 @@ item_id = "wall_straight_102"
 piece_id = &"wall_straight"
 category = &"wall"
 grid_position = Vector2i(4, -4)
+rotation_steps = 1
 tags = PackedStringArray("wall")
 placement_layer = &"overlay"
 blocks_movement = true
@@ -942,8 +945,8 @@ blocks_projectiles = true
 
 [sub_resource type="Resource" id="Resource_rmndh"]
 script = ExtResource("1_4ia6d")
-item_id = "wall_straight_103"
-piece_id = &"wall_straight"
+item_id = "wall_corner_103"
+piece_id = &"wall_corner"
 category = &"wall"
 grid_position = Vector2i(-5, -3)
 tags = PackedStringArray("wall")
@@ -968,6 +971,7 @@ item_id = "wall_straight_105"
 piece_id = &"wall_straight"
 category = &"wall"
 grid_position = Vector2i(4, -3)
+rotation_steps = 1
 tags = PackedStringArray("wall")
 placement_layer = &"overlay"
 blocks_movement = true
@@ -979,6 +983,7 @@ item_id = "wall_straight_106"
 piece_id = &"wall_straight"
 category = &"wall"
 grid_position = Vector2i(-5, -2)
+rotation_steps = 1
 tags = PackedStringArray("wall")
 placement_layer = &"overlay"
 blocks_movement = true
@@ -990,6 +995,7 @@ item_id = "wall_straight_107"
 piece_id = &"wall_straight"
 category = &"wall"
 grid_position = Vector2i(4, -2)
+rotation_steps = 1
 tags = PackedStringArray("wall")
 placement_layer = &"overlay"
 blocks_movement = true
@@ -1001,6 +1007,7 @@ item_id = "wall_straight_108"
 piece_id = &"wall_straight"
 category = &"wall"
 grid_position = Vector2i(-5, 1)
+rotation_steps = 1
 tags = PackedStringArray("wall")
 placement_layer = &"overlay"
 blocks_movement = true
@@ -1019,10 +1026,11 @@ blocks_projectiles = true
 
 [sub_resource type="Resource" id="Resource_s8bws"]
 script = ExtResource("1_4ia6d")
-item_id = "wall_straight_110"
-piece_id = &"wall_straight"
+item_id = "wall_corner_110"
+piece_id = &"wall_corner"
 category = &"wall"
 grid_position = Vector2i(4, 1)
+rotation_steps = 2
 tags = PackedStringArray("wall")
 placement_layer = &"overlay"
 blocks_movement = true
@@ -1034,6 +1042,7 @@ item_id = "wall_straight_111"
 piece_id = &"wall_straight"
 category = &"wall"
 grid_position = Vector2i(-5, 2)
+rotation_steps = 1
 tags = PackedStringArray("wall")
 placement_layer = &"overlay"
 blocks_movement = true
@@ -1045,6 +1054,7 @@ item_id = "wall_straight_112"
 piece_id = &"wall_straight"
 category = &"wall"
 grid_position = Vector2i(2, 2)
+rotation_steps = 1
 tags = PackedStringArray("wall")
 placement_layer = &"overlay"
 blocks_movement = true
@@ -1056,6 +1066,7 @@ item_id = "wall_straight_113"
 piece_id = &"wall_straight"
 category = &"wall"
 grid_position = Vector2i(-5, 3)
+rotation_steps = 1
 tags = PackedStringArray("wall")
 placement_layer = &"overlay"
 blocks_movement = true
@@ -1067,6 +1078,7 @@ item_id = "wall_straight_114"
 piece_id = &"wall_straight"
 category = &"wall"
 grid_position = Vector2i(2, 3)
+rotation_steps = 1
 tags = PackedStringArray("wall")
 placement_layer = &"overlay"
 blocks_movement = true
@@ -1074,10 +1086,11 @@ blocks_projectiles = true
 
 [sub_resource type="Resource" id="Resource_qalr6"]
 script = ExtResource("1_4ia6d")
-item_id = "wall_straight_115"
-piece_id = &"wall_straight"
+item_id = "wall_corner_115"
+piece_id = &"wall_corner"
 category = &"wall"
 grid_position = Vector2i(-5, 4)
+rotation_steps = 3
 tags = PackedStringArray("wall")
 placement_layer = &"overlay"
 blocks_movement = true
@@ -1173,10 +1186,11 @@ blocks_projectiles = true
 
 [sub_resource type="Resource" id="Resource_irtmp"]
 script = ExtResource("1_4ia6d")
-item_id = "wall_straight_124"
-piece_id = &"wall_straight"
+item_id = "wall_corner_124"
+piece_id = &"wall_corner"
 category = &"wall"
 grid_position = Vector2i(4, 4)
+rotation_steps = 1
 tags = PackedStringArray("wall")
 placement_layer = &"overlay"
 blocks_movement = true

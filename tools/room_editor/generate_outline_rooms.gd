@@ -257,13 +257,18 @@ func _generate_room(spec: Dictionary) -> bool:
 
 	var floor_cells := _build_floor_cells(spec)
 	var opening_cells := _opening_cells(size, spec["openings"])
-	var wall_cells := _build_wall_cells(floor_cells, opening_cells)
+	var wall_items := _build_wall_items(floor_cells, opening_cells)
 
 	_item_sequence = 0
 	for cell in floor_cells:
 		_add_item(layout, &"floor_dirt_small_a", cell)
-	for cell in wall_cells:
-		_add_item(layout, &"wall_straight", cell)
+	for wall_item in wall_items:
+		_add_item(
+			layout,
+			wall_item.get("piece_id", &"wall_straight"),
+			wall_item.get("position", Vector2i.ZERO),
+			int(wall_item.get("rotation_steps", 0))
+		)
 	for side in spec["openings"]:
 		_add_socket_for_opening(layout, size, side)
 
@@ -321,7 +326,7 @@ func _build_floor_cells(spec: Dictionary) -> Array[Vector2i]:
 	return out
 
 
-func _build_wall_cells(floor_cells: Array[Vector2i], opening_cells: Dictionary) -> Array[Vector2i]:
+func _build_wall_items(floor_cells: Array[Vector2i], opening_cells: Dictionary) -> Array[Dictionary]:
 	var floor_lookup: Dictionary = {}
 	for cell in floor_cells:
 		floor_lookup[cell] = true
@@ -337,13 +342,40 @@ func _build_wall_cells(floor_cells: Array[Vector2i], opening_cells: Dictionary) 
 		if should_wall and not opening_cells.has(cell):
 			wall_lookup[cell] = true
 
-	var out: Array[Vector2i] = []
+	var wall_cells: Array[Vector2i] = []
 	for cell in wall_lookup.keys():
-		out.append(cell)
-	out.sort_custom(func(a: Vector2i, b: Vector2i) -> bool:
+		wall_cells.append(cell)
+	wall_cells.sort_custom(func(a: Vector2i, b: Vector2i) -> bool:
 		return a.y < b.y if a.y != b.y else a.x < b.x
 	)
+	var out: Array[Dictionary] = []
+	for cell in wall_cells:
+		out.append(_wall_item_for_cell(cell, floor_lookup))
 	return out
+
+
+func _wall_item_for_cell(cell: Vector2i, floor_lookup: Dictionary) -> Dictionary:
+	var has_left := floor_lookup.has(cell + Vector2i.LEFT)
+	var has_right := floor_lookup.has(cell + Vector2i.RIGHT)
+	var has_up := floor_lookup.has(cell + Vector2i.UP)
+	var has_down := floor_lookup.has(cell + Vector2i.DOWN)
+
+	var missing_left := not has_left
+	var missing_right := not has_right
+	var missing_up := not has_up
+	var missing_down := not has_down
+
+	if missing_up and missing_left:
+		return {"piece_id": &"wall_corner", "position": cell, "rotation_steps": 0}
+	if missing_up and missing_right:
+		return {"piece_id": &"wall_corner", "position": cell, "rotation_steps": 1}
+	if missing_down and missing_right:
+		return {"piece_id": &"wall_corner", "position": cell, "rotation_steps": 2}
+	if missing_down and missing_left:
+		return {"piece_id": &"wall_corner", "position": cell, "rotation_steps": 3}
+	if missing_left or missing_right:
+		return {"piece_id": &"wall_straight", "position": cell, "rotation_steps": 1}
+	return {"piece_id": &"wall_straight", "position": cell, "rotation_steps": 0}
 
 
 func _opening_cells(size: Vector2i, openings: Array) -> Dictionary:
