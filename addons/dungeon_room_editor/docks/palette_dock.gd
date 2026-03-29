@@ -1,6 +1,7 @@
 @tool
 extends VBoxContainer
 
+const PreviewBuilderScript = preload("res://addons/dungeon_room_editor/preview/preview_builder.gd")
 signal piece_selected(piece_id: StringName)
 
 const _CATEGORY_ORDER := [
@@ -45,6 +46,7 @@ var _category_values: Array[StringName] = []
 var _is_programmatic_selection := false
 var _selected_piece_id: StringName = &""
 var _selected_category_filter: StringName = _ALL_CATEGORIES
+var _preview_builder = PreviewBuilderScript.new()
 
 
 func _ready() -> void:
@@ -270,6 +272,7 @@ func _refresh_piece_preview(piece) -> void:
 		_piece_preview_viewport.render_target_update_mode = SubViewport.UPDATE_ONCE
 		return
 
+	_preview_builder.apply_piece_visual_overrides(instance, piece)
 	_piece_preview_content.add_child(instance)
 	_fit_piece_preview(instance)
 	_piece_preview_viewport.render_target_update_mode = SubViewport.UPDATE_ONCE

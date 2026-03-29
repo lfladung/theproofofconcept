@@ -3,6 +3,9 @@ extends RefCounted
 class_name DungeonRoomPreviewBuilder
 
 const GridMath = preload("res://addons/dungeon_room_editor/core/grid_math.gd")
+const RUNTIME_DIRT_FLOOR_SCENE := preload("res://art/environment/floors/dirt_brick_ground_texture.glb")
+const RUNTIME_METAL_FLOOR_SCENE := preload("res://art/environment/floors/metal_tile_floor_texture.glb")
+const RUNTIME_GRATE_FLOOR_SCENE := preload("res://art/environment/floors/grated_ground_floor_texture.glb")
 const FLOOR_SHELL_THICKNESS := 0.35
 const WALL_HEIGHT := 3.0
 const WALL_THICKNESS := 1.25
@@ -10,6 +13,7 @@ const FLOOR_COLOR := Color(0.48, 0.43, 0.37, 1.0)
 const WALL_COLOR := Color(0.30, 0.27, 0.24, 1.0)
 
 var _preview_aabb_by_scene_path: Dictionary = {}
+var _runtime_floor_material_cache: Dictionary = {}
 
 
 func rebuild_preview(root: Node3D, room: RoomBase, layout, catalog, visible_layer_filter: StringName = &"all") -> void:
@@ -61,12 +65,22 @@ func configure_piece_instance(
 ) -> void:
 	if instance == null:
 		return
+	apply_piece_visual_overrides(instance, piece)
 	if _should_fit_preview_to_grid(piece):
 		_apply_grid_fit_transform(instance, item, piece, layout, room)
 		return
 	var local_position := GridMath.grid_to_local(item.grid_position, layout, room)
 	instance.position = Vector3(local_position.x, 0.0, local_position.y)
 	instance.rotation = Vector3(0.0, -float(item.normalized_rotation_steps()) * PI * 0.5, 0.0)
+
+
+func apply_piece_visual_overrides(instance: Node3D, piece) -> void:
+	if instance == null or piece == null:
+		return
+	var runtime_floor_material := _runtime_floor_material_for_piece(piece)
+	if runtime_floor_material == null:
+		return
+	_apply_material_override(instance, runtime_floor_material)
 
 
 func _build_fallback_preview(
@@ -182,6 +196,89 @@ func _fallback_color_for_piece(piece) -> Color:
 
 func _should_fit_preview_to_grid(piece) -> bool:
 	return piece != null and piece.category == &"floor"
+
+
+func _runtime_floor_material_for_piece(piece) -> Material:
+	if piece == null or piece.category != &"floor":
+		return null
+	var theme_key := _runtime_floor_theme_for_piece(piece)
+	if theme_key.is_empty():
+		return null
+	if _runtime_floor_material_cache.has(theme_key):
+		return _runtime_floor_material_cache[theme_key] as Material
+	var source_scene: PackedScene = null
+	match theme_key:
+		"dirt":
+			source_scene = RUNTIME_DIRT_FLOOR_SCENE
+		"metal":
+			source_scene = RUNTIME_METAL_FLOOR_SCENE
+		"grate":
+			source_scene = RUNTIME_GRATE_FLOOR_SCENE
+		_:
+			source_scene = null
+	if source_scene == null:
+		return null
+	var material := _extract_first_surface_material(source_scene)
+	if material != null:
+		_runtime_floor_material_cache[theme_key] = material
+	return material
+
+
+func _runtime_floor_theme_for_piece(piece) -> String:
+	var piece_id := String(piece.piece_id).to_lower()
+	if piece_id.contains("wood") or piece_id.contains("foundation"):
+		return ""
+	if piece_id.contains("grate") or piece_id.contains("spike"):
+		return "grate"
+	if piece_id.contains("tile"):
+		return "metal"
+	if piece_id.contains("dirt"):
+		return "dirt"
+	return ""
+
+
+func _extract_first_surface_material(scene: PackedScene) -> Material:
+	if scene == null:
+		return null
+	var root := scene.instantiate() as Node3D
+	if root == null:
+		return null
+	var material: Material = null
+	for mesh_instance in _mesh_instances_in_root(root):
+		if mesh_instance.material_override != null:
+			material = mesh_instance.material_override
+			break
+		if mesh_instance.mesh == null:
+			continue
+		for surface_index in range(mesh_instance.mesh.get_surface_count()):
+			material = mesh_instance.mesh.surface_get_material(surface_index)
+			if material != null:
+				break
+		if material != null:
+			break
+	root.free()
+	return material
+
+
+func _apply_material_override(root: Node3D, material: Material) -> void:
+	if root == null or material == null:
+		return
+	for mesh_instance in _mesh_instances_in_root(root):
+		if mesh_instance.mesh == null:
+			continue
+		for surface_index in range(mesh_instance.mesh.get_surface_count()):
+			mesh_instance.set_surface_override_material(surface_index, material)
+
+
+func _mesh_instances_in_root(root: Node3D) -> Array[MeshInstance3D]:
+	var out: Array[MeshInstance3D] = []
+	if root is MeshInstance3D:
+		out.append(root as MeshInstance3D)
+	for candidate in root.find_children("*", "MeshInstance3D", true, false):
+		var mesh_instance := candidate as MeshInstance3D
+		if mesh_instance != null:
+			out.append(mesh_instance)
+	return out
 
 
 func _apply_grid_fit_transform(
