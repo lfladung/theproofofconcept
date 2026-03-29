@@ -4,11 +4,14 @@ const PLAYER_VISUAL_SCENE_PATH := "res://scenes/visuals/player_visual.tscn"
 
 var _player_visual: Node3D = null
 var _mode: String = "idle"
-var _camera_yaw_deg: float = 145.0
-var _camera_pitch_deg: float = -28.0
-var _camera_distance: float = 9.0
-var _camera_height_offset: float = 1.2
-var _auto_distance: bool = true
+var _camera_yaw_deg: float = 180.0
+var _camera_pitch_deg: float = -38.0
+var _camera_distance: float = 150.0
+var _camera_height_offset: float = 0.0
+var _auto_distance: bool = false
+var _camera_projection_mode: String = "orthogonal"
+var _camera_size: float = 50.0
+var _use_bounds_target: bool = false
 var _distance_multiplier: float = 1.25
 var _screenshot_path: String = ""
 var _screenshot_time: float = 0.75
@@ -20,6 +23,8 @@ var _next_attack_time: float = 0.0
 var _camera_target_override: Vector3 = Vector3.ZERO
 var _camera_target_ready: bool = false
 var _bounds_size: Vector3 = Vector3.ZERO
+var _armor_item: String = ""
+var _player_yaw_deg: float = 0.0
 
 
 func _ready() -> void:
@@ -80,6 +85,12 @@ func _parse_user_args() -> void:
 				_camera_height_offset = value.to_float()
 			"auto_distance":
 				_auto_distance = _parse_bool(value)
+			"camera_projection":
+				_camera_projection_mode = value.strip_edges().to_lower()
+			"camera_size":
+				_camera_size = maxf(0.1, value.to_float())
+			"use_bounds_target":
+				_use_bounds_target = _parse_bool(value)
 			"distance_multiplier":
 				_distance_multiplier = maxf(0.1, value.to_float())
 			"screenshot_path":
@@ -90,6 +101,10 @@ func _parse_user_args() -> void:
 				_auto_quit = _parse_bool(value)
 			"attack_interval":
 				_attack_interval_seconds = maxf(0.15, value.to_float())
+			"armor_item":
+				_armor_item = value.strip_edges()
+			"player_yaw":
+				_player_yaw_deg = value.to_float()
 
 
 func _parse_bool(value: String) -> bool:
@@ -107,26 +122,39 @@ func _spawn_player_visual() -> void:
 		push_error("[Capture] Failed to instantiate PlayerVisual")
 		return
 	add_child(_player_visual)
+	_player_visual.global_position = Vector3.ZERO
+	_player_visual.rotation = Vector3.ZERO
+	_player_visual.rotation_degrees.y = _player_yaw_deg
 
 	# Prevent preview-only behavior from affecting runtime captures.
 	_player_visual.set("preview_in_editor", false)
 	_player_visual.set("editor_preview_apply", false)
-	_player_visual.set("runtime_use_scene_authored_offsets", false)
+	if not _armor_item.is_empty():
+		_player_visual.call("set_armor_visual_item", StringName(_armor_item))
 
 
 func _configure_camera() -> void:
 	var camera: Camera3D = Camera3D.new()
 	camera.name = "CaptureCamera"
 	camera.current = true
-	camera.fov = 32.0
 	camera.near = 0.02
+	if _camera_projection_mode == "orthogonal" or _camera_projection_mode == "ortho":
+		camera.projection = Camera3D.PROJECTION_ORTHOGONAL
+		camera.size = _camera_size
+	else:
+		camera.projection = Camera3D.PROJECTION_PERSPECTIVE
+		camera.fov = 32.0
 	add_child(camera)
 
 	var target: Vector3 = Vector3(0.0, _camera_height_offset, 0.0)
-	if _camera_target_ready:
+	if _camera_target_ready and _use_bounds_target:
 		target = _camera_target_override + Vector3(0.0, _camera_height_offset, 0.0)
 	var effective_distance: float = _camera_distance
-	if _auto_distance and _camera_target_ready:
+	if (
+		_auto_distance
+		and _camera_target_ready
+		and camera.projection == Camera3D.PROJECTION_PERSPECTIVE
+	):
 		var frame_radius: float = maxf(_bounds_size.x, maxf(_bounds_size.y, _bounds_size.z)) * 0.5
 		var fov_rad: float = deg_to_rad(maxf(1.0, camera.fov))
 		var fit_distance: float = frame_radius / tan(fov_rad * 0.5)

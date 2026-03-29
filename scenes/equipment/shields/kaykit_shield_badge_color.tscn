@@ -1,0 +1,18 @@
+[gd_scene load_steps=4 format=3]
+
+[ext_resource type="PackedScene" path="res://art/characters/player/testing/shields/shield_badge_color.gltf" id="1_source"]
+[ext_resource type="Texture2D" path="res://art/characters/player/testing/shields/knight_texture.png" id="2_texture"]
+
+[sub_resource type="StandardMaterial3D" id="1_shield_mat"]
+albedo_texture = ExtResource("2_texture")
+metallic = 0.0
+roughness = 0.5
+cull_mode = 2
+
+[node name="KayKitShieldBadgeColor" type="Node3D"]
+
+[node name="ShieldGeometry" parent="." instance=ExtResource("1_source")]
+transform = Transform3D(3, 0, 0, 0, 3, 0, 0, 0, 3, 0, 0.05, 0.5)
+
+[node name="shield_badge_color" parent="ShieldGeometry" index="0"]
+surface_material_override/0 = SubResource("1_shield_mat")

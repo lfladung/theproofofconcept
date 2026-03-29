@@ -1,0 +1,49 @@
+[gd_scene load_steps=7 format=3]
+
+[ext_resource type="Script" path="res://scripts/effects/melee_crescent_projectile.gd" id="1_projectile"]
+
+[sub_resource type="Shader" id="1_crescent_shader"]
+code = "shader_type spatial;\nrender_mode blend_add, unshaded, cull_disabled, fog_disabled;\n\nuniform vec4 outer_color : source_color = vec4(0.22, 0.62, 1.0, 1.0);\nuniform vec4 inner_color : source_color = vec4(0.56, 0.86, 1.0, 1.0);\nuniform float effect_alpha : hint_range(0.0, 1.0) = 0.0;\nuniform float alpha_multiplier : hint_range(0.0, 2.0) = 1.0;\nuniform float inner_radius : hint_range(0.0, 1.5) = 0.46;\nuniform float outer_radius : hint_range(0.0, 1.5) = 0.95;\nuniform float arc_start_deg : hint_range(-180.0, 180.0) = -148.0;\nuniform float arc_end_deg : hint_range(-180.0, 180.0) = 38.0;\nuniform float edge_softness : hint_range(0.001, 0.4) = 0.08;\nuniform float axis_squash : hint_range(0.2, 3.0) = 1.35;\nuniform float emission_strength : hint_range(0.0, 8.0) = 2.1;\n\nvoid fragment() {\n\tvec2 uv = UV * 2.0 - vec2(1.0);\n\tuv.y *= axis_squash;\n\tfloat radius = length(uv);\n\tfloat angle = degrees(atan(uv.y, uv.x));\n\tfloat arc_gate = smoothstep(arc_start_deg - 12.0, arc_start_deg + 8.0, angle) * (1.0 - smoothstep(arc_end_deg - 8.0, arc_end_deg + 12.0, angle));\n\tfloat outer_falloff = 1.0 - smoothstep(outer_radius - edge_softness, outer_radius + edge_softness, radius);\n\tfloat inner_falloff = smoothstep(inner_radius - edge_softness, inner_radius + edge_softness, radius);\n\tfloat radial_band = outer_falloff * inner_falloff;\n\tfloat forward_bias = smoothstep(-0.45, 0.85, uv.x);\n\tfloat blade_core = smoothstep(0.12, 0.88, forward_bias);\n\tfloat alpha = radial_band * arc_gate * mix(0.45, 1.0, forward_bias) * effect_alpha * alpha_multiplier;\n\tvec3 color = mix(outer_color.rgb, inner_color.rgb, blade_core);\n\tALBEDO = color;\n\tEMISSION = color * emission_strength * mix(0.9, 1.25, blade_core);\n\tALPHA = alpha;\n}\n"
+
+[sub_resource type="ShaderMaterial" id="2_glow_mat"]
+shader = SubResource("1_crescent_shader")
+shader_parameter/effect_alpha = 0.0
+shader_parameter/alpha_multiplier = 0.58
+shader_parameter/inner_radius = 0.28
+shader_parameter/outer_radius = 1.08
+shader_parameter/arc_start_deg = -166.0
+shader_parameter/arc_end_deg = 58.0
+shader_parameter/edge_softness = 0.1
+shader_parameter/axis_squash = 1.08
+shader_parameter/emission_strength = 2.1
+
+[sub_resource type="ShaderMaterial" id="3_core_mat"]
+shader = SubResource("1_crescent_shader")
+shader_parameter/effect_alpha = 0.0
+shader_parameter/alpha_multiplier = 1.0
+shader_parameter/inner_radius = 0.36
+shader_parameter/outer_radius = 1.0
+shader_parameter/arc_start_deg = -154.0
+shader_parameter/arc_end_deg = 42.0
+shader_parameter/edge_softness = 0.075
+shader_parameter/axis_squash = 1.22
+shader_parameter/emission_strength = 2.55
+
+[sub_resource type="QuadMesh" id="4_glow_quad"]
+size = Vector2(4.4, 3.1)
+
+[sub_resource type="QuadMesh" id="5_core_quad"]
+size = Vector2(3.6, 2.5)
+
+[node name="MeleeSmear" type="Node3D"]
+script = ExtResource("1_projectile")
+
+[node name="CrescentGlow" type="MeshInstance3D" parent="."]
+transform = Transform3D(1.0875694, 0, 0, 0, 0.8480481, -0.52991927, 0, 0.52991927, 0.8480481, 0.18, 0.0, 0)
+mesh = SubResource("4_glow_quad")
+material_override = SubResource("2_glow_mat")
+
+[node name="CrescentCore" type="MeshInstance3D" parent="."]
+transform = Transform3D(1.0229976, 0, 0, 0, 0.92718387, -0.37460658, 0, 0.37460658, 0.92718387, 0.34, 0.0, 0)
+mesh = SubResource("5_core_quad")
+material_override = SubResource("3_core_mat")

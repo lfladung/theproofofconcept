@@ -417,6 +417,7 @@ func _build_visual_state_config() -> Dictionary:
 		&"walk": {
 			"scene": walk_scene,
 			"scene_scale": 114.5,
+			"facing_yaw_offset_deg": 0.0,
 			"keywords": ["walk", "run", "moving"],
 		},
 	}

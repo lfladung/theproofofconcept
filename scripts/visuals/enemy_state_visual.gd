@@ -14,6 +14,7 @@ var _active_anim_player: AnimationPlayer
 var _active_clip_name: StringName = &""
 var _playback_speed_scale := 1.0
 var _playback_paused := false
+var _active_facing_yaw_offset_deg := 180.0
 
 
 func _ready() -> void:
@@ -62,7 +63,7 @@ func get_current_state() -> StringName:
 func sync_from_2d(world_position: Vector2, facing_direction: Vector2) -> void:
 	global_position = Vector3(world_position.x, mesh_ground_y, world_position.y)
 	scale = mesh_scale
-	var yaw := deg_to_rad(facing_yaw_offset_deg)
+	var yaw := deg_to_rad(_active_facing_yaw_offset_deg)
 	if facing_direction.length_squared() > 0.0001:
 		yaw += atan2(facing_direction.x, facing_direction.y)
 	rotation = Vector3(
@@ -136,6 +137,7 @@ func _play_current_animation(config: Dictionary, restart: bool) -> float:
 
 
 func _apply_scene_config(config: Dictionary) -> void:
+	_active_facing_yaw_offset_deg = float(config.get("facing_yaw_offset_deg", facing_yaw_offset_deg))
 	if _active_clip_root == null:
 		return
 	var scene_scale_v: Variant = config.get("scene_scale", Vector3.ONE)

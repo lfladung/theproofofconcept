@@ -1,0 +1,105 @@
+[gd_resource type="Resource" script_class="RoomPieceCatalog" format=3 uid="uid://db1okbu8i3d50"]
+
+[ext_resource type="Script" uid="uid://ctant7ac8vwy" path="res://addons/dungeon_room_editor/resources/room_piece_catalog.gd" id="1"]
+[ext_resource type="Script" uid="uid://cv1132clnyk4" path="res://addons/dungeon_room_editor/resources/room_piece_definition.gd" id="2"]
+[ext_resource type="PackedScene" uid="uid://c0brfammuypyw" path="res://assets/structure/floors/floor_dirt_small_A.gltf" id="3"]
+[ext_resource type="PackedScene" uid="uid://cvtydkaomvpxx" path="res://assets/structure/walls/wall.gltf" id="4"]
+[ext_resource type="PackedScene" uid="uid://dem1aunwimaka" path="res://assets/structure/walls/wall_doorway.gltf" id="5"]
+[ext_resource type="PackedScene" uid="uid://ccmakxy3sjnyp" path="res://assets/props/barrel_large.gltf" id="6"]
+[ext_resource type="PackedScene" path="res://dungeon/modules/connectivity/exit_marker_2d.tscn" id="7"]
+[ext_resource type="PackedScene" path="res://dungeon/modules/gameplay/trap_tile_2d.tscn" id="8"]
+[ext_resource type="PackedScene" path="res://dungeon/modules/gameplay/treasure_chest_2d.tscn" id="9"]
+[ext_resource type="PackedScene" uid="uid://bpdwh15b4ecdw" path="res://assets/props/chest.gltf" id="10"]
+[ext_resource type="PackedScene" uid="uid://blq1yfdhyrtvy" path="res://assets/structure/floors/floor_tile_big_spikes.gltf" id="11"]
+
+[sub_resource type="Resource" id="RoomPieceDefinition_floor"]
+script = ExtResource("2")
+piece_id = &"floor_dirt_small_a"
+display_name = "Floor Dirt Small A"
+category = &"floor"
+preview_scene = ExtResource("3")
+allow_cell_overlap = true
+placement_layer = &"ground"
+default_tags = PackedStringArray("floor")
+
+[sub_resource type="Resource" id="RoomPieceDefinition_wall"]
+script = ExtResource("2")
+piece_id = &"wall_straight"
+display_name = "Wall Straight"
+category = &"wall"
+preview_scene = ExtResource("4")
+placement_layer = &"overlay"
+blocks_movement = true
+blocks_projectiles = true
+default_tags = PackedStringArray("wall")
+
+[sub_resource type="Resource" id="RoomPieceDefinition_door"]
+script = ExtResource("2")
+piece_id = &"door_socket_standard"
+display_name = "Door Socket Standard"
+category = &"door"
+preview_scene = ExtResource("5")
+mapping_kind = &"door_socket"
+placement_layer = &"overlay"
+default_tags = PackedStringArray("door")
+
+[sub_resource type="Resource" id="RoomPieceDefinition_spawn"]
+script = ExtResource("2")
+piece_id = &"spawn_melee_marker"
+display_name = "Spawn Melee Marker"
+category = &"spawn"
+mapping_kind = &"zone_marker"
+allow_cell_overlap = true
+placement_layer = &"overlay"
+default_tags = PackedStringArray("spawn")
+zone_type = "enemy_spawn"
+zone_role = &"melee"
+
+[sub_resource type="Resource" id="RoomPieceDefinition_exit"]
+script = ExtResource("2")
+piece_id = &"exit_marker"
+display_name = "Exit Marker"
+category = &"exit"
+runtime_scene = ExtResource("7")
+mapping_kind = &"runtime_scene"
+allow_cell_overlap = true
+placement_layer = &"overlay"
+default_tags = PackedStringArray("exit")
+
+[sub_resource type="Resource" id="RoomPieceDefinition_prop"]
+script = ExtResource("2")
+piece_id = &"barrel_blocker"
+display_name = "Barrel Blocker"
+category = &"prop"
+preview_scene = ExtResource("6")
+placement_layer = &"overlay"
+blocks_movement = true
+default_tags = PackedStringArray("prop", "blocker")
+
+[sub_resource type="Resource" id="RoomPieceDefinition_trap"]
+script = ExtResource("2")
+piece_id = &"trap_spike_tile"
+display_name = "Trap Spike Tile"
+category = &"trap"
+preview_scene = ExtResource("11")
+runtime_scene = ExtResource("8")
+mapping_kind = &"runtime_scene"
+allow_cell_overlap = true
+placement_layer = &"overlay"
+default_tags = PackedStringArray("trap")
+
+[sub_resource type="Resource" id="RoomPieceDefinition_treasure"]
+script = ExtResource("2")
+piece_id = &"treasure_chest"
+display_name = "Treasure Chest"
+category = &"treasure"
+preview_scene = ExtResource("10")
+runtime_scene = ExtResource("9")
+mapping_kind = &"runtime_scene"
+allow_cell_overlap = true
+placement_layer = &"overlay"
+default_tags = PackedStringArray("treasure")
+
+[resource]
+script = ExtResource("1")
+pieces = Array[Resource]([SubResource("RoomPieceDefinition_floor"), SubResource("RoomPieceDefinition_wall"), SubResource("RoomPieceDefinition_door"), SubResource("RoomPieceDefinition_spawn"), SubResource("RoomPieceDefinition_exit"), SubResource("RoomPieceDefinition_prop"), SubResource("RoomPieceDefinition_trap"), SubResource("RoomPieceDefinition_treasure")])

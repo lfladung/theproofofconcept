@@ -1,0 +1,291 @@
+{
+    "asset": {
+        "generator": "FBX2glTF v0.13.1",
+        "version": "2.0"
+    },
+    "scene": 0,
+    "buffers": [
+        {
+            "byteLength": 40304,
+            "uri": "chest.bin"
+        }
+    ],
+    "bufferViews": [
+        {
+            "buffer": 0,
+            "byteLength": 1596,
+            "byteOffset": 0,
+            "target": 34963
+        },
+        {
+            "buffer": 0,
+            "byteLength": 5628,
+            "byteOffset": 1596,
+            "target": 34962
+        },
+        {
+            "buffer": 0,
+            "byteLength": 5628,
+            "byteOffset": 7224,
+            "target": 34962
+        },
+        {
+            "buffer": 0,
+            "byteLength": 3752,
+            "byteOffset": 12852,
+            "target": 34962
+        },
+        {
+            "buffer": 0,
+            "byteLength": 2772,
+            "byteOffset": 16604,
+            "target": 34963
+        },
+        {
+            "buffer": 0,
+            "byteLength": 7848,
+            "byteOffset": 19376,
+            "target": 34962
+        },
+        {
+            "buffer": 0,
+            "byteLength": 7848,
+            "byteOffset": 27224,
+            "target": 34962
+        },
+        {
+            "buffer": 0,
+            "byteLength": 5232,
+            "byteOffset": 35072,
+            "target": 34962
+        }
+    ],
+    "scenes": [
+        {
+            "name": "Root Scene",
+            "nodes": [
+                0
+            ]
+        }
+    ],
+    "accessors": [
+        {
+            "componentType": 5123,
+            "type": "SCALAR",
+            "count": 798,
+            "bufferView": 0,
+            "byteOffset": 0
+        },
+        {
+            "componentType": 5126,
+            "type": "VEC3",
+            "count": 469,
+            "bufferView": 1,
+            "byteOffset": 0,
+            "min": [
+                -0.00800000037997961,
+                -0.00645802542567253,
+                -2.38418573772492e-09
+            ],
+            "max": [
+                0.00800000037997961,
+                0.00600000377744436,
+                0.00599999818950891
+            ]
+        },
+        {
+            "componentType": 5126,
+            "type": "VEC3",
+            "count": 469,
+            "bufferView": 2,
+            "byteOffset": 0
+        },
+        {
+            "componentType": 5126,
+            "type": "VEC2",
+            "count": 469,
+            "bufferView": 3,
+            "byteOffset": 0
+        },
+        {
+            "componentType": 5123,
+            "type": "SCALAR",
+            "count": 1386,
+            "bufferView": 4,
+            "byteOffset": 0
+        },
+        {
+            "componentType": 5126,
+            "type": "VEC3",
+            "count": 654,
+            "bufferView": 5,
+            "byteOffset": 0,
+            "min": [
+                -0.008500000461936,
+                -0.0131068620830774,
+                -0.00165002257563174
+            ],
+            "max": [
+                0.008500000461936,
+                0.00135117559693754,
+                0.00800000037997961
+            ]
+        },
+        {
+            "componentType": 5126,
+            "type": "VEC3",
+            "count": 654,
+            "bufferView": 6,
+            "byteOffset": 0
+        },
+        {
+            "componentType": 5126,
+            "type": "VEC2",
+            "count": 654,
+            "bufferView": 7,
+            "byteOffset": 0
+        }
+    ],
+    "images": [
+        {
+            "name": "dungeon_texture.png",
+            "uri": "dungeon_texture.png"
+        }
+    ],
+    "samplers": [
+        {}
+    ],
+    "textures": [
+        {
+            "name": "base_color_texture",
+            "sampler": 0,
+            "source": 0
+        }
+    ],
+    "materials": [
+        {
+            "name": "texture",
+            "alphaMode": "OPAQUE",
+            "doubleSided": false,
+            "extras": {
+                "fromFBX": {
+                    "shadingModel": "Phong",
+                    "isTruePBR": false
+                }
+            },
+            "pbrMetallicRoughness": {
+                "baseColorTexture": {
+                    "index": 0,
+                    "texCoord": 0
+                },
+                "baseColorFactor": [
+                    1.0,
+                    1.0,
+                    1.0,
+                    1.0
+                ],
+                "metallicFactor": 0.400000005960464,
+                "roughnessFactor": 0.249029114842415
+            }
+        }
+    ],
+    "meshes": [
+        {
+            "name": "chest",
+            "primitives": [
+                {
+                    "material": 0,
+                    "mode": 4,
+                    "attributes": {
+                        "NORMAL": 2,
+                        "POSITION": 1,
+                        "TEXCOORD_0": 3
+                    },
+                    "indices": 0
+                }
+            ]
+        },
+        {
+            "name": "chest_lid",
+            "primitives": [
+                {
+                    "material": 0,
+                    "mode": 4,
+                    "attributes": {
+                        "NORMAL": 6,
+                        "POSITION": 5,
+                        "TEXCOORD_0": 7
+                    },
+                    "indices": 4
+                }
+            ]
+        }
+    ],
+    "nodes": [
+        {
+            "name": "RootNode",
+            "translation": [
+                0.0,
+                0.0,
+                0.0
+            ],
+            "rotation": [
+                0.0,
+                0.0,
+                0.0,
+                1.0
+            ],
+            "scale": [
+                1.0,
+                1.0,
+                1.0
+            ],
+            "children": [
+                1
+            ]
+        },
+        {
+            "name": "chest",
+            "translation": [
+                0.0,
+                0.0,
+                0.0
+            ],
+            "rotation": [
+                -0.707106828689575,
+                0.0,
+                0.0,
+                0.707106709480286
+            ],
+            "scale": [
+                100.0,
+                100.0,
+                100.0
+            ],
+            "children": [
+                2
+            ],
+            "mesh": 0
+        },
+        {
+            "name": "chest_lid",
+            "translation": [
+                0.0,
+                0.00564883230254054,
+                0.00499999988824129
+            ],
+            "rotation": [
+                -1.32348898008484e-23,
+                -0.0,
+                0.0,
+                1.0
+            ],
+            "scale": [
+                1.0,
+                1.0,
+                1.0
+            ],
+            "mesh": 1
+        }
+    ]
+}

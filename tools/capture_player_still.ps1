@@ -2,10 +2,14 @@ param(
     [string]$Mode = "idle",
     [string]$OutFile = "",
     [double]$ScreenshotTime = 0.85,
-    [double]$CameraYaw = 145,
-    [double]$CameraPitch = -28,
-    [double]$CameraDistance = 9.0,
-    [double]$CameraHeightOffset = 1.2,
+    [double]$CameraYaw = 180,
+    [double]$CameraPitch = -38,
+    [double]$CameraDistance = 150.0,
+    [double]$CameraHeightOffset = 0.0,
+    [string]$CameraProjection = "orthogonal",
+    [double]$CameraSize = 50.0,
+    [bool]$UseBoundsTarget = $false,
+    [double]$PlayerYaw = 0.0,
     [string]$GodotExe = ""
 )
 
@@ -58,7 +62,11 @@ $cmdArgs = @(
     "--camera_yaw=$CameraYaw",
     "--camera_pitch=$CameraPitch",
     "--camera_distance=$CameraDistance",
-    "--camera_height_offset=$CameraHeightOffset"
+    "--camera_height_offset=$CameraHeightOffset",
+    "--camera_projection=$CameraProjection",
+    "--camera_size=$CameraSize",
+    "--use_bounds_target=$UseBoundsTarget",
+    "--player_yaw=$PlayerYaw"
 )
 
 Write-Host "Godot:   $GodotExe"

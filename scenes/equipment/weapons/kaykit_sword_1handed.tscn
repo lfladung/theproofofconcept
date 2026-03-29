@@ -1,0 +1,18 @@
+[gd_scene load_steps=4 format=3]
+
+[ext_resource type="PackedScene" path="res://art/characters/player/testing/swords/sword_1handed.gltf" id="1_source"]
+[ext_resource type="Texture2D" path="res://art/characters/player/testing/swords/knight_texture.png" id="2_texture"]
+
+[sub_resource type="StandardMaterial3D" id="1_sword_mat"]
+albedo_texture = ExtResource("2_texture")
+metallic = 0.0
+roughness = 0.5
+cull_mode = 2
+
+[node name="KayKitSword1Handed" type="Node3D"]
+
+[node name="SwordGeometry" parent="." instance=ExtResource("1_source")]
+transform = Transform3D(3, 0, 0, 0, 3, 0, 0, 0, 3, 0, 0, 0)
+
+[node name="sword_1handed" parent="SwordGeometry" index="0"]
+surface_material_override/0 = SubResource("1_sword_mat")

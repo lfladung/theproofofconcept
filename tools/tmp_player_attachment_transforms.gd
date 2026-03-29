@@ -18,6 +18,8 @@ func _init() -> void:
 		print("no pv")
 		quit(1)
 		return
+	pv.call("set_handgun_active", true)
+	await process_frame
 	_p(pv, "pv")
 	_p(_find(pv, "Meshy/Armature/Skeleton3D"), "skel")
 	_p(_find(pv, "ArmorAttachment"), "armor_root")
@@ -26,4 +28,11 @@ func _init() -> void:
 	_p(_find(pv, "HelmetAttachment"), "helmet_root")
 	_p(_find(pv, "HelmetAttachment/HelmetOffset"), "helmet_offset")
 	_p(_find(pv, "HelmetAttachment/HelmetOffset/EquipmentHelmetMesh"), "helmet_mesh")
+	_p(_find(pv, "ShieldAttachment"), "shield_root")
+	_p(_find(pv, "ShieldAttachment/ShieldOffset"), "shield_offset")
+	_p(_find(pv, "ShieldAttachment/ShieldOffset/EquipmentShieldMesh"), "shield_mesh")
+	_p(_find(pv, "ShieldAttachment/ShieldOffset/EquipmentShieldMesh/ShieldGeometry"), "shield_geometry")
+	_p(_find(pv, "HandgunAttachment"), "handgun_root")
+	_p(_find(pv, "HandgunAttachment/HandgunOffset"), "handgun_offset")
+	_p(_find(pv, "HandgunAttachment/HandgunOffset/HandgunMesh"), "handgun_mesh")
 	quit(0)

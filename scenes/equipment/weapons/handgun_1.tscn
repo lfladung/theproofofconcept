@@ -1,0 +1,8 @@
+[gd_scene format=3 uid="uid://sobfyos13okp"]
+
+[ext_resource type="PackedScene" uid="uid://dnbxp4rqhau1v" path="res://art/equipment/weapons/handguns/handgun1.glb" id="1_source"]
+
+[node name="Handgun1" type="Node3D" unique_id=905496968]
+
+[node name="HandgunGeometry" parent="." unique_id=1304567018 instance=ExtResource("1_source")]
+transform = Transform3D(3, 0, 0, 0, 2.23213, 2.0043936, 0, -2.0043936, 2.23213, 0, 0, 0)

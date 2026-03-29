@@ -1,5 +1,8 @@
+@tool
 extends Node2D
 class_name RoomBase
+
+const _GENERATED_BY_ROOM_EDITOR := ^"GeneratedByRoomEditor"
 
 @export var room_id := "room_base_template"
 @export_enum("small", "medium", "large", "arena")
@@ -13,7 +16,7 @@ var origin_mode := "center"
 @export var room_size_tiles := Vector2i(24, 24)
 @export var allowed_rotations: PackedInt32Array = [0, 90, 180, 270]
 @export var standard_room_sizes: PackedInt32Array = [10, 16, 24, 32]
-@export var room_tags: PackedStringArray = []
+@export var room_tags: PackedStringArray = ["arena"]
 @export var allowed_connection_types: PackedStringArray = ["corridor", "connector", "arena"]
 @export var safe_room := false
 @export var secret_room := false
@@ -25,22 +28,28 @@ var origin_mode := "center"
 @export var max_tile_budget := 1024
 @export var max_prop_density := 0.35
 @export var vertical_layer := 0
+@export var authored_layout: Resource
 
 @onready var _layout: Node2D = $Layout
 @onready var _sockets: Node2D = $Sockets
 @onready var _zones: Node2D = $Zones
+@onready var _gameplay: Node2D = $Gameplay
+@onready var _visual_3d_proxy: Node3D = $Visual3DProxy
 
 
 func _ready() -> void:
 	add_to_group(&"room")
 	_apply_layer_z_index()
 	# These are authoring-time contract checks; keep runtime logs clean.
-	if Engine.is_editor_hint():
+	if Engine.is_editor_hint() and _should_run_editor_validation():
 		_validate_room_rules()
 
 
 func get_all_sockets() -> Array[DoorSocket2D]:
 	var sockets: Array[DoorSocket2D] = []
+	var generated_only := _generated_socket_children()
+	if not generated_only.is_empty():
+		return generated_only
 	for child in _sockets.get_children():
 		if child is DoorSocket2D:
 			sockets.append(child)
@@ -57,13 +66,34 @@ func get_socket_by_direction(direction: String) -> Array[DoorSocket2D]:
 
 func get_zone_markers() -> Array[ZoneMarker2D]:
 	var markers: Array[ZoneMarker2D] = []
+	var generated_only := _generated_zone_children()
+	if not generated_only.is_empty():
+		return generated_only
 	for child in _zones.get_children():
 		if child is ZoneMarker2D:
 			markers.append(child)
 	return markers
 
 
+func get_generated_sockets_root() -> Node2D:
+	return _sockets.get_node_or_null(_GENERATED_BY_ROOM_EDITOR) as Node2D
+
+
+func get_generated_zones_root() -> Node2D:
+	return _zones.get_node_or_null(_GENERATED_BY_ROOM_EDITOR) as Node2D
+
+
+func get_generated_gameplay_root() -> Node2D:
+	return _gameplay.get_node_or_null(_GENERATED_BY_ROOM_EDITOR) as Node2D
+
+
+func get_generated_visual_root() -> Node3D:
+	return _visual_3d_proxy.get_node_or_null(_GENERATED_BY_ROOM_EDITOR) as Node3D
+
+
 func get_room_rect_tiles() -> Rect2i:
+	if origin_mode == "top_left":
+		return Rect2i(Vector2i.ZERO, room_size_tiles)
 	var half_size := Vector2i(
 		floori(float(room_size_tiles.x) * 0.5),
 		floori(float(room_size_tiles.y) * 0.5)
@@ -134,6 +164,9 @@ func _validate_grid_compliance() -> void:
 		push_warning("Room '%s' should use square tile units. Current tile size: %s." % [room_id, tile_size])
 	if room_size_tiles.x <= 0 or room_size_tiles.y <= 0:
 		push_warning("Room '%s' has invalid room size %s." % [room_id, room_size_tiles])
+	if _is_room_editor_authoring_context():
+		_validate_socket_grid_alignment()
+		return
 	var width_standard := standard_room_sizes.has(room_size_tiles.x)
 	var height_standard := standard_room_sizes.has(room_size_tiles.y)
 	if not width_standard or not height_standard:
@@ -149,6 +182,8 @@ func _validate_grid_compliance() -> void:
 
 
 func _validate_closed_boundary_contract() -> void:
+	if _is_blank_authoring_room() or _uses_authored_layout_workflow():
+		return
 	var walls_layer := _layout.get_node_or_null(^"TileWalls") as TileMapLayer
 	if walls_layer == null:
 		push_warning("Room '%s' is missing Layout/TileWalls." % room_id)
@@ -211,6 +246,8 @@ func _validate_origin_standard() -> void:
 
 
 func _validate_room_classification() -> void:
+	if _is_blank_authoring_room():
+		return
 	if not room_tags.has(room_type):
 		push_warning(
 			"Room '%s' room_tags should include room_type '%s' for generator filtering." % [room_id, room_type]
@@ -231,6 +268,8 @@ func _validate_connection_compatibility() -> void:
 
 
 func _validate_tile_budget() -> void:
+	if _is_room_editor_authoring_context():
+		return
 	var tile_count := room_size_tiles.x * room_size_tiles.y
 	if tile_count > max_tile_budget:
 		push_warning(
@@ -264,3 +303,52 @@ func _socket_is_on_boundary(socket: DoorSocket2D, world_rect: Rect2) -> bool:
 		or absf(socket.position.y - top) <= half_tile_y
 		or absf(socket.position.y - bottom) <= half_tile_y
 	)
+
+
+func _generated_socket_children() -> Array[DoorSocket2D]:
+	var root := get_generated_sockets_root()
+	var out: Array[DoorSocket2D] = []
+	if root == null:
+		return out
+	for child in root.get_children():
+		if child is DoorSocket2D:
+			out.append(child)
+	return out
+
+
+func _generated_zone_children() -> Array[ZoneMarker2D]:
+	var root := get_generated_zones_root()
+	var out: Array[ZoneMarker2D] = []
+	if root == null:
+		return out
+	for child in root.get_children():
+		if child is ZoneMarker2D:
+			out.append(child)
+	return out
+
+
+func _should_run_editor_validation() -> bool:
+	if _is_base_template_scene():
+		return false
+	return true
+
+
+func _is_base_template_scene() -> bool:
+	return scene_file_path == "res://dungeon/rooms/base/room_base.tscn"
+
+
+func _is_blank_authoring_room() -> bool:
+	var walls_layer := _layout.get_node_or_null(^"TileWalls") as TileMapLayer
+	var has_wall_tiles := walls_layer != null and not walls_layer.get_used_cells().is_empty()
+	return not has_wall_tiles and not _uses_authored_layout_workflow()
+
+
+func _uses_authored_layout_workflow() -> bool:
+	if authored_layout == null:
+		return false
+	var items = authored_layout.get("items")
+	return items is Array and not (items as Array).is_empty()
+
+
+func _is_room_editor_authoring_context() -> bool:
+	return Engine.is_editor_hint() and authored_layout != null

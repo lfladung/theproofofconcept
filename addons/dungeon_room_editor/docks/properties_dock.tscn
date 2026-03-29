@@ -1,0 +1,196 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://addons/dungeon_room_editor/docks/properties_dock.gd" id="1"]
+
+[node name="PropertiesDock" type="ScrollContainer"]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("1")
+
+[node name="Content" type="VBoxContainer" parent="."]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+theme_override_constants/separation = 10
+
+[node name="RoomTitle" type="Label" parent="Content"]
+layout_mode = 2
+text = "Room Properties"
+
+[node name="RoomIdLabel" type="Label" parent="Content"]
+layout_mode = 2
+text = "Room ID"
+
+[node name="RoomIdLine" type="LineEdit" parent="Content"]
+unique_name_in_owner = true
+layout_mode = 2
+
+[node name="RoomTagsLabel" type="Label" parent="Content"]
+layout_mode = 2
+text = "Tags (comma separated)"
+
+[node name="RoomTagsLine" type="LineEdit" parent="Content"]
+unique_name_in_owner = true
+layout_mode = 2
+
+[node name="EnemyGroupsLabel" type="Label" parent="Content"]
+layout_mode = 2
+text = "Recommended Enemy Groups"
+
+[node name="EnemyGroupsLine" type="LineEdit" parent="Content"]
+unique_name_in_owner = true
+layout_mode = 2
+
+[node name="OriginModeLabel" type="Label" parent="Content"]
+layout_mode = 2
+text = "Origin Mode"
+
+[node name="OriginModeOption" type="OptionButton" parent="Content"]
+unique_name_in_owner = true
+layout_mode = 2
+
+[node name="RoomSizeLabel" type="Label" parent="Content"]
+layout_mode = 2
+text = "Room Size (tiles)"
+
+[node name="RoomSizeRow" type="HBoxContainer" parent="Content"]
+layout_mode = 2
+
+[node name="RoomWidthSpin" type="SpinBox" parent="Content/RoomSizeRow"]
+unique_name_in_owner = true
+layout_mode = 2
+min_value = 1.0
+max_value = 2048.0
+step = 1.0
+value = 24.0
+rounded = true
+
+[node name="RoomHeightSpin" type="SpinBox" parent="Content/RoomSizeRow"]
+unique_name_in_owner = true
+layout_mode = 2
+min_value = 1.0
+max_value = 2048.0
+step = 1.0
+value = 24.0
+rounded = true
+
+[node name="Separator1" type="HSeparator" parent="Content"]
+layout_mode = 2
+
+[node name="SelectionTitle" type="Label" parent="Content"]
+layout_mode = 2
+text = "Selected Item"
+
+[node name="SelectedPieceLabel" type="Label" parent="Content"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "No selection"
+
+[node name="GridLabel" type="Label" parent="Content"]
+layout_mode = 2
+text = "Grid Position"
+
+[node name="GridRow" type="HBoxContainer" parent="Content"]
+layout_mode = 2
+
+[node name="GridXSpin" type="SpinBox" parent="Content/GridRow"]
+unique_name_in_owner = true
+layout_mode = 2
+min_value = -512.0
+max_value = 512.0
+step = 1.0
+rounded = true
+
+[node name="GridYSpin" type="SpinBox" parent="Content/GridRow"]
+unique_name_in_owner = true
+layout_mode = 2
+min_value = -512.0
+max_value = 512.0
+step = 1.0
+rounded = true
+
+[node name="RotationLabel" type="Label" parent="Content"]
+layout_mode = 2
+text = "Rotation"
+
+[node name="RotationOption" type="OptionButton" parent="Content"]
+unique_name_in_owner = true
+layout_mode = 2
+
+[node name="PlacementLayerLabel" type="Label" parent="Content"]
+layout_mode = 2
+text = "Placement Layer"
+
+[node name="PlacementLayerOption" type="OptionButton" parent="Content"]
+unique_name_in_owner = true
+layout_mode = 2
+
+[node name="ItemTagsLabel" type="Label" parent="Content"]
+layout_mode = 2
+text = "Tags (comma separated)"
+
+[node name="ItemTagsLine" type="LineEdit" parent="Content"]
+unique_name_in_owner = true
+layout_mode = 2
+
+[node name="EncounterLabel" type="Label" parent="Content"]
+layout_mode = 2
+text = "Encounter / Spawn Group"
+
+[node name="EncounterGroupLine" type="LineEdit" parent="Content"]
+unique_name_in_owner = true
+layout_mode = 2
+
+[node name="BlocksMovementCheck" type="CheckBox" parent="Content"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "Blocks Movement"
+
+[node name="BlocksProjectilesCheck" type="CheckBox" parent="Content"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "Blocks Projectiles"
+
+[node name="Separator2" type="HSeparator" parent="Content"]
+layout_mode = 2
+
+[node name="JsonTitle" type="Label" parent="Content"]
+layout_mode = 2
+text = "JSON"
+
+[node name="JsonButtonRow" type="HBoxContainer" parent="Content"]
+layout_mode = 2
+
+[node name="ExportButton" type="Button" parent="Content/JsonButtonRow"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "Export JSON"
+
+[node name="ImportButton" type="Button" parent="Content/JsonButtonRow"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "Import JSON"
+
+[node name="StatusLabel" type="Label" parent="Content"]
+unique_name_in_owner = true
+layout_mode = 2
+autowrap_mode = 2
+
+[node name="ExportDialog" type="FileDialog" parent="Content"]
+unique_name_in_owner = true
+access = 2
+file_mode = 4
+filters = PackedStringArray("*.json ; JSON")
+
+[node name="ImportDialog" type="FileDialog" parent="Content"]
+unique_name_in_owner = true
+access = 2
+file_mode = 0
+filters = PackedStringArray("*.json ; JSON")

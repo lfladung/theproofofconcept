@@ -40,7 +40,7 @@ enum EditorAnimationPreview {
 # Sword attachment tuning.
 # This is applied by programmatically attaching the sword to a bone inside the imported GLB skeleton,
 # then toggling the whole `SwordAttachment` container via `set_sword_active()`.
-@export var sword_mesh_path: String = "res://scenes/equipment/weapons/sword_texture.tscn"
+@export var sword_mesh_path: String = "res://scenes/equipment/weapons/kaykit_sword_1handed.tscn"
 @export var sword_bone_name_override: StringName = &"RightHand"
 @export var sword_bone_keywords: Array[String] = ["hand", "weapon", "sword", "blade", "arm"]
 @export var sword_local_offset: Vector3 = Vector3.ZERO
@@ -58,6 +58,20 @@ enum EditorAnimationPreview {
 @export var sword_attack_recover_offset_delta: Vector3 = Vector3(0.14, -0.06, 0.12)
 @export var sword_attack_recover_rotation_delta_deg: Vector3 = Vector3(0.0, -28.0, -6.0)
 @export var sword_attack_scale_mult: Vector3 = Vector3.ONE
+@export var melee_smear_enabled: bool = true
+@export var melee_smear_scene_path: String = "res://scenes/effects/melee_smear.tscn"
+@export_range(0.0, 1.0, 0.01) var melee_smear_window_start: float = 0.16
+@export_range(0.0, 1.0, 0.01) var melee_smear_window_end: float = 0.74
+@export var melee_smear_local_offset: Vector3 = Vector3(0.86, 0.18, 0.0)
+@export var melee_smear_local_rotation_deg: Vector3 = Vector3(0.0, 0.0, 104.0)
+@export var melee_smear_base_scale: Vector3 = Vector3(1.45, 1.2, 1.1)
+@export var melee_smear_peak_scale: Vector3 = Vector3(3.4, 1.95, 1.35)
+@export var melee_smear_swing_offset: Vector3 = Vector3(1.05, -0.08, 0.0)
+@export var melee_smear_rotation_sweep_deg: Vector3 = Vector3(0.0, 0.0, 74.0)
+@export_range(0.0, 1.0, 0.01) var melee_smear_max_alpha: float = 1.0
+@export var melee_smear_projectile_lifetime: float = 0.22
+@export var melee_smear_projectile_travel_distance: float = 2.8
+@export var melee_smear_projectile_spawn_scale: float = 1.8
 @export var sword_force_visibility_material: bool = true
 @export var equipment_force_visibility_material: bool = true
 @export var sword_show_debug_proxy: bool = false
@@ -77,57 +91,64 @@ enum EditorAnimationPreview {
 @export var equipment_bomb_root_path: NodePath = NodePath("BombAttachment")
 @export var equipment_preserve_editor_offsets: bool = false
 @export var runtime_spawn_equipment_if_missing: bool = false
-@export var equipment_chest_scene_path: String = "res://scenes/equipment/armor/red_chestplate.tscn"
+@export var equipment_chest_scene_path: String = ""
 @export var equipment_legs_scene_path: String = "res://scenes/equipment/armor/legs_v02.tscn"
-@export var equipment_helmet_scene_path: String = "res://scenes/equipment/helmet/helmet_knight_base.tscn"
-@export var equipment_shield_scene_path: String = "res://scenes/equipment/shields/base_model_v01_shield.tscn"
-@export var equipment_handgun_scene_path: String = "res://scenes/equipment/weapons/handgun_placeholder.tscn"
+@export var equipment_helmet_scene_path: String = ""
+@export var equipment_shield_scene_path: String = "res://scenes/equipment/shields/kaykit_shield_round_color.tscn"
+@export var equipment_handgun_scene_path: String = "res://scenes/equipment/weapons/handgun_1.tscn"
 @export var equipment_bomb_scene_path: String = "res://scenes/equipment/bombs/bomb_round_placeholder.tscn"
-@export var equipment_chest_bone_override: StringName = &"Spine02"
+@export var equipment_chest_bone_override: StringName = &"chest"
 @export var equipment_legs_bone_override: StringName = &"Hips"
 @export var equipment_helmet_bone_override: StringName = &"Head"
-@export var equipment_helmet_rotation_bone_override: StringName = &"Spine02"
+@export var equipment_helmet_rotation_bone_override: StringName = &"chest"
 @export var equipment_helmet_yaw_only_follow: bool = true
-@export var equipment_shield_bone_override: StringName = &"LeftHand"
-@export var equipment_handgun_bone_override: StringName = &"RightHand"
-@export var equipment_bomb_bone_override: StringName = &"Spine02"
+@export var equipment_shield_bone_override: StringName = &"handslot.l"
+@export var equipment_handgun_bone_override: StringName = &"handslot.r"
+@export var equipment_bomb_bone_override: StringName = &"chest"
 @export var equipment_chest_local_offset: Vector3 = Vector3(0.0, 0.04, 0.30)
 @export var equipment_legs_local_offset: Vector3 = Vector3.ZERO
 @export var equipment_helmet_local_offset: Vector3 = Vector3(0.0, 1.08, 0.08)
 @export var equipment_shield_local_offset: Vector3 = Vector3(0.02, -0.08, 0.0)
-@export var equipment_handgun_local_offset: Vector3 = Vector3(0.06, -0.02, -0.04)
+@export var equipment_handgun_local_offset: Vector3 = Vector3(0.02, 0.0, 0.02)
 @export var equipment_bomb_local_offset: Vector3 = Vector3(0.14, 0.08, -0.12)
 @export var equipment_chest_local_rotation_deg: Vector3 = Vector3.ZERO
 @export var equipment_legs_local_rotation_deg: Vector3 = Vector3.ZERO
 @export var equipment_helmet_local_rotation_deg: Vector3 = Vector3.ZERO
 @export var equipment_shield_local_rotation_deg: Vector3 = Vector3(0.0, 0.0, 90.0)
-@export var equipment_handgun_local_rotation_deg: Vector3 = Vector3(0.0, 0.0, 90.0)
+@export var equipment_handgun_local_rotation_deg: Vector3 = Vector3(28.0, 262.0, -18.0)
 @export var equipment_bomb_local_rotation_deg: Vector3 = Vector3(0.0, 0.0, 0.0)
 @export var equipment_chest_local_scale: Vector3 = Vector3(1.55, 1.55, 1.55)
 @export var equipment_legs_local_scale: Vector3 = Vector3.ONE
 @export var equipment_helmet_local_scale: Vector3 = Vector3(2.20, 2.20, 2.20)
 @export var equipment_shield_local_scale: Vector3 = Vector3.ONE
-@export var equipment_handgun_local_scale: Vector3 = Vector3(0.22, 0.22, 0.22)
+@export var equipment_handgun_local_scale: Vector3 = Vector3(1.5, 1.5, 1.5)
 @export var equipment_bomb_local_scale: Vector3 = Vector3(0.45, 0.45, 0.45)
-@export var hide_base_head_when_helmet_equipped: bool = true
+@export var hide_base_head_when_helmet_equipped: bool = false
 @export var hidden_head_bone_scale: Vector3 = Vector3(0.001, 0.001, 0.001)
+@export var base_model_visor_detached_enabled: bool = true
+@export var base_model_visor_root_path: NodePath = NodePath("BaseModelVisorAttachment")
+@export var base_model_visor_bone_override: StringName = &"head"
+@export var knight_default_texture_path: String = "res://art/characters/player/testing/knight_texture_green.png"
+@export var knight_alternate_texture_path: String = "res://art/characters/player/testing/knight_texture.png"
 
 @export var walk_speed_threshold := 8.0
 @export var attack_duration_seconds := 1.0
 @export var idle_clip_hint := "idle"
-@export var run_clip_hint := "run"
-@export var melee_clip_hint := "left_slash"
-@export var ranged_clip_hint := "attack"
-@export var bomb_clip_hint := "attack"
-@export var defend_clip_hint := "parry"
+@export var run_clip_hint := "running"
+@export var melee_clip_hint := "slice"
+@export var ranged_clip_hint := "aim"
+@export var bomb_clip_hint := "throw"
+@export var defend_clip_hint := "block"
 @export var downed_clip_hint := "death"
 
 const _IDLE_GLB_CANDIDATES := [
+	"res://art/characters/player/testing/animations/Idle_A.glb",
 	"res://art/characters/player/Model_Idle_v2.glb",
 	"res://art/characters/player/Model_Idle.glb",
 	"res://art/characters/player/Base_Model_V01_Idle.glb",
 ]
 const _BASE_MODEL_GLB_CANDIDATES := [
+	"res://art/characters/player/testing/Knight.glb",
 	"res://art/characters/player/Model_model.glb",
 	"res://art/characters/player/Model_Idle_v2.glb",
 	"res://art/characters/player/Model_Idle.glb",
@@ -136,26 +157,37 @@ const _BASE_MODEL_GLB_CANDIDATES := [
 	"res://art/characters/player/Base_Model_V01.glb",
 ]
 const _BASE_MODEL_TPOSE_GLB_CANDIDATES := [
+	"res://art/characters/player/testing/Knight.glb",
 	"res://art/characters/player/Model_model.glb",
 	"res://art/characters/player/Base_Model_V01.glb",
 	"res://art/characters/player/Base_Model_V01_rigged.glb",
 	"res://art/characters/player/Base_Model_V01_Idle.glb",
 ]
 const _RUN_GLB_CANDIDATES := [
+	"res://art/characters/player/testing/animations/Running_A.glb",
 	"res://art/characters/player/Model_Running.glb",
 	"res://art/characters/player/Base_Model_V01_Animation_Walking.glb",
 	"res://art/characters/player/Base_Model_V01_Running.glb",
 ]
 const _SLASH_GLB_CANDIDATES := [
+	"res://art/characters/player/testing/animations/Melee_1H_Attack_Slice_Horizontal.glb",
 	"res://art/characters/player/Attack_left_slash.glb",
 	"res://art/characters/player/Model_Attack.glb",
 	"res://art/characters/player/Base_Model_V01_Attack.glb",
 ]
+const _RANGED_GLB_CANDIDATES := [
+	"res://art/characters/player/testing/animations/Ranged_1H_Aiming.glb",
+]
+const _BOMB_GLB_CANDIDATES := [
+	"res://art/characters/player/testing/animations/Throw_Bomb.glb",
+]
 const _DEFEND_GLB_CANDIDATES := [
+	"res://art/characters/player/testing/animations/Melee_Blocking.glb",
 	"res://art/characters/player/Model_Block.glb",
 	"res://art/characters/player/Base_Model_V01_Block.glb",
 ]
 const _DOWNED_GLB_CANDIDATES := [
+	"res://art/characters/player/testing/animations/Death_A.glb",
 	"res://art/characters/player/Model_Death.glb",
 	"res://art/characters/player/Base_Model_V01_dying_backwards.glb",
 ]
@@ -165,6 +197,8 @@ const _EQUIPMENT_HELMET_BONE_KEYWORDS: Array[String] = ["head", "neck"]
 const _EQUIPMENT_SHIELD_BONE_KEYWORDS: Array[String] = ["lefthand", "left_hand", "hand", "forearm", "arm"]
 const _EQUIPMENT_HANDGUN_BONE_KEYWORDS: Array[String] = ["righthand", "right_hand", "hand", "weapon", "arm"]
 const _EQUIPMENT_BOMB_BONE_KEYWORDS: Array[String] = ["spine", "chest", "torso", "back", "hips"]
+const _BASE_MODEL_HELMET_VISOR_MESH_NAME: StringName = &"Knight_HelmetVisor"
+const _BASE_MODEL_VISOR_FOLLOW_KEY: StringName = &"BaseModelVisor"
 
 var _anim: AnimationPlayer
 var _attack_playing: bool = false
@@ -194,11 +228,16 @@ var _sword_base_offset_position: Vector3 = Vector3.ZERO
 var _sword_base_offset_rotation_deg: Vector3 = Vector3.ZERO
 var _sword_base_offset_scale: Vector3 = Vector3.ONE
 var _sword_base_offset_captured: bool = false
+var _active_attack_mode: StringName = &""
+var _melee_smear_spawned_attack_nonce: int = -1
+var _queued_attack_planar_direction: Vector2 = Vector2.ZERO
 var _equipment_follow_targets: Dictionary = {}
 var _head_bone_original_scales: Dictionary = {}
 var _head_hide_skeleton: Skeleton3D
 var _head_hide_bone_indices: Array[int] = []
 var _head_hide_active: bool = false
+var _base_model_material_sources: Dictionary = {}
+var _active_knight_texture_path: String = ""
 var _helmet_equipped := true
 var _sword_equipped := true
 var _sword_active := true
@@ -248,12 +287,16 @@ func _ready() -> void:
 	if Engine.is_editor_hint() and not preview_in_editor:
 		return
 	_ensure_preferred_base_model()
-	_anim = _find_animation_player(self)
+	_apply_knight_texture_for_armor_item(&"armor_brigandine")
+	_setup_base_model_visor_attachment()
+	_anim = _find_or_create_animation_player()
 	if _anim:
 		_anim.active = true
 		_merge_anim_libraries_from_candidates(_IDLE_GLB_CANDIDATES, &"base_idle")
 		_merge_anim_libraries_from_candidates(_RUN_GLB_CANDIDATES, &"base_run")
 		_merge_anim_libraries_from_candidates(_SLASH_GLB_CANDIDATES, &"base_attack")
+		_merge_anim_libraries_from_candidates(_RANGED_GLB_CANDIDATES, &"base_ranged")
+		_merge_anim_libraries_from_candidates(_BOMB_GLB_CANDIDATES, &"base_bomb")
 		_merge_anim_libraries_from_candidates(_DEFEND_GLB_CANDIDATES, &"base_defend")
 		_merge_anim_libraries_from_candidates(_DOWNED_GLB_CANDIDATES, &"base_downed")
 		_cache_role_clips()
@@ -312,6 +355,7 @@ func _process(_delta: float) -> void:
 		return
 	_enforce_head_hide_pose()
 	_apply_sword_state_offset_profile()
+	_update_melee_smear_projectile_spawn()
 	_update_sword_manual_bone_follow()
 	_update_modular_equipment_bone_follow()
 
@@ -368,7 +412,19 @@ func set_sword_active(active: bool) -> void:
 func set_handgun_active(active: bool) -> void:
 	_handgun_active = active
 	var handgun_root := _resolve_or_create_attachment_root(equipment_handgun_root_path, "HandgunAttachment")
-	_apply_attachment_visibility(handgun_root, _handgun_equipped and _handgun_active)
+	var editor_show := Engine.is_editor_hint() and preview_in_editor
+	_apply_attachment_visibility(handgun_root, _handgun_equipped and (_handgun_active or editor_show))
+
+
+func set_armor_visual_item(item_id: StringName) -> void:
+	_apply_knight_texture_for_armor_item(item_id)
+
+
+func set_attack_planar_direction(planar_direction: Vector2) -> void:
+	if planar_direction.length_squared() <= 1e-6:
+		_queued_attack_planar_direction = Vector2.ZERO
+		return
+	_queued_attack_planar_direction = planar_direction.normalized()
 
 
 func _ensure_sword_mode_beacon() -> void:
@@ -453,6 +509,7 @@ func _setup_sword_attachment() -> void:
 		_apply_offset_transform(offset, sword_local_offset, sword_local_rotation_deg, sword_local_scale)
 	_sword_offset_node = offset
 	_capture_sword_base_offset_from_node()
+	_ensure_melee_smear()
 
 	var sword_node: Node = offset.get_node_or_null("SwordMesh")
 	if sword_node == null:
@@ -478,6 +535,82 @@ func _setup_sword_attachment() -> void:
 
 	if sword_debug_print_bones:
 		_print_skeleton_bones_debug(skeleton, chosen_bone)
+
+
+func _ensure_melee_smear() -> void:
+	var offset_root := _resolve_sword_offset_root()
+	if offset_root == null:
+		return
+	var legacy_smear_root := offset_root.get_node_or_null("MeleeSmear") as Node3D
+	if legacy_smear_root != null and is_instance_valid(legacy_smear_root):
+		offset_root.remove_child(legacy_smear_root)
+		legacy_smear_root.free()
+	var spawned_smear_root := get_node_or_null("MeleeSmear") as Node3D
+	if spawned_smear_root != null and is_instance_valid(spawned_smear_root):
+		remove_child(spawned_smear_root)
+		spawned_smear_root.queue_free()
+
+
+func _update_melee_smear_projectile_spawn() -> void:
+	var sword_offset_root := _resolve_sword_offset_root()
+	if (
+		not melee_smear_enabled
+		or not _attack_playing
+		or String(_active_attack_mode).to_lower() != "melee"
+		or melee_smear_window_end <= melee_smear_window_start
+	):
+		return
+	var t := _attack_profile_t()
+	if t < melee_smear_window_start or t > melee_smear_window_end:
+		return
+	if _melee_smear_spawned_attack_nonce == _attack_nonce:
+		return
+	var spawn_parent := get_parent()
+	if spawn_parent == null:
+		return
+	var smear_scene := load(melee_smear_scene_path) as PackedScene
+	if smear_scene == null:
+		push_warning("[PlayerVisual] Could not load melee smear scene '%s'." % melee_smear_scene_path)
+		return
+	var projectile := smear_scene.instantiate() as Node3D
+	if projectile == null:
+		push_warning("[PlayerVisual] Melee smear scene '%s' is not a Node3D." % melee_smear_scene_path)
+		return
+	spawn_parent.add_child(projectile)
+	var travel_direction := Vector3.ZERO
+	if sword_offset_root != null and is_instance_valid(sword_offset_root):
+		travel_direction = sword_offset_root.global_transform.origin - global_transform.origin
+		travel_direction.y = 0.0
+	if travel_direction.length_squared() <= 1e-6:
+		travel_direction = Vector3(
+			_queued_attack_planar_direction.x,
+			0.0,
+			_queued_attack_planar_direction.y
+		)
+	if travel_direction.length_squared() <= 1e-6:
+		travel_direction = -global_transform.basis.z
+		travel_direction.y = 0.0
+	if travel_direction.length_squared() <= 1e-6:
+		travel_direction = Vector3.FORWARD
+	var spawn_height := melee_smear_local_offset.y
+	var smear_scale := melee_smear_base_scale * melee_smear_projectile_spawn_scale
+	var smear_transform := Transform3D(
+		Basis.IDENTITY.scaled(smear_scale),
+		global_transform.origin + Vector3(0.0, spawn_height, 0.0)
+	)
+	if projectile.has_method(&"configure"):
+		projectile.call(
+			&"configure",
+			smear_transform,
+			travel_direction,
+			melee_smear_projectile_lifetime,
+			melee_smear_projectile_travel_distance,
+			melee_smear_max_alpha
+		)
+	else:
+		projectile.global_transform = smear_transform
+	_melee_smear_spawned_attack_nonce = _attack_nonce
+	_queued_attack_planar_direction = Vector2.ZERO
 
 
 func _capture_sword_base_offset_from_node() -> void:
@@ -872,6 +1005,20 @@ func _setup_modular_equipment() -> void:
 		equipment_shield_local_rotation_deg,
 		equipment_shield_local_scale
 	)
+	_ensure_dynamic_loadout_attachment(
+		"Handgun",
+		equipment_handgun_root_path,
+		"HandgunAttachment",
+		"HandgunOffset",
+		equipment_handgun_bone_override,
+		&"",
+		_EQUIPMENT_HANDGUN_BONE_KEYWORDS,
+		equipment_handgun_local_offset,
+		equipment_handgun_local_rotation_deg,
+		equipment_handgun_local_scale,
+		equipment_handgun_scene_path
+	)
+	set_handgun_active(_handgun_active)
 	_apply_head_hide_from_helmet_state(skeleton)
 
 
@@ -884,6 +1031,7 @@ func apply_loadout_visuals(snapshot: Dictionary) -> void:
 		return
 	var equipped_slots: Dictionary = equipped_slots_v as Dictionary
 	var definitions_by_id: Dictionary = definitions_v as Dictionary
+	var armor_item_id := StringName(String(equipped_slots.get(String(LoadoutConstants.SLOT_ARMOR), "")))
 	var sword_scene_path := _loadout_scene_path_for_slot(
 		equipped_slots, definitions_by_id, LoadoutConstants.SLOT_SWORD
 	)
@@ -899,6 +1047,7 @@ func apply_loadout_visuals(snapshot: Dictionary) -> void:
 	var handgun_scene_path := _loadout_scene_path_for_slot(
 		equipped_slots, definitions_by_id, LoadoutConstants.SLOT_HANDGUN
 	)
+	_apply_knight_texture_for_armor_item(armor_item_id)
 
 	_sword_equipped = not sword_scene_path.is_empty()
 	_handgun_equipped = not handgun_scene_path.is_empty()
@@ -1116,7 +1265,11 @@ func _replace_attachment_child(
 			matching_child = child
 	if matching_child != null and is_instance_valid(matching_child):
 		var existing_path := String(matching_child.get_meta(&"loadout_scene_path", ""))
+		var authored_scene_path := String(matching_child.scene_file_path)
 		if existing_path == scene_path and existing_children.size() == 1:
+			return
+		if authored_scene_path == scene_path and existing_children.size() == 1:
+			matching_child.set_meta(&"loadout_scene_path", scene_path)
 			return
 	for existing in existing_children:
 		if existing == null or not is_instance_valid(existing):
@@ -1210,6 +1363,90 @@ func _enforce_head_hide_pose() -> void:
 		_head_hide_skeleton.set_bone_pose_scale(idx, hidden_head_bone_scale)
 
 
+func _setup_base_model_visor_attachment() -> void:
+	var meshy := get_node_or_null("Meshy")
+	if meshy == null:
+		return
+	var source_visor := _find_base_model_visor_source_mesh(meshy)
+	if source_visor == null:
+		return
+	var attachment_root := _resolve_or_create_attachment_root(
+		base_model_visor_root_path, "BaseModelVisorAttachment"
+	)
+	if attachment_root == null:
+		return
+	var offset_root := attachment_root.get_node_or_null("BaseModelVisorOffset") as Node3D
+	if offset_root == null:
+		offset_root = Node3D.new()
+		offset_root.name = "BaseModelVisorOffset"
+		attachment_root.add_child(offset_root)
+		_mark_editor_owned(offset_root)
+
+	if not base_model_visor_detached_enabled:
+		source_visor.visible = true
+		attachment_root.visible = false
+		_equipment_follow_targets.erase(_BASE_MODEL_VISOR_FOLLOW_KEY)
+		return
+
+	var skeleton := _find_first_skeleton_3d(meshy)
+	if skeleton == null:
+		return
+	var visor_bone_idx := _resolve_equipment_bone_idx(
+		skeleton, base_model_visor_bone_override, _EQUIPMENT_HELMET_BONE_KEYWORDS
+	)
+	if visor_bone_idx < 0:
+		push_warning("[PlayerVisual] Could not resolve visor bone for detached base visor.")
+		return
+
+	var anchor_world := _compute_equipment_anchor_world(skeleton, visor_bone_idx, visor_bone_idx, false)
+	attachment_root.visible = true
+	attachment_root.global_transform = anchor_world
+	if offset_root.transform.is_equal_approx(Transform3D.IDENTITY):
+		offset_root.transform = anchor_world.affine_inverse() * source_visor.global_transform
+	_sync_detached_base_model_visor_mesh(source_visor, skeleton, offset_root)
+	source_visor.visible = false
+	_equipment_follow_targets[_BASE_MODEL_VISOR_FOLLOW_KEY] = {
+		"root": attachment_root,
+		"skeleton": skeleton,
+		"bone_idx": visor_bone_idx,
+		"rotation_bone_idx": visor_bone_idx,
+		"yaw_only_follow": false,
+		"local_from_bone": Transform3D.IDENTITY,
+	}
+
+
+func _find_base_model_visor_source_mesh(root: Node) -> MeshInstance3D:
+	if root == null:
+		return null
+	var stack: Array[Node] = [root]
+	while not stack.is_empty():
+		var node: Node = stack.pop_back()
+		if node is MeshInstance3D and node.name == _BASE_MODEL_HELMET_VISOR_MESH_NAME:
+			return node as MeshInstance3D
+		for child in node.get_children():
+			stack.append(child)
+	return null
+
+
+func _sync_detached_base_model_visor_mesh(
+	source_visor: MeshInstance3D, skeleton: Skeleton3D, offset_root: Node3D
+) -> void:
+	if source_visor == null or skeleton == null or offset_root == null:
+		return
+	var visor_mesh := offset_root.get_node_or_null("BaseModelVisorMesh") as MeshInstance3D
+	if visor_mesh == null:
+		visor_mesh = source_visor.duplicate() as MeshInstance3D
+		if visor_mesh == null:
+			return
+		visor_mesh.name = "BaseModelVisorMesh"
+		offset_root.add_child(visor_mesh)
+		_mark_editor_owned(visor_mesh)
+	visor_mesh.transform = Transform3D.IDENTITY
+	visor_mesh.visible = true
+	visor_mesh.skin = source_visor.skin
+	visor_mesh.skeleton = visor_mesh.get_path_to(skeleton)
+
+
 func _resolve_or_create_attachment_root(path: NodePath, fallback_name: String) -> Node3D:
 	var existing: Node3D = get_node_or_null(path) as Node3D
 	if existing != null and is_instance_valid(existing):
@@ -1257,6 +1494,18 @@ func _apply_offset_transform(
 	node.scale = local_scale
 
 
+func _local_transform_from_offset(
+	local_offset: Vector3, local_rotation_deg: Vector3, local_scale: Vector3
+) -> Transform3D:
+	var rotation_radians := Vector3(
+		deg_to_rad(local_rotation_deg.x),
+		deg_to_rad(local_rotation_deg.y),
+		deg_to_rad(local_rotation_deg.z)
+	)
+	var local_basis := Basis.from_euler(rotation_radians).scaled(local_scale)
+	return Transform3D(local_basis, local_offset)
+
+
 func _bind_or_spawn_modular_equipment_piece(
 	slot_name: String,
 	root_path: NodePath,
@@ -1293,13 +1542,18 @@ func _bind_or_spawn_modular_equipment_piece(
 				piece_instance = spawned_piece
 
 	if piece_instance == null:
+		if scene_path.is_empty():
+			_apply_attachment_visibility(attachment_root, false)
+			return
 		push_warning("[PlayerVisual] Missing equipment mesh under %s/%s. Add the scene as a child for %s." % [attachment_root.name, offset_name, slot_name])
 	else:
 		if equipment_force_visibility_material:
 			_apply_equipment_visibility_material_override(piece_instance, slot_name)
 
 	var bone_idx: int = _resolve_equipment_bone_idx(skeleton, bone_name_override, bone_keywords)
-	if strict_hand_attachment and slot_name == "Shield":
+	if strict_hand_attachment and slot_name == "Shield" and bone_idx < 0:
+		# Older rigs exposed the shield anchor on LeftHand, but KayKit Knight has an explicit
+		# hand slot. Only fall back when we truly failed to resolve a configured anchor.
 		var forced_left_hand_idx: int = _find_bone_idx_case_insensitive(skeleton, "LeftHand")
 		if forced_left_hand_idx >= 0:
 			bone_idx = forced_left_hand_idx
@@ -1525,6 +1779,20 @@ func _find_animation_player(n: Node) -> AnimationPlayer:
 	return null
 
 
+func _find_or_create_animation_player() -> AnimationPlayer:
+	var existing := _find_animation_player(self)
+	if existing != null:
+		return existing
+	var host := get_node_or_null("Meshy")
+	if host == null:
+		return null
+	var created := AnimationPlayer.new()
+	created.name = "AnimationPlayer"
+	host.add_child(created)
+	_mark_editor_owned(created)
+	return created
+
+
 func _first_existing_path(paths: Array) -> String:
 	for p in paths:
 		var path := String(p)
@@ -1567,12 +1835,77 @@ func _ensure_preferred_base_model() -> void:
 		(desired_instance as Node3D).transform = (current as Node3D).transform
 	if current == null:
 		add_child(desired_instance)
+		_reset_base_model_material_cache()
+		_setup_base_model_visor_attachment()
 		return
 	var insert_index := current.get_index()
 	remove_child(current)
 	current.free()
 	add_child(desired_instance)
 	move_child(desired_instance, insert_index)
+	_reset_base_model_material_cache()
+	_setup_base_model_visor_attachment()
+
+
+func _reset_base_model_material_cache() -> void:
+	_base_model_material_sources.clear()
+	_active_knight_texture_path = ""
+
+
+func _knight_texture_path_for_armor_item(armor_item_id: StringName) -> String:
+	if armor_item_id == &"armor_scale":
+		return knight_alternate_texture_path
+	return knight_default_texture_path
+
+
+func _apply_knight_texture_for_armor_item(armor_item_id: StringName) -> void:
+	var target_texture_path := _knight_texture_path_for_armor_item(armor_item_id)
+	if target_texture_path.is_empty() or target_texture_path == _active_knight_texture_path:
+		return
+	var texture := load(target_texture_path) as Texture2D
+	if texture == null:
+		push_warning("[PlayerVisual] Could not load Knight texture '%s'." % target_texture_path)
+		return
+	var meshy := get_node_or_null("Meshy")
+	if meshy == null:
+		return
+	var stack: Array[Node] = [meshy]
+	while not stack.is_empty():
+		var node: Node = stack.pop_back()
+		if node is MeshInstance3D:
+			_apply_knight_texture_to_mesh_instance(node as MeshInstance3D, texture)
+		for child in node.get_children():
+			stack.append(child)
+	_active_knight_texture_path = target_texture_path
+	_setup_base_model_visor_attachment()
+
+
+func _apply_knight_texture_to_mesh_instance(mesh_instance: MeshInstance3D, texture: Texture2D) -> void:
+	if mesh_instance == null or not is_instance_valid(mesh_instance):
+		return
+	var mesh := mesh_instance.mesh
+	if mesh == null:
+		return
+	var surface_count := mesh.get_surface_count()
+	for surface_idx in range(surface_count):
+		var cache_key := "%s#%d" % [String(mesh_instance.get_path()), surface_idx]
+		var source_mat_v: Variant = _base_model_material_sources.get(cache_key, null)
+		var source_mat := source_mat_v as BaseMaterial3D
+		if source_mat == null:
+			var candidate_mat: Material = mesh_instance.get_surface_override_material(surface_idx)
+			if candidate_mat == null:
+				candidate_mat = mesh.surface_get_material(surface_idx)
+			if candidate_mat is not BaseMaterial3D:
+				continue
+			source_mat = (candidate_mat as BaseMaterial3D).duplicate(true) as BaseMaterial3D
+			_base_model_material_sources[cache_key] = source_mat
+		var replacement := source_mat.duplicate(true) as BaseMaterial3D
+		if replacement == null:
+			continue
+		replacement.albedo_texture = texture
+		replacement.texture_filter = source_mat.texture_filter
+		replacement.texture_repeat = source_mat.texture_repeat
+		mesh_instance.set_surface_override_material(surface_idx, replacement)
 
 
 func _merge_anim_libraries_from_glb(glb_path: String, library_prefix: StringName) -> bool:
@@ -1730,6 +2063,7 @@ func get_attack_duration_seconds() -> float:
 func try_play_attack_for_mode(mode: StringName = &"melee") -> void:
 	if _anim == null or _attack_playing or _downed_hold_active or _defending_hold_active:
 		return
+	var normalized_mode := StringName(String(mode).to_lower())
 	var clip := _clip_for_attack_mode(mode)
 	if clip == &"":
 		_cache_role_clips()
@@ -1737,6 +2071,7 @@ func try_play_attack_for_mode(mode: StringName = &"melee") -> void:
 	if clip == &"":
 		return
 	_attack_playing = true
+	_active_attack_mode = normalized_mode
 	_attack_nonce += 1
 	_attack_profile_elapsed = 0.0
 	var attack_nonce := _attack_nonce
@@ -1745,6 +2080,8 @@ func try_play_attack_for_mode(mode: StringName = &"melee") -> void:
 	var anim_len := _clip_length_seconds(clip)
 	if anim_len <= 0.0:
 		_attack_playing = false
+		_active_attack_mode = &""
+		_queued_attack_planar_direction = Vector2.ZERO
 		return
 	if anim_len > 0.0 and target_duration > 0.0:
 		_anim.speed_scale = anim_len / target_duration
@@ -1755,6 +2092,8 @@ func try_play_attack_for_mode(mode: StringName = &"melee") -> void:
 	if attack_nonce != _attack_nonce:
 		return
 	_attack_playing = false
+	_active_attack_mode = &""
+	_queued_attack_planar_direction = Vector2.ZERO
 	_play_locomotion(_last_locomotion_moving, _last_locomotion_speed_scale)
 
 
@@ -1773,6 +2112,8 @@ func set_defending_state(active: bool) -> void:
 		_defending_hold_active = true
 		_attack_nonce += 1
 		_attack_playing = false
+		_active_attack_mode = &""
+		_queued_attack_planar_direction = Vector2.ZERO
 		var clip: StringName = _defend_clip
 		if clip == &"":
 			_cache_role_clips()
@@ -1786,6 +2127,8 @@ func set_defending_state(active: bool) -> void:
 	if not _defending_hold_active:
 		return
 	_defending_hold_active = false
+	_active_attack_mode = &""
+	_queued_attack_planar_direction = Vector2.ZERO
 	_anim.speed_scale = 1.0
 	_play_locomotion(_last_locomotion_moving, _last_locomotion_speed_scale)
 
@@ -1800,6 +2143,8 @@ func set_downed_state(is_downed: bool) -> void:
 		_downed_hold_active = true
 		_attack_nonce += 1
 		_attack_playing = false
+		_active_attack_mode = &""
+		_queued_attack_planar_direction = Vector2.ZERO
 		_downed_play_nonce += 1
 		_play_downed_once_then_hold(_downed_play_nonce)
 		return
@@ -1809,6 +2154,8 @@ func set_downed_state(is_downed: bool) -> void:
 	_defending_hold_active = false
 	_downed_play_nonce += 1
 	_attack_playing = false
+	_active_attack_mode = &""
+	_queued_attack_planar_direction = Vector2.ZERO
 	_anim.speed_scale = 1.0
 	_play_locomotion(_last_locomotion_moving, _last_locomotion_speed_scale)
 

@@ -28,10 +28,10 @@ func ensure_owner_initialized(owner_id: StringName) -> void:
 	var equipped_slots := LoadoutConstants.create_empty_equipped_slots()
 	equipped_slots[LoadoutConstants.SLOT_ARMOR] = &"armor_brigandine"
 	equipped_slots[LoadoutConstants.SLOT_HELMET] = &"helmet_knight"
-	equipped_slots[LoadoutConstants.SLOT_SWORD] = &"sword_knight"
+	equipped_slots[LoadoutConstants.SLOT_SWORD] = &"sword_kaykit_1handed"
 	equipped_slots[LoadoutConstants.SLOT_HANDGUN] = &"handgun_red"
 	equipped_slots[LoadoutConstants.SLOT_BOMB] = &"bomb_iron"
-	equipped_slots[LoadoutConstants.SLOT_SHIELD] = &"shield_warden"
+	equipped_slots[LoadoutConstants.SLOT_SHIELD] = &"shield_kaykit_round_color"
 	_owner_states[normalized_owner_id] = {
 		"owned_items": starter_owned,
 		"equipped_slots": equipped_slots,
@@ -226,24 +226,24 @@ func _build_default_definitions() -> Dictionary:
 	var definitions := {}
 	definitions[&"armor_brigandine"] = LoadoutItemDefinition.new(
 		&"armor_brigandine",
-		"Red Chestplate",
+		"Green Chestplate",
 		LoadoutConstants.SLOT_ARMOR,
-		"Red chestplate variant for the safe-room loadout test.",
+		"Armor stats for the Knight body using the new green Knight texture.",
 		{
 			LoadoutConstants.STAT_MAX_HEALTH: 15.0,
 		},
-		LoadoutVisualDefinition.new("res://scenes/equipment/armor/red_chestplate.tscn")
+		LoadoutVisualDefinition.new("")
 	)
 	definitions[&"armor_scale"] = LoadoutItemDefinition.new(
 		&"armor_scale",
-		"Blue Chestplate",
+		"Red Chestplate",
 		LoadoutConstants.SLOT_ARMOR,
-		"Blue chestplate variant for swapping and stat checks.",
+		"Alternate armor stats for the Knight body using the original Knight texture.",
 		{
 			LoadoutConstants.STAT_MAX_HEALTH: 8.0,
 			LoadoutConstants.STAT_SPEED: 1.25,
 		},
-		LoadoutVisualDefinition.new("res://scenes/equipment/armor/blue_chestplate.tscn")
+		LoadoutVisualDefinition.new("")
 	)
 	definitions[&"helmet_knight"] = LoadoutItemDefinition.new(
 		&"helmet_knight",
@@ -253,7 +253,7 @@ func _build_default_definitions() -> Dictionary:
 		{
 			LoadoutConstants.STAT_MAX_HEALTH: 6.0,
 		},
-		LoadoutVisualDefinition.new("res://scenes/equipment/helmet/helmet_knight_base.tscn")
+		LoadoutVisualDefinition.new("")
 	)
 	definitions[&"helmet_knight_orange"] = LoadoutItemDefinition.new(
 		&"helmet_knight_orange",
@@ -264,38 +264,68 @@ func _build_default_definitions() -> Dictionary:
 			LoadoutConstants.STAT_MAX_HEALTH: 4.0,
 			LoadoutConstants.STAT_SPEED: 0.5,
 		},
-		LoadoutVisualDefinition.new("res://scenes/equipment/helmet/helmet_knight_orange.tscn")
+		LoadoutVisualDefinition.new("")
 	)
-	definitions[&"sword_knight"] = LoadoutItemDefinition.new(
-		&"sword_knight",
-		"Sword",
-		LoadoutConstants.SLOT_SWORD,
-		"Standard sword for melee combat.",
+	var sword_items: Array[Dictionary] = [
 		{
-			LoadoutConstants.STAT_MELEE_DAMAGE: 5.0,
+			"item_id": "sword_kaykit_1handed",
+			"display_name": "1-Handed Sword",
+			"description": "KayKit testing sword with the one-handed silhouette.",
+			"scene_path": "res://scenes/equipment/weapons/kaykit_sword_1handed.tscn",
 		},
-		LoadoutVisualDefinition.new("res://scenes/equipment/weapons/sword_texture.tscn")
-	)
-	definitions[&"sword_knight_v2"] = LoadoutItemDefinition.new(
-		&"sword_knight_v2",
-		"Sword V2",
-		LoadoutConstants.SLOT_SWORD,
-		"Variant sword using the second texture set.",
 		{
-			LoadoutConstants.STAT_MELEE_DAMAGE: 7.0,
+			"item_id": "sword_kaykit_a",
+			"display_name": "Sword A",
+			"description": "KayKit testing sword A.",
+			"scene_path": "res://scenes/equipment/weapons/kaykit_sword_a.tscn",
 		},
-		LoadoutVisualDefinition.new("res://scenes/equipment/weapons/sword_v2_texture.tscn")
-	)
+		{
+			"item_id": "sword_kaykit_b",
+			"display_name": "Sword B",
+			"description": "KayKit testing sword B.",
+			"scene_path": "res://scenes/equipment/weapons/kaykit_sword_b.tscn",
+		},
+		{
+			"item_id": "sword_kaykit_c",
+			"display_name": "Sword C",
+			"description": "KayKit testing sword C.",
+			"scene_path": "res://scenes/equipment/weapons/kaykit_sword_c.tscn",
+		},
+		{
+			"item_id": "sword_kaykit_d",
+			"display_name": "Sword D",
+			"description": "KayKit testing sword D.",
+			"scene_path": "res://scenes/equipment/weapons/kaykit_sword_d.tscn",
+		},
+		{
+			"item_id": "sword_kaykit_e",
+			"display_name": "Sword E",
+			"description": "KayKit testing sword E.",
+			"scene_path": "res://scenes/equipment/weapons/kaykit_sword_e.tscn",
+		},
+	]
+	for sword_item in sword_items:
+		var sword_item_id := StringName(String(sword_item.get("item_id", "")))
+		definitions[sword_item_id] = LoadoutItemDefinition.new(
+			sword_item_id,
+			String(sword_item.get("display_name", "")),
+			LoadoutConstants.SLOT_SWORD,
+			String(sword_item.get("description", "")),
+			{
+				LoadoutConstants.STAT_MELEE_DAMAGE: 5.0,
+			},
+			LoadoutVisualDefinition.new(String(sword_item.get("scene_path", "")))
+		)
 	definitions[&"handgun_red"] = LoadoutItemDefinition.new(
 		&"handgun_red",
 		"Red Handgun",
 		LoadoutConstants.SLOT_HANDGUN,
-		"Fires red player projectiles while using the shared placeholder stowed mesh.",
+		"Fires red player projectiles while using the imported handgun mesh.",
 		{
 			LoadoutConstants.STAT_RANGED_DAMAGE: 4.0,
 		},
 		LoadoutVisualDefinition.new(
-			"res://scenes/equipment/weapons/handgun_placeholder.tscn",
+			"res://scenes/equipment/weapons/handgun_1.tscn",
 			LoadoutConstants.PROJECTILE_STYLE_RED
 		)
 	)
@@ -303,12 +333,12 @@ func _build_default_definitions() -> Dictionary:
 		&"handgun_blue",
 		"Blue Handgun",
 		LoadoutConstants.SLOT_HANDGUN,
-		"Fires blue player projectiles while using the shared placeholder stowed mesh.",
+		"Fires blue player projectiles while using the imported handgun mesh.",
 		{
 			LoadoutConstants.STAT_RANGED_DAMAGE: 4.0,
 		},
 		LoadoutVisualDefinition.new(
-			"res://scenes/equipment/weapons/handgun_placeholder.tscn",
+			"res://scenes/equipment/weapons/handgun_1.tscn",
 			LoadoutConstants.PROJECTILE_STYLE_BLUE
 		)
 	)
@@ -339,25 +369,42 @@ func _build_default_definitions() -> Dictionary:
 			LoadoutConstants.PROJECTILE_STYLE_BLUE
 		)
 	)
-	definitions[&"shield_warden"] = LoadoutItemDefinition.new(
-		&"shield_warden",
-		"Shield",
-		LoadoutConstants.SLOT_SHIELD,
-		"Standard shield for guarding and defense.",
+	var shield_items: Array[Dictionary] = [
 		{
-			LoadoutConstants.STAT_DEFEND_DAMAGE_MULTIPLIER: -0.15,
+			"item_id": "shield_kaykit_badge_color",
+			"display_name": "Shield Badge Color",
+			"description": "KayKit testing shield with the preferred badge color variant.",
+			"scene_path": "res://scenes/equipment/shields/kaykit_shield_badge_color.tscn",
 		},
-		LoadoutVisualDefinition.new("res://scenes/equipment/shields/base_model_v01_shield.tscn")
-	)
-	definitions[&"shield_warden_v2"] = LoadoutItemDefinition.new(
-		&"shield_warden_v2",
-		"Shield V2",
-		LoadoutConstants.SLOT_SHIELD,
-		"Variant shield using the new shield texture set.",
 		{
-			LoadoutConstants.STAT_DEFEND_DAMAGE_MULTIPLIER: -0.25,
-			LoadoutConstants.STAT_SPEED: -0.4,
+			"item_id": "shield_kaykit_round_color",
+			"display_name": "Shield Round Color",
+			"description": "KayKit testing shield with the preferred round color variant.",
+			"scene_path": "res://scenes/equipment/shields/kaykit_shield_round_color.tscn",
 		},
-		LoadoutVisualDefinition.new("res://scenes/equipment/shields/shield_v2_texture.tscn")
-	)
+		{
+			"item_id": "shield_kaykit_spikes_color",
+			"display_name": "Shield Spikes Color",
+			"description": "KayKit testing shield with the preferred spiked color variant.",
+			"scene_path": "res://scenes/equipment/shields/kaykit_shield_spikes_color.tscn",
+		},
+		{
+			"item_id": "shield_kaykit_square_color",
+			"display_name": "Shield Square Color",
+			"description": "KayKit testing shield with the preferred square color variant.",
+			"scene_path": "res://scenes/equipment/shields/kaykit_shield_square_color.tscn",
+		},
+	]
+	for shield_item in shield_items:
+		var shield_item_id := StringName(String(shield_item.get("item_id", "")))
+		definitions[shield_item_id] = LoadoutItemDefinition.new(
+			shield_item_id,
+			String(shield_item.get("display_name", "")),
+			LoadoutConstants.SLOT_SHIELD,
+			String(shield_item.get("description", "")),
+			{
+				LoadoutConstants.STAT_DEFEND_DAMAGE_MULTIPLIER: -0.15,
+			},
+			LoadoutVisualDefinition.new(String(shield_item.get("scene_path", "")))
+		)
 	return definitions

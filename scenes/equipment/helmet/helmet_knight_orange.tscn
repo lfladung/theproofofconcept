@@ -1,5 +1,0 @@
-[gd_scene load_steps=2 format=3]
-
-[ext_resource type="PackedScene" path="res://art/equipment/helmet/Knight_Helmet_Orange_Texture.glb" id="1_source"]
-
-[node name="HelmetKnightOrange" instance=ExtResource("1_source")]

@@ -1,0 +1,58 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://addons/dungeon_room_editor/docks/preview_dock.gd" id="1"]
+
+[node name="PreviewDock" type="PanelContainer"]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("1")
+
+[node name="Margin" type="MarginContainer" parent="."]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_constants/margin_left = 6
+theme_override_constants/margin_top = 6
+theme_override_constants/margin_right = 6
+theme_override_constants/margin_bottom = 6
+
+[node name="VBox" type="VBoxContainer" parent="Margin"]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+theme_override_constants/separation = 6
+
+[node name="Title" type="Label" parent="Margin/VBox"]
+layout_mode = 2
+text = "3D Preview"
+
+[node name="SubViewportContainer" type="SubViewportContainer" parent="Margin/VBox"]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+stretch = true
+
+[node name="PreviewViewport" type="SubViewport" parent="Margin/VBox/SubViewportContainer"]
+unique_name_in_owner = true
+disable_3d = false
+render_target_update_mode = 3
+size = Vector2i(640, 480)
+
+[node name="PreviewRoot" type="Node3D" parent="Margin/VBox/SubViewportContainer/PreviewViewport"]
+unique_name_in_owner = true
+
+[node name="CameraPivot" type="Node3D" parent="Margin/VBox/SubViewportContainer/PreviewViewport"]
+unique_name_in_owner = true
+
+[node name="PreviewCamera" type="Camera3D" parent="Margin/VBox/SubViewportContainer/PreviewViewport/CameraPivot"]
+unique_name_in_owner = true
+current = true
+
+[node name="Sun" type="DirectionalLight3D" parent="Margin/VBox/SubViewportContainer/PreviewViewport"]
+rotation = Vector3(-0.785398, 0.785398, 0)
+

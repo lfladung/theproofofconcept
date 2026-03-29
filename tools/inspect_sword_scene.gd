@@ -13,7 +13,7 @@ func _walk(node: Node, indent := "") -> void:
 		_walk(c, indent + "  ")
 
 func _init() -> void:
-var path := "res://art/equipment/weapons/Sword_texture.glb"
+	var path := "res://art/equipment/weapons/Sword_texture.glb"
 	print("=== ", path, " ===")
 	var ps := load(path) as PackedScene
 	if ps == null:

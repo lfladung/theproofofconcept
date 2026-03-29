@@ -1234,6 +1234,7 @@ func _run_shared_cooldown_and_debug_tick(delta: float) -> void:
 
 
 func _play_melee_attack_presentation() -> void:
+	_set_visual_attack_planar_direction(_normalized_attack_facing(_facing_planar))
 	_play_attack_animation_presentation(&"melee")
 	_attack_hitbox_visual_time_remaining = maxf(
 		_attack_hitbox_visual_time_remaining,
@@ -1248,6 +1249,14 @@ func _play_attack_animation_presentation(mode: StringName = &"melee") -> void:
 		_visual.call(&"try_play_attack_for_mode", mode)
 	elif _visual.has_method(&"try_play_attack"):
 		_visual.call(&"try_play_attack")
+
+
+func _set_visual_attack_planar_direction(planar_direction: Vector2) -> void:
+	if _visual == null or not is_instance_valid(_visual):
+		return
+	if not _visual.has_method(&"set_attack_planar_direction"):
+		return
+	_visual.call(&"set_attack_planar_direction", planar_direction)
 
 
 func _normalized_attack_facing(facing: Vector2) -> Vector2:

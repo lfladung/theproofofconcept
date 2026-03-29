@@ -1,0 +1,9 @@
+[gd_resource type="Resource" script_class="RoomLayoutData" format=3 uid="uid://bl56liu6hj53"]
+
+[ext_resource type="Script" uid="uid://dpj57sp322t4g" path="res://addons/dungeon_room_editor/resources/room_layout_data.gd" id="1_biddy"]
+
+[resource]
+script = ExtResource("1_biddy")
+room_id = "room_base_template"
+room_tags = PackedStringArray("arena")
+recommended_enemy_groups = PackedStringArray()
