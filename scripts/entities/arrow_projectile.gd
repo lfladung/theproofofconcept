@@ -63,6 +63,8 @@ func set_authoritative_damage(enabled: bool) -> void:
 
 func _ready() -> void:
 	body_entered.connect(_on_world_body_entered)
+	if _hitbox != null and not _hitbox.target_resolved.is_connected(_on_hitbox_target_resolved):
+		_hitbox.target_resolved.connect(_on_hitbox_target_resolved)
 	_apply_hitbox_runtime()
 	call_deferred("_deferred_setup_visual")
 
@@ -76,6 +78,7 @@ func _apply_hitbox_runtime() -> void:
 	_hitbox.debug_draw_enabled = show_debug_hitbox
 	_hitbox.debug_logging = show_debug_hitbox
 	_hitbox.repeat_mode = Hitbox2D.RepeatMode.NONE
+	_hitbox.stop_after_first_consume_hit = true
 	if not _authoritative_damage:
 		return
 	var packet := DamagePacketScript.new() as DamagePacket
@@ -168,6 +171,18 @@ func _finish_projectile() -> void:
 
 func _on_world_body_entered(body: Node2D) -> void:
 	if body == null:
+		return
+	_finish_projectile()
+
+
+func _on_hitbox_target_resolved(
+	_packet: DamagePacket,
+	_target_uid: int,
+	_accepted: bool,
+	consume_hit: bool,
+	_reason: StringName
+) -> void:
+	if not consume_hit:
 		return
 	_finish_projectile()
 

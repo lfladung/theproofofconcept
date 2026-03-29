@@ -199,7 +199,7 @@ func _face_direction(dir: Vector2) -> void:
 
 
 func _fire_arrow(dir: Vector2) -> void:
-	if not _is_server_peer():
+	if not is_damage_authority():
 		return
 	_server_arrow_event_sequence += 1
 	var event_sequence := _server_arrow_event_sequence

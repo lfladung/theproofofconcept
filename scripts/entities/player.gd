@@ -2096,7 +2096,7 @@ func _update_facing_planar(direction: Vector2, allow_mouse_fallback: bool = true
 func _get_player_body_radius() -> float:
 	if _body_shape and _body_shape.shape is CircleShape2D:
 		return (_body_shape.shape as CircleShape2D).radius
-	return 1.2676448
+	return 0.7605869
 
 
 func _melee_range_start() -> float:
@@ -2297,7 +2297,7 @@ func _rebuild_player_hitbox_debug() -> void:
 		_player_hitbox_mi.visible = false
 		return
 	_player_hitbox_mi.visible = true
-	var radius := 1.2676448
+	var radius := 0.7605869
 	var center2 := global_position
 	if _body_shape:
 		center2 = _body_shape.global_position

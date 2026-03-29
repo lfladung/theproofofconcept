@@ -53,6 +53,7 @@ func _ready() -> void:
 			layout = load(layout_path)
 	if layout != null and catalog != null:
 		_scene_sync.sync_room(_room, layout, catalog)
+		_remove_generated_room_visuals()
 		_room_visuals.position = Vector3.ZERO
 		_preview_builder.rebuild_preview(_room_visuals, _room, layout, catalog)
 		_align_room_visuals_to_room()
@@ -94,6 +95,14 @@ func _load_manifest_room_path() -> String:
 	if parsed is not Dictionary:
 		return ""
 	return String((parsed as Dictionary).get("room_scene_path", ""))
+
+
+func _remove_generated_room_visuals() -> void:
+	if _room == null:
+		return
+	var generated_visuals := _room.get_node_or_null(^"Visual3DProxy/GeneratedByRoomEditor")
+	if generated_visuals != null:
+		generated_visuals.free()
 
 
 func _configure_camera_from_main_game() -> void:

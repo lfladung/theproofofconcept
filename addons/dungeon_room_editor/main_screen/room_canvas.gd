@@ -10,6 +10,7 @@ signal delete_shortcut_requested()
 
 const GridMath = preload("res://addons/dungeon_room_editor/core/grid_math.gd")
 const CanvasOverlayScript = preload("res://addons/dungeon_room_editor/overlays/canvas_overlay.gd")
+const GAME_CAMERA_VIEW_FLIP := Vector2(-1.0, -1.0)
 
 var _session
 var _overlay = CanvasOverlayScript.new()
@@ -86,7 +87,7 @@ func _gui_input(event: InputEvent) -> void:
 	elif event is InputEventMouseMotion:
 		var motion := event as InputEventMouseMotion
 		if _is_panning:
-			_world_offset += motion.relative / maxf(_zoom, 0.001)
+			_world_offset += (motion.relative / maxf(_zoom, 0.001)) * GAME_CAMERA_VIEW_FLIP
 			queue_redraw()
 			accept_event()
 			return
@@ -136,11 +137,11 @@ func _apply_zoom(factor: float, pivot: Vector2) -> void:
 
 
 func _project_local_to_canvas(local_position: Vector2) -> Vector2:
-	return size * 0.5 + (local_position + _world_offset) * _zoom
+	return size * 0.5 + ((local_position + _world_offset) * GAME_CAMERA_VIEW_FLIP) * _zoom
 
 
 func _canvas_to_room_local(canvas_position: Vector2) -> Vector2:
-	return ((canvas_position - size * 0.5) / maxf(_zoom, 0.001)) - _world_offset
+	return (((canvas_position - size * 0.5) / maxf(_zoom, 0.001)) * GAME_CAMERA_VIEW_FLIP) - _world_offset
 
 
 func _canvas_to_grid(canvas_position: Vector2) -> Vector2i:

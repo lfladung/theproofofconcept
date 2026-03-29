@@ -6,6 +6,11 @@ signal coin_drop_requested(spawn_position: Vector2, coin_value: int)
 
 const DROPPED_COIN_SCENE := preload("res://dungeon/modules/gameplay/dropped_coin.tscn")
 const DamagePacketScript = preload("res://scripts/combat/damage_packet.gd")
+const DAMAGE_TEXT_STYLE_HP := &"hp"
+const DAMAGE_TEXT_STYLE_BLOCK := &"block"
+const DAMAGE_TEXT_HP_COLOR := Color(1.0, 0.15, 0.15, 1.0)
+const DAMAGE_TEXT_BLOCK_COLOR := Color(0.25, 0.62, 1.0, 1.0)
+const DAMAGE_TEXT_OUTLINE_COLOR := Color(0.0, 0.0, 0.0, 1.0)
 
 @export var max_health := 50
 @export var drops_coin_on_death := true
@@ -42,6 +47,7 @@ func _ready() -> void:
 		_health = _health_component.current_health
 	if _damage_receiver != null:
 		_damage_receiver.damage_applied.connect(_on_receiver_damage_applied)
+		_damage_receiver.damage_rejected.connect(_on_receiver_damage_rejected)
 	if _multiplayer_active() and not _is_server_peer():
 		# Client enemy nodes are visual proxies only; server owns gameplay collisions.
 		set_deferred(&"collision_layer", 0)
@@ -217,6 +223,19 @@ func _on_receiver_damage_applied(packet: DamagePacket, hp_damage: int, _hurtbox_
 		_on_nonlethal_hit(packet.direction, packet.knockback)
 
 
+func _on_receiver_damage_rejected(
+	packet: DamagePacket, reason: StringName, _hurtbox_area: Area2D
+) -> void:
+	if reason != &"blocked_guard" or packet == null:
+		return
+	var blocked_damage := maxi(0, int(packet.amount))
+	if blocked_damage <= 0:
+		return
+	if show_damage_text:
+		_show_floating_damage_text_at(blocked_damage, global_position, DAMAGE_TEXT_STYLE_BLOCK)
+		_broadcast_damage_text(blocked_damage, DAMAGE_TEXT_STYLE_BLOCK)
+
+
 func _on_health_component_changed(current: int, _maximum: int) -> void:
 	_health = current
 
@@ -280,20 +299,32 @@ func _resolve_visual_world_3d() -> Node3D:
 
 
 func _show_floating_damage_text(damage: int) -> void:
-	_show_floating_damage_text_at(damage, global_position)
+	_show_floating_damage_text_at(damage, global_position, DAMAGE_TEXT_STYLE_HP)
 
 
-func _show_floating_damage_text_at(damage: int, world_pos: Vector2) -> void:
+func _show_floating_damage_text_at(
+	damage: int, world_pos: Vector2, style_id: StringName = DAMAGE_TEXT_STYLE_HP
+) -> void:
+	var text := "-%s HP" % [damage]
+	var color := DAMAGE_TEXT_HP_COLOR
+	if style_id == DAMAGE_TEXT_STYLE_BLOCK:
+		text = "-%s BLOCK" % [damage]
+		color = DAMAGE_TEXT_BLOCK_COLOR
+	_show_floating_combat_text_at(text, color, world_pos)
+
+
+func _show_floating_combat_text_at(text_value: String, color: Color, world_pos: Vector2) -> void:
 	var vw := _resolve_visual_world_3d()
 	if vw == null:
 		return
 	var text := Label3D.new()
-	text.text = "-%s HP" % [damage]
+	text.text = text_value
 	text.billboard = BaseMaterial3D.BILLBOARD_ENABLED
 	text.no_depth_test = true
 	text.font_size = damage_text_font_size
-	text.outline_size = 16
-	text.modulate = Color(1.0, 0.15, 0.15, 1.0)
+	text.outline_size = 64
+	text.outline_modulate = DAMAGE_TEXT_OUTLINE_COLOR
+	text.modulate = color
 	text.position = Vector3(world_pos.x, damage_text_world_y, world_pos.y)
 	vw.add_child(text)
 	var tween := text.create_tween()
@@ -310,22 +341,26 @@ func _show_floating_damage_text_at(damage: int, world_pos: Vector2) -> void:
 	tween.chain().tween_callback(text.queue_free)
 
 
-func _broadcast_damage_text(damage: int) -> void:
+func _broadcast_damage_text(
+	damage: int, style_id: StringName = DAMAGE_TEXT_STYLE_HP
+) -> void:
 	if not _multiplayer_active() or not _is_server_peer():
 		return
 	if not _can_broadcast_world_replication():
 		return
-	_rpc_show_damage_text.rpc(damage, global_position)
+	_rpc_show_damage_text.rpc(damage, global_position, style_id)
 
 
 @rpc("any_peer", "call_remote", "unreliable_ordered")
-func _rpc_show_damage_text(damage: int, world_pos: Vector2) -> void:
+func _rpc_show_damage_text(
+	damage: int, world_pos: Vector2, style_id: StringName = DAMAGE_TEXT_STYLE_HP
+) -> void:
 	if _is_server_peer():
 		return
 	var mp := _multiplayer_api_safe()
 	if mp == null or mp.get_remote_sender_id() != 1:
 		return
-	_show_floating_damage_text_at(damage, world_pos)
+	_show_floating_damage_text_at(damage, world_pos, style_id)
 
 
 func _is_player_downed_node(candidate: Node2D) -> bool:

@@ -8,10 +8,10 @@
 [ext_resource type="Script" path="res://scripts/combat/hitbox_2d.gd" id="6"]
 
 [sub_resource type="CircleShape2D" id="CircleShape2D_body"]
-radius = 1.2676448
+radius = 0.7605869
 
 [sub_resource type="CircleShape2D" id="CircleShape2D_hurtbox"]
-radius = 1.2676448
+radius = 0.7605869
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_melee"]
 size = Vector2(6, 6)
@@ -68,8 +68,8 @@ debug_label = &"player_melee"
 
 [node name="FakeShadow3D" type="Node" parent="."]
 script = ExtResource("2")
-base_scale = 2.35
-min_scale = 1.25
+base_scale = 1.41
+min_scale = 0.75
 base_alpha = 0.9
 min_alpha = 0.65
 floor_offset = 0.08

@@ -1,18 +1,18 @@
 extends Node2D
 class_name TrapTile2D
 
-const _DEFAULT_TRAP_MESH := preload("res://art/hazards/spike_trap_texture.glb")
+const _DEFAULT_TRAP_MESH := preload("res://assets/structure/floors/floor_tile_big_spikes.gltf")
 const DamagePacketScript = preload("res://scripts/combat/damage_packet.gd")
 
 @export var damage := 18
 @export var hit_cooldown_sec := 1.1
 @export var trap_color := Color(1.0, 0.89, 0.10, 0.92)
 @export var footprint := Vector2(6.0, 6.0)
-## If set, used instead of the default spike GLB.
+## If set, used instead of the default spike scene from the assets folder.
 @export var trap_3d_scene: PackedScene
 ## World-space Y for the imported mesh root; nudged up so room floor quads don’t bury the spikes.
 @export var mesh_ground_y := 0.2
-@export var mesh_scale := Vector3(2.8, 2.8, 2.8)
+@export var mesh_scale := Vector3(1.5, 1.5, 1.5)
 
 @onready var _visual: Polygon2D = $Visual
 @onready var _damage_hitbox: Hitbox2D = $DamageHitbox

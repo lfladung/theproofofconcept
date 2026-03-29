@@ -20,7 +20,79 @@ unique_name_in_owner = true
 layout_mode = 2
 placeholder_text = "Filter pieces"
 
-[node name="PieceTree" type="Tree" parent="."]
+[node name="FilterRow" type="HBoxContainer" parent="."]
+layout_mode = 2
+theme_override_constants/separation = 6
+
+[node name="CategoryLabel" type="Label" parent="FilterRow"]
+layout_mode = 2
+text = "Category"
+
+[node name="CategoryFilter" type="OptionButton" parent="FilterRow"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="ContentSplit" type="VSplitContainer" parent="."]
+layout_mode = 2
+size_flags_vertical = 3
+split_offset = 420
+
+[node name="PieceTree" type="Tree" parent="ContentSplit"]
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_vertical = 3
+
+[node name="PreviewPanel" type="PanelContainer" parent="ContentSplit"]
+layout_mode = 2
+custom_minimum_size = Vector2(0, 230)
+
+[node name="Margin" type="MarginContainer" parent="ContentSplit/PreviewPanel"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_constants/margin_left = 8
+theme_override_constants/margin_top = 8
+theme_override_constants/margin_right = 8
+theme_override_constants/margin_bottom = 8
+
+[node name="VBox" type="VBoxContainer" parent="ContentSplit/PreviewPanel/Margin"]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+
+[node name="SubViewportContainer" type="SubViewportContainer" parent="ContentSplit/PreviewPanel/Margin/VBox"]
+layout_mode = 2
+custom_minimum_size = Vector2(0, 210)
+size_flags_horizontal = 3
+size_flags_vertical = 3
+stretch = true
+
+[node name="PiecePreviewViewport" type="SubViewport" parent="ContentSplit/PreviewPanel/Margin/VBox/SubViewportContainer"]
+unique_name_in_owner = true
+disable_3d = false
+render_target_update_mode = 3
+size = Vector2i(320, 220)
+
+[node name="PiecePreviewContent" type="Node3D" parent="ContentSplit/PreviewPanel/Margin/VBox/SubViewportContainer/PiecePreviewViewport"]
+unique_name_in_owner = true
+
+[node name="PiecePreviewEnvironment" type="WorldEnvironment" parent="ContentSplit/PreviewPanel/Margin/VBox/SubViewportContainer/PiecePreviewViewport"]
+unique_name_in_owner = true
+
+[node name="PiecePreviewCameraPivot" type="Node3D" parent="ContentSplit/PreviewPanel/Margin/VBox/SubViewportContainer/PiecePreviewViewport"]
+unique_name_in_owner = true
+
+[node name="PiecePreviewCamera" type="Camera3D" parent="ContentSplit/PreviewPanel/Margin/VBox/SubViewportContainer/PiecePreviewViewport/PiecePreviewCameraPivot"]
+unique_name_in_owner = true
+current = true
+
+[node name="KeyLight" type="DirectionalLight3D" parent="ContentSplit/PreviewPanel/Margin/VBox/SubViewportContainer/PiecePreviewViewport"]
+unique_name_in_owner = true
+
+[node name="FillLight" type="DirectionalLight3D" parent="ContentSplit/PreviewPanel/Margin/VBox/SubViewportContainer/PiecePreviewViewport"]
+unique_name_in_owner = true
+light_energy = 0.45

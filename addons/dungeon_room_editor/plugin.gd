@@ -10,6 +10,7 @@ const SerializerScript = preload("res://addons/dungeon_room_editor/core/serializ
 const PlaytestLauncherScript = preload("res://addons/dungeon_room_editor/core/playtest_launcher.gd")
 
 const MainPanelScene = preload("res://addons/dungeon_room_editor/main_screen/room_editor_main_panel.tscn")
+const PreviewDockScene = preload("res://addons/dungeon_room_editor/docks/preview_dock.tscn")
 const DefaultCatalog = preload("res://addons/dungeon_room_editor/resources/default_room_piece_catalog.tres")
 const ToolMode = SessionScript.ToolMode
 const _NO_CELL := Vector2i(9_999_999, 9_999_999)
@@ -25,6 +26,8 @@ var _main_panel: Control
 var _palette_dock: Control
 var _properties_dock: ScrollContainer
 var _preview_dock: Control
+var _preview_popout_window: Window
+var _preview_popout_dock: Control
 var _room_canvas: Control
 var _last_edited_room: RoomBase
 var _drag_item_id := ""
@@ -40,6 +43,7 @@ func _enter_tree() -> void:
 	_main_panel.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	_main_panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_main_panel.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	_create_preview_popout_window()
 	_palette_dock = _main_panel.get_node("VBox/BodySplit/PalettePanel/PaletteDock") as Control
 	_properties_dock = _main_panel.get_node(
 		"VBox/BodySplit/WorkspaceSplit/InspectorSplit/PropertiesDock"
@@ -61,10 +65,14 @@ func _exit_tree() -> void:
 	set_process(false)
 	if is_instance_valid(_main_panel):
 		_main_panel.queue_free()
+	if is_instance_valid(_preview_popout_window):
+		_preview_popout_window.queue_free()
 	_main_panel = null
 	_palette_dock = null
 	_properties_dock = null
 	_preview_dock = null
+	_preview_popout_window = null
+	_preview_popout_dock = null
 	_room_canvas = null
 
 
@@ -88,11 +96,17 @@ func _process(_delta: float) -> void:
 
 
 func _handles(object: Object) -> bool:
-	return object is Node
+	return object is RoomBase
 
 
-func _edit(_object: Object) -> void:
-	_refresh_edited_room(true)
+func _edit(object: Object) -> void:
+	if object is RoomBase:
+		_refresh_edited_room(true)
+		return
+	_last_edited_room = null
+	_session.clear()
+	_sync_empty_state()
+	_redirect_to_default_editor_if_needed()
 
 
 func _make_visible(visible: bool) -> void:
@@ -102,18 +116,21 @@ func _make_visible(visible: bool) -> void:
 		_reset_drag_state()
 		return
 	_refresh_edited_room(false)
-	if _session.room != null:
-		_room_canvas.call(&"center_view", true)
-		_room_canvas.grab_focus()
-	else:
+	if _session.room == null:
 		_sync_empty_state()
+		_redirect_to_default_editor_if_needed()
+		return
+	_room_canvas.call(&"center_view", true)
+	_room_canvas.grab_focus()
 
 
 func _connect_ui() -> void:
 	_main_panel.connect("mode_requested", _on_mode_requested)
 	_main_panel.connect("box_paint_toggled", _on_box_paint_toggled)
+	_main_panel.connect("default_quarter_turn_toggled", _on_default_quarter_turn_toggled)
 	_main_panel.connect("visible_layer_requested", _on_visible_layer_requested)
 	_main_panel.connect("center_view_requested", _on_center_view_requested)
+	_main_panel.connect("popout_preview_toggled", _on_popout_preview_toggled)
 	_main_panel.connect("playtest_requested", _playtest_current_room)
 	_palette_dock.connect("piece_selected", _on_piece_selected)
 	_properties_dock.connect("room_properties_changed", _on_room_properties_changed)
@@ -128,6 +145,7 @@ func _connect_ui() -> void:
 	_room_canvas.connect("delete_shortcut_requested", _on_canvas_delete_shortcut_requested)
 	_session.mode_changed.connect(_on_mode_changed)
 	_session.active_piece_changed.connect(_on_active_piece_changed)
+	_session.placement_rotation_changed.connect(_on_placement_rotation_changed)
 	_session.visible_layer_changed.connect(_on_visible_layer_changed)
 
 
@@ -138,6 +156,7 @@ func _refresh_edited_room(force_refresh: bool) -> void:
 			_last_edited_room = null
 			_session.clear()
 			_sync_empty_state()
+		_redirect_to_default_editor_if_needed()
 		return
 	var room := root as RoomBase
 	if not force_refresh and room == _last_edited_room and _session.layout != null:
@@ -163,9 +182,25 @@ func _sync_empty_state(status_message: String = "Open a RoomBase scene to author
 		_properties_dock.call(&"set_status", status_message)
 	if _preview_dock != null:
 		_preview_dock.call(&"refresh_preview", null, null, DefaultCatalog, _session.visible_layer_filter)
+	if _preview_popout_dock != null:
+		_preview_popout_dock.call(
+			&"refresh_preview",
+			null,
+			null,
+			DefaultCatalog,
+			_session.visible_layer_filter
+		)
 	if _main_panel != null:
 		_main_panel.call(&"set_mode", _session.tool_mode)
 		_main_panel.call(&"set_box_paint_enabled", _session.box_paint_enabled)
+		_main_panel.call(
+			&"set_default_quarter_turn_enabled",
+			_session.placement_rotation_steps == 1
+		)
+		_main_panel.call(
+			&"set_popout_preview_open",
+			is_instance_valid(_preview_popout_window) and _preview_popout_window.visible
+		)
 		_main_panel.call(&"set_visible_layer_filter", _session.visible_layer_filter)
 
 
@@ -184,18 +219,61 @@ func _sync_ui_state(status_message: String = "") -> void:
 			_properties_dock.call(&"set_status", _session.hover_reason)
 	if _preview_dock != null:
 		_preview_dock.call(&"refresh_preview", _session.room, _session.layout, DefaultCatalog, _session.visible_layer_filter)
+	if _preview_popout_dock != null:
+		_preview_popout_dock.call(
+			&"refresh_preview",
+			_session.room,
+			_session.layout,
+			DefaultCatalog,
+			_session.visible_layer_filter
+		)
 	if _room_canvas != null:
 		_room_canvas.call(&"set_session", _session)
 		_room_canvas.call(&"queue_redraw")
 	if _main_panel != null:
 		_main_panel.call(&"set_mode", _session.tool_mode)
 		_main_panel.call(&"set_box_paint_enabled", _session.box_paint_enabled)
+		_main_panel.call(
+			&"set_default_quarter_turn_enabled",
+			_session.placement_rotation_steps == 1
+		)
+		_main_panel.call(
+			&"set_popout_preview_open",
+			is_instance_valid(_preview_popout_window) and _preview_popout_window.visible
+		)
 		_main_panel.call(&"set_visible_layer_filter", _session.visible_layer_filter)
 
 
 func _set_status(message: String) -> void:
 	if _properties_dock != null:
 		_properties_dock.call(&"set_status", message)
+
+
+func _redirect_to_default_editor_if_needed() -> void:
+	if _main_panel == null or not _main_panel.visible:
+		return
+	get_editor_interface().call_deferred(&"set_main_screen_editor", "2D")
+
+
+func _create_preview_popout_window() -> void:
+	_preview_popout_window = Window.new()
+	_preview_popout_window.visible = false
+	_preview_popout_window.title = "Room Editor 3D Preview"
+	_preview_popout_window.name = "DungeonRoomEditorPreviewWindow"
+	_preview_popout_window.force_native = true
+	_preview_popout_window.initial_position = Window.WINDOW_INITIAL_POSITION_CENTER_PRIMARY_SCREEN
+	_preview_popout_window.unresizable = false
+	_preview_popout_window.borderless = false
+	_preview_popout_window.transient = false
+	_preview_popout_window.min_size = Vector2i(420, 320)
+	_preview_popout_window.size = Vector2i(900, 620)
+	_preview_popout_window.wrap_controls = true
+	_preview_popout_window.close_requested.connect(_on_preview_popout_close_requested)
+	get_editor_interface().get_base_control().add_child(_preview_popout_window)
+	_preview_popout_dock = PreviewDockScene.instantiate() as Control
+	if _preview_popout_dock != null:
+		_preview_popout_window.add_child(_preview_popout_dock)
+		_preview_popout_dock.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 
 
 func _reset_drag_state() -> void:
@@ -244,6 +322,51 @@ func _on_center_view_requested() -> void:
 		_room_canvas.grab_focus()
 
 
+func _on_popout_preview_toggled(open_requested: bool) -> void:
+	if open_requested:
+		_open_preview_popout()
+		return
+	_close_preview_popout()
+
+
+func _on_default_quarter_turn_toggled(enabled: bool) -> void:
+	_session.set_placement_rotation_steps(1 if enabled else 0)
+	var message := "New placements rotate 90 degrees by default." if enabled else "New placements use the default rotation."
+	if _session.room != null:
+		_update_hover(_session.hover_cell)
+	else:
+		_set_status(message)
+
+
+func _open_preview_popout() -> void:
+	if not is_instance_valid(_preview_popout_window):
+		return
+	_preview_popout_window.show()
+	_preview_popout_window.grab_focus()
+	if _preview_popout_dock != null:
+		_preview_popout_dock.call(
+			&"refresh_preview",
+			_session.room,
+			_session.layout,
+			DefaultCatalog,
+			_session.visible_layer_filter
+		)
+	if _main_panel != null:
+		_main_panel.call(&"set_popout_preview_open", true)
+
+
+func _close_preview_popout() -> void:
+	if not is_instance_valid(_preview_popout_window):
+		return
+	_preview_popout_window.hide()
+	if _main_panel != null:
+		_main_panel.call(&"set_popout_preview_open", false)
+
+
+func _on_preview_popout_close_requested() -> void:
+	_close_preview_popout()
+
+
 func _on_visible_layer_requested(layer_filter: StringName) -> void:
 	_session.set_visible_layer_filter(layer_filter)
 
@@ -273,6 +396,13 @@ func _on_visible_layer_changed(_layer_filter: StringName) -> void:
 	if selected_item != null and selected_piece != null and not _session.is_item_visible(selected_item, selected_piece):
 		_session.set_selected_item_id("")
 	_sync_ui_state("Viewing %s layer." % _display_layer_name(_session.visible_layer_filter))
+
+
+func _on_placement_rotation_changed(rotation_steps: int) -> void:
+	if _main_panel != null:
+		_main_panel.call(&"set_default_quarter_turn_enabled", rotation_steps == 1)
+	if _session.room != null:
+		_update_hover(_session.hover_cell)
 
 
 func _on_canvas_hover_grid_changed(grid: Vector2i) -> void:

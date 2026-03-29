@@ -3189,8 +3189,8 @@ func _complete_encounter(encounter_id: StringName) -> void:
 
 func _set_boss_exit_active(active: bool, replicate: bool = true) -> void:
 	if _boss_exit_portal != null and is_instance_valid(_boss_exit_portal):
-		_boss_exit_portal.monitoring = active
-		_boss_exit_portal.monitorable = active
+		_boss_exit_portal.set_deferred("monitoring", active)
+		_boss_exit_portal.set_deferred("monitorable", active)
 	if _boss_portal_marker != null:
 		_boss_portal_marker.visible = false
 	if _boss_exit_elevator_visual != null and is_instance_valid(_boss_exit_elevator_visual):

@@ -49,16 +49,22 @@ enum RecoveryState {
 @export var fallen_hold_duration := 3.0
 @export var fall_fallback_duration := 0.9
 @export var stand_up_fallback_duration := 1.0
+@export var stand_up_duration_reduction := 1.0
 @export var mesh_ground_y := 0.0
 @export var mesh_scale := Vector3(5.1, 5.1, 5.1)
 @export var facing_yaw_offset_deg := 0.0
 @export var telegraph_ground_y := 0.06
+@export var guard_debug_ground_y := 0.08
+@export var guard_debug_radius := 8.5
 
 var _visual
 var _vw: Node3D
 var _telegraph_mesh: MeshInstance3D
 var _outline_mat: StandardMaterial3D
 var _fill_mat: StandardMaterial3D
+var _guard_debug_mesh: MeshInstance3D
+var _guard_debug_outline_mat: StandardMaterial3D
+var _guard_debug_fill_mat: StandardMaterial3D
 var _target_player: Node2D
 var _target_refresh_time_remaining := 0.0
 var _repath_time_remaining := 0.0
@@ -77,6 +83,7 @@ var _cooldown_remaining := 0.0
 var _recovery_state := RecoveryState.NONE
 var _recovery_elapsed := 0.0
 var _recovery_duration := 0.0
+var _recovery_playback_speed_scale := 1.0
 var _guard_break_accumulated_damage := 0.0
 
 @onready var _nav_agent: NavigationAgent2D = $NavigationAgent2D
@@ -114,6 +121,7 @@ func _ready() -> void:
 		vw.add_child(vis)
 		_visual = vis
 		_create_telegraph_mesh(vw)
+		_create_guard_debug_mesh(vw)
 	_sync_visual()
 	if _nav_agent != null:
 		_nav_agent.path_desired_distance = 0.75
@@ -127,6 +135,8 @@ func _exit_tree() -> void:
 		_visual.queue_free()
 	if _telegraph_mesh != null and is_instance_valid(_telegraph_mesh):
 		_telegraph_mesh.queue_free()
+	if _guard_debug_mesh != null and is_instance_valid(_guard_debug_mesh):
+		_guard_debug_mesh.queue_free()
 
 
 func _physics_process(delta: float) -> void:
@@ -321,6 +331,7 @@ func _start_guard_break_recovery() -> void:
 	_recovery_state = RecoveryState.FALLING
 	_recovery_elapsed = 0.0
 	_recovery_duration = _visual_duration_for_state(&"fallen", fall_fallback_duration)
+	_recovery_playback_speed_scale = 1.0
 	_guard_break_accumulated_damage = 0.0
 	_cooldown_remaining = maxf(_cooldown_remaining, _recovery_duration + fallen_hold_duration)
 	_update_attack_telegraph_visual(false, AttackState.NONE, Vector2.ZERO, 0.0)
@@ -333,6 +344,7 @@ func _begin_downed_hold() -> void:
 	_recovery_state = RecoveryState.DOWNED_HOLD
 	_recovery_elapsed = 0.0
 	_recovery_duration = maxf(0.0, fallen_hold_duration)
+	_recovery_playback_speed_scale = 1.0
 	if _visual != null:
 		_visual.set_state(&"fallen")
 		_visual.seek_current_animation_seconds(_visual.get_current_animation_duration_seconds())
@@ -342,16 +354,20 @@ func _begin_downed_hold() -> void:
 func _begin_stand_up_recovery() -> void:
 	_recovery_state = RecoveryState.STANDING_UP
 	_recovery_elapsed = 0.0
-	_recovery_duration = _visual_duration_for_state(&"stand_up", stand_up_fallback_duration)
+	var base_duration := _visual_duration_for_state(&"stand_up", stand_up_fallback_duration)
+	_recovery_duration = maxf(0.05, base_duration - maxf(0.0, stand_up_duration_reduction))
+	_recovery_playback_speed_scale = (
+		base_duration / _recovery_duration if _recovery_duration > 0.0 else 1.0
+	)
 	if _visual != null:
 		_visual.set_playback_paused(false)
-		_visual.set_state(&"stand_up", true)
 
 
 func _clear_recovery_state() -> void:
 	_recovery_state = RecoveryState.NONE
 	_recovery_elapsed = 0.0
 	_recovery_duration = 0.0
+	_recovery_playback_speed_scale = 1.0
 	if _visual != null:
 		_visual.set_playback_paused(false)
 
@@ -458,10 +474,12 @@ func _visual_state_name() -> StringName:
 
 func _sync_visual() -> void:
 	if _visual == null:
+		_sync_guard_debug_visual()
 		return
+	var facing_dir := _resolve_visual_facing_direction()
 	_refresh_attack_hitboxes()
 	_visual.set_state(_visual_state_name())
-	_visual.sync_from_2d(global_position, _resolve_visual_facing_direction())
+	_visual.sync_from_2d(global_position, facing_dir)
 	if _recovery_state == RecoveryState.DOWNED_HOLD:
 		_visual.seek_current_animation_seconds(_visual.get_current_animation_duration_seconds())
 		_visual.set_playback_paused(true)
@@ -472,7 +490,10 @@ func _sync_visual() -> void:
 		0.35,
 		1.8
 	) if velocity.length_squared() > 0.01 else 1.0
+	if _recovery_state == RecoveryState.STANDING_UP:
+		playback_scale *= _recovery_playback_speed_scale
 	_visual.set_playback_speed_scale(playback_scale)
+	_sync_guard_debug_visual(facing_dir)
 
 
 func _resolve_visual_facing_direction() -> Vector2:
@@ -576,6 +597,83 @@ func _create_telegraph_mesh(parent: Node3D) -> void:
 	_telegraph_mesh.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	_telegraph_mesh.visible = false
 	parent.add_child(_telegraph_mesh)
+
+
+func _create_guard_debug_mesh(parent: Node3D) -> void:
+	_guard_debug_mesh = MeshInstance3D.new()
+	_guard_debug_mesh.name = &"IronSentinelGuardDebug"
+	_guard_debug_outline_mat = StandardMaterial3D.new()
+	_guard_debug_outline_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	_guard_debug_outline_mat.albedo_color = Color(0.08, 0.26, 0.9, 1.0)
+	_guard_debug_outline_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	_guard_debug_outline_mat.cull_mode = BaseMaterial3D.CULL_DISABLED
+	_guard_debug_fill_mat = StandardMaterial3D.new()
+	_guard_debug_fill_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	_guard_debug_fill_mat.albedo_color = Color(0.2, 0.58, 1.0, 0.26)
+	_guard_debug_fill_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	_guard_debug_fill_mat.cull_mode = BaseMaterial3D.CULL_DISABLED
+	_guard_debug_mesh.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	_guard_debug_mesh.visible = false
+	_guard_debug_mesh.mesh = _build_guard_debug_mesh()
+	parent.add_child(_guard_debug_mesh)
+
+
+func _build_guard_debug_mesh() -> ImmediateMesh:
+	var imm := ImmediateMesh.new()
+	var radius := maxf(1.0, guard_debug_radius)
+	var clamped_arc_degrees := clampf(block_arc_degrees, 10.0, 360.0)
+	var half_arc_radians := deg_to_rad(clamped_arc_degrees * 0.5)
+	var segments := maxi(10, int(ceil(clamped_arc_degrees / 12.0)))
+	imm.surface_begin(Mesh.PRIMITIVE_TRIANGLES, _guard_debug_fill_mat)
+	for segment_index in range(segments):
+		var t0 := float(segment_index) / float(segments)
+		var t1 := float(segment_index + 1) / float(segments)
+		var angle_0 := lerpf(-half_arc_radians, half_arc_radians, t0)
+		var angle_1 := lerpf(-half_arc_radians, half_arc_radians, t1)
+		var edge_0 := Vector3(sin(angle_0) * radius, 0.0, cos(angle_0) * radius)
+		var edge_1 := Vector3(sin(angle_1) * radius, 0.0, cos(angle_1) * radius)
+		imm.surface_add_vertex(Vector3.ZERO)
+		imm.surface_add_vertex(edge_0)
+		imm.surface_add_vertex(edge_1)
+	imm.surface_end()
+	imm.surface_begin(Mesh.PRIMITIVE_LINES, _guard_debug_outline_mat)
+	var first_edge := Vector3(sin(-half_arc_radians) * radius, 0.0, cos(-half_arc_radians) * radius)
+	var last_edge := Vector3(sin(half_arc_radians) * radius, 0.0, cos(half_arc_radians) * radius)
+	imm.surface_add_vertex(Vector3.ZERO)
+	imm.surface_add_vertex(first_edge)
+	imm.surface_add_vertex(Vector3.ZERO)
+	imm.surface_add_vertex(last_edge)
+	imm.surface_add_vertex(Vector3.ZERO)
+	imm.surface_add_vertex(Vector3(0.0, 0.0, radius))
+	for segment_index in range(segments):
+		var t0 := float(segment_index) / float(segments)
+		var t1 := float(segment_index + 1) / float(segments)
+		var angle_0 := lerpf(-half_arc_radians, half_arc_radians, t0)
+		var angle_1 := lerpf(-half_arc_radians, half_arc_radians, t1)
+		var arc_0 := Vector3(sin(angle_0) * radius, 0.0, cos(angle_0) * radius)
+		var arc_1 := Vector3(sin(angle_1) * radius, 0.0, cos(angle_1) * radius)
+		imm.surface_add_vertex(arc_0)
+		imm.surface_add_vertex(arc_1)
+	imm.surface_end()
+	return imm
+
+
+func _sync_guard_debug_visual(facing_dir: Vector2 = Vector2.ZERO) -> void:
+	if _guard_debug_mesh == null:
+		return
+	var guard_active := is_directional_guard_active()
+	_guard_debug_mesh.visible = guard_active
+	if not guard_active:
+		return
+	var resolved_facing := facing_dir
+	if resolved_facing.length_squared() <= 0.0001:
+		resolved_facing = _resolve_visual_facing_direction()
+	if resolved_facing.length_squared() <= 0.0001:
+		resolved_facing = Vector2(0.0, -1.0)
+	else:
+		resolved_facing = resolved_facing.normalized()
+	_guard_debug_mesh.global_position = Vector3(global_position.x, guard_debug_ground_y, global_position.y)
+	_guard_debug_mesh.rotation = Vector3(0.0, atan2(resolved_facing.x, resolved_facing.y), 0.0)
 
 
 func _update_attack_telegraph_visual(

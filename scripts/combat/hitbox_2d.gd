@@ -3,6 +3,9 @@ class_name Hitbox2D
 
 signal hitbox_activated(packet: DamagePacket, attack_instance_id: int)
 signal hitbox_deactivated()
+signal target_resolved(
+	packet: DamagePacket, target_uid: int, accepted: bool, consume_hit: bool, reason: StringName
+)
 
 enum RepeatMode { NONE, INTERVAL }
 
@@ -13,6 +16,7 @@ enum RepeatMode { NONE, INTERVAL }
 @export var debug_draw_enabled := false
 @export var debug_label: StringName = &""
 @export var max_query_results := 32
+@export var stop_after_first_consume_hit := false
 
 var _active := false
 var _duration_remaining := -1.0
@@ -111,6 +115,7 @@ func _scan_hurtboxes() -> void:
 	var now := _now_sec()
 	var seen_targets: Dictionary = {}
 	var resolved_count := 0
+	var stop_scanning := false
 	for hurtbox in _query_hurtboxes():
 		if hurtbox == null or not is_instance_valid(hurtbox):
 			continue
@@ -149,6 +154,7 @@ func _scan_hurtboxes() -> void:
 				packet.attack_instance_id,
 				String(reason),
 			])
+		target_resolved.emit(packet, target_uid, accepted, consume_hit, reason)
 		if consume_hit:
 			resolved_count += 1
 			state["resolved_once"] = true
@@ -157,6 +163,9 @@ func _scan_hurtboxes() -> void:
 			else:
 				state["next_allowed_time"] = INF
 			_target_states[target_uid] = state
+			if stop_after_first_consume_hit:
+				stop_scanning = true
+				break
 	for target_uid in _present_targets.keys():
 		if not seen_targets.has(target_uid):
 			_present_targets.erase(target_uid)

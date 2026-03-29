@@ -3,17 +3,21 @@ extends Control
 
 signal mode_requested(mode: int)
 signal box_paint_toggled(enabled: bool)
+signal default_quarter_turn_toggled(enabled: bool)
 signal visible_layer_requested(layer_filter: StringName)
 signal center_view_requested()
+signal popout_preview_toggled(open_requested: bool)
 signal playtest_requested()
 
 @onready var _place_button: Button = %PlaceButton
 @onready var _box_paint_check: CheckBox = %BoxPaintCheck
+@onready var _default_quarter_turn_check: CheckBox = %DefaultQuarterTurnCheck
 @onready var _select_button: Button = %SelectButton
 @onready var _erase_button: Button = %EraseButton
 @onready var _rotate_button: Button = %RotateButton
 @onready var _visible_layer_option: OptionButton = %VisibleLayerOption
 @onready var _center_view_button: Button = %CenterViewButton
+@onready var _popout_preview_button: Button = %PopoutPreviewButton
 @onready var _playtest_button: Button = %PlaytestButton
 @onready var _room_canvas: Control = %RoomCanvas
 @onready var _palette_dock: Control = %PaletteDock
@@ -24,6 +28,9 @@ signal playtest_requested()
 func _ready() -> void:
 	_place_button.pressed.connect(func() -> void: mode_requested.emit(0))
 	_box_paint_check.toggled.connect(func(enabled: bool) -> void: box_paint_toggled.emit(enabled))
+	_default_quarter_turn_check.toggled.connect(
+		func(enabled: bool) -> void: default_quarter_turn_toggled.emit(enabled)
+	)
 	_select_button.pressed.connect(func() -> void: mode_requested.emit(1))
 	_erase_button.pressed.connect(func() -> void: mode_requested.emit(2))
 	_rotate_button.pressed.connect(func() -> void: mode_requested.emit(3))
@@ -42,6 +49,9 @@ func _ready() -> void:
 					visible_layer_requested.emit(&"all")
 	)
 	_center_view_button.pressed.connect(func() -> void: center_view_requested.emit())
+	_popout_preview_button.toggled.connect(
+		func(open_requested: bool) -> void: popout_preview_toggled.emit(open_requested)
+	)
 	_playtest_button.pressed.connect(func() -> void: playtest_requested.emit())
 
 
@@ -68,10 +78,20 @@ func set_mode(mode: int) -> void:
 	_rotate_button.button_pressed = mode == 3
 	_box_paint_check.visible = mode == 0
 	_box_paint_check.disabled = mode != 0
+	_default_quarter_turn_check.visible = mode == 0
+	_default_quarter_turn_check.disabled = mode != 0
 
 
 func set_box_paint_enabled(enabled: bool) -> void:
 	_box_paint_check.set_pressed_no_signal(enabled)
+
+
+func set_default_quarter_turn_enabled(enabled: bool) -> void:
+	_default_quarter_turn_check.set_pressed_no_signal(enabled)
+
+
+func set_popout_preview_open(open_requested: bool) -> void:
+	_popout_preview_button.set_pressed_no_signal(open_requested)
 
 
 func set_visible_layer_filter(layer_filter: StringName) -> void:

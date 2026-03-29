@@ -113,7 +113,7 @@ albedo_texture = ExtResource("6_0kpvu")
 roughness = 0.5
 
 [node name="PlayerVisual" type="Node3D" unique_id=721425659]
-transform = Transform3D(3.9258676, 0, -0.7665251, 0, 4, 0, 0.7665251, 0, 3.9258676, 0, 0, 0)
+transform = Transform3D(2.3555207, 0, -0.45991507, 0, 2.4, 0, 0.45991507, 0, 2.3555207, 0, 0, 0)
 script = ExtResource("1_pv")
 editor_preview_animation = 1
 sword_bone_name_override = &"handslot.r"
@@ -143,7 +143,7 @@ equipment_helmet_local_scale = Vector3(1.1, 1.1, 1.1)
 equipment_shield_local_scale = Vector3(0.999999, 1, 1)
 
 [node name="SwordAttachment" type="Node3D" parent="." unique_id=1423052459]
-transform = Transform3D(-0.08550503, -6.3329935e-08, -0.23492321, -0.22533591, 0.07069079, 0.082015514, 0.0664276, 0.23979747, -0.024177726, -0.40501833, 0.72311676, 0.45614716)
+transform = Transform3D(1.9613246e-07, -0.10952625, -0.40201384, -0.41666666, -2.2746747e-07, -1.4130907e-07, -1.8232323e-07, 0.40201384, -0.10952625, -0.4241318, 0.53559643, 0.081609465)
 
 [node name="SwordOffset" type="Node3D" parent="SwordAttachment" unique_id=151781569]
 transform = Transform3D(0.037799418, 0.3340394, 0.9418009, -0.29389265, 0.90450853, -0.309017, -0.95509076, -0.26510766, 0.1323616, 0.02, 0, 0.02)
@@ -152,16 +152,16 @@ transform = Transform3D(0.037799418, 0.3340394, 0.9418009, -0.29389265, 0.904508
 transform = Transform3D(-0.09248358, -0.006332498, 0.99569386, -0.40915632, 0.9118955, -0.032204315, -0.9077651, -0.41037267, -0.086926304, 0, 0, 0)
 
 [node name="ShieldAttachment" type="Node3D" parent="." unique_id=198724310]
-transform = Transform3D(-0.03572095, 0.16776437, 0.18187673, -0.12279825, -0.17155461, 0.13412534, 0.21481298, -0.07017225, 0.10691705, 0.33868474, 1.1181979, -0.1085743)
+transform = Transform3D(-0.21363752, 0.14987685, 0.3248185, 0.09173128, -0.34273174, 0.21847525, 0.34576797, 0.18352926, 0.14273271, 0.35888705, 0.90988314, -0.07217821)
 
 [node name="ShieldOffset" type="Node3D" parent="ShieldAttachment" unique_id=198724311]
-transform = Transform3D(0.33051643, -0.32715195, -0.8852854, -0.5072191, 0.7294572, -0.45893443, 0.7959183, 0.60071963, 0.075159915, -0.16889054, 0.041879654, 0.12440491)
+transform = Transform3D(0.99026704, 0.1391731, 0, -0.13841057, 0.98484325, -0.104528464, -0.014547536, 0.1035112, 0.9945219, -0.18, 0.04, 0.12)
 
 [node name="EquipmentShieldMesh" parent="ShieldAttachment/ShieldOffset" unique_id=198724312 instance=ExtResource("7_shield")]
 transform = Transform3D(1.4583024, 0.21009454, -0.28145257, -0.09858775, 1.3985748, 0.53316903, 0.3370992, -0.49984896, 1.373505, -0.6206127, 1.1985865, 0.23409176)
 
 [node name="HandgunAttachment" type="Node3D" parent="." unique_id=198724313]
-transform = Transform3D(-0.08550503, -6.3329935e-08, -0.23492321, -0.22533591, 0.07069079, 0.082015514, 0.0664276, 0.23979747, -0.024177726, -0.40501833, 0.72311676, 0.45614716)
+transform = Transform3D(1.9613246e-07, -0.10952625, -0.40201384, -0.41666666, -2.2746747e-07, -1.4130907e-07, -1.8232323e-07, 0.40201384, -0.10952625, -0.4241318, 0.53559643, 0.081609465)
 
 [node name="HandgunOffset" type="Node3D" parent="HandgunAttachment" unique_id=198724314]
 transform = Transform3D(0.016951807, -0.7277335, -1.3115321, -0.4092687, 1.2595996, -0.70420736, 1.4429872, 0.36580443, -0.18432403, 0.02, 0, 0.02)
@@ -184,13 +184,12 @@ visible = false
 transform = Transform3D(1.0973206, -0.07673212, 0, 0.07210461, 1.031144, -0.37622213, 0.026243929, 0.3753057, 1.0336618, 0, 0.5, 0)
 
 [node name="BaseModelVisorAttachment" type="Node3D" parent="." unique_id=198724316]
-transform = Transform3D(0.25000003, 0, 0, 0, 0.25, 0, 0, 0, 0.25000003, 0, 1.2414254, 0)
+transform = Transform3D(0.4166667, 0, 7.450581e-09, 0, 0.41666666, 0, -7.450581e-09, 0, 0.4166667, 0, 1.2414254, 0)
 
 [node name="BaseModelVisorOffset" type="Node3D" parent="BaseModelVisorAttachment" unique_id=198724317]
-transform = Transform3D(3.9859343, 0.32291448, 0.0895434, -0.21909124, 3.3200388, -2.220212, -0.2535569, 2.2075007, 3.3260489, -0.64043045, -3.7981105, -4.041823)
+transform = Transform3D(2.3915594, 0.1937485, 0.053726077, -0.13145475, 1.9920233, -1.3321272, -0.15213394, 1.3244998, 1.9956286, -0.29636824, -2.4660559, -2.2796588)
 
 [node name="BaseModelVisorMesh" type="MeshInstance3D" parent="BaseModelVisorAttachment/BaseModelVisorOffset" unique_id=1591706334]
-transform = Transform3D(0.9969953, -0.045056395, -0.06302466, 0.04476937, 0.9989803, -0.0059600174, 0.063229024, 0.0031208396, 0.99799544, 0.07995641, 0.054853648, 0.069016695)
 mesh = SubResource("ArrayMesh_omu04")
 skin = SubResource("Skin_wf3bu")
 skeleton = NodePath("../../../Meshy/Rig_Medium/Skeleton3D")

@@ -45,6 +45,11 @@ unique_name_in_owner = true
 layout_mode = 2
 text = "Box Paint"
 
+[node name="DefaultQuarterTurnCheck" type="CheckBox" parent="VBox/Toolbar"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "Default 90"
+
 [node name="SelectButton" type="Button" parent="VBox/Toolbar"]
 unique_name_in_owner = true
 layout_mode = 2
@@ -79,6 +84,12 @@ text = "Center View"
 [node name="Spacer" type="Control" parent="VBox/Toolbar"]
 layout_mode = 2
 size_flags_horizontal = 3
+
+[node name="PopoutPreviewButton" type="Button" parent="VBox/Toolbar"]
+unique_name_in_owner = true
+layout_mode = 2
+toggle_mode = true
+text = "Pop Out 3D"
 
 [node name="PlaytestButton" type="Button" parent="VBox/Toolbar"]
 unique_name_in_owner = true

@@ -6,6 +6,7 @@ const GridMath = preload("res://addons/dungeon_room_editor/core/grid_math.gd")
 const DoorSocketScene = preload("res://dungeon/rooms/base/door_socket_2d.tscn")
 const ZoneMarkerScene = preload("res://dungeon/metadata/zone_marker_2d.tscn")
 const PREVIEW_BUILDER_SCRIPT = preload("res://addons/dungeon_room_editor/preview/preview_builder.gd")
+const BLOCKER_COLLISION_LAYER := 4
 
 var _preview_builder = PREVIEW_BUILDER_SCRIPT.new()
 
@@ -21,12 +22,11 @@ func sync_room(room: RoomBase, layout, catalog) -> void:
 	var sockets_root := _ensure_node2d_container(room, room.get_node(^"Sockets") as Node2D)
 	var zones_root := _ensure_node2d_container(room, room.get_node(^"Zones") as Node2D)
 	var gameplay_root := _ensure_node2d_container(room, room.get_node(^"Gameplay") as Node2D)
-	var visual_root := _ensure_node3d_container(room, room.get_node(^"Visual3DProxy") as Node3D)
+	var visual_root := _rebuild_node3d_container(room, room.get_node(^"Visual3DProxy") as Node3D)
 
 	_clear_children(sockets_root)
 	_clear_children(zones_root)
 	_clear_children(gameplay_root)
-	_clear_children(visual_root)
 
 	for item in layout.items:
 		if item == null:
@@ -43,6 +43,8 @@ func sync_room(room: RoomBase, layout, catalog) -> void:
 				_sync_zone_marker_item(room, layout, item, piece, zones_root)
 			"door_socket":
 				_sync_socket_item(room, layout, item, piece, sockets_root)
+		if _should_create_blocker(item, piece):
+			_sync_blocker_item(room, layout, item, piece, gameplay_root)
 
 
 func _sync_visual_only_item(
@@ -120,12 +122,39 @@ func _sync_socket_item(
 	parent.add_child(socket)
 
 
+func _sync_blocker_item(
+	room: RoomBase,
+	layout,
+	item,
+	piece,
+	parent: Node2D
+) -> void:
+	var blocker := StaticBody2D.new()
+	blocker.name = "%s_%s_Blocker" % [String(piece.piece_id), item.item_id]
+	blocker.collision_layer = BLOCKER_COLLISION_LAYER
+	blocker.collision_mask = 0
+	var shape := CollisionShape2D.new()
+	var rect_shape := RectangleShape2D.new()
+	var item_rect := GridMath.item_rect(item, piece, layout, room)
+	rect_shape.size = Vector2(
+		maxf(item_rect.size.x, 1.0),
+		maxf(item_rect.size.y, 1.0)
+	)
+	shape.shape = rect_shape
+	blocker.position = item_rect.get_center()
+	blocker.add_child(shape)
+	parent.add_child(blocker)
+	_apply_common_item_metadata(blocker, item)
+
+
 func _ensure_node2d_container(room: RoomBase, parent: Node2D) -> Node2D:
 	var existing := parent.get_node_or_null(^"GeneratedByRoomEditor") as Node2D
 	if existing != null:
+		existing.transform = Transform2D.IDENTITY
 		return existing
 	var container := Node2D.new()
 	container.name = "GeneratedByRoomEditor"
+	container.transform = Transform2D.IDENTITY
 	parent.add_child(container)
 	return container
 
@@ -140,6 +169,18 @@ func _ensure_node3d_container(room: RoomBase, parent: Node3D) -> Node3D:
 	return container
 
 
+func _rebuild_node3d_container(room: RoomBase, parent: Node3D) -> Node3D:
+	var existing := parent.get_node_or_null(^"GeneratedByRoomEditor") as Node3D
+	if existing != null:
+		parent.remove_child(existing)
+		existing.free()
+	var container := Node3D.new()
+	container.name = "GeneratedByRoomEditor"
+	container.transform = Transform3D.IDENTITY
+	parent.add_child(container)
+	return container
+
+
 func _clear_children(node: Node) -> void:
 	for child in node.get_children():
 		child.free()
@@ -147,6 +188,14 @@ func _clear_children(node: Node) -> void:
 
 func _local_2d_to_3d(local_position: Vector2) -> Vector3:
 	return Vector3(local_position.x, 0.0, local_position.y)
+
+
+func _should_create_blocker(item, piece) -> bool:
+	if item == null or piece == null:
+		return false
+	if not item.blocks_movement and not item.blocks_projectiles:
+		return false
+	return piece.mapping_kind != &"runtime_scene"
 
 
 func _apply_common_item_metadata(node: Node, item) -> void:

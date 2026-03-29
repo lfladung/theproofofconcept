@@ -21,14 +21,16 @@ collision_layer = 2
 collision_mask = 7
 motion_mode = 1
 script = ExtResource("1")
+max_health = 150
+guard_break_damage_threshold = 150.0
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="."]
 shape = SubResource("RectangleShape2D_sentinel_body")
 
 [node name="HealthComponent" type="Node" parent="."]
 script = ExtResource("3")
-max_health = 75
-starting_health = 75
+max_health = 150
+starting_health = 150
 debug_label = &"sentinel_health"
 
 [node name="DamageReceiver" type="Node" parent="."]

@@ -195,7 +195,13 @@ func _validate_closed_boundary_contract() -> void:
 
 
 func _validate_door_socket_standardization() -> void:
-	var sockets := get_all_sockets()
+	var sockets: Array[DoorSocket2D] = []
+	if _is_room_editor_authoring_context():
+		sockets = _generated_socket_children()
+		if sockets.is_empty():
+			return
+	else:
+		sockets = get_all_sockets()
 	if sockets.is_empty():
 		push_warning("Room '%s' has no door sockets." % room_id)
 		return

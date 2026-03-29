@@ -46,6 +46,9 @@ size = Vector2i(640, 480)
 [node name="PreviewRoot" type="Node3D" parent="Margin/VBox/SubViewportContainer/PreviewViewport"]
 unique_name_in_owner = true
 
+[node name="PreviewEnvironment" type="WorldEnvironment" parent="Margin/VBox/SubViewportContainer/PreviewViewport"]
+unique_name_in_owner = true
+
 [node name="CameraPivot" type="Node3D" parent="Margin/VBox/SubViewportContainer/PreviewViewport"]
 unique_name_in_owner = true
 
@@ -54,5 +57,5 @@ unique_name_in_owner = true
 current = true
 
 [node name="Sun" type="DirectionalLight3D" parent="Margin/VBox/SubViewportContainer/PreviewViewport"]
+unique_name_in_owner = true
 rotation = Vector3(-0.785398, 0.785398, 0)
-
