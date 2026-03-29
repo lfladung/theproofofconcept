@@ -3,3 +3,12 @@
 logs/
 Godot_v4.6.1-stable_win64.exe/
 .claude/
+
+# Local Godot profile + logs from tools/run_headless.ps1 (not project source)
+.godot_cli_profile/
+
+# OS
+.DS_Store
+Thumbs.db
+ehthumbs.db
+Desktop.ini
