@@ -1,62 +1,62 @@
 [gd_scene format=3]
 
 [ext_resource type="PackedScene" path="res://dungeon/rooms/base/room_base.tscn" id="1_room_base"]
-[ext_resource type="Resource" path="res://dungeon/rooms/authored/outlines/room_combat_skirmish_small_a.layout.tres" id="2_layout"]
+[ext_resource type="Resource" path="res://dungeon/rooms/authored/outlines/v2/layouts/room_combat_skirmish_small_b.layout.tres" id="2_layout"]
 [ext_resource type="PackedScene" path="res://dungeon/rooms/base/door_socket_2d.tscn" id="3_socket"]
 [ext_resource type="PackedScene" path="res://dungeon/metadata/zone_marker_2d.tscn" id="4_zone"]
 
 [node name="RoomRoot" instance=ExtResource("1_room_base")]
-room_id = "room_combat_skirmish_small_a"
+room_id = "room_combat_skirmish_small_b"
 size_class = "small"
 room_type = "arena"
 origin_mode = "center"
 tile_size = Vector2i(3, 3)
-room_size_tiles = Vector2i(10, 10)
+room_size_tiles = Vector2i(15, 15)
 room_tags = PackedStringArray("arena", "combat", "small")
 allowed_connection_types = PackedStringArray("corridor", "connector", "arena")
-encounter_budget = 80
+encounter_budget = 120
 max_tile_budget = 1024
 authored_layout = ExtResource("2_layout")
 
 [node name="GeneratedByRoomEditor" type="Node2D" parent="Sockets"]
-[node name="hall_socket_double_hall_socket_double_125" parent="Sockets/GeneratedByRoomEditor" instance=ExtResource("3_socket")]
-position = Vector2(-15.0, 0.0)
+[node name="hall_socket_double_hall_socket_double_268" parent="Sockets/GeneratedByRoomEditor" instance=ExtResource("3_socket")]
+position = Vector2(-21.0, -1.5)
 direction = "west"
 width_tiles = 2
 
-[node name="hall_socket_double_hall_socket_double_126" parent="Sockets/GeneratedByRoomEditor" instance=ExtResource("3_socket")]
-position = Vector2(15.0, 0.0)
+[node name="hall_socket_double_hall_socket_double_269" parent="Sockets/GeneratedByRoomEditor" instance=ExtResource("3_socket")]
+position = Vector2(21.0, -1.5)
 direction = "east"
 width_tiles = 2
 
 [node name="GeneratedByRoomEditor" type="Node2D" parent="Zones"]
-[node name="encounter_entry_marker_encounter_entry_marker_127" parent="Zones/GeneratedByRoomEditor" instance=ExtResource("4_zone")]
-position = Vector2(-6.0, 0.0)
+[node name="encounter_entry_marker_encounter_entry_marker_270" parent="Zones/GeneratedByRoomEditor" instance=ExtResource("4_zone")]
+position = Vector2(-9.0, 0.0)
 zone_type = "encounter_trigger"
 zone_role = &"entry"
 tags = PackedStringArray("marker", "encounter")
 
-[node name="prop_placement_marker_prop_placement_marker_128" parent="Zones/GeneratedByRoomEditor" instance=ExtResource("4_zone")]
-position = Vector2(6.0, -6.0)
+[node name="prop_placement_marker_prop_placement_marker_271" parent="Zones/GeneratedByRoomEditor" instance=ExtResource("4_zone")]
+position = Vector2(9.0, -9.0)
 zone_type = "prop_placement"
 zone_role = &"filler"
 tags = PackedStringArray("marker", "prop")
 
-[node name="nav_boundary_marker_nav_boundary_marker_129" parent="Zones/GeneratedByRoomEditor" instance=ExtResource("4_zone")]
+[node name="nav_boundary_marker_nav_boundary_marker_272" parent="Zones/GeneratedByRoomEditor" instance=ExtResource("4_zone")]
 position = Vector2(0.0, 0.0)
 zone_type = "nav_boundary"
 zone_role = &"room_walkable"
 tags = PackedStringArray("marker", "nav")
 
-[node name="spawn_robot_mob_marker_spawn_robot_mob_marker_132" parent="Zones/GeneratedByRoomEditor" instance=ExtResource("4_zone")]
-position = Vector2(6.0, -3.0)
+[node name="spawn_robot_mob_marker_spawn_robot_mob_marker_275" parent="Zones/GeneratedByRoomEditor" instance=ExtResource("4_zone")]
+position = Vector2(9.0, -6.0)
 zone_type = "enemy_spawn"
 zone_role = &"robot_mob"
 enemy_id = &"robot_mob"
 tags = PackedStringArray("spawn", "robot_mob")
 
-[node name="spawn_dasher_marker_spawn_dasher_marker_133" parent="Zones/GeneratedByRoomEditor" instance=ExtResource("4_zone")]
-position = Vector2(6.0, 6.0)
+[node name="spawn_dasher_marker_spawn_dasher_marker_276" parent="Zones/GeneratedByRoomEditor" instance=ExtResource("4_zone")]
+position = Vector2(9.0, 9.0)
 zone_type = "enemy_spawn"
 zone_role = &"dasher"
 enemy_id = &"dasher"

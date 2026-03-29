@@ -5,11 +5,23 @@ class_name DungeonRoomSerializer
 const LayoutScript = preload("res://addons/dungeon_room_editor/resources/room_layout_data.gd")
 const ItemScript = preload("res://addons/dungeon_room_editor/resources/room_placed_item_data.gd")
 
+## Sidecar layouts live next to the room scene under `layouts/<scene_basename>.layout.tres`.
+## Legacy sibling `/<basename>.layout.tres` is still loaded if present.
+const _LAYOUT_SUBDIR := "layouts"
+
 
 func layout_path_for_scene(scene_path: String) -> String:
 	if scene_path.is_empty():
 		return ""
-	return "%s.layout.tres" % [scene_path.get_basename()]
+	var base_dir := scene_path.get_base_dir()
+	var stem := scene_path.get_basename().get_file()
+	var nested := "%s/%s/%s.layout.tres" % [base_dir, _LAYOUT_SUBDIR, stem]
+	if ResourceLoader.exists(nested):
+		return nested
+	var legacy := "%s/%s.layout.tres" % [base_dir, stem]
+	if ResourceLoader.exists(legacy):
+		return legacy
+	return nested
 
 
 func ensure_layout_for_room(room: RoomBase) -> Dictionary:
@@ -46,6 +58,7 @@ func ensure_layout_for_room(room: RoomBase) -> Dictionary:
 		)
 		room.tile_size = layout.grid_size
 	if not layout_path.is_empty() and (layout.resource_path.is_empty() or not ResourceLoader.exists(layout_path)):
+		_ensure_directory_for_file(layout_path)
 		ResourceSaver.save(layout, layout_path)
 	return {"layout": layout, "layout_path": layout_path}
 
@@ -60,7 +73,17 @@ func save_layout(room: RoomBase, layout, target_path: String = "") -> bool:
 		path = layout_path_for_scene(room.scene_file_path)
 	if path.is_empty():
 		return false
+	_ensure_directory_for_file(path)
 	return ResourceSaver.save(layout, path) == OK
+
+
+func _ensure_directory_for_file(resource_path: String) -> void:
+	if resource_path.is_empty() or not resource_path.begins_with("res://"):
+		return
+	var abs_path := ProjectSettings.globalize_path(resource_path.get_base_dir())
+	var err := DirAccess.make_dir_recursive_absolute(abs_path)
+	if err != OK and err != ERR_ALREADY_EXISTS:
+		push_warning("DungeonRoomSerializer: could not create directory %s (err %s)" % [abs_path, err])
 
 
 func export_layout_json(layout, path: String) -> bool:

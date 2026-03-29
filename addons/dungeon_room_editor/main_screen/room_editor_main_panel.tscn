@@ -45,10 +45,15 @@ unique_name_in_owner = true
 layout_mode = 2
 text = "Box Paint"
 
-[node name="DefaultQuarterTurnCheck" type="CheckBox" parent="VBox/Toolbar"]
+[node name="PlacementRotationLabel" type="Label" parent="VBox/Toolbar"]
 unique_name_in_owner = true
 layout_mode = 2
-text = "Default 90"
+text = "Place rot"
+
+[node name="PlacementRotationOption" type="OptionButton" parent="VBox/Toolbar"]
+unique_name_in_owner = true
+layout_mode = 2
+tooltip_text = "Facing for the next placement (door sockets: N=top edge, E=right, S=bottom, W=left). R cycles preview, or rotates the selected item if something is selected."
 
 [node name="SelectButton" type="Button" parent="VBox/Toolbar"]
 unique_name_in_owner = true

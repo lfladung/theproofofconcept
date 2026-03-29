@@ -86,38 +86,6 @@ func _align_preview_root_to_room(room: RoomBase) -> void:
 
 
 func _compute_preview_bounds() -> AABB:
-	var has_bounds := false
-	var bounds := AABB()
-	var inverse_root := _preview_root.global_transform.affine_inverse()
-	for child in _preview_root.find_children("*", "MeshInstance3D", true, false):
-		var mesh_instance := child as MeshInstance3D
-		if mesh_instance == null or mesh_instance.mesh == null:
-			continue
-		var local_aabb := _transform_aabb(
-			inverse_root * mesh_instance.global_transform,
-			mesh_instance.get_aabb()
-		)
-		if not has_bounds:
-			bounds = local_aabb
-			has_bounds = true
-		else:
-			bounds = bounds.merge(local_aabb)
-	return bounds if has_bounds else AABB()
-
-
-func _transform_aabb(transform: Transform3D, aabb: AABB) -> AABB:
-	var corners := [
-		aabb.position,
-		aabb.position + Vector3(aabb.size.x, 0.0, 0.0),
-		aabb.position + Vector3(0.0, aabb.size.y, 0.0),
-		aabb.position + Vector3(0.0, 0.0, aabb.size.z),
-		aabb.position + Vector3(aabb.size.x, aabb.size.y, 0.0),
-		aabb.position + Vector3(aabb.size.x, 0.0, aabb.size.z),
-		aabb.position + Vector3(0.0, aabb.size.y, aabb.size.z),
-		aabb.position + aabb.size,
-	]
-	var transformed_position: Vector3 = transform * corners[0]
-	var result := AABB(transformed_position, Vector3.ZERO)
-	for index in range(1, corners.size()):
-		result = result.expand(transform * corners[index])
-	return result
+	# Use local transform chains (same as piece grid-fit). global_transform is often stale inside
+	# SubViewports immediately after add_child, which skews alignment and parks the newest prop at the pivot.
+	return _preview_builder.merged_mesh_bounds_under_root(_preview_root)

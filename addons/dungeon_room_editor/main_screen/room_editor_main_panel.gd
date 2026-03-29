@@ -3,7 +3,7 @@ extends Control
 
 signal mode_requested(mode: int)
 signal box_paint_toggled(enabled: bool)
-signal default_quarter_turn_toggled(enabled: bool)
+signal placement_rotation_selected(rotation_steps: int)
 signal visible_layer_requested(layer_filter: StringName)
 signal center_view_requested()
 signal popout_preview_toggled(open_requested: bool)
@@ -11,7 +11,8 @@ signal playtest_requested()
 
 @onready var _place_button: Button = %PlaceButton
 @onready var _box_paint_check: CheckBox = %BoxPaintCheck
-@onready var _default_quarter_turn_check: CheckBox = %DefaultQuarterTurnCheck
+@onready var _placement_rotation_label: Label = %PlacementRotationLabel
+@onready var _placement_rotation_option: OptionButton = %PlacementRotationOption
 @onready var _select_button: Button = %SelectButton
 @onready var _erase_button: Button = %EraseButton
 @onready var _rotate_button: Button = %RotateButton
@@ -28,8 +29,11 @@ signal playtest_requested()
 func _ready() -> void:
 	_place_button.pressed.connect(func() -> void: mode_requested.emit(0))
 	_box_paint_check.toggled.connect(func(enabled: bool) -> void: box_paint_toggled.emit(enabled))
-	_default_quarter_turn_check.toggled.connect(
-		func(enabled: bool) -> void: default_quarter_turn_toggled.emit(enabled)
+	_placement_rotation_option.clear()
+	for label in ["0° North", "90° East", "180° South", "270° West"]:
+		_placement_rotation_option.add_item(label)
+	_placement_rotation_option.item_selected.connect(
+		func(index: int) -> void: placement_rotation_selected.emit(index)
 	)
 	_select_button.pressed.connect(func() -> void: mode_requested.emit(1))
 	_erase_button.pressed.connect(func() -> void: mode_requested.emit(2))
@@ -78,16 +82,22 @@ func set_mode(mode: int) -> void:
 	_rotate_button.button_pressed = mode == 3
 	_box_paint_check.visible = mode == 0
 	_box_paint_check.disabled = mode != 0
-	_default_quarter_turn_check.visible = mode == 0
-	_default_quarter_turn_check.disabled = mode != 0
+	_placement_rotation_label.visible = mode == 0
+	_placement_rotation_option.visible = mode == 0
+	_placement_rotation_option.disabled = mode != 0
 
 
 func set_box_paint_enabled(enabled: bool) -> void:
 	_box_paint_check.set_pressed_no_signal(enabled)
 
 
-func set_default_quarter_turn_enabled(enabled: bool) -> void:
-	_default_quarter_turn_check.set_pressed_no_signal(enabled)
+func set_placement_rotation_option_steps(rotation_steps: int) -> void:
+	var s := posmod(rotation_steps, 4)
+	if _placement_rotation_option.selected == s:
+		return
+	_placement_rotation_option.set_block_signals(true)
+	_placement_rotation_option.select(s)
+	_placement_rotation_option.set_block_signals(false)
 
 
 func set_popout_preview_open(open_requested: bool) -> void:

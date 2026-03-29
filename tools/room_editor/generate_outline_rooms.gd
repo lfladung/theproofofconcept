@@ -5,8 +5,9 @@ const BASE_ROOM_SCENE := preload("res://dungeon/rooms/base/room_base.tscn")
 const CATALOG_PATH := "res://addons/dungeon_room_editor/resources/default_room_piece_catalog.tres"
 const LAYOUT_SCRIPT := preload("res://addons/dungeon_room_editor/resources/room_layout_data.gd")
 const ITEM_SCRIPT := preload("res://addons/dungeon_room_editor/resources/room_placed_item_data.gd")
+const GridMath = preload("res://addons/dungeon_room_editor/core/grid_math.gd")
 
-const OUTPUT_DIR := "res://dungeon/rooms/authored/outlines"
+const OUTPUT_DIR := "res://dungeon/rooms/authored/outlines/v2"
 const DEFAULT_GRID_SIZE := Vector2i(3, 3)
 const HALLWAY_WIDTH := 2
 
@@ -25,6 +26,12 @@ func _initialize() -> void:
 		push_error("Failed to create output directory %s" % OUTPUT_DIR)
 		quit(1)
 		return
+	var layouts_dir := "%s/layouts" % OUTPUT_DIR
+	make_dir_result = DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(layouts_dir))
+	if make_dir_result != OK:
+		push_error("Failed to create layouts directory %s" % layouts_dir)
+		quit(1)
+		return
 
 	var room_specs := _build_room_specs()
 	for spec in room_specs:
@@ -37,54 +44,56 @@ func _initialize() -> void:
 
 
 func _build_room_specs() -> Array[Dictionary]:
+	# v2 batch: distinct room_id/scene_name (_b). Combat + chokepoint + boss use 1.5x linear
+	# footprint vs v1; connectors + treasure keep v1 tile sizes.
 	return [
 		{
-			"scene_name": "room_combat_skirmish_small_a",
-			"room_id": "room_combat_skirmish_small_a",
-			"size": Vector2i(10, 10),
+			"scene_name": "room_combat_skirmish_small_b",
+			"room_id": "room_combat_skirmish_small_b",
+			"size": Vector2i(15, 15),
 			"size_class": "small",
 			"room_type": "arena",
 			"room_tags": PackedStringArray(["arena", "combat", "small"]),
 			"allowed_connection_types": PackedStringArray(["corridor", "connector", "arena"]),
 			"recommended_enemy_groups": PackedStringArray(["melee_pack"]),
 			"base_shape": "full",
-			"remove_rects": [Rect2i(-5, -5, 2, 2), Rect2i(3, 2, 2, 2)],
+			"remove_rects": [Rect2i(-8, -8, 3, 3), Rect2i(5, 3, 3, 3)],
 			"openings": [&"west", &"east"],
-			"entry_marker": Vector2i(-2, 0),
-			"prop_marker": Vector2i(2, -2),
+			"entry_marker": Vector2i(-3, 0),
+			"prop_marker": Vector2i(3, -3),
 			"nav_marker": Vector2i(0, 0),
-			"blockers": [Vector2i(-1, -1), Vector2i(1, 1)],
+			"blockers": [Vector2i(-2, -2), Vector2i(2, 2)],
 			"spawns": [
-				{"piece_id": &"spawn_robot_mob_marker", "position": Vector2i(2, -1)},
-				{"piece_id": &"spawn_dasher_marker", "position": Vector2i(2, 2)},
+				{"piece_id": &"spawn_robot_mob_marker", "position": Vector2i(3, -2)},
+				{"piece_id": &"spawn_dasher_marker", "position": Vector2i(3, 3)},
 			],
 		},
 		{
-			"scene_name": "room_combat_tactical_medium_a",
-			"room_id": "room_combat_tactical_medium_a",
-			"size": Vector2i(16, 16),
+			"scene_name": "room_combat_tactical_medium_b",
+			"room_id": "room_combat_tactical_medium_b",
+			"size": Vector2i(24, 24),
 			"size_class": "medium",
 			"room_type": "arena",
 			"room_tags": PackedStringArray(["arena", "combat", "medium"]),
 			"allowed_connection_types": PackedStringArray(["corridor", "connector", "arena"]),
 			"recommended_enemy_groups": PackedStringArray(["mixed_patrol"]),
 			"base_shape": "full",
-			"remove_rects": [Rect2i(-8, -8, 3, 4), Rect2i(5, 4, 3, 4)],
+			"remove_rects": [Rect2i(-12, -12, 5, 6), Rect2i(8, 6, 5, 6)],
 			"openings": [&"west", &"east", &"north"],
-			"entry_marker": Vector2i(-5, 0),
-			"prop_marker": Vector2i(4, 3),
+			"entry_marker": Vector2i(-8, 0),
+			"prop_marker": Vector2i(6, 5),
 			"nav_marker": Vector2i(0, 0),
-			"blockers": [Vector2i(-2, 2), Vector2i(2, -2)],
+			"blockers": [Vector2i(-3, 3), Vector2i(3, -3)],
 			"spawns": [
-				{"piece_id": &"spawn_robot_mob_marker", "position": Vector2i(-3, -4)},
-				{"piece_id": &"spawn_dasher_marker", "position": Vector2i(4, 3)},
-				{"piece_id": &"spawn_arrow_tower_marker", "position": Vector2i(1, 5)},
+				{"piece_id": &"spawn_robot_mob_marker", "position": Vector2i(-5, -6)},
+				{"piece_id": &"spawn_dasher_marker", "position": Vector2i(6, 5)},
+				{"piece_id": &"spawn_arrow_tower_marker", "position": Vector2i(2, 8)},
 			],
 		},
 		{
-			"scene_name": "room_arena_wave_large_a",
-			"room_id": "room_arena_wave_large_a",
-			"size": Vector2i(24, 24),
+			"scene_name": "room_arena_wave_large_b",
+			"room_id": "room_arena_wave_large_b",
+			"size": Vector2i(36, 36),
 			"size_class": "arena",
 			"room_type": "arena",
 			"room_tags": PackedStringArray(["arena", "combat", "large"]),
@@ -92,27 +101,27 @@ func _build_room_specs() -> Array[Dictionary]:
 			"recommended_enemy_groups": PackedStringArray(["wave_swarm"]),
 			"base_shape": "full",
 			"remove_rects": [
-				Rect2i(-12, -12, 2, 2),
-				Rect2i(10, -12, 2, 2),
-				Rect2i(-12, 10, 2, 2),
-				Rect2i(10, 10, 2, 2),
+				Rect2i(-18, -18, 3, 3),
+				Rect2i(15, -18, 3, 3),
+				Rect2i(-18, 15, 3, 3),
+				Rect2i(15, 15, 3, 3),
 			],
 			"openings": [&"west", &"east"],
-			"entry_marker": Vector2i(-8, 0),
-			"prop_marker": Vector2i(8, -3),
+			"entry_marker": Vector2i(-12, 0),
+			"prop_marker": Vector2i(12, -5),
 			"nav_marker": Vector2i(0, 0),
-			"blockers": [Vector2i(-4, 0), Vector2i(4, 0)],
+			"blockers": [Vector2i(-6, 0), Vector2i(6, 0)],
 			"spawns": [
-				{"piece_id": &"spawn_robot_mob_marker", "position": Vector2i(-6, -5)},
-				{"piece_id": &"spawn_dasher_marker", "position": Vector2i(6, -4)},
-				{"piece_id": &"spawn_iron_sentinel_marker", "position": Vector2i(0, 6)},
-				{"piece_id": &"spawn_robot_mob_marker", "position": Vector2i(-5, 5)},
-				{"piece_id": &"spawn_arrow_tower_marker", "position": Vector2i(6, 5)},
+				{"piece_id": &"spawn_robot_mob_marker", "position": Vector2i(-9, -8)},
+				{"piece_id": &"spawn_dasher_marker", "position": Vector2i(9, -6)},
+				{"piece_id": &"spawn_iron_sentinel_marker", "position": Vector2i(0, 9)},
+				{"piece_id": &"spawn_robot_mob_marker", "position": Vector2i(-8, 8)},
+				{"piece_id": &"spawn_arrow_tower_marker", "position": Vector2i(9, 8)},
 			],
 		},
 		{
-			"scene_name": "room_connector_narrow_medium_a",
-			"room_id": "room_connector_narrow_medium_a",
+			"scene_name": "room_connector_narrow_medium_b",
+			"room_id": "room_connector_narrow_medium_b",
 			"size": Vector2i(10, 16),
 			"size_class": "medium",
 			"room_type": "corridor",
@@ -129,8 +138,8 @@ func _build_room_specs() -> Array[Dictionary]:
 			"spawns": [{"piece_id": &"spawn_melee_marker", "position": Vector2i(0, 0)}],
 		},
 		{
-			"scene_name": "room_connector_turn_medium_a",
-			"room_id": "room_connector_turn_medium_a",
+			"scene_name": "room_connector_turn_medium_b",
+			"room_id": "room_connector_turn_medium_b",
 			"size": Vector2i(16, 16),
 			"size_class": "medium",
 			"room_type": "connector",
@@ -147,8 +156,8 @@ func _build_room_specs() -> Array[Dictionary]:
 			"spawns": [{"piece_id": &"spawn_melee_marker", "position": Vector2i(3, 1)}],
 		},
 		{
-			"scene_name": "room_connector_junction_medium_a",
-			"room_id": "room_connector_junction_medium_a",
+			"scene_name": "room_connector_junction_medium_b",
+			"room_id": "room_connector_junction_medium_b",
 			"size": Vector2i(16, 16),
 			"size_class": "medium",
 			"room_type": "connector",
@@ -165,8 +174,8 @@ func _build_room_specs() -> Array[Dictionary]:
 			"spawns": [{"piece_id": &"spawn_melee_marker", "position": Vector2i(0, 1)}],
 		},
 		{
-			"scene_name": "room_treasure_reward_small_a",
-			"room_id": "room_treasure_reward_small_a",
+			"scene_name": "room_treasure_reward_small_b",
+			"room_id": "room_treasure_reward_small_b",
 			"size": Vector2i(10, 10),
 			"size_class": "small",
 			"room_type": "treasure",
@@ -185,46 +194,46 @@ func _build_room_specs() -> Array[Dictionary]:
 			"spawns": [{"piece_id": &"spawn_melee_marker", "position": Vector2i(1, 0)}],
 		},
 		{
-			"scene_name": "room_chokepoint_gate_medium_a",
-			"room_id": "room_chokepoint_gate_medium_a",
-			"size": Vector2i(16, 10),
+			"scene_name": "room_chokepoint_gate_medium_b",
+			"room_id": "room_chokepoint_gate_medium_b",
+			"size": Vector2i(24, 15),
 			"size_class": "medium",
 			"room_type": "arena",
 			"room_tags": PackedStringArray(["arena", "combat", "chokepoint", "medium"]),
 			"allowed_connection_types": PackedStringArray(["corridor", "connector", "arena"]),
 			"recommended_enemy_groups": PackedStringArray(["pressure_lane"]),
 			"base_shape": "full",
-			"remove_rects": [Rect2i(-8, -5, 4, 3), Rect2i(4, 2, 4, 3)],
+			"remove_rects": [Rect2i(-12, -8, 6, 5), Rect2i(6, 3, 6, 5)],
 			"openings": [&"west", &"east"],
-			"entry_marker": Vector2i(-5, 0),
-			"prop_marker": Vector2i(3, -2),
+			"entry_marker": Vector2i(-8, 0),
+			"prop_marker": Vector2i(5, -3),
 			"nav_marker": Vector2i(0, 0),
-			"blockers": [Vector2i(0, -1), Vector2i(0, 1), Vector2i(2, 0)],
+			"blockers": [Vector2i(0, -2), Vector2i(0, 2), Vector2i(3, 0)],
 			"spawns": [
-				{"piece_id": &"spawn_robot_mob_marker", "position": Vector2i(4, -1)},
-				{"piece_id": &"spawn_dasher_marker", "position": Vector2i(3, 2)},
-				{"piece_id": &"spawn_arrow_tower_marker", "position": Vector2i(5, 0)},
+				{"piece_id": &"spawn_robot_mob_marker", "position": Vector2i(6, -2)},
+				{"piece_id": &"spawn_dasher_marker", "position": Vector2i(5, 3)},
+				{"piece_id": &"spawn_arrow_tower_marker", "position": Vector2i(8, 0)},
 			],
 		},
 		{
-			"scene_name": "room_boss_approach_large_a",
-			"room_id": "room_boss_approach_large_a",
-			"size": Vector2i(16, 24),
+			"scene_name": "room_boss_approach_large_b",
+			"room_id": "room_boss_approach_large_b",
+			"size": Vector2i(24, 36),
 			"size_class": "large",
 			"room_type": "boss",
 			"room_tags": PackedStringArray(["boss", "boss_approach", "connector", "large"]),
 			"allowed_connection_types": PackedStringArray(["corridor", "connector", "arena"]),
 			"recommended_enemy_groups": PackedStringArray(["elite_guard"]),
 			"base_shape": "full",
-			"remove_rects": [Rect2i(-8, -12, 4, 5), Rect2i(4, 7, 4, 5)],
+			"remove_rects": [Rect2i(-12, -18, 6, 8), Rect2i(6, 11, 6, 8)],
 			"openings": [&"west", &"east"],
-			"entry_marker": Vector2i(-6, 0),
-			"prop_marker": Vector2i(5, -4),
+			"entry_marker": Vector2i(-9, 0),
+			"prop_marker": Vector2i(8, -6),
 			"nav_marker": Vector2i(0, 0),
-			"blockers": [Vector2i(-3, 0), Vector2i(3, 0)],
+			"blockers": [Vector2i(-5, 0), Vector2i(5, 0)],
 			"spawns": [
-				{"piece_id": &"spawn_iron_sentinel_marker", "position": Vector2i(4, -2)},
-				{"piece_id": &"spawn_robot_mob_marker", "position": Vector2i(5, 3)},
+				{"piece_id": &"spawn_iron_sentinel_marker", "position": Vector2i(6, -3)},
+				{"piece_id": &"spawn_robot_mob_marker", "position": Vector2i(8, 5)},
 			],
 		},
 	]
@@ -292,12 +301,12 @@ func _generate_room(spec: Dictionary) -> bool:
 			StringName(String(spawn_data.get("encounter_group_id", "combat_main")))
 		)
 
-	var layout_path := "%s/%s.layout.tres" % [OUTPUT_DIR, spec["scene_name"]]
+	var layout_path := "%s/layouts/%s.layout.tres" % [OUTPUT_DIR, spec["scene_name"]]
 	if ResourceSaver.save(layout, layout_path) != OK:
 		push_error("Failed to save layout at %s" % layout_path)
 		return false
 	var scene_path := "%s/%s.tscn" % [OUTPUT_DIR, spec["scene_name"]]
-	if not _write_minimal_room_scene(scene_path, layout_path, spec, layout):
+	if not _write_minimal_room_scene(scene_path, layout_path, spec, layout, room):
 		push_error("Failed to write scene at %s" % scene_path)
 		return false
 	print("Generated %s" % scene_path)
@@ -354,6 +363,19 @@ func _build_wall_items(floor_cells: Array[Vector2i], opening_cells: Dictionary) 
 	return out
 
 
+## Orthogonal neighbors only see "two voids" for both outside (convex) and inside (concave) 90° bends.
+## Convex outer corners have few floor cells in the 8-ring; re-entrant corners sit in a denser floor pocket.
+func _is_concave_wall_corner_cell(cell: Vector2i, floor_lookup: Dictionary) -> bool:
+	var floor_in_8 := 0
+	for dy in [-1, 0, 1]:
+		for dx in [-1, 0, 1]:
+			if dx == 0 and dy == 0:
+				continue
+			if floor_lookup.has(cell + Vector2i(dx, dy)):
+				floor_in_8 += 1
+	return floor_in_8 >= 4
+
+
 func _wall_item_for_cell(cell: Vector2i, floor_lookup: Dictionary) -> Dictionary:
 	var has_left := floor_lookup.has(cell + Vector2i.LEFT)
 	var has_right := floor_lookup.has(cell + Vector2i.RIGHT)
@@ -365,13 +387,15 @@ func _wall_item_for_cell(cell: Vector2i, floor_lookup: Dictionary) -> Dictionary
 	var missing_up := not has_up
 	var missing_down := not has_down
 
-	if missing_up and missing_left:
+	var use_outer_corner := not _is_concave_wall_corner_cell(cell, floor_lookup)
+
+	if missing_up and missing_left and use_outer_corner:
 		return {"piece_id": &"wall_corner", "position": cell, "rotation_steps": 0}
-	if missing_up and missing_right:
+	if missing_up and missing_right and use_outer_corner:
 		return {"piece_id": &"wall_corner", "position": cell, "rotation_steps": 1}
-	if missing_down and missing_right:
+	if missing_down and missing_right and use_outer_corner:
 		return {"piece_id": &"wall_corner", "position": cell, "rotation_steps": 2}
-	if missing_down and missing_left:
+	if missing_down and missing_left and use_outer_corner:
 		return {"piece_id": &"wall_corner", "position": cell, "rotation_steps": 3}
 	if missing_left or missing_right:
 		return {"piece_id": &"wall_straight", "position": cell, "rotation_steps": 1}
@@ -404,20 +428,22 @@ func _opening_cells(size: Vector2i, openings: Array) -> Dictionary:
 
 
 func _add_socket_for_opening(layout, size: Vector2i, side: StringName) -> void:
+	# Anchor on the same floor columns/rows as _opening_cells (not one tile past east/south).
 	var rect := _room_rect(size)
 	var left := rect.position.x
-	var right_boundary := rect.position.x + rect.size.x
+	var right := rect.position.x + rect.size.x - 1
 	var top := rect.position.y
-	var bottom_boundary := rect.position.y + rect.size.y
+	var bottom := rect.position.y + rect.size.y - 1
+	# grid_position = min tile of the 2-wide opening (matches anchor_rect tile AABB).
 	match side:
 		&"west":
-			_add_item(layout, &"hall_socket_double", Vector2i(left, 0), 3)
+			_add_item(layout, &"hall_socket_double", Vector2i(left, -1), 3)
 		&"east":
-			_add_item(layout, &"hall_socket_double", Vector2i(right_boundary, 0), 1)
+			_add_item(layout, &"hall_socket_double", Vector2i(right, -1), 1)
 		&"north":
-			_add_item(layout, &"hall_socket_double", Vector2i(0, top), 0)
+			_add_item(layout, &"hall_socket_double", Vector2i(-1, top), 0)
 		&"south":
-			_add_item(layout, &"hall_socket_double", Vector2i(0, bottom_boundary), 2)
+			_add_item(layout, &"hall_socket_double", Vector2i(-1, bottom), 2)
 
 
 func _add_item(
@@ -468,7 +494,9 @@ func _encounter_budget_for_size(size: Vector2i) -> int:
 	return 180
 
 
-func _write_minimal_room_scene(scene_path: String, layout_path: String, spec: Dictionary, layout) -> bool:
+func _write_minimal_room_scene(
+	scene_path: String, layout_path: String, spec: Dictionary, layout, room: RoomBase
+) -> bool:
 	var absolute_scene_path := ProjectSettings.globalize_path(scene_path)
 	var file := FileAccess.open(absolute_scene_path, FileAccess.WRITE)
 	if file == null:
@@ -498,6 +526,7 @@ func _write_minimal_room_scene(scene_path: String, layout_path: String, spec: Di
 	lines.append("authored_layout = ExtResource(\"2_layout\")")
 	lines.append("")
 	lines.append("[node name=\"GeneratedByRoomEditor\" type=\"Node2D\" parent=\"Sockets\"]")
+	var socket_piece = _catalog.find_piece(&"hall_socket_double")
 	for item in layout.items:
 		if item == null or item.piece_id != &"hall_socket_double":
 			continue
@@ -506,7 +535,10 @@ func _write_minimal_room_scene(scene_path: String, layout_path: String, spec: Di
 			"[node name=\"%s_%s\" parent=\"Sockets/GeneratedByRoomEditor\" instance=ExtResource(\"3_socket\")]"
 			% [String(item.piece_id), item.item_id]
 		)
-		lines.append("position = Vector2(%s, %s)" % [_grid_to_world(item.grid_position).x, _grid_to_world(item.grid_position).y])
+		var sock_pos := _grid_to_world(item.grid_position)
+		if socket_piece != null:
+			sock_pos = GridMath.item_rect(item, socket_piece, layout, room).get_center()
+		lines.append("position = Vector2(%s, %s)" % [sock_pos.x, sock_pos.y])
 		lines.append("direction = \"%s\"" % direction)
 		lines.append("width_tiles = %s" % HALLWAY_WIDTH)
 		lines.append("")

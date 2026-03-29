@@ -76,8 +76,89 @@ static func anchor_rect(
 	var size_tiles := rotated_footprint(footprint, rotation_steps)
 	var step := grid_step(layout, room)
 	var world_size := Vector2(float(size_tiles.x) * step.x, float(size_tiles.y) * step.y)
-	var local_center := grid_to_local(grid_position, layout, room)
-	return Rect2(local_center - world_size * 0.5, world_size)
+	# grid_to_local is the tile's lattice point; expand by half a cell so outlines match
+	# discrete tile AABBs (same framing as perimeter walls), including multi-tile pieces.
+	var tile_min := grid_to_local(grid_position, layout, room) - step * 0.5
+	return Rect2(tile_min, world_size)
+
+
+## Point on the door socket rect that should touch the room AABB edge for boundary validation.
+## All footprint min-corner anchors such that the rotated footprint covers `hover` (any clicked cell).
+static func door_socket_anchor_candidates(hover: Vector2i, footprint: Vector2i, rotation_steps: int) -> Array[Vector2i]:
+	var ft := rotated_footprint(footprint, rotation_steps)
+	var ax_min := hover.x - ft.x + 1
+	var ay_min := hover.y - ft.y + 1
+	var out: Array[Vector2i] = []
+	for ax in range(ax_min, hover.x + 1):
+		for ay in range(ay_min, hover.y + 1):
+			out.append(Vector2i(ax, ay))
+	var hi := out.find(hover)
+	if hi > 0:
+		out.remove_at(hi)
+		out.insert(0, hover)
+	return out
+
+
+static func door_socket_boundary_probe(candidate_rect: Rect2, direction: String) -> Vector2:
+	var c := candidate_rect.get_center()
+	match direction:
+		"west":
+			return Vector2(candidate_rect.position.x, c.y)
+		"east":
+			return Vector2(candidate_rect.end.x, c.y)
+		"north":
+			return Vector2(c.x, candidate_rect.position.y)
+		"south":
+			return Vector2(c.x, candidate_rect.end.y)
+		_:
+			return c
+
+
+## True if the door footprint crosses the room AABB edge (plane), not a single probe point.
+## Tile anchor_rect min corners are half a cell inset from grid lines; the room outline uses the
+## nominal AABB, so point-on-edge checks fail for valid generator anchors (e.g. west hall socket).
+static func door_socket_spans_room_boundary(
+	room: RoomBase, layout, candidate_rect: Rect2, direction: String
+) -> bool:
+	var room_rect := room_local_rect(room)
+	var step := grid_step(layout, room)
+	var plane_eps := maxf(0.02, maxf(step.x, step.y) * 1.0e-4)
+	var margin := maxf(step.x, step.y) * 0.5 + 0.02
+	match direction:
+		"west":
+			var w := room_rect.position.x
+			if candidate_rect.end.x < w - plane_eps or candidate_rect.position.x > w + plane_eps:
+				return false
+			return (
+				candidate_rect.end.y >= room_rect.position.y - margin
+				and candidate_rect.position.y <= room_rect.end.y + margin
+			)
+		"east":
+			var e := room_rect.end.x
+			if candidate_rect.end.x < e - plane_eps or candidate_rect.position.x > e + plane_eps:
+				return false
+			return (
+				candidate_rect.end.y >= room_rect.position.y - margin
+				and candidate_rect.position.y <= room_rect.end.y + margin
+			)
+		"north":
+			var n := room_rect.position.y
+			if candidate_rect.end.y < n - plane_eps or candidate_rect.position.y > n + plane_eps:
+				return false
+			return (
+				candidate_rect.end.x >= room_rect.position.x - margin
+				and candidate_rect.position.x <= room_rect.end.x + margin
+			)
+		"south":
+			var s := room_rect.end.y
+			if candidate_rect.end.y < s - plane_eps or candidate_rect.position.y > s + plane_eps:
+				return false
+			return (
+				candidate_rect.end.x >= room_rect.position.x - margin
+				and candidate_rect.position.x <= room_rect.end.x + margin
+			)
+		_:
+			return false
 
 
 static func item_rect(item, piece, layout, room: RoomBase) -> Rect2:

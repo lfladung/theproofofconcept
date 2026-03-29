@@ -18,21 +18,95 @@ func can_place(
 ) -> Dictionary:
 	if room == null or layout == null or catalog == null or piece == null:
 		return {"valid": false, "reason": "Editor session is incomplete."}
-	var local_point := GridMath.grid_to_local(grid_position, layout, room)
+	if piece.is_door_socket():
+		var ft := GridMath.rotated_footprint(piece.footprint, rotation_steps)
+		if ft.x > 1 or ft.y > 1:
+			var candidates := GridMath.door_socket_anchor_candidates(
+				grid_position,
+				piece.footprint,
+				rotation_steps
+			)
+			var last_reason := ""
+			for ap in candidates:
+				var r := _evaluate_anchor(
+					room,
+					layout,
+					catalog,
+					piece,
+					ap,
+					rotation_steps,
+					ignore_item_id,
+					candidate_layer
+				)
+				if bool(r.get("valid", false)):
+					return {"valid": true, "reason": "", "resolved_grid": ap}
+				last_reason = String(r.get("reason", ""))
+			return {
+				"valid": false,
+				"reason": last_reason if last_reason != "" else "Door sockets must snap to the matching room boundary.",
+			}
+	var single := _evaluate_anchor(
+		room,
+		layout,
+		catalog,
+		piece,
+		grid_position,
+		rotation_steps,
+		ignore_item_id,
+		candidate_layer
+	)
+	if not bool(single.get("valid", false)):
+		return single
+	return {"valid": true, "reason": "", "resolved_grid": grid_position}
+
+
+func place_item(session, piece, grid_position: Vector2i) -> Dictionary:
+	var result := can_place(
+		session.room,
+		session.layout,
+		session.catalog,
+		piece,
+		grid_position,
+		session.placement_rotation_steps
+	)
+	if not bool(result.get("valid", false)):
+		return result
+	var resolved: Vector2i = result.get("resolved_grid", grid_position)
+	var item = ItemDataScript.new()
+	item.item_id = session.next_item_id(piece)
+	item.piece_id = piece.piece_id
+	item.category = piece.category
+	item.grid_position = resolved
+	item.rotation_steps = session.placement_rotation_steps
+	item.tags = piece.default_tags.duplicate()
+	item.encounter_group_id = &""
+	item.enemy_id = piece.enemy_id
+	item.placement_layer = _resolve_piece_layer(piece)
+	item.blocks_movement = piece.blocks_movement
+	item.blocks_projectiles = piece.blocks_projectiles
+	session.layout.items.append(item)
+	session.layout.emit_changed()
+	return {"valid": true, "item": item}
+
+
+func _evaluate_anchor(
+	room: RoomBase,
+	layout,
+	catalog,
+	piece,
+	anchor: Vector2i,
+	rotation_steps: int,
+	ignore_item_id: String,
+	candidate_layer: StringName
+) -> Dictionary:
+	var local_point := GridMath.grid_to_local(anchor, layout, room)
 	if not GridMath.is_inside_room(local_point, room, layout):
 		return {"valid": false, "reason": "Placement is outside the room bounds."}
+	var candidate_rect := GridMath.anchor_rect(anchor, piece.footprint, rotation_steps, layout, room)
 	if piece.is_door_socket():
 		var direction := GridMath.direction_from_rotation(rotation_steps)
-		if not GridMath.direction_matches_boundary(room, layout, local_point, direction):
+		if not GridMath.door_socket_spans_room_boundary(room, layout, candidate_rect, direction):
 			return {"valid": false, "reason": "Door sockets must snap to the matching room boundary."}
-
-	var candidate_rect := GridMath.anchor_rect(
-		grid_position,
-		piece.footprint,
-		rotation_steps,
-		layout,
-		room
-	)
 	var resolved_candidate_layer := _resolve_piece_layer(piece, candidate_layer)
 	for item in layout.items:
 		if item == null or item.item_id == ignore_item_id:
@@ -53,34 +127,6 @@ func can_place(
 			],
 		}
 	return {"valid": true, "reason": ""}
-
-
-func place_item(session, piece, grid_position: Vector2i) -> Dictionary:
-	var result := can_place(
-		session.room,
-		session.layout,
-		session.catalog,
-		piece,
-		grid_position,
-		session.placement_rotation_steps
-	)
-	if not bool(result.get("valid", false)):
-		return result
-	var item = ItemDataScript.new()
-	item.item_id = session.next_item_id(piece)
-	item.piece_id = piece.piece_id
-	item.category = piece.category
-	item.grid_position = grid_position
-	item.rotation_steps = session.placement_rotation_steps
-	item.tags = piece.default_tags.duplicate()
-	item.encounter_group_id = &""
-	item.enemy_id = piece.enemy_id
-	item.placement_layer = _resolve_piece_layer(piece)
-	item.blocks_movement = piece.blocks_movement
-	item.blocks_projectiles = piece.blocks_projectiles
-	session.layout.items.append(item)
-	session.layout.emit_changed()
-	return {"valid": true, "item": item}
 
 
 func remove_item(session, item_id: String) -> bool:

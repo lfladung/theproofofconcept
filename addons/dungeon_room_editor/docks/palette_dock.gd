@@ -18,9 +18,9 @@ const _ALL_CATEGORIES: StringName = &"all"
 const _PREVIEW_CAMERA_PITCH_DEG := -38.0
 const _PREVIEW_CAMERA_YAW_DEG := 180.0
 const _PREVIEW_CAMERA_MIN_DISTANCE := 10.0
-const _PREVIEW_CAMERA_DISTANCE_SCALE := 2.4
-const _PREVIEW_CAMERA_MIN_SIZE := 1.8
-const _PREVIEW_CAMERA_SIZE_SCALE := 0.62
+const _PREVIEW_CAMERA_DISTANCE_SCALE := 2.9
+const _PREVIEW_CAMERA_MIN_SIZE := 2.5
+const _PREVIEW_CAMERA_SIZE_SCALE := 0.96
 const DUNGEON_BG_COLOR := Color(0.035, 0.04, 0.055, 1.0)
 const DUNGEON_AMBIENT_COLOR := Color(0.62, 0.58, 0.52, 1.0)
 const DUNGEON_AMBIENT_ENERGY := 0.5
@@ -272,10 +272,41 @@ func _refresh_piece_preview(piece) -> void:
 		_piece_preview_viewport.render_target_update_mode = SubViewport.UPDATE_ONCE
 		return
 
+	_strip_physics_helpers_for_palette_preview(instance)
 	_preview_builder.apply_piece_visual_overrides(instance, piece)
 	_piece_preview_content.add_child(instance)
 	_fit_piece_preview(instance)
 	_piece_preview_viewport.render_target_update_mode = SubViewport.UPDATE_ONCE
+
+
+func _strip_physics_helpers_for_palette_preview(root: Node) -> void:
+	if root == null:
+		return
+	var to_free: Array[Node] = []
+	for n in root.find_children("*", "CollisionShape3D", true, false):
+		to_free.append(n)
+	for n in root.find_children("*", "CollisionPolygon3D", true, false):
+		to_free.append(n)
+	for n in root.find_children("*", "NavigationRegion3D", true, false):
+		to_free.append(n)
+	for n in to_free:
+		if is_instance_valid(n):
+			n.free()
+	for n in root.find_children("*", "StaticBody3D", true, false):
+		if is_instance_valid(n) and n.get_child_count() == 0:
+			n.free()
+	for n in root.find_children("*", "AnimatableBody3D", true, false):
+		if is_instance_valid(n) and n.get_child_count() == 0:
+			n.free()
+	for n in root.find_children("*", "RigidBody3D", true, false):
+		if is_instance_valid(n) and n.get_child_count() == 0:
+			n.free()
+	for n in root.find_children("*", "CharacterBody3D", true, false):
+		if is_instance_valid(n) and n.get_child_count() == 0:
+			n.free()
+	for n in root.find_children("*", "Area3D", true, false):
+		if is_instance_valid(n) and n.get_child_count() == 0:
+			n.free()
 
 
 func _clear_piece_preview() -> void:

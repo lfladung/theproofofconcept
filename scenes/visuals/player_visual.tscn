@@ -190,6 +190,7 @@ transform = Transform3D(0.4166667, 0, 7.450581e-09, 0, 0.41666666, 0, -7.450581e
 transform = Transform3D(2.3915594, 0.1937485, 0.053726077, -0.13145475, 1.9920233, -1.3321272, -0.15213394, 1.3244998, 1.9956286, -0.29636824, -2.4660559, -2.2796588)
 
 [node name="BaseModelVisorMesh" type="MeshInstance3D" parent="BaseModelVisorAttachment/BaseModelVisorOffset" unique_id=1591706334]
+visible = false
 mesh = SubResource("ArrayMesh_omu04")
 skin = SubResource("Skin_wf3bu")
 skeleton = NodePath("../../../Meshy/Rig_Medium/Skeleton3D")

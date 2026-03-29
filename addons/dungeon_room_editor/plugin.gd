@@ -40,6 +40,8 @@ func _enter_tree() -> void:
 
 func _exit_tree() -> void:
 	set_process(false)
+	if _session != null and _session.room != null and is_instance_valid(_session.room):
+		_restore_visual_3d_proxy_after_room_editor(_session.room)
 	if is_instance_valid(_main_panel):
 		_main_panel.queue_free()
 	if is_instance_valid(_preview_popout_window):
@@ -91,11 +93,13 @@ func _make_visible(visible: bool) -> void:
 		_ensure_ui()
 	if _main_panel != null:
 		_main_panel.visible = visible
+	_prune_freed_room_references()
+	_apply_visual_3d_proxy_room_editor_policy()
 	if not visible:
 		_reset_drag_state()
 		return
 	_refresh_edited_room(false)
-	if _session.room == null:
+	if _session.room == null or not is_instance_valid(_session.room):
 		_sync_empty_state()
 		_redirect_to_default_editor_if_needed()
 		return
@@ -106,7 +110,7 @@ func _make_visible(visible: bool) -> void:
 func _connect_ui() -> void:
 	_main_panel.connect("mode_requested", _on_mode_requested)
 	_main_panel.connect("box_paint_toggled", _on_box_paint_toggled)
-	_main_panel.connect("default_quarter_turn_toggled", _on_default_quarter_turn_toggled)
+	_main_panel.connect("placement_rotation_selected", _on_placement_rotation_selected)
 	_main_panel.connect("visible_layer_requested", _on_visible_layer_requested)
 	_main_panel.connect("center_view_requested", _on_center_view_requested)
 	_main_panel.connect("popout_preview_toggled", _on_popout_preview_toggled)
@@ -155,10 +159,25 @@ func _ensure_ui() -> void:
 	_sync_empty_state()
 
 
+func _prune_freed_room_references() -> void:
+	if _last_edited_room != null and not is_instance_valid(_last_edited_room):
+		_last_edited_room = null
+	if _session != null and _session.room != null and not is_instance_valid(_session.room):
+		_session.clear()
+		if is_instance_valid(_main_panel):
+			_sync_empty_state()
+
+
 func _refresh_edited_room(force_refresh: bool) -> void:
+	_prune_freed_room_references()
 	var root := get_editor_interface().get_edited_scene_root()
 	if root is not RoomBase:
-		if _last_edited_room != null or _session.room != null:
+		var prev_room: Object = _last_edited_room
+		if prev_room == null and _session != null:
+			prev_room = _session.room
+		if is_instance_valid(prev_room):
+			_restore_visual_3d_proxy_after_room_editor(prev_room)
+		if _last_edited_room != null or (_session != null and _session.room != null):
 			_last_edited_room = null
 			_session.clear()
 			_sync_empty_state()
@@ -167,6 +186,8 @@ func _refresh_edited_room(force_refresh: bool) -> void:
 	var room := root as RoomBase
 	if not force_refresh and room == _last_edited_room and _session.layout != null:
 		return
+	if _last_edited_room != null and is_instance_valid(_last_edited_room) and _last_edited_room != room:
+		_restore_visual_3d_proxy_after_room_editor(_last_edited_room)
 	_last_edited_room = room
 	var ensured = _serializer.ensure_layout_for_room(room)
 	_session.bind_room(
@@ -200,10 +221,7 @@ func _sync_empty_state(status_message: String = "Open a RoomBase scene to author
 	if _main_panel != null:
 		_main_panel.call(&"set_mode", _session.tool_mode)
 		_main_panel.call(&"set_box_paint_enabled", _session.box_paint_enabled)
-		_main_panel.call(
-			&"set_default_quarter_turn_enabled",
-			_session.placement_rotation_steps == 1
-		)
+		_main_panel.call(&"set_placement_rotation_option_steps", _session.placement_rotation_steps)
 		_main_panel.call(
 			&"set_popout_preview_open",
 			is_instance_valid(_preview_popout_window) and _preview_popout_window.visible
@@ -212,10 +230,13 @@ func _sync_empty_state(status_message: String = "Open a RoomBase scene to author
 
 
 func _sync_ui_state(status_message: String = "") -> void:
-	if _session.room == null or _session.layout == null:
+	_prune_freed_room_references()
+	if _session.room == null or not is_instance_valid(_session.room) or _session.layout == null:
 		_sync_empty_state(status_message)
 		return
 	_scene_sync.sync_room(_session.room, _session.layout, DefaultCatalog)
+	var visual_root: Node3D = _session.room.get_generated_visual_root()
+	_scene_sync.apply_placement_layer_visibility(visual_root, _session.visible_layer_filter)
 	if _session.layout_path != "":
 		_serializer.save_layout(_session.room, _session.layout, _session.layout_path)
 	if _properties_dock != null:
@@ -240,15 +261,45 @@ func _sync_ui_state(status_message: String = "") -> void:
 	if _main_panel != null:
 		_main_panel.call(&"set_mode", _session.tool_mode)
 		_main_panel.call(&"set_box_paint_enabled", _session.box_paint_enabled)
-		_main_panel.call(
-			&"set_default_quarter_turn_enabled",
-			_session.placement_rotation_steps == 1
-		)
+		_main_panel.call(&"set_placement_rotation_option_steps", _session.placement_rotation_steps)
 		_main_panel.call(
 			&"set_popout_preview_open",
 			is_instance_valid(_preview_popout_window) and _preview_popout_window.visible
 		)
 		_main_panel.call(&"set_visible_layer_filter", _session.visible_layer_filter)
+	_apply_visual_3d_proxy_room_editor_policy()
+
+
+func _restore_visual_3d_proxy_after_room_editor(room: Object) -> void:
+	if room == null or not is_instance_valid(room) or not (room is RoomBase):
+		return
+	var rb := room as RoomBase
+	var proxy := rb.get_node_or_null(^"Visual3DProxy") as Node3D
+	if proxy == null:
+		return
+	if proxy.has_meta(&"_room_editor_suppressed_proxy_visible"):
+		proxy.visible = bool(proxy.get_meta(&"_room_editor_suppressed_proxy_visible", true))
+		proxy.remove_meta(&"_room_editor_suppressed_proxy_visible")
+
+
+func _apply_visual_3d_proxy_room_editor_policy() -> void:
+	if _session == null:
+		return
+	if _session.room == null or not is_instance_valid(_session.room):
+		return
+	var room := _session.room as RoomBase
+	var proxy := room.get_node_or_null(^"Visual3DProxy") as Node3D
+	if proxy == null:
+		return
+	var suppress := _main_panel != null and _main_panel.visible
+	if suppress:
+		if not proxy.has_meta(&"_room_editor_suppressed_proxy_visible"):
+			proxy.set_meta(&"_room_editor_suppressed_proxy_visible", proxy.visible)
+		proxy.visible = false
+	else:
+		if proxy.has_meta(&"_room_editor_suppressed_proxy_visible"):
+			proxy.visible = bool(proxy.get_meta(&"_room_editor_suppressed_proxy_visible", true))
+			proxy.remove_meta(&"_room_editor_suppressed_proxy_visible")
 
 
 func _set_status(message: String) -> void:
@@ -338,13 +389,10 @@ func _on_popout_preview_toggled(open_requested: bool) -> void:
 	_close_preview_popout()
 
 
-func _on_default_quarter_turn_toggled(enabled: bool) -> void:
-	_session.set_placement_rotation_steps(1 if enabled else 0)
-	var message := "New placements rotate 90 degrees by default." if enabled else "New placements use the default rotation."
+func _on_placement_rotation_selected(rotation_steps: int) -> void:
+	_session.set_placement_rotation_steps(rotation_steps)
 	if _session.room != null:
 		_update_hover(_session.hover_cell)
-	else:
-		_set_status(message)
 
 
 func _open_preview_popout() -> void:
@@ -411,7 +459,7 @@ func _on_visible_layer_changed(_layer_filter: StringName) -> void:
 
 func _on_placement_rotation_changed(rotation_steps: int) -> void:
 	if _main_panel != null:
-		_main_panel.call(&"set_default_quarter_turn_enabled", rotation_steps == 1)
+		_main_panel.call(&"set_placement_rotation_option_steps", rotation_steps)
 	if _session.room != null:
 		_update_hover(_session.hover_cell)
 
@@ -483,17 +531,22 @@ func _on_canvas_primary_released() -> void:
 		_commit_box_paint()
 	_reset_drag_state()
 
-
 func _on_canvas_rotate_shortcut_requested() -> void:
 	if _session.room == null or _session.layout == null:
+		return
+	if _session.selected_item() != null:
+		_rotate_selected_item()
 		return
 	if _session.tool_mode == ToolMode.PLACE:
 		_session.cycle_placement_rotation()
 		_update_hover(_session.hover_cell)
-		_sync_ui_state("Rotated active piece preview.")
-		return
-	if _session.selected_item() != null:
-		_rotate_selected_item()
+		_sync_ui_state("Rotated active piece preview (Place rot dropdown).")
+
+
+
+
+
+
 
 
 func _on_canvas_delete_shortcut_requested() -> void:
@@ -542,7 +595,8 @@ func _on_selected_item_changed(payload: Dictionary) -> void:
 	if not bool(result.get("valid", false)):
 		_sync_ui_state(String(result.get("reason", "Invalid placement.")))
 		return
-	item.grid_position = next_grid
+	var resolved_grid = result.get("resolved_grid", next_grid)
+	item.grid_position = resolved_grid if resolved_grid is Vector2i else next_grid
 	item.rotation_steps = next_rotation
 	item.placement_layer = StringName(payload.get("placement_layer", item.resolved_placement_layer(piece)))
 	item.tags = (payload.get("tags", item.tags) as PackedStringArray).duplicate()
@@ -586,6 +640,7 @@ func _update_hover(grid: Vector2i) -> void:
 		return
 	var reason := ""
 	var valid := true
+	var preview_anchor := _NO_CELL
 	var piece = _session.active_piece()
 	if piece != null and _session.tool_mode == ToolMode.PLACE:
 		var result = _placement_controller.can_place(
@@ -598,6 +653,10 @@ func _update_hover(grid: Vector2i) -> void:
 		)
 		valid = bool(result.get("valid", false))
 		reason = String(result.get("reason", ""))
+		if valid:
+			var rg = result.get("resolved_grid", null)
+			if rg is Vector2i:
+				preview_anchor = rg
 	elif _drag_item_id != "" and _session.tool_mode == ToolMode.SELECT:
 		var item = _session.selected_item()
 		var selected_piece = _session.selected_piece()
@@ -613,7 +672,11 @@ func _update_hover(grid: Vector2i) -> void:
 			)
 			valid = bool(result.get("valid", false))
 			reason = String(result.get("reason", ""))
-	_session.set_hover_state(grid, valid, reason)
+			if valid:
+				var rg2 = result.get("resolved_grid", null)
+				if rg2 is Vector2i:
+					preview_anchor = rg2
+	_session.set_hover_state(grid, valid, reason, preview_anchor)
 	_set_status(reason)
 	if _room_canvas != null:
 		_room_canvas.call(&"queue_redraw")
@@ -634,12 +697,29 @@ func _place_item_at(grid: Vector2i, sync_after: bool) -> Dictionary:
 	var piece = _session.active_piece()
 	if piece == null:
 		return {"handled": false, "changed": false}
+	var pre_place := _placement_controller.can_place(
+		_session.room,
+		_session.layout,
+		_session.catalog,
+		piece,
+		grid,
+		_session.placement_rotation_steps
+	)
+	if not bool(pre_place.get("valid", false)):
+		return {
+			"handled": true,
+			"changed": false,
+			"reason": String(pre_place.get("reason", "Invalid placement.")),
+		}
+	var resolved_grid = pre_place.get("resolved_grid", grid)
+	if not resolved_grid is Vector2i:
+		resolved_grid = grid
 	for existing in _session.layout.items:
 		if existing == null:
 			continue
 		if (
 			existing.piece_id == piece.piece_id
-			and existing.grid_position == grid
+			and existing.grid_position == resolved_grid
 			and existing.rotation_steps == _session.placement_rotation_steps
 			and existing.resolved_placement_layer(piece) == piece.default_placement_layer()
 		):
@@ -693,7 +773,8 @@ func _try_move_selected_to(grid: Vector2i) -> bool:
 	if not bool(result.get("valid", false)):
 		_set_status(String(result.get("reason", "Invalid move.")))
 		return true
-	item.grid_position = grid
+	var resolved_move = result.get("resolved_grid", grid)
+	item.grid_position = resolved_move if resolved_move is Vector2i else grid
 	_session.layout.emit_changed()
 	_sync_ui_state("Moved selected item.")
 	return true

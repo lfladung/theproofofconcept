@@ -1,12 +1,12 @@
 [gd_scene format=3]
 
 [ext_resource type="PackedScene" path="res://dungeon/rooms/base/room_base.tscn" id="1_room_base"]
-[ext_resource type="Resource" path="res://dungeon/rooms/authored/outlines/room_connector_junction_medium_a.layout.tres" id="2_layout"]
+[ext_resource type="Resource" path="res://dungeon/rooms/authored/outlines/v2/layouts/room_connector_junction_medium_b.layout.tres" id="2_layout"]
 [ext_resource type="PackedScene" path="res://dungeon/rooms/base/door_socket_2d.tscn" id="3_socket"]
 [ext_resource type="PackedScene" path="res://dungeon/metadata/zone_marker_2d.tscn" id="4_zone"]
 
 [node name="RoomRoot" instance=ExtResource("1_room_base")]
-room_id = "room_connector_junction_medium_a"
+room_id = "room_connector_junction_medium_b"
 size_class = "medium"
 room_type = "connector"
 origin_mode = "center"
@@ -20,17 +20,17 @@ authored_layout = ExtResource("2_layout")
 
 [node name="GeneratedByRoomEditor" type="Node2D" parent="Sockets"]
 [node name="hall_socket_double_hall_socket_double_147" parent="Sockets/GeneratedByRoomEditor" instance=ExtResource("3_socket")]
-position = Vector2(-24.0, 0.0)
+position = Vector2(-24.0, -1.5)
 direction = "west"
 width_tiles = 2
 
 [node name="hall_socket_double_hall_socket_double_148" parent="Sockets/GeneratedByRoomEditor" instance=ExtResource("3_socket")]
-position = Vector2(24.0, 0.0)
+position = Vector2(21.0, -1.5)
 direction = "east"
 width_tiles = 2
 
 [node name="hall_socket_double_hall_socket_double_149" parent="Sockets/GeneratedByRoomEditor" instance=ExtResource("3_socket")]
-position = Vector2(0.0, 24.0)
+position = Vector2(-1.5, 21.0)
 direction = "south"
 width_tiles = 2
 

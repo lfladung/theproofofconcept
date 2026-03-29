@@ -1,0 +1,113 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://dungeon/rooms/base/room_base.gd" id="1_fktd0"]
+[ext_resource type="Resource" path="res://dungeon/rooms/authored/outlines/v1/layouts/room_chokepoint_gate_medium_a.layout.tres" id="2_layout"]
+[ext_resource type="PackedScene" path="res://dungeon/rooms/base/door_socket_2d.tscn" id="3_socket"]
+[ext_resource type="Script" path="res://dungeon/rooms/base/door_socket_2d.gd" id="4_d5ujv"]
+[ext_resource type="PackedScene" path="res://dungeon/metadata/zone_marker_2d.tscn" id="4_zone"]
+[ext_resource type="Script" path="res://dungeon/metadata/zone_marker_2d.gd" id="6_1wkib"]
+
+[node name="RoomRoot" type="Node2D" unique_id=438777824]
+script = ExtResource("1_fktd0")
+room_id = "room_chokepoint_gate_medium_a"
+tile_size = Vector2i(3, 3)
+room_size_tiles = Vector2i(16, 10)
+allowed_rotations = PackedInt32Array(0, 90, 180, 270)
+standard_room_sizes = PackedInt32Array(10, 16, 24, 32)
+room_tags = PackedStringArray("arena", "combat", "chokepoint", "medium")
+allowed_connection_types = PackedStringArray("corridor", "connector", "arena")
+encounter_budget = 120
+authored_layout = ExtResource("2_layout")
+
+[node name="Layout" type="Node2D" parent="." unique_id=315349]
+
+[node name="TileFloor" type="TileMapLayer" parent="Layout" unique_id=2123172713]
+
+[node name="TileWalls" type="TileMapLayer" parent="Layout" unique_id=459783284]
+
+[node name="TileHazards" type="TileMapLayer" parent="Layout" unique_id=1761443678]
+
+[node name="TileDeco" type="TileMapLayer" parent="Layout" unique_id=1644985811]
+
+[node name="Sockets" type="Node2D" parent="." unique_id=74200414]
+
+[node name="DoorSocket_N_1" type="Marker2D" parent="Sockets" unique_id=1469938124 instance=ExtResource("3_socket")]
+position = Vector2(0, -384)
+script = ExtResource("4_d5ujv")
+
+[node name="DoorSocket_S_1" type="Marker2D" parent="Sockets" unique_id=952562333 instance=ExtResource("3_socket")]
+position = Vector2(0, 384)
+script = ExtResource("4_d5ujv")
+direction = "south"
+
+[node name="DoorSocket_W_1" type="Marker2D" parent="Sockets" unique_id=646521550 instance=ExtResource("3_socket")]
+position = Vector2(-384, 0)
+script = ExtResource("4_d5ujv")
+direction = "west"
+
+[node name="DoorSocket_E_1" type="Marker2D" parent="Sockets" unique_id=576830728 instance=ExtResource("3_socket")]
+position = Vector2(384, 0)
+script = ExtResource("4_d5ujv")
+direction = "east"
+
+[node name="GeneratedByRoomEditor" type="Node2D" parent="Sockets" unique_id=564429783]
+
+[node name="Zones" type="Node2D" parent="." unique_id=1243848328]
+
+[node name="EnemySpawnZone_Default_01" type="Area2D" parent="Zones" unique_id=959853316 instance=ExtResource("4_zone")]
+position = Vector2(-160, 0)
+collision_layer = 0
+collision_mask = 0
+monitoring = false
+monitorable = false
+script = ExtResource("6_1wkib")
+zone_role = &"melee"
+tags = PackedStringArray()
+
+[node name="PropZone_Default_01" type="Area2D" parent="Zones" unique_id=851673605 instance=ExtResource("4_zone")]
+position = Vector2(160, 0)
+collision_layer = 0
+collision_mask = 0
+monitoring = false
+monitorable = false
+script = ExtResource("6_1wkib")
+zone_type = "prop_placement"
+zone_role = &"filler"
+tags = PackedStringArray()
+
+[node name="EncounterTrigger_Default_01" type="Area2D" parent="Zones" unique_id=1888981143 instance=ExtResource("4_zone")]
+collision_layer = 0
+collision_mask = 0
+monitoring = false
+monitorable = false
+script = ExtResource("6_1wkib")
+zone_type = "encounter_trigger"
+zone_role = &"entry"
+tags = PackedStringArray()
+
+[node name="LootMarker_Default_01" type="Area2D" parent="Zones" unique_id=1723177801 instance=ExtResource("4_zone")]
+position = Vector2(0, 160)
+collision_layer = 0
+collision_mask = 0
+monitoring = false
+monitorable = false
+script = ExtResource("6_1wkib")
+zone_type = "loot_marker"
+zone_role = &"main"
+tags = PackedStringArray()
+
+[node name="NavBoundary_Default_01" type="Area2D" parent="Zones" unique_id=1534547982 instance=ExtResource("4_zone")]
+collision_layer = 0
+collision_mask = 0
+monitoring = false
+monitorable = false
+script = ExtResource("6_1wkib")
+zone_type = "nav_boundary"
+zone_role = &"room_walkable"
+tags = PackedStringArray()
+
+[node name="GeneratedByRoomEditor" type="Node2D" parent="Zones" unique_id=882295915]
+
+[node name="Gameplay" type="Node2D" parent="." unique_id=601611927]
+
+[node name="Visual3DProxy" type="Node3D" parent="." unique_id=1025114233]

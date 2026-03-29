@@ -7,6 +7,7 @@ const DoorSocketScene = preload("res://dungeon/rooms/base/door_socket_2d.tscn")
 const ZoneMarkerScene = preload("res://dungeon/metadata/zone_marker_2d.tscn")
 const PREVIEW_BUILDER_SCRIPT = preload("res://addons/dungeon_room_editor/preview/preview_builder.gd")
 const BLOCKER_COLLISION_LAYER := 4
+const META_PLACEMENT_LAYER := &"room_editor_placement_layer"
 
 var _preview_builder = PREVIEW_BUILDER_SCRIPT.new()
 
@@ -61,7 +62,20 @@ func _sync_visual_only_item(
 		return
 	instance.name = "%s_%s" % [String(piece.piece_id), item.item_id]
 	_preview_builder.configure_piece_instance(instance, item, piece, layout, room)
+	instance.set_meta(META_PLACEMENT_LAYER, item.resolved_placement_layer(piece))
 	parent.add_child(instance)
+
+
+## Sets visibility on each direct visual child to match the same Ground/Overlay/All rule as the 3D preview dock.
+func apply_placement_layer_visibility(visual_root: Node3D, visible_layer_filter: StringName) -> void:
+	if visual_root == null:
+		return
+	for child in visual_root.get_children():
+		if child is not Node3D:
+			continue
+		var node_3d := child as Node3D
+		var layer: StringName = node_3d.get_meta(META_PLACEMENT_LAYER, &"ground") as StringName
+		node_3d.visible = visible_layer_filter == &"all" or layer == visible_layer_filter
 
 
 func _sync_runtime_scene_item(
@@ -116,7 +130,8 @@ func _sync_socket_item(
 	if socket == null:
 		return
 	socket.name = "%s_%s" % [String(piece.piece_id), item.item_id]
-	socket.position = GridMath.grid_to_local(item.grid_position, layout, room)
+	var socket_rect := GridMath.item_rect(item, piece, layout, room)
+	socket.position = socket_rect.get_center()
 	socket.direction = GridMath.direction_from_rotation(item.normalized_rotation_steps())
 	socket.connector_type = piece.connector_type
 	var rotated_footprint := GridMath.rotated_footprint(piece.footprint, item.normalized_rotation_steps())
@@ -172,10 +187,11 @@ func _ensure_node3d_container(room: RoomBase, parent: Node3D) -> Node3D:
 
 
 func _rebuild_node3d_container(room: RoomBase, parent: Node3D) -> Node3D:
-	var existing := parent.get_node_or_null(^"GeneratedByRoomEditor") as Node3D
-	if existing != null:
-		parent.remove_child(existing)
-		existing.free()
+	if parent == null:
+		return null
+	# Wipe the whole proxy so stale meshes (saved outside GeneratedByRoomEditor, manual nodes,
+	# or duplicate containers) cannot stack on top of a fresh sync.
+	_clear_children(parent)
 	var container := Node3D.new()
 	container.name = "GeneratedByRoomEditor"
 	container.transform = Transform3D.IDENTITY

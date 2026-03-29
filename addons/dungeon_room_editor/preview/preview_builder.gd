@@ -327,6 +327,11 @@ func _get_preview_scene_aabb(instance: Node3D, piece) -> AABB:
 	return computed
 
 
+## Merges all MeshInstance3D AABBs under [param subtree_root] into that node's local space (no global_transform).
+func merged_mesh_bounds_under_root(subtree_root: Node3D) -> AABB:
+	return _merged_mesh_aabb_in_root(subtree_root)
+
+
 func _merged_mesh_aabb_in_root(root: Node3D) -> AABB:
 	if root == null:
 		return AABB()
