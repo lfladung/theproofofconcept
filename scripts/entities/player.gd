@@ -188,6 +188,8 @@ var _base_melee_attack_damage := 0
 var _base_ranged_damage := 0
 var _base_bomb_damage := 0
 var _base_defend_damage_multiplier := 1.0
+## Accumulated stat bonuses granted by in-world pillars during the current run.
+var _runtime_stat_bonuses: Dictionary = {}
 
 
 func _ready() -> void:
@@ -442,6 +444,27 @@ func apply_authoritative_loadout_snapshot(snapshot: Dictionary) -> void:
 	loadout_changed.emit(_loadout_snapshot.duplicate(true))
 
 
+## Called by a StatPillar2D on the server when the player destroys it.
+## Propagates the bonus to the owning client if running in multiplayer.
+func receive_pillar_bonus(stat_key: StringName, amount: float) -> void:
+	_apply_runtime_stat_bonus(stat_key, amount)
+	if _multiplayer_active() and _is_server_peer() and network_owner_peer_id != _local_peer_id():
+		_rpc_receive_pillar_bonus.rpc_id(network_owner_peer_id, stat_key, amount)
+
+
+@rpc("any_peer", "call_remote", "reliable")
+func _rpc_receive_pillar_bonus(stat_key: StringName, amount: float) -> void:
+	if _multiplayer_active() and multiplayer.get_remote_sender_id() != 1:
+		return
+	_apply_runtime_stat_bonus(stat_key, amount)
+
+
+func _apply_runtime_stat_bonus(stat_key: StringName, amount: float) -> void:
+	var current := float(_runtime_stat_bonuses.get(stat_key, 0.0))
+	_runtime_stat_bonuses[stat_key] = current + amount
+	_apply_loadout_stats(_loadout_snapshot.get("aggregated_stats", {}) as Dictionary)
+
+
 func set_network_owner_peer_id(peer_id: int) -> void:
 	network_owner_peer_id = max(1, peer_id)
 	set_multiplayer_authority(network_owner_peer_id, true)
@@ -679,6 +702,9 @@ func _apply_loadout_stats(aggregated_stats: Dictionary) -> void:
 	var previous_max_health := maxi(1, max_health)
 	var previous_health := clampi(health, 0, previous_max_health)
 	var totals := aggregated_stats.duplicate(true)
+	for key in _runtime_stat_bonuses:
+		var current := float(totals.get(key, 0.0))
+		totals[key] = current + float(_runtime_stat_bonuses.get(key, 0.0))
 	speed = maxf(0.0, _base_speed + _loadout_stat_from_totals(totals, LoadoutConstants.STAT_SPEED))
 	melee_attack_damage = maxi(
 		0,

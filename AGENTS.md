@@ -144,6 +144,51 @@ Use these file groups as shortcuts:
 
 Use or refresh this block after any substantial thread so the next thread has a warm start.
 
+---
+
+### Task Snapshot
+
+- Date: 2026-03-28
+- Goal: Lay the groundwork for an affix-based equipment upgrade system and introduce the first in-world stat pickup object (stat pillar).
+- Why now: The ideas docs (`ideas/GAMEPLAY_IDEAS.md`, `ideas/EQUIPMENT_UPGRADES.md`) define 7 affix types (Edge, Flow, Mass, Echo, Anchor, Phase, Surge) + secondaries. Before items with those affixes can exist, the stat vocabulary and a runtime bonus delivery mechanism had to be added.
+- Relevant subsystem: Loadout/equipment data layer, player stat application, dungeon gameplay modules.
+- Files likely involved: `scripts/loadout/loadout_constants.gd`, `scripts/entities/player.gd`, `dungeon/modules/gameplay/stat_pillar_2d.gd/.tscn`.
+- Constraints / must-not-break: All existing item definitions and the `_apply_loadout_stats` flow must keep working; `_runtime_stat_bonuses` must survive a loadout re-apply without being wiped; server authority for the pillar hit must be respected in multiplayer.
+
+### What Changed
+
+- Files touched:
+  - `scripts/loadout/loadout_constants.gd` — 7 new stat constants added (`crit_chance_bonus`, `attack_speed_multiplier`, `cooldown_reduction`, `knockback_multiplier`, `aoe_radius_bonus`, `lifesteal_percent`, `on_hit_slow_chance`), added to `STAT_ORDER`, two display-type arrays (`PERCENT_STATS`, `MULTIPLIER_STATS`) and updated `format_stat_modifier_lines` to format each correctly.
+  - `scripts/entities/player.gd` — added `_runtime_stat_bonuses: Dictionary`; runtime bonuses are merged into the `totals` dict inside `_apply_loadout_stats` before any stat is calculated; added `receive_pillar_bonus(stat_key, amount)`, `_rpc_receive_pillar_bonus(...)` (RPC), and `_apply_runtime_stat_bonus(...)`.
+  - `dungeon/modules/gameplay/stat_pillar_2d.gd` — new dungeon module; one-hit destroyable object; exports `bonus_stat_key` and `bonus_amount`; `is_damage_authority()` gates processing to server; on depletion, calls `receive_pillar_bonus` on `packet.source_node`; supports optional `pillar_3d_scene` export following the TrapTile2D mesh pattern.
+  - `dungeon/modules/gameplay/stat_pillar_2d.tscn` — new scene; gold octagon Polygon2D placeholder visual; `Hurtbox` on collision layer 16 (same as enemy hurtboxes) so the player melee hitbox (mask 16) hits it with no collision mask changes; `StaticBody2D` layer 2 so players physically bump into it; `HealthComponent` (1 HP, 0 iframes); `DamageReceiver`.
+- Behavior added or changed:
+  - New stat vocabulary in the loadout system; existing items are unaffected (they use none of the new keys).
+  - Runtime bonuses accumulate across pillar interactions in `_runtime_stat_bonuses` and persist until the player node is freed; they stack on top of loadout modifiers every time stats are recalculated.
+  - Multiplayer flow: server processes the pillar hit → calls `receive_pillar_bonus` on the player node on the server → applies locally and RPCs to the owning peer client if they are different.
+- Architectural decisions:
+  - Runtime bonuses live in a separate dict from the loadout snapshot so reloading/changing equipment does not wipe them.
+  - The pillar reuses the existing `Hitbox2D → Hurtbox2D → DamageReceiverComponent → HealthComponent` pipeline rather than inventing a new contact path.
+  - Collision layer 16 was chosen for the pillar hurtbox because the player melee hitbox already scans that mask; no scene edits to player.tscn were required.
+  - Stat display in the UI is controlled by `PERCENT_STATS` / `MULTIPLIER_STATS` arrays so each stat renders with the right suffix/format without special-casing every formatter call site.
+
+### Risks And Follow-Ups
+
+- Known risks: New stats (`crit_chance_bonus`, `attack_speed_multiplier`, etc.) are declared and accumulate but are not yet read anywhere in `player.gd` combat logic — they have no gameplay effect until Task 4 (hook new stats into player) is done.
+- Follow-up tasks:
+  - Task 2: Add `affix_type: StringName` field to `LoadoutItemDefinition` + `AFFIX_*` constants in `LoadoutConstants`.
+  - Task 3: Create new item definitions per affix type in `loadout_repository.gd`.
+  - Task 4: Wire `attack_speed_multiplier`, `cooldown_reduction`, `knockback_multiplier`, `aoe_radius_bonus`, `crit_chance_bonus`, `lifesteal_percent` into actual `player.gd` combat calculations.
+  - Place a `stat_pillar_2d.tscn` instance in `small_dungeon.tscn` or a room scene for in-game testing.
+  - Consider resetting `_runtime_stat_bonuses` between runs (likely in `small_dungeon.gd` when a new run starts or the player is re-initialized).
+- Open questions: Should runtime bonuses reset between floors or persist for the whole run? Should the pillar emit a signal/particle effect on trigger for visual polish? Should multiple pillars of the same stat type stack or cap?
+
+### Next Best Prompt
+
+- Paste-ready prompt for the next thread: "Continue the affix/upgrade system from `ideas/GAMEPLAY_IDEAS.md` and `ideas/EQUIPMENT_UPGRADES.md`. Task 2: add an `affix_type` field and `AFFIX_*` constants to `scripts/loadout/loadout_constants.gd` and `scripts/loadout/loadout_item_definition.gd`. Task 3: create new item definitions in `scripts/loadout/loadout_repository.gd` for Edge/Flow/Mass variants of each equipment slot. Read `AGENTS.md` for full context on what was done in the 2026-03-28 session before making changes."
+
+---
+
 ### Task Snapshot
 
 - Date: 2026-03-28
