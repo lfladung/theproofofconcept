@@ -8,6 +8,10 @@ Godot_v4.6.1-stable_win64.exe/
 # Local Godot profile + logs from tools/run_headless.ps1 (not project source)
 .godot_cli_profile/
 
+# Animation pipeline scratch (large binaries; keep out of git)
+tools/animation_pipeline/work/videos/
+*.mov
+
 # OS
 .DS_Store
 Thumbs.db
