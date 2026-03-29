@@ -31,7 +31,7 @@ elongated, blurred — the silhouette looks like speed, with ghost-trails of its
 - Runs directly at the player. No navigation — aims at current position and holds course.
 - Gets stuck on walls and corners. Doesn't course-correct until it fully stops.
 - Deals contact damage on collision. No attack animation.
-- **Stats:** 15 HP · Speed: 14 · Contact damage: 8 · Drops: 1 coin
+- **Stats:** 15 HP · Speed: 14 · Contact damage: 8 · Drops: 1 Resonance
 - **Counterplay:** Trivial alone. Corner it or let it run into a wall. Dangerous in groups because
   they cover different angles and the contact damage stacks if you stop moving.
 - **Spawn guidance:** 4–6 in open rooms. 2–3 in corridors. Always the first enemy a player meets.
@@ -47,7 +47,7 @@ elongated, blurred — the silhouette looks like speed, with ghost-trails of its
 - Arrow locks to player position at telegraph start — dashes through that point even if the player moves.
 - On hit during telegraph: interrupted, enters stun (1s).
 - After dash: brief recovery (0.3s) before resuming chase.
-- **Stats:** 50 HP · Chase speed: 12 · Dash speed: ~28 · Dash damage: 25 · Drops: 2 coins
+- **Stats:** 50 HP · Chase speed: 12 · Dash speed: ~28 · Dash damage: 25 · Drops: 2 Resonances
 - **Counterplay:** Move perpendicular during the telegraph. The arrow is the tell — learn to read it
   as the commit signal. Interrupting during the telegraph is high-reward but requires getting close.
 - **Spawn guidance:** 1–3. In tight corridors, even 1 is threatening. Pairs well with anything that
@@ -63,7 +63,7 @@ elongated, blurred — the silhouette looks like speed, with ghost-trails of its
 - Dash leaves a glowing ground trail that lingers for 3s and deals damage on contact (~5/s).
 - Cannot be interrupted during the dash itself (only during telegraph).
 - **On death:** immediately splits into two Scramblers at 40% HP each. They spawn at the death position.
-- **Stats:** 80 HP · Chase speed: 14 · Dash damage: 30 · Trail damage: 5/s · Drops: 4 coins
+- **Stats:** 80 HP · Chase speed: 14 · Dash damage: 30 · Trail damage: 5/s · Drops: 4 Resonances
 - **Counterplay:** Kill it near a wall or corner so the Scramblers spawn contained. Fight it in open
   space to avoid the trail. Prioritize the telegraph window — it's your only interrupt opportunity.
 - **Spawn guidance:** Never more than 2 in a room. The trail coverage + split means one Surgeform
@@ -102,7 +102,7 @@ increases, the creature looks more like it was designed to fire rather than a cr
 - Retreats slowly if the player closes within 4 units. Does not fight in melee.
 - Long reload: fires every 3.5s. Retreating does not cancel the reload.
 - Projectile is large and slow enough to see clearly — the threat is volume and zone coverage.
-- **Stats:** 25 HP · Move speed: 4 (retreat only) · Projectile speed: 7 · Projectile damage: 10 · Drops: 1 coin
+- **Stats:** 25 HP · Move speed: 4 (retreat only) · Projectile speed: 7 · Projectile damage: 10 · Drops: 1 Resonance
 - **Counterplay:** Walk toward it — it will retreat rather than fight. Chase it down. Slow projectiles
   let you dodge by moving rather than reacting. With multiple Spitters the stagger of their fire
   rates creates a continuous field even without coordination.
@@ -119,7 +119,7 @@ increases, the creature looks more like it was designed to fire rather than a cr
 - Telegraph: arc/cone builds on ground (1s). Fires 3 projectiles in a spread when cone fills.
 - After firing: cooldown (1.6s), then reposition to maintain distance.
 - Disrupted by hits — cancels charge, enters brief stagger.
-- **Stats:** 60 HP · Move speed: 7 · Projectile speed: 18 · Projectile damage: 12 each · Drops: 3 coins
+- **Stats:** 60 HP · Move speed: 7 · Projectile speed: 18 · Projectile damage: 12 each · Drops: 3 Resonances
 - **Counterplay:** Aggressive pressure disrupts its charge. The spread cone is a visible tell — dodge
   sideways from the center. At close range it becomes a melee target with no fallback.
 - **Spawn guidance:** 1–2 in mid-depth rooms. Behind a Shieldwall is a strong combination — forces
@@ -138,7 +138,7 @@ increases, the creature looks more like it was designed to fire rather than a cr
   dodging the spread.
 - Homing projectiles have their own HP (20 each) and can be destroyed by hitting them.
 - After both phases: 3s cooldown, then repeats.
-- **Stats:** 120 HP · Move speed: 4 · Spread damage: 14 · Homing damage: 18 · Drops: 6 coins
+- **Stats:** 120 HP · Move speed: 4 · Spread damage: 14 · Homing damage: 18 · Drops: 6 Resonances
 - **Counterplay:** Kill the homing projectiles if you can't outrun them. Keep moving after dodging
   the spread — standing still to fight is what the follow-up punishes. Aggressive melee is risky
   because it doesn't interrupt; high burst damage is rewarded here.
@@ -180,7 +180,7 @@ heavy even when standing still.
 - At melee range: raises up and stomps. AoE circle (radius ~2.5 units). High knockback, moderate damage.
 - Telegraph: shadow circle expands on the ground over 1.2s before the stomp.
 - Easily staggered and repositioned — knockback sends it off course significantly.
-- **Stats:** 40 HP · Speed: 4 · Stomp damage: 20 · Stomp AoE: 2.5r · Drops: 2 coins
+- **Stats:** 40 HP · Speed: 4 · Stomp damage: 20 · Stomp AoE: 2.5r · Drops: 2 Resonances
 - **Counterplay:** Stay mobile. The telegraph is long and obvious. Knock it into a corner or wall to
   reset its approach. Solo it's a slow tutorial on reading ground telegraphs.
 - **Spawn guidance:** 2–3 together, or 1 with faster pressure enemies. The Stumbler's role is
@@ -198,7 +198,7 @@ heavy even when standing still.
   no damage. Telegraphed by a forward lean (0.5s).
 - **Exposed state:** after being hit from behind 3 times within 5s, the shield drops for 2s (2x damage window).
   Then it resets its back-hit counter.
-- **Stats:** 70 HP · Speed: 6 · Shield bash knockback: high · Back damage multiplier: 1.5x · Exposed: 2x · Drops: 4 coins
+- **Stats:** 70 HP · Speed: 6 · Shield bash knockback: high · Back damage multiplier: 1.5x · Exposed: 2x · Drops: 4 Resonances
 - **Counterplay:** Circle-strafe behind it. In multiplayer, one player draws attention while the other
   flanks. The bash is a positioning tool — if you're against a wall when it hits, you lose your angle.
 - **Spawn guidance:** Pairs with anything that fires from range (Spitter, RobotMob). The Shieldwall
@@ -219,7 +219,7 @@ heavy even when standing still.
   bright spot on the back) appears. Hitting the weak point ends the phase immediately. If no one hits
   it, the phase ends naturally and The Warden performs a slam immediately after.
 - **On death:** collapses. Spawns 3 Shieldwall enemies at 50% HP at its position.
-- **Stats:** 300 HP · Speed: 3 · Slam damage: 45 · Gravity slow: 40% · Phase duration: 4s · Drops: 15 coins
+- **Stats:** 300 HP · Speed: 3 · Slam damage: 45 · Gravity slow: 40% · Phase duration: 4s · Drops: 15 Resonances
 - **Counterplay:** The gravity field is the core threat — it turns the slam from dodgeable to unavoidable
   if you're not careful. In multiplayer: one player baits the slam while the other stays at range.
   The immunity phase requires awareness of positioning — the weak point is on the back, which is the
@@ -262,7 +262,7 @@ different filter — they look like the same sketch redrawn by three different h
 - Every 6s: releases 1–2 Splinters (tiny, fast, 8 HP, contact damage 5). Up to 5 Splinters active at once.
 - No direct attack. High HP for its depth tier.
 - When all Splinters are killed, it accelerates spawning briefly (one immediate spawn).
-- **Stats:** 60 HP · Speed: 1 · Spawn interval: 6s · Max minions: 5 · Drops: 3 coins + 1 per Splinter
+- **Stats:** 60 HP · Speed: 1 · Spawn interval: 6s · Max minions: 5 · Drops: 3 Resonances + 1 per Splinter
 - **Counterplay:** Kill it first. The longer it lives the more crowded the room. AoE attacks are
   particularly efficient — they can hit the Sac and clear Splinters simultaneously. In multiplayer,
   one player can pressure the Sac while the other manages Splinters.
@@ -282,7 +282,7 @@ different filter — they look like the same sketch redrawn by three different h
 - **Reflection:** each time it takes damage, it emits a 30%-power version of the hit back at the attacker
   (reflected projectile, or a short melee lunge if hit in melee).
 - At 50% HP: reflection count doubles (2 reflections per hit instead of 1).
-- **Stats:** 70 HP · Reflected damage: 30% of incoming · Drops: 5 coins
+- **Stats:** 70 HP · Reflected damage: 30% of incoming · Drops: 5 Resonances
 - **Counterplay:** Use the attack type it doesn't copy — if it mirrors melee, fight it at range and
   vice versa. In multiplayer it observes the highest-damage player and mirrors them specifically.
   Dealing small, frequent hits generates many weak reflections; fewer big hits is safer.
@@ -305,7 +305,7 @@ different filter — they look like the same sketch redrawn by three different h
 - **To end the encounter:** kill all three within any 3s window.
 - The Anchor's absorption means killing it first removes the protection, but now the 3s clock is
   ticking and the other two are still alive.
-- **Stats:** Charger: 80 HP · Lobber: 45 HP · Anchor: 55 HP · Drops: 12 coins total
+- **Stats:** Charger: 80 HP · Lobber: 45 HP · Anchor: 55 HP · Drops: 12 Resonances total
 - **Counterplay:** Understand the resurrection before engaging. Strategy options:
   - Kill Anchor first, then burst Lobber + Charger together
   - Use AoE to damage all three simultaneously to equalize HP, then burst
@@ -349,7 +349,7 @@ irrelevant compared to the web it builds.
 - **Fade-in telegraph:** ground ripple/shimmer at the target position, 0.8s before it appears.
 - If hit while phased in: immediately fades out and relocates to a random room position.
 - Relocation is instant and ignores geometry — it can appear anywhere in the room.
-- **Stats:** 30 HP · Phase-in damage: 15 · Phase interval: 4–6s · Drops: 2 coins
+- **Stats:** 30 HP · Phase-in damage: 15 · Phase interval: 4–6s · Drops: 2 Resonances
 - **Counterplay:** Watch the floor, not the enemy. The shimmer is the tell. If you miss the shimmer,
   create space immediately after being hit to avoid the follow-up. In a group, Lurkers stagger their
   timers naturally — it becomes a pattern-recognition challenge.
@@ -372,7 +372,7 @@ irrelevant compared to the web it builds.
 - A **teammate** can hit it to detach instantly.
 - If it drains 30 total HP while latched: disengages voluntarily, fully healed, repositions.
 - Solo: if you've been drained 15 HP, breaking free costs a healing item. In multiplayer: easy to detach with a teammate.
-- **Stats:** 50 HP · Drain rate: 5 HP/s · Detach threshold: 30 HP drained · Drops: 4 coins
+- **Stats:** 50 HP · Drain rate: 5 HP/s · Detach threshold: 30 HP drained · Drops: 4 Resonances
 - **Counterplay:** Don't let it latch. It's slow — kite it and deal damage before contact. In co-op,
   communicate who's being targeted and the other player hits it off. Going down to a Leecher solo is
   almost always a resource issue, not a skill issue.
@@ -393,7 +393,7 @@ irrelevant compared to the web it builds.
 - Up to 3 tethers can be active at once. A second tether hit while rooted refreshes the root duration.
 - **Pull:** if a rooted player uses a dash/roll to escape, The Binder pulls them back to the root
   position once. This happens once per root instance.
-- **Stats:** 90 HP · Tether speed: 8 · Root duration: 0.8s · Tether hit damage: 10 · Charge hit damage: 30 · Drops: 6 coins
+- **Stats:** 90 HP · Tether speed: 8 · Root duration: 0.8s · Tether hit damage: 10 · Charge hit damage: 30 · Drops: 6 Resonances
 - **Counterplay:** The tether is slow and visible — dodge it. If rooted, use the dash *after* the
   charge animation starts (the pull only cancels the dash, not the follow-up dodge opportunity). In
   multiplayer: one player can draw tether fire while the other attacks The Binder freely.
@@ -437,7 +437,7 @@ fissures in its body; the Fizzlers it spawns literally emerge from these cracks,
 - Dying (from damage) also triggers the explosion — it detonates on death regardless.
 - **Chain detonation:** Fizzler explosions trigger other Fizzlers within their blast radius.
 - 1 HP — one hit kills it. The explosion is the main interaction.
-- **Stats:** 1 HP · Speed: 18 · Explosion damage: 12 · Explosion radius: 1.5 · Drops: 0 coins (too small)
+- **Stats:** 1 HP · Speed: 18 · Explosion damage: 12 · Explosion radius: 1.5 · Drops: 0 Resonance (too small to shed anything)
 - **Counterplay:** Hit it before it reaches you. AoE attacks are efficient — one hit clears a pack.
   The chain detonation is a threat and a tool: luring Fizzlers together then triggering one can clear
   a group, but in a tight corridor it can chain into you.
@@ -456,7 +456,7 @@ fissures in its body; the Fizzlers it spawns literally emerge from these cracks,
 - **Damage interrupt:** taking significant damage (>15 in one hit) resets the charge meter.
 - Explosion radius triggers any Fizzlers caught inside — chain potential.
 - Takes extra knockback throughout (the charge makes it unstable).
-- **Stats:** 55 HP · Speed: 9 · Full charge time: 7s · Explosion damage: 50 · Explosion radius: 4 · Drops: 4 coins
+- **Stats:** 55 HP · Speed: 9 · Full charge time: 7s · Explosion damage: 50 · Explosion radius: 4 · Drops: 4 Resonances
 - **Counterplay:** Two approaches — stun/interrupt it to keep the charge low (but it will keep
   rebuilding), or kill it quickly before it charges (risky if near other Fizzlers). In an open room
   kiting it is viable; in tight spaces managing the charge timer is the core challenge.
@@ -481,7 +481,7 @@ fissures in its body; the Fizzlers it spawns literally emerge from these cracks,
 - **Design note on kill order:** Players who kill The Detonator with Fizzlers and Bursters nearby will
   chain-detonate the room. Correct play is to clear the room of Surgers first, then vent-burst The
   Detonator. This should be learnable in the first encounter.
-- **Stats:** 250 HP · Speed: 3 · Vent window: 1.5s (2x damage) · Death explosion: 80 dmg, 7r · Drops: 14 coins
+- **Stats:** 250 HP · Speed: 3 · Vent window: 1.5s (2x damage) · Death explosion: 80 dmg, 7r · Drops: 14 Resonances
 - **Counterplay:** Clear the Fizzlers. Time the vent window — attack in bursts, not continuously.
   Position away from Fizzler clusters before landing the killing blow. In multiplayer, one player
   manages Fizzlers while the other watches the vent timer.
