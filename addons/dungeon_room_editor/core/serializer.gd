@@ -99,6 +99,7 @@ func layout_to_dictionary(layout) -> Dictionary:
 				"rotation_steps": item.normalized_rotation_steps(),
 				"tags": item.tags,
 				"encounter_group_id": String(item.encounter_group_id),
+				"enemy_id": String(item.enemy_id),
 				"placement_layer": String(item.resolved_placement_layer()),
 				"blocks_movement": item.blocks_movement,
 				"blocks_projectiles": item.blocks_projectiles,
@@ -138,6 +139,7 @@ func dictionary_to_layout(data: Dictionary):
 		item.rotation_steps = posmod(int(item_data.get("rotation_steps", 0)), 4)
 		item.tags = PackedStringArray(item_data.get("tags", PackedStringArray()))
 		item.encounter_group_id = StringName(String(item_data.get("encounter_group_id", "")))
+		item.enemy_id = StringName(String(item_data.get("enemy_id", "")))
 		item.placement_layer = StringName(String(item_data.get("placement_layer", "")))
 		item.blocks_movement = bool(item_data.get("blocks_movement", false))
 		item.blocks_projectiles = bool(item_data.get("blocks_projectiles", false))

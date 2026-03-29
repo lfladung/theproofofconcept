@@ -536,6 +536,7 @@ func _on_selected_item_changed(payload: Dictionary) -> void:
 	item.placement_layer = StringName(payload.get("placement_layer", item.resolved_placement_layer(piece)))
 	item.tags = (payload.get("tags", item.tags) as PackedStringArray).duplicate()
 	item.encounter_group_id = payload.get("encounter_group_id", item.encounter_group_id)
+	item.enemy_id = StringName(String(payload.get("enemy_id", item.resolved_enemy_id(piece))))
 	item.blocks_movement = bool(payload.get("blocks_movement", item.blocks_movement))
 	item.blocks_projectiles = bool(payload.get("blocks_projectiles", item.blocks_projectiles))
 	_session.layout.emit_changed()

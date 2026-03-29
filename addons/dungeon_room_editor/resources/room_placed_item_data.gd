@@ -9,6 +9,7 @@ class_name RoomPlacedItemData
 @export_range(0, 3, 1) var rotation_steps := 0
 @export var tags: PackedStringArray = []
 @export var encounter_group_id: StringName = &""
+@export var enemy_id: StringName = &""
 @export var placement_layer: StringName = &""
 @export var blocks_movement := false
 @export var blocks_projectiles := false
@@ -27,6 +28,7 @@ func duplicate_item():
 	duplicate.rotation_steps = normalized_rotation_steps()
 	duplicate.tags = tags.duplicate()
 	duplicate.encounter_group_id = encounter_group_id
+	duplicate.enemy_id = enemy_id
 	duplicate.placement_layer = placement_layer
 	duplicate.blocks_movement = blocks_movement
 	duplicate.blocks_projectiles = blocks_projectiles
@@ -39,3 +41,11 @@ func resolved_placement_layer(piece = null) -> StringName:
 	if piece != null and piece.has_method(&"default_placement_layer"):
 		return piece.default_placement_layer()
 	return &"ground" if category == &"floor" else &"overlay"
+
+
+func resolved_enemy_id(piece = null) -> StringName:
+	if enemy_id != &"":
+		return enemy_id
+	if piece != null and piece.has_method(&"is_enemy_spawn_marker") and piece.is_enemy_spawn_marker():
+		return piece.enemy_id
+	return &""

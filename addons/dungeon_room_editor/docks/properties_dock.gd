@@ -19,6 +19,7 @@ signal import_json_requested(path: String)
 @onready var _placement_layer_option: OptionButton = %PlacementLayerOption
 @onready var _item_tags_line: LineEdit = %ItemTagsLine
 @onready var _encounter_group_line: LineEdit = %EncounterGroupLine
+@onready var _enemy_id_line: LineEdit = %EnemyIdLine
 @onready var _blocks_movement_check: CheckBox = %BlocksMovementCheck
 @onready var _blocks_projectiles_check: CheckBox = %BlocksProjectilesCheck
 @onready var _status_label: Label = %StatusLabel
@@ -65,6 +66,8 @@ func refresh(session) -> void:
 		_placement_layer_option.select(0)
 		_item_tags_line.text = ""
 		_encounter_group_line.text = ""
+		_enemy_id_line.text = ""
+		_enemy_id_line.editable = false
 		_blocks_movement_check.button_pressed = false
 		_blocks_projectiles_check.button_pressed = false
 		_selected_item_id = ""
@@ -92,6 +95,12 @@ func refresh(session) -> void:
 		_placement_layer_option.select(_placement_layer_option_index(item.resolved_placement_layer(piece)))
 		_item_tags_line.text = ", ".join(item.tags)
 		_encounter_group_line.text = String(item.encounter_group_id)
+		var enemy_id_editable: bool = (
+			piece.has_method(&"is_enemy_spawn_marker")
+			and piece.is_enemy_spawn_marker()
+		)
+		_enemy_id_line.editable = enemy_id_editable
+		_enemy_id_line.text = String(item.resolved_enemy_id(piece)) if enemy_id_editable else ""
 		_blocks_movement_check.button_pressed = item.blocks_movement
 		_blocks_projectiles_check.button_pressed = item.blocks_projectiles
 	else:
@@ -102,6 +111,8 @@ func refresh(session) -> void:
 		_placement_layer_option.select(0)
 		_item_tags_line.text = ""
 		_encounter_group_line.text = ""
+		_enemy_id_line.text = ""
+		_enemy_id_line.editable = false
 		_blocks_movement_check.button_pressed = false
 		_blocks_projectiles_check.button_pressed = false
 	_is_refreshing = false
@@ -137,6 +148,7 @@ func _connect_item_handlers() -> void:
 	_placement_layer_option.item_selected.connect(func(_index: int) -> void: _emit_selected_item_changed())
 	_connect_committed_line_edit(_item_tags_line, _emit_selected_item_changed)
 	_connect_committed_line_edit(_encounter_group_line, _emit_selected_item_changed)
+	_connect_committed_line_edit(_enemy_id_line, _emit_selected_item_changed)
 	_blocks_movement_check.toggled.connect(func(_pressed: bool) -> void: _emit_selected_item_changed())
 	_blocks_projectiles_check.toggled.connect(func(_pressed: bool) -> void: _emit_selected_item_changed())
 
@@ -175,6 +187,7 @@ func _emit_selected_item_changed() -> void:
 			"placement_layer": selected_placement_layer(),
 			"tags": _split_csv(_item_tags_line.text),
 			"encounter_group_id": StringName(_encounter_group_line.text.strip_edges()),
+			"enemy_id": StringName(_enemy_id_line.text.strip_edges()),
 			"blocks_movement": _blocks_movement_check.button_pressed,
 			"blocks_projectiles": _blocks_projectiles_check.button_pressed,
 		}

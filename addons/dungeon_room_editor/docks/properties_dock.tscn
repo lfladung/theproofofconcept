@@ -148,6 +148,15 @@ text = "Encounter / Spawn Group"
 unique_name_in_owner = true
 layout_mode = 2
 
+[node name="EnemyIdLabel" type="Label" parent="Content"]
+layout_mode = 2
+text = "Enemy ID"
+
+[node name="EnemyIdLine" type="LineEdit" parent="Content"]
+unique_name_in_owner = true
+layout_mode = 2
+editable = false
+
 [node name="BlocksMovementCheck" type="CheckBox" parent="Content"]
 unique_name_in_owner = true
 layout_mode = 2

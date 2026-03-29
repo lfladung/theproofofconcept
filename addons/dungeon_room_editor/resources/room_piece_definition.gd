@@ -17,6 +17,7 @@ class_name RoomPieceDefinition
 @export var default_tags: PackedStringArray = []
 @export var zone_type := ""
 @export var zone_role: StringName = &"default"
+@export var enemy_id: StringName = &""
 @export var connector_type: StringName = &"standard"
 
 
@@ -26,6 +27,10 @@ func is_door_socket() -> bool:
 
 func is_zone_marker() -> bool:
 	return mapping_kind == &"zone_marker"
+
+
+func is_enemy_spawn_marker() -> bool:
+	return is_zone_marker() and zone_type == "enemy_spawn"
 
 
 func default_placement_layer() -> StringName:

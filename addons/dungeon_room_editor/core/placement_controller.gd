@@ -74,6 +74,7 @@ func place_item(session, piece, grid_position: Vector2i) -> Dictionary:
 	item.rotation_steps = session.placement_rotation_steps
 	item.tags = piece.default_tags.duplicate()
 	item.encounter_group_id = &""
+	item.enemy_id = piece.enemy_id
 	item.placement_layer = _resolve_piece_layer(piece)
 	item.blocks_movement = piece.blocks_movement
 	item.blocks_projectiles = piece.blocks_projectiles

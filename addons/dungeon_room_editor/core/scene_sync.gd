@@ -80,7 +80,7 @@ func _sync_runtime_scene_item(
 	instance.position = GridMath.grid_to_local(item.grid_position, layout, room)
 	instance.rotation = float(item.normalized_rotation_steps()) * PI * 0.5
 	parent.add_child(instance)
-	_apply_common_item_metadata(instance, item)
+	_apply_common_item_metadata(instance, item, piece)
 	if _object_has_property(instance, &"direction"):
 		instance.set(&"direction", GridMath.direction_from_rotation(item.normalized_rotation_steps()))
 
@@ -99,8 +99,10 @@ func _sync_zone_marker_item(
 	zone.position = GridMath.grid_to_local(item.grid_position, layout, room)
 	zone.zone_type = piece.zone_type if piece.zone_type != "" else "prop_placement"
 	zone.zone_role = piece.zone_role
+	zone.enemy_id = item.resolved_enemy_id(piece)
 	zone.tags = item.tags.duplicate()
 	parent.add_child(zone)
+	_apply_common_item_metadata(zone, item, piece)
 
 
 func _sync_socket_item(
@@ -144,7 +146,7 @@ func _sync_blocker_item(
 	blocker.position = item_rect.get_center()
 	blocker.add_child(shape)
 	parent.add_child(blocker)
-	_apply_common_item_metadata(blocker, item)
+	_apply_common_item_metadata(blocker, item, piece)
 
 
 func _ensure_node2d_container(room: RoomBase, parent: Node2D) -> Node2D:
@@ -198,11 +200,12 @@ func _should_create_blocker(item, piece) -> bool:
 	return piece.mapping_kind != &"runtime_scene"
 
 
-func _apply_common_item_metadata(node: Node, item) -> void:
+func _apply_common_item_metadata(node: Node, item, piece = null) -> void:
 	node.set_meta(&"room_editor_item_id", item.item_id)
 	node.set_meta(&"room_editor_piece_id", item.piece_id)
 	node.set_meta(&"room_editor_category", item.category)
 	node.set_meta(&"room_editor_encounter_group_id", item.encounter_group_id)
+	node.set_meta(&"room_editor_enemy_id", item.resolved_enemy_id(piece))
 	node.set_meta(&"room_editor_placement_layer", item.resolved_placement_layer())
 	node.set_meta(&"room_editor_tags", item.tags)
 	node.set_meta(&"room_editor_blocks_movement", item.blocks_movement)

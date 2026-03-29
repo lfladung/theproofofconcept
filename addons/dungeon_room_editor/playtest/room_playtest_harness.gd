@@ -1,6 +1,10 @@
 extends Node
 
 const PLAYER_SCENE := preload("res://scenes/entities/player.tscn")
+const DASHER_SCENE := preload("res://scenes/entities/dasher.tscn")
+const ARROW_TOWER_SCENE := preload("res://scenes/entities/arrow_tower.tscn")
+const IRON_SENTINEL_SCENE := preload("res://scenes/entities/iron_sentinel.tscn")
+const ROBOT_MOB_SCENE := preload("res://scenes/entities/robot_mob.tscn")
 const CAMERA_FOLLOW_SCRIPT := preload("res://dungeon/game/components/camera_follow.gd")
 const SERIALIZER_SCRIPT := preload("res://addons/dungeon_room_editor/core/serializer.gd")
 const SCENE_SYNC_SCRIPT := preload("res://addons/dungeon_room_editor/core/scene_sync.gd")
@@ -15,6 +19,10 @@ const CAMERA_ORTHO_SIZE := 50.0
 const CAMERA_FAR := 500.0
 const ROOM_BOUNDARY_LAYER := 4
 const ROOM_WALL_COLLIDER_THICKNESS := 3.0
+const ENEMY_ID_DASHER := &"dasher"
+const ENEMY_ID_ARROW_TOWER := &"arrow_tower"
+const ENEMY_ID_IRON_SENTINEL := &"iron_sentinel"
+const ENEMY_ID_ROBOT_MOB := &"robot_mob"
 
 @onready var _game_world_2d: Node2D = $GameWorld2D
 @onready var _visual_world_3d: Node3D = $VisualWorld3D
@@ -59,6 +67,7 @@ func _ready() -> void:
 		_align_room_visuals_to_room()
 	_build_room_collision_shell()
 	_spawn_player()
+	_spawn_authored_enemies()
 	_initialize_camera_follow()
 
 
@@ -95,6 +104,51 @@ func _load_manifest_room_path() -> String:
 	if parsed is not Dictionary:
 		return ""
 	return String((parsed as Dictionary).get("room_scene_path", ""))
+
+
+func _spawn_authored_enemies() -> void:
+	if _room == null:
+		return
+	var player_position := _player.global_position if _player != null and is_instance_valid(_player) else Vector2.ZERO
+	for zone in _room.get_zone_markers():
+		if zone == null or not is_instance_valid(zone):
+			continue
+		if zone.zone_type != "enemy_spawn":
+			continue
+		var enemy_scene := _enemy_scene_for_zone(zone)
+		if enemy_scene == null:
+			continue
+		var enemy := enemy_scene.instantiate() as Node2D
+		if enemy == null:
+			continue
+		_game_world_2d.add_child(enemy)
+		if enemy.has_method(&"configure_spawn"):
+			enemy.call(&"configure_spawn", zone.global_position, player_position)
+		else:
+			enemy.global_position = zone.global_position
+
+
+func _enemy_scene_for_zone(zone: ZoneMarker2D) -> PackedScene:
+	if zone == null:
+		return null
+	var resolved_enemy_id := zone.enemy_id
+	if resolved_enemy_id == &"":
+		resolved_enemy_id = StringName(String(zone.zone_role))
+	match resolved_enemy_id:
+		ENEMY_ID_ARROW_TOWER:
+			return ARROW_TOWER_SCENE
+		ENEMY_ID_IRON_SENTINEL:
+			return IRON_SENTINEL_SCENE
+		ENEMY_ID_ROBOT_MOB:
+			return ROBOT_MOB_SCENE
+		ENEMY_ID_DASHER:
+			return DASHER_SCENE
+		&"melee":
+			return DASHER_SCENE
+		&"ranged":
+			return ARROW_TOWER_SCENE
+		_:
+			return null
 
 
 func _remove_generated_room_visuals() -> void:
