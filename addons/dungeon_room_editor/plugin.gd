@@ -35,29 +35,6 @@ var _last_drag_cell := _NO_CELL
 
 
 func _enter_tree() -> void:
-	_main_panel = MainPanelScene.instantiate() as Control
-	_main_panel.name = "DungeonRoomEditorMainPanel"
-	_main_panel.visible = false
-	var main_screen := get_editor_interface().get_editor_main_screen()
-	main_screen.add_child(_main_panel)
-	_main_panel.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	_main_panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	_main_panel.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	_create_preview_popout_window()
-	_palette_dock = _main_panel.get_node("VBox/BodySplit/PalettePanel/PaletteDock") as Control
-	_properties_dock = _main_panel.get_node(
-		"VBox/BodySplit/WorkspaceSplit/InspectorSplit/PropertiesDock"
-	) as ScrollContainer
-	_preview_dock = _main_panel.get_node(
-		"VBox/BodySplit/WorkspaceSplit/InspectorSplit/PreviewDock"
-	) as Control
-	_room_canvas = _main_panel.get_node(
-		"VBox/BodySplit/WorkspaceSplit/CanvasPanel/RoomCanvas"
-	) as Control
-	_connect_ui()
-	_palette_dock.call(&"set_catalog", DefaultCatalog)
-	_room_canvas.call(&"set_session", _session)
-	_sync_empty_state()
 	set_process(true)
 
 
@@ -110,6 +87,8 @@ func _edit(object: Object) -> void:
 
 
 func _make_visible(visible: bool) -> void:
+	if visible:
+		_ensure_ui()
 	if _main_panel != null:
 		_main_panel.visible = visible
 	if not visible:
@@ -149,6 +128,33 @@ func _connect_ui() -> void:
 	_session.visible_layer_changed.connect(_on_visible_layer_changed)
 
 
+func _ensure_ui() -> void:
+	if _main_panel != null:
+		return
+	_main_panel = MainPanelScene.instantiate() as Control
+	_main_panel.name = "DungeonRoomEditorMainPanel"
+	_main_panel.visible = false
+	var main_screen := get_editor_interface().get_editor_main_screen()
+	main_screen.add_child(_main_panel)
+	_main_panel.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	_main_panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_main_panel.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	_palette_dock = _main_panel.get_node("VBox/BodySplit/PalettePanel/PaletteDock") as Control
+	_properties_dock = _main_panel.get_node(
+		"VBox/BodySplit/WorkspaceSplit/InspectorSplit/PropertiesDock"
+	) as ScrollContainer
+	_preview_dock = _main_panel.get_node(
+		"VBox/BodySplit/WorkspaceSplit/InspectorSplit/PreviewDock"
+	) as Control
+	_room_canvas = _main_panel.get_node(
+		"VBox/BodySplit/WorkspaceSplit/CanvasPanel/RoomCanvas"
+	) as Control
+	_connect_ui()
+	_palette_dock.call(&"set_catalog", DefaultCatalog)
+	_room_canvas.call(&"set_session", _session)
+	_sync_empty_state()
+
+
 func _refresh_edited_room(force_refresh: bool) -> void:
 	var root := get_editor_interface().get_edited_scene_root()
 	if root is not RoomBase:
@@ -170,7 +176,8 @@ func _refresh_edited_room(force_refresh: bool) -> void:
 		DefaultCatalog
 	)
 	_sync_ui_state("Room editor ready.")
-	_room_canvas.call(&"center_view", true)
+	if _room_canvas != null:
+		_room_canvas.call(&"center_view", true)
 
 
 func _sync_empty_state(status_message: String = "Open a RoomBase scene to author it here.") -> void:
@@ -256,6 +263,8 @@ func _redirect_to_default_editor_if_needed() -> void:
 
 
 func _create_preview_popout_window() -> void:
+	if is_instance_valid(_preview_popout_window):
+		return
 	_preview_popout_window = Window.new()
 	_preview_popout_window.visible = false
 	_preview_popout_window.title = "Room Editor 3D Preview"
@@ -339,6 +348,8 @@ func _on_default_quarter_turn_toggled(enabled: bool) -> void:
 
 
 func _open_preview_popout() -> void:
+	if not is_instance_valid(_preview_popout_window):
+		_create_preview_popout_window()
 	if not is_instance_valid(_preview_popout_window):
 		return
 	_preview_popout_window.show()

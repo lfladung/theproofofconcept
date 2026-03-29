@@ -25,8 +25,9 @@ signal import_json_requested(path: String)
 @onready var _status_label: Label = %StatusLabel
 @onready var _export_button: Button = %ExportButton
 @onready var _import_button: Button = %ImportButton
-@onready var _export_dialog: FileDialog = %ExportDialog
-@onready var _import_dialog: FileDialog = %ImportDialog
+
+var _export_dialog: FileDialog
+var _import_dialog: FileDialog
 
 var _is_refreshing := false
 var _selected_item_id := ""
@@ -44,10 +45,34 @@ func _ready() -> void:
 	_placement_layer_option.add_item("Overlay", 1)
 	_connect_room_handlers()
 	_connect_item_handlers()
-	_export_button.pressed.connect(func() -> void: _export_dialog.popup_centered_ratio(0.75))
-	_import_button.pressed.connect(func() -> void: _import_dialog.popup_centered_ratio(0.75))
-	_export_dialog.file_selected.connect(func(path: String) -> void: export_json_requested.emit(path))
-	_import_dialog.file_selected.connect(func(path: String) -> void: import_json_requested.emit(path))
+	_export_button.pressed.connect(func() -> void: open_export_dialog("user://room_layout.json"))
+	_import_button.pressed.connect(func() -> void: open_import_dialog("user://room_layout.json"))
+func _exit_tree() -> void:
+	if is_instance_valid(_export_dialog):
+		_export_dialog.queue_free()
+	if is_instance_valid(_import_dialog):
+		_import_dialog.queue_free()
+
+
+func _ensure_dialogs() -> void:
+	if not is_instance_valid(_export_dialog):
+		_export_dialog = FileDialog.new()
+		_export_dialog.name = "ExportDialog"
+		_export_dialog.access = FileDialog.ACCESS_FILESYSTEM
+		_export_dialog.file_mode = FileDialog.FILE_MODE_SAVE_FILE
+		_export_dialog.filters = PackedStringArray(["*.json ; JSON"])
+		_export_dialog.title = "Export Room Layout JSON"
+		get_tree().root.add_child(_export_dialog)
+		_export_dialog.file_selected.connect(func(path: String) -> void: export_json_requested.emit(path))
+	if not is_instance_valid(_import_dialog):
+		_import_dialog = FileDialog.new()
+		_import_dialog.name = "ImportDialog"
+		_import_dialog.access = FileDialog.ACCESS_FILESYSTEM
+		_import_dialog.file_mode = FileDialog.FILE_MODE_OPEN_FILE
+		_import_dialog.filters = PackedStringArray(["*.json ; JSON"])
+		_import_dialog.title = "Import Room Layout JSON"
+		get_tree().root.add_child(_import_dialog)
+		_import_dialog.file_selected.connect(func(path: String) -> void: import_json_requested.emit(path))
 
 
 func refresh(session) -> void:
@@ -123,11 +148,13 @@ func set_status(message: String) -> void:
 
 
 func open_export_dialog(default_path: String) -> void:
+	_ensure_dialogs()
 	_export_dialog.current_path = default_path
 	_export_dialog.popup_centered_ratio(0.75)
 
 
 func open_import_dialog(default_path: String) -> void:
+	_ensure_dialogs()
 	_import_dialog.current_path = default_path
 	_import_dialog.popup_centered_ratio(0.75)
 

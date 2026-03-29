@@ -8,7 +8,7 @@ Each family shares a core idea. The same creature, becoming more of what it is.
 
 ---
 
-## Family: RUSH
+## Family: RUSH / FLOW
 *The concept of direct pursuit — momentum as a force*
 
 > Near the surface: it barely knows how to move. Deeper: it has become the act of moving.
@@ -153,7 +153,7 @@ increases, the creature looks more like it was designed to fire rather than a cr
 
 ---
 
-## Family: WEIGHT
+## Family: WEIGHT / MASS
 *The concept of mass — gravity, presence, immovability*
 
 > Near the surface: it falls. Deeper: it has become the thing that cannot be moved.

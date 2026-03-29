@@ -38,6 +38,7 @@ As of 2026-03-27:
 - Sword blocking now uses a server-authoritative directional stamina guard: front-blocked hostile hits drain stamina instead of HP, and stamina regen is delayed after use/break.
 - Lobby/session-code flow and peer-slot mapping are implemented.
 - `small_dungeon.gd` is session-aware and manages roster, encounter state, doors, coins, camera, and replication helpers.
+- A dedicated `Room Editor` main-screen plugin now exists for authoring handcrafted `RoomBase` scenes with sidecar layout resources, generated sockets/zones/gameplay markers, a live 3D preview, and a room playtest harness.
 
 ## Subsystem Notes
 
@@ -54,6 +55,27 @@ As of 2026-03-27:
 - Follow `dungeon/README.md` as the room authoring and generator rulebook.
 - `res://dungeon/rooms/base/room_base.tscn` is the base room contract.
 - `small_dungeon.gd` currently mixes generation, encounter flow, room transitions, camera, doors, coins, and multiplayer glue, so seemingly local changes can have broad side effects.
+
+### Room Editor / Map Authoring
+
+- The handcrafted room workflow lives under `res://addons/dungeon_room_editor/`.
+- The editor is a main-screen `Room Editor` plugin, but it only meaningfully handles scenes whose root is `RoomBase`; non-`RoomBase` scenes should redirect back to `2D`.
+- The source of truth is a sidecar `*.layout.tres` (`RoomLayoutData` + `RoomPlacedItemData`), not the generated scene children.
+- Generated authoring output is synced into:
+  - `Sockets/GeneratedByRoomEditor`
+  - `Zones/GeneratedByRoomEditor`
+  - `Gameplay/GeneratedByRoomEditor`
+  - `Visual3DProxy/GeneratedByRoomEditor`
+- The room editor now supports:
+  - ground vs overlay placement layers
+  - layer visibility filtering (`All`, `Ground`, `Overlay`)
+  - brush paint and box paint
+  - palette category filtering and 3D piece preview
+  - detachable live 3D preview window
+  - room playtest with the player spawned at room center and the gameplay camera rig
+- `preview_builder.gd` is shared across room preview, generated scene visuals, and playtest visuals, so preview-material or transform changes there affect all three.
+- Floor preview visuals currently remap common floor-piece families onto the runtime dungeon floor materials so the editor `3D` view, preview dock, and playtest read closer to the main game.
+- `default_room_piece_catalog.tres` is generated from curated assets under `assets/structure/*` and `assets/props/*`; use `tools/room_editor/generate_default_room_piece_catalog.gd` when refreshing that catalog.
 
 ### Visuals And Equipment
 
@@ -72,6 +94,10 @@ As of 2026-03-27:
   - `python tools/asset_pipeline/audit_glb.py --path ...`
   - `.\tools\capture_player_still.ps1 -Mode attack`
   - `.\tools\capture_player_clips.ps1 -Modes walk,attack`
+- Room editor helpers:
+  - `.\tools\run_headless.ps1 -CheckOnly -Script res://addons/dungeon_room_editor/plugin.gd`
+  - `.\tools\run_headless.ps1 -CheckOnly -Script res://addons/dungeon_room_editor/preview/preview_builder.gd`
+  - `.\Godot_v4.6.1-stable_win64.exe\Godot_v4.6.1-stable_win64_console.exe --headless --path . --script res://tools/room_editor/generate_default_room_piece_catalog.gd`
 
 ## Working Agreements
 
@@ -215,6 +241,171 @@ Use or refresh this block after any substantial thread so the next thread has a 
 ### Next Best Prompt
 
 - Paste-ready prompt for the next thread: "Open the new `dungeon_room_editor` plugin in Godot and do a full manual authoring pass on a `RoomBase` scene. Verify place/select/move/rotate/erase behavior, generated `Sockets/Zones/Gameplay/Visual3DProxy` sync, JSON export/import, and `Play Test Current Room`; fix any editor UX or runtime issues without replacing the `RoomLayoutData` sidecar workflow."
+
+---
+
+### Task Snapshot
+
+- Date: 2026-03-29
+- Goal: Extend the room editor so enemy spawn markers carry a first-class `enemy_id`, and expose one spawn marker palette entry per supported enemy type.
+- Why now: The editor could place generic spawn markers and grouping metadata, but handcrafted encounters still could not author exact enemy types. The team wanted authored rooms to specify "spawn an Iron Sentinel here" directly instead of relying on vague spawn roles.
+- Relevant subsystem: Room editor data model, palette/catalog resources, scene sync, zone marker metadata, playtest harness.
+- Files likely involved: `addons/dungeon_room_editor/resources/*.gd`, `addons/dungeon_room_editor/resources/default_room_piece_catalog.tres`, `addons/dungeon_room_editor/core/{placement_controller,serializer,scene_sync}.gd`, `addons/dungeon_room_editor/docks/properties_dock.*`, `addons/dungeon_room_editor/plugin.gd`, `addons/dungeon_room_editor/playtest/room_playtest_harness.gd`, `dungeon/metadata/zone_marker_2d.gd`.
+- Constraints / must-not-break: Preserve the existing `RoomLayoutData` sidecar workflow, keep generic room piece placement/editing unchanged, do not break generated `ZoneMarker2D` runtime contracts, and avoid adding steady-state runtime cost to the main dungeon flow.
+
+### What Changed
+
+- Files touched:
+  - `addons/dungeon_room_editor/resources/room_piece_definition.gd` and `room_placed_item_data.gd` now support `enemy_id`, with helper methods for enemy-spawn markers and fallback/default resolution.
+  - `addons/dungeon_room_editor/core/placement_controller.gd`, `serializer.gd`, and `scene_sync.gd` now seed, persist, export/import, and sync `enemy_id` onto generated runtime markers and item metadata.
+  - `addons/dungeon_room_editor/docks/properties_dock.gd/.tscn` and `plugin.gd` now expose an `Enemy ID` field for selected enemy spawn markers and save edits back into the layout item.
+  - `addons/dungeon_room_editor/resources/default_room_piece_catalog.tres` now includes dedicated palette entries for Dasher, Arrow Tower, Iron Sentinel, and Robot Mob spawn markers.
+  - `dungeon/metadata/zone_marker_2d.gd` now exports `enemy_id` and includes it in zone metadata.
+  - `addons/dungeon_room_editor/playtest/room_playtest_harness.gd` now spawns authored enemies from `enemy_spawn` markers using `enemy_id` so room playtests reflect the authored marker type.
+- Behavior added or changed:
+  - Enemy spawn markers can now carry a specific enemy identifier instead of only generic role/tag metadata.
+  - Newly placed enemy-specific spawn markers inherit a default `enemy_id` from their catalog piece, while still allowing per-marker override in the properties dock.
+  - JSON export/import round-trips `enemy_id`, and generated `ZoneMarker2D` nodes now expose it to downstream consumers.
+  - The room editor palette shows dedicated spawn entries for the currently supported enemy roster (`dasher`, `arrow_tower`, `iron_sentinel`, `robot_mob`).
+- Architectural decisions:
+  - `enemy_id` lives both on the piece definition (default) and the placed item (override), with the placed item treated as source of truth when set.
+  - The generated runtime node contract was extended by enriching `ZoneMarker2D` metadata rather than introducing a separate authored-only spawn node type.
+  - The change stays event-driven/editor-time only for normal authoring flow; no new per-frame room-editor or runtime dungeon scans were added outside the existing playtest harness setup step.
+
+### Risks And Follow-Ups
+
+- Known risks: The palette roster is manually curated, so newly added enemy scenes will not appear automatically until the catalog is updated; the playtest harness mapping currently covers the four known authored enemy ids only; the editor flow was validated headlessly but not yet through a full manual click-through in the visual editor.
+- Follow-up tasks:
+  - Do a manual Godot editor pass to verify selecting each new spawn marker, editing `Enemy ID`, saving/reopening the room, and playtesting the authored enemy placement.
+  - Decide whether room/runtime generation outside the playtest harness should consume `zone.enemy_id` directly for authored encounters.
+  - Consider replacing the freeform `Enemy ID` text field with an enum/dropdown sourced from a shared enemy registry to reduce typo risk.
+- Open questions: Should the generic melee spawn marker remain in the default catalog once enemy-specific markers are standard? Should enemy ids be centralized in a shared constants file so the room editor and dungeon runtime cannot drift?
+
+### Next Best Prompt
+
+- Paste-ready prompt for the next thread: "Open a `RoomBase` scene in the room editor and manually validate the new enemy spawn marker workflow. Place each enemy-specific spawn marker, confirm the `Enemy ID` property behaves correctly, export/import JSON, run `Play Test Current Room`, and fix any editor/runtime issues without replacing the `RoomLayoutData` sidecar model."
+
+---
+
+### Task Snapshot
+
+- Date: 2026-03-29
+- Goal: Iterate on the new map editor so it is practical for daily handcrafted-room authoring: dedicated main-screen tab, layer-aware editing, better preview fidelity, larger palette/catalog coverage, and a more reliable playtest flow.
+- Why now: The first-pass room editor existed, but real manual use immediately exposed friction around viewport conflicts, preview accuracy, collision, scale, and authoring ergonomics. The team needed the tool to feel trustworthy enough for actual room production rather than only proof-of-concept demos.
+- Relevant subsystem: `addons/dungeon_room_editor/**/*`, `dungeon/rooms/base/room_base.gd`, authored room scenes/layouts, player scale/presentation, room playtest workflow.
+- Files likely involved: `addons/dungeon_room_editor/plugin.gd`, `main_screen/*`, `docks/*`, `core/{scene_sync,serializer,playtest_launcher}.gd`, `preview/preview_builder.gd`, `playtest/room_playtest_harness.gd`, `resources/default_room_piece_catalog.tres`, `tools/room_editor/generate_default_room_piece_catalog.gd`, `scenes/entities/player.tscn`, `scenes/visuals/player_visual.tscn`.
+- Constraints / must-not-break: Keep the sidecar `RoomLayoutData` workflow, preserve `RoomBase`/`DoorSocket2D`/`ZoneMarker2D` compatibility, keep generated editor nodes one-way/regenerable, and avoid replacing the main dungeon runtime with editor-only logic.
+
+### What Changed
+
+- Files touched:
+  - `addons/dungeon_room_editor/main_screen/*` now owns the authoring workspace as a dedicated `Room Editor` main-screen tab rather than piggybacking on the stock `2D` canvas.
+  - `addons/dungeon_room_editor/plugin.gd`, `core/editor_session.gd`, `core/scene_sync.gd`, `docks/*`, and `preview/preview_builder.gd` were iterated heavily for editor UX, preview sync, and popout-window behavior.
+  - `addons/dungeon_room_editor/resources/default_room_piece_catalog.tres` was expanded to include the approved placeable assets under `assets/structure/floors`, `assets/structure/walls`, and `assets/props`, and `tools/room_editor/generate_default_room_piece_catalog.gd` was added to regenerate that catalog.
+  - `addons/dungeon_room_editor/playtest/room_playtest_harness.gd/.tscn` was updated so authored room playtests use the gameplay camera style and spawn the player at the room center.
+  - `dungeon/rooms/base/room_base.gd` was adjusted to behave better in editor tool mode and to reduce noisy template-validation warnings during authoring.
+  - `scenes/entities/player.tscn` and `scenes/visuals/player_visual.tscn` were adjusted so the knight reads closer to a one-tile actor in authored rooms.
+- Behavior added or changed:
+  - The room editor now has layer-aware placement with `ground` vs `overlay`, layer visibility filtering, brush paint, box paint, category-filtered palette browsing, a 3D piece preview, and a detachable live 3D preview window.
+  - Place/erase/selection flows were hardened: drag painting fills lines, box paint fills rectangles, out-of-bounds placement is ignored quietly, and typed property fields no longer reset the caret on each keystroke.
+  - Generated room visuals and preview framing were stabilized: preview-root drift was fixed, generated 3D containers are rebuilt more cleanly, and popout preview window handling uses current Godot APIs.
+  - The playtest harness now uses the room-center spawn plus gameplay-style camera rig, and room collision fallback/wall shell behavior was improved for authored-room iteration.
+  - Palette preview and room preview lighting were aligned to the main dungeon scene, and common floor-piece families now remap onto runtime dungeon floor materials so the editor 3D view and playtest look closer to gameplay.
+  - The nested `_godot_sanity/project.godot` was renamed out of the way (`project_godot_snapshot.txt`) so the main editor no longer warns about a nested Godot project on startup.
+- Architectural decisions:
+  - The dedicated main-screen editor was chosen over more `2D`-viewport hooks because it avoids fighting the stock scene tabs/toolbar and gives room for palette, canvas, properties, and live 3D preview together.
+  - Preview fidelity fixes were concentrated in `preview_builder.gd` and the preview docks so room visuals, preview docks, and playtest reuse the same transform/material logic wherever possible.
+  - Layering was kept intentionally simple for V1: `ground` for floors, `overlay` for walls/doors/props/markers, with selection preferring visible-layer content.
+
+### Risks And Follow-Ups
+
+- Known risks: Floor-material remapping currently targets the common dirt/metal/grate families only; `wood` and `foundation` floors still use their original asset materials. The room editor has been exercised through many targeted fixes, but it still needs longer manual production use to flush out remaining edge cases in stacked selection, room-size scaling, and preview fidelity.
+- Follow-up tasks:
+  - Add better stacked-item selection, likely click-to-cycle, for cells containing both ground and overlay content.
+  - Consider a shared registry for floor visual themes so runtime dungeon generation and room-editor previews cannot drift.
+  - Decide whether authored floor pieces should eventually carry explicit visual-theme metadata instead of relying on filename-based material remapping.
+  - Continue manual authoring passes in Godot to catch any remaining 3D preview drift, playtest edge cases, or catalog curation gaps.
+- Open questions: Whether the room editor should eventually create new room scenes from a guided wizard; whether floor-theme choice belongs at room level or piece level; whether the plugin should expose a stricter edit-layer lock in addition to the current view filter.
+
+### Next Best Prompt
+
+- Paste-ready prompt for the next thread: "Open a real authored `RoomBase` scene in the `Room Editor` tab and do a full manual room-building pass using the expanded asset palette. Verify layer filtering, box paint, popout 3D preview, generated `Visual3DProxy` sync, floor-material remapping, and `Play Test Current Room`; fix any remaining UX or preview mismatches without replacing the `RoomLayoutData` sidecar model."
+
+---
+
+### Task Snapshot
+
+- Date: 2026-03-29
+- Goal: Create the first reusable handcrafted room-outline library for later procedural floor assembly, using the `Room Editor` / `RoomBase` authored-layout workflow.
+- Why now: The project has the editor and room contract in place, but it still needed an actual starter room kit to feed later procedural floor assembly and to validate that the tool can produce reusable gameplay spaces rather than one-off experiments.
+- Relevant subsystem: Room authoring pipeline, `RoomBase` metadata contract, `RoomLayoutData` sidecars, room-editor catalog resources, generated sockets/zones/gameplay/visual roots.
+- Files likely involved: `dungeon/rooms/authored/outlines/*`, `tools/room_editor/generate_outline_rooms.gd`, `tools/room_editor/validate_outline_rooms.gd`, `addons/dungeon_room_editor/resources/default_room_piece_catalog.tres`.
+- Constraints / must-not-break: Keep the authored-layout sidecar workflow intact, preserve the existing `RoomBase` / generated-root contract, avoid hand-editing `GeneratedByRoomEditor` nodes, and keep room shapes readable from the fixed gameplay camera.
+
+### What Changed
+
+- Files touched:
+  - Added `tools/room_editor/generate_outline_rooms.gd` to generate the first room-outline batch from declarative archetype specs.
+  - Added `tools/room_editor/validate_outline_rooms.gd` to load/instantiate/verify the generated room scenes and their authored-layout metadata.
+  - Extended `addons/dungeon_room_editor/resources/default_room_piece_catalog.tres` with structural marker entries (`encounter_entry_marker`, `prop_placement_marker`, `nav_boundary_marker`, `loot_marker`) plus a `hall_socket_double` logical socket piece for 2-tile-wide hallway exits.
+  - Created `res://dungeon/rooms/authored/outlines/` with nine authored rooms and matching sidecar layouts:
+    - `room_combat_skirmish_small_a`
+    - `room_combat_tactical_medium_a`
+    - `room_arena_wave_large_a`
+    - `room_connector_narrow_medium_a`
+    - `room_connector_turn_medium_a`
+    - `room_connector_junction_medium_a`
+    - `room_treasure_reward_small_a`
+    - `room_chokepoint_gate_medium_a`
+    - `room_boss_approach_large_a`
+- Behavior added or changed:
+  - The room-editor catalog now has enough structural marker vocabulary to author room outlines entirely through authored layout items instead of relying on the base template’s default zone setup.
+  - Outline rooms now use consistent 2-tile-wide hallway exits and generated double-width logical sockets at those exits, while keeping art dressing intentionally sparse.
+  - The generator stamps in floor/wall outlines, minimal blockers, structural markers, and encounter markers according to room archetype.
+- Architectural decisions:
+  - The first outline batch is generated from a declarative helper script so the rooms stay metrically consistent and can be regenerated/tuned later instead of becoming nine disconnected one-off edits.
+  - Structural zone markers are first-class room-editor pieces because `RoomBase` validation expects them and future procedural assembly should be able to consume them from the same authored-layout source of truth.
+  - “No explicit doors yet” was interpreted as “use clean hallway openings plus logical sockets,” not as “fall back to the base template’s default 4-socket setup.”
+- Commands run:
+  - `git status --short`
+  - targeted `Get-Content` / `Select-String` reads across `room_base.*`, room-editor serializer/scene-sync/catalog files, and existing authored-room assets
+  - `.\tools\run_headless.ps1 -CheckOnly -Script res://tools/room_editor/generate_outline_rooms.gd`
+  - `Godot ... --headless --path . --script res://tools/room_editor/generate_outline_rooms.gd`
+  - `.\tools\run_headless.ps1 -CheckOnly -Script res://tools/room_editor/validate_outline_rooms.gd`
+  - `Godot ... --headless --path . --script res://tools/room_editor/validate_outline_rooms.gd`
+  - `Godot ... --headless --editor --path . --quit`
+- Verification result:
+  - The generator and validator scripts parse successfully.
+  - All nine room scenes were generated with sidecar layouts.
+  - Headless validation successfully instantiated every generated scene as `RoomBase` and confirmed non-empty authored layouts plus generated sockets/zones. Reported counts:
+    - `room_combat_skirmish_small_a`: 133 items, 2 sockets, 5 zones
+    - `room_combat_tactical_medium_a`: 295 items, 3 sockets, 6 zones
+    - `room_arena_wave_large_a`: 656 items, 2 sockets, 8 zones
+    - `room_connector_narrow_medium_a`: 180 items, 2 sockets, 4 zones
+    - `room_connector_turn_medium_a`: 102 items, 2 sockets, 4 zones
+    - `room_connector_junction_medium_a`: 155 items, 3 sockets, 4 zones
+    - `room_treasure_reward_small_a`: 132 items, 1 socket, 5 zones
+    - `room_chokepoint_gate_medium_a`: 189 items, 2 sockets, 6 zones
+    - `room_boss_approach_large_a`: 423 items, 2 sockets, 5 zones
+
+### Risks And Follow-Ups
+
+- Known risks:
+  - The generated `.tscn` files are explicit packed `RoomBase` scenes rather than clean inherited-scene serializations of `room_base.tscn`; functionally they still instantiate as `RoomBase`, but if preserving inherited serialization matters later they should be re-saved through the editor or a dedicated inherited-scene writer.
+  - The headless validation scripts emit small engine leak warnings on exit after instantiating many resources; the room scenes still validated, but those scripts are best treated as generation/validation utilities rather than frequent runtime tooling.
+  - The room shapes are intentionally simple outline grammar; they are good procedural seeds, not final dressed content.
+- Follow-up tasks:
+  - Open the new rooms in the `Room Editor` and do a visual/manual pass on readability, wall silhouette, spawn spacing, and hallway feel.
+  - Run `Play Test Current Room` on the representative rooms called out in the outline plan and tune any one-tile-movement or camera-readability issues.
+  - Decide whether to keep the generator as the canonical source for this first outline batch or transition these rooms into manual per-room edits now that the library exists.
+  - If desired, add more logical socket variants later (corners, vertical stacks, wider halls) rather than overloading the single `hall_socket_double` piece.
+- Open questions:
+  - Should the project eventually prefer true inherited-scene serialization for authored rooms, or is the current explicit `RoomBase` scene format acceptable for tool-generated content?
+  - Should connector/treasure rooms continue carrying a minimal `enemy_spawn` marker purely for contract coverage, or should `RoomBase` validation become role-aware so non-combat rooms can omit combat markers cleanly?
+
+### Next Best Prompt
+
+- Paste-ready prompt for the next thread: "Open the new room-outline library under `res://dungeon/rooms/authored/outlines/` in the Room Editor and do a manual design pass. Playtest `room_combat_skirmish_small_a`, `room_arena_wave_large_a`, `room_connector_turn_medium_a`, and `room_treasure_reward_small_a`; tune any wall/floor silhouette, hallway opening, marker placement, or blocker issues without replacing the authored-layout sidecar workflow or the outline generator helpers."
 
 ## Prompting Tips
 

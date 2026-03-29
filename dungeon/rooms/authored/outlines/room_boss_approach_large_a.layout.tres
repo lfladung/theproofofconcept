@@ -1,0 +1,3962 @@
+[gd_resource type="Resource" script_class="RoomLayoutData" format=3 uid="uid://djif7ogknhq4b"]
+
+[ext_resource type="Script" uid="uid://bin4dksyxldc0" path="res://addons/dungeon_room_editor/resources/room_placed_item_data.gd" id="1_14hwe"]
+[ext_resource type="Script" uid="uid://dpj57sp322t4g" path="res://addons/dungeon_room_editor/resources/room_layout_data.gd" id="2_h0bpk"]
+
+[sub_resource type="Resource" id="Resource_ad7ps"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_001"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(-4, -12)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_4pc0b"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_002"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(-3, -12)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_8lxjl"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_003"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(-2, -12)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_3bsg5"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_004"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(-1, -12)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_e3yux"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_005"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(0, -12)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_2lckq"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_006"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(1, -12)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_nrgml"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_007"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(2, -12)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_51v1a"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_008"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(3, -12)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_pdy23"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_009"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(4, -12)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_rqggq"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_010"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(5, -12)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_a5f6y"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_011"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(6, -12)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_06oqf"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_012"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(7, -12)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_m2xxm"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_013"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(-4, -11)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_opja7"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_014"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(-3, -11)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_hugpm"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_015"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(-2, -11)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_ts8ik"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_016"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(-1, -11)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_7heqx"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_017"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(0, -11)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_hpcsm"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_018"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(1, -11)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_xvjlg"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_019"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(2, -11)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_ry1rg"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_020"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(3, -11)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_upojv"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_021"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(4, -11)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_k0oog"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_022"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(5, -11)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_q34jp"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_023"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(6, -11)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_55hrx"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_024"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(7, -11)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_0ptfq"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_025"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(-4, -10)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_wf8v3"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_026"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(-3, -10)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_kgvkt"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_027"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(-2, -10)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_74up7"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_028"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(-1, -10)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_7d7lx"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_029"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(0, -10)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_xyfwn"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_030"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(1, -10)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_k4svk"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_031"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(2, -10)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_1jbuw"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_032"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(3, -10)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_8vpou"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_033"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(4, -10)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_5wjl1"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_034"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(5, -10)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_mn4k0"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_035"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(6, -10)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_vd0gc"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_036"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(7, -10)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_w3hs5"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_037"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(-4, -9)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_bxc8m"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_038"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(-3, -9)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_eq3xb"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_039"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(-2, -9)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_ii2g1"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_040"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(-1, -9)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_qcmpl"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_041"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(0, -9)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_loina"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_042"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(1, -9)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_17urb"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_043"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(2, -9)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_mw5dx"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_044"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(3, -9)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_xf0kt"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_045"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(4, -9)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_jmri0"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_046"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(5, -9)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_guy57"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_047"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(6, -9)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_obvvh"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_048"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(7, -9)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_b2vix"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_049"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(-4, -8)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_qxibx"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_050"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(-3, -8)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_kt8gd"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_051"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(-2, -8)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_00r16"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_052"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(-1, -8)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_hnrbh"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_053"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(0, -8)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_huubr"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_054"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(1, -8)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_epciw"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_055"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(2, -8)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_dxj13"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_056"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(3, -8)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_3j2ks"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_057"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(4, -8)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_k7gfy"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_058"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(5, -8)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_pct62"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_059"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(6, -8)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_qlxpc"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_060"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(7, -8)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_r4ycp"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_061"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(-8, -7)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_84utb"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_062"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(-7, -7)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_2clqh"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_063"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(-6, -7)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_12eev"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_064"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(-5, -7)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_d1oqk"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_065"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(-4, -7)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_47e0j"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_066"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(-3, -7)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_6qby8"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_067"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(-2, -7)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_gs2uw"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_068"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(-1, -7)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_h1fjf"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_069"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(0, -7)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_01m4b"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_070"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(1, -7)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_vfsxb"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_071"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(2, -7)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_1wko1"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_072"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(3, -7)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_sgqc4"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_073"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(4, -7)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_03w42"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_074"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(5, -7)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_r3b6u"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_075"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(6, -7)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_fluqr"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_076"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(7, -7)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_r6wb5"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_077"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(-8, -6)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_lmo4u"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_078"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(-7, -6)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_gunfh"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_079"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(-6, -6)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_ko2ta"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_080"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(-5, -6)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_rjudw"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_081"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(-4, -6)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_c3ddg"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_082"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(-3, -6)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_ov6pk"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_083"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(-2, -6)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_q3xqd"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_084"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(-1, -6)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_42hag"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_085"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(0, -6)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_7v4ea"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_086"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(1, -6)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_mxl1k"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_087"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(2, -6)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_lt08y"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_088"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(3, -6)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_i6inw"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_089"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(4, -6)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_3ac3t"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_090"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(5, -6)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_m2cbw"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_091"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(6, -6)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_cjxxr"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_092"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(7, -6)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_nqqtm"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_093"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(-8, -5)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_o17js"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_094"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(-7, -5)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_jqsf8"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_095"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(-6, -5)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_m0xui"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_096"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(-5, -5)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_4mur4"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_097"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(-4, -5)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_ki3kb"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_098"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(-3, -5)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_xn0vw"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_099"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(-2, -5)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_7g1m7"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_100"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(-1, -5)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_b5y24"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_101"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(0, -5)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_umgb8"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_102"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(1, -5)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_7ylbr"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_103"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(2, -5)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_psabl"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_104"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(3, -5)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_dfntd"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_105"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(4, -5)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_uq4va"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_106"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(5, -5)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_kng1n"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_107"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(6, -5)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_h7dxq"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_108"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(7, -5)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_nl16w"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_109"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(-8, -4)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_5yeo2"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_110"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(-7, -4)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_ifmhk"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_111"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(-6, -4)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_llcjl"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_112"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(-5, -4)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_26i4g"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_113"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(-4, -4)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_tmm4a"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_114"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(-3, -4)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_oixo1"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_115"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(-2, -4)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_cig2a"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_116"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(-1, -4)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_qpwhn"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_117"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(0, -4)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_iqqt0"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_118"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(1, -4)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_7d3mn"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_119"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(2, -4)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_od3xx"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_120"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(3, -4)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_gdetx"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_121"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(4, -4)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_5607w"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_122"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(5, -4)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_2f0vs"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_123"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(6, -4)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_wji1a"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_124"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(7, -4)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_0ld7y"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_125"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(-8, -3)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_1uvej"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_126"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(-7, -3)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_370ku"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_127"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(-6, -3)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_kcrur"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_128"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(-5, -3)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_v7w3j"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_129"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(-4, -3)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_7t50w"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_130"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(-3, -3)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_steye"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_131"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(-2, -3)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_5rt3u"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_132"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(-1, -3)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_4ucy8"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_133"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(0, -3)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_1l0vb"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_134"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(1, -3)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_igxwi"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_135"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(2, -3)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_wkb3d"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_136"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(3, -3)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_tw648"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_137"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(4, -3)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_mgmvd"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_138"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(5, -3)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_6culi"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_139"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(6, -3)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_nwh16"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_140"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(7, -3)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_cpxro"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_141"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(-8, -2)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_5i0pd"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_142"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(-7, -2)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_iw3gb"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_143"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(-6, -2)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_n67x0"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_144"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(-5, -2)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_e0idp"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_145"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(-4, -2)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_vruj4"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_146"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(-3, -2)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_07x5q"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_147"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(-2, -2)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_cbp3n"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_148"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(-1, -2)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_iw476"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_149"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(0, -2)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_ekilr"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_150"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(1, -2)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_vsvw8"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_151"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(2, -2)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_bpkek"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_152"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(3, -2)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_fldv7"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_153"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(4, -2)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_brmki"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_154"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(5, -2)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_g18f5"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_155"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(6, -2)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_jgdn2"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_156"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(7, -2)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_1ry1u"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_157"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(-8, -1)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_qawh2"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_158"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(-7, -1)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_x1y0x"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_159"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(-6, -1)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_dvgo2"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_160"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(-5, -1)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_lptig"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_161"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(-4, -1)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_y10so"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_162"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(-3, -1)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_kqxq5"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_163"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(-2, -1)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_2sqiu"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_164"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(-1, -1)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_8dx8i"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_165"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(0, -1)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_g3bj1"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_166"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(1, -1)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_m5y74"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_167"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(2, -1)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_80k2x"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_168"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(3, -1)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_rdxjw"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_169"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(4, -1)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_pvvf6"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_170"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(5, -1)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_58hy1"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_171"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(6, -1)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_cu8wk"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_172"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(7, -1)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_76gxq"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_173"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(-8, 0)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_lnaps"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_174"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(-7, 0)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_f8tov"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_175"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(-6, 0)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_0npmj"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_176"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(-5, 0)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_8of5y"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_177"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(-4, 0)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_4gtdg"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_178"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(-3, 0)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_ggdeo"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_179"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(-2, 0)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_u8j57"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_180"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(-1, 0)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_r30eu"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_181"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_c15o6"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_182"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(1, 0)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_c7mvq"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_183"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(2, 0)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_5mivs"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_184"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(3, 0)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_7s1dt"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_185"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(4, 0)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_jegbc"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_186"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(5, 0)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_aefuj"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_187"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(6, 0)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_cemrr"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_188"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(7, 0)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_q0ih3"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_189"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(-8, 1)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_4vvhk"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_190"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(-7, 1)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_fecfs"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_191"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(-6, 1)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_v3jka"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_192"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(-5, 1)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_qxd4o"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_193"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(-4, 1)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_aegp7"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_194"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(-3, 1)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_ir1hx"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_195"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(-2, 1)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_yfpgb"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_196"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(-1, 1)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_gsfro"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_197"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(0, 1)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_wvth3"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_198"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(1, 1)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_aerrs"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_199"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(2, 1)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_e2615"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_200"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(3, 1)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_cnr8j"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_201"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(4, 1)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_knivs"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_202"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(5, 1)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_ap0v8"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_203"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(6, 1)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_vbg2r"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_204"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(7, 1)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_2q8qt"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_205"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(-8, 2)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_w3nff"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_206"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(-7, 2)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_yfeph"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_207"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(-6, 2)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_dmdkj"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_208"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(-5, 2)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_2e83s"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_209"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(-4, 2)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_qnoe5"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_210"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(-3, 2)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_eycor"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_211"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(-2, 2)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_gh6uy"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_212"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(-1, 2)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_8vagd"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_213"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(0, 2)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_jhhvf"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_214"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(1, 2)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_rwki5"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_215"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(2, 2)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_vd00l"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_216"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(3, 2)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_pca7k"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_217"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(4, 2)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_8rcgr"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_218"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(5, 2)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_7cfjb"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_219"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(6, 2)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_ixhpg"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_220"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(7, 2)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_sfbmf"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_221"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(-8, 3)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_q6muu"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_222"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(-7, 3)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_giwwu"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_223"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(-6, 3)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_c142v"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_224"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(-5, 3)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_tsdrq"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_225"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(-4, 3)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_br3nk"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_226"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(-3, 3)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_6xc2v"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_227"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(-2, 3)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_7ullq"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_228"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(-1, 3)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_v3cf3"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_229"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(0, 3)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_coif8"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_230"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(1, 3)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_fl41p"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_231"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(2, 3)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_bp3us"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_232"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(3, 3)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_f3iqy"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_233"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(4, 3)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_mw6dp"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_234"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(5, 3)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_e3acf"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_235"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(6, 3)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_qawww"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_236"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(7, 3)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_tntd4"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_237"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(-8, 4)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_hed5e"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_238"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(-7, 4)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_o4yw3"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_239"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(-6, 4)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_vywan"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_240"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(-5, 4)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_vdy8w"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_241"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(-4, 4)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_8ogfe"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_242"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(-3, 4)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_7qlbi"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_243"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(-2, 4)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_amd6i"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_244"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(-1, 4)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_77k7f"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_245"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(0, 4)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_orpg1"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_246"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(1, 4)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_trc7u"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_247"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(2, 4)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_82ger"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_248"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(3, 4)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_wumsi"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_249"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(4, 4)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_21ty8"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_250"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(5, 4)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_dtbnq"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_251"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(6, 4)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_if5cw"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_252"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(7, 4)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_ck48u"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_253"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(-8, 5)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_lxj86"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_254"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(-7, 5)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_7g0o1"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_255"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(-6, 5)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_yih8w"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_256"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(-5, 5)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_1y4sp"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_257"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(-4, 5)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_ipwje"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_258"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(-3, 5)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_lf0p0"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_259"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(-2, 5)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_fiabn"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_260"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(-1, 5)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_klxtk"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_261"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(0, 5)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_htcdx"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_262"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(1, 5)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_a16po"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_263"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(2, 5)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_o68os"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_264"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(3, 5)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_5utx5"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_265"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(4, 5)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_h25vs"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_266"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(5, 5)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_bgi4h"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_267"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(6, 5)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_cqpn3"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_268"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(7, 5)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_1mgkb"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_269"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(-8, 6)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_7b0yr"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_270"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(-7, 6)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_82u1x"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_271"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(-6, 6)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_7th8b"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_272"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(-5, 6)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_sq8ew"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_273"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(-4, 6)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_iyv4r"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_274"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(-3, 6)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_45qrb"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_275"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(-2, 6)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_76e6v"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_276"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(-1, 6)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_2d6l4"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_277"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(0, 6)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_83vag"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_278"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(1, 6)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_qi1kx"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_279"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(2, 6)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_2mbt5"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_280"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(3, 6)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_hssgs"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_281"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(4, 6)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_1tgbw"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_282"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(5, 6)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_l0kgq"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_283"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(6, 6)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_q8w4x"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_284"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(7, 6)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_nt8gs"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_285"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(-8, 7)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_k0hrn"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_286"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(-7, 7)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_738rx"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_287"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(-6, 7)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_qr1xg"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_288"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(-5, 7)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_4q8id"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_289"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(-4, 7)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_vwhh5"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_290"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(-3, 7)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_yrshf"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_291"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(-2, 7)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_mb21k"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_292"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(-1, 7)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_758to"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_293"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(0, 7)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_3bn1g"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_294"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(1, 7)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_yo5jc"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_295"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(2, 7)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_57sn4"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_296"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(3, 7)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_bvlix"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_297"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(-8, 8)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_4yrfp"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_298"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(-7, 8)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_a0sgi"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_299"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(-6, 8)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_oouja"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_300"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(-5, 8)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_obh64"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_301"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(-4, 8)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_8whak"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_302"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(-3, 8)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_ghw04"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_303"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(-2, 8)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_fvqk1"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_304"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(-1, 8)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_stkcg"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_305"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(0, 8)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_pl7m3"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_306"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(1, 8)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_5giyh"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_307"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(2, 8)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_mhp2l"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_308"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(3, 8)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_gwrrg"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_309"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(-8, 9)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_1j3ny"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_310"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(-7, 9)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_ykpwo"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_311"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(-6, 9)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_w6egr"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_312"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(-5, 9)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_jgii3"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_313"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(-4, 9)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_r7x0i"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_314"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(-3, 9)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_5imbt"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_315"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(-2, 9)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_bkujc"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_316"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(-1, 9)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_cou8i"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_317"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(0, 9)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_ke24t"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_318"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(1, 9)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_l80nw"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_319"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(2, 9)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_5pgse"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_320"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(3, 9)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_isnmi"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_321"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(-8, 10)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_csh2y"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_322"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(-7, 10)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_v16rq"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_323"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(-6, 10)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_s1g72"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_324"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(-5, 10)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_024sc"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_325"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(-4, 10)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_evmoj"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_326"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(-3, 10)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_56ane"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_327"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(-2, 10)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_73c8p"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_328"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(-1, 10)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_3f754"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_329"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(0, 10)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_7t3pl"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_330"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(1, 10)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_si6qy"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_331"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(2, 10)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_dtxva"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_332"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(3, 10)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_gyriy"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_333"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(-8, 11)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_bfxou"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_334"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(-7, 11)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_vw6n1"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_335"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(-6, 11)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_ubcit"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_336"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(-5, 11)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_c474y"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_337"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(-4, 11)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_rol0q"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_338"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(-3, 11)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_x24hs"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_339"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(-2, 11)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_g1wnf"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_340"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(-1, 11)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_gr10r"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_341"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(0, 11)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_286q2"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_342"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(1, 11)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_mnog8"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_343"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(2, 11)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_6gtk5"]
+script = ExtResource("1_14hwe")
+item_id = "floor_dirt_small_a_344"
+piece_id = &"floor_dirt_small_a"
+category = &"floor"
+grid_position = Vector2i(3, 11)
+tags = PackedStringArray("floor")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_8qnnr"]
+script = ExtResource("1_14hwe")
+item_id = "wall_straight_345"
+piece_id = &"wall_straight"
+category = &"wall"
+grid_position = Vector2i(-4, -12)
+tags = PackedStringArray("wall")
+placement_layer = &"overlay"
+blocks_movement = true
+blocks_projectiles = true
+
+[sub_resource type="Resource" id="Resource_7yrt1"]
+script = ExtResource("1_14hwe")
+item_id = "wall_straight_346"
+piece_id = &"wall_straight"
+category = &"wall"
+grid_position = Vector2i(-3, -12)
+tags = PackedStringArray("wall")
+placement_layer = &"overlay"
+blocks_movement = true
+blocks_projectiles = true
+
+[sub_resource type="Resource" id="Resource_qq18n"]
+script = ExtResource("1_14hwe")
+item_id = "wall_straight_347"
+piece_id = &"wall_straight"
+category = &"wall"
+grid_position = Vector2i(-2, -12)
+tags = PackedStringArray("wall")
+placement_layer = &"overlay"
+blocks_movement = true
+blocks_projectiles = true
+
+[sub_resource type="Resource" id="Resource_5mrvo"]
+script = ExtResource("1_14hwe")
+item_id = "wall_straight_348"
+piece_id = &"wall_straight"
+category = &"wall"
+grid_position = Vector2i(-1, -12)
+tags = PackedStringArray("wall")
+placement_layer = &"overlay"
+blocks_movement = true
+blocks_projectiles = true
+
+[sub_resource type="Resource" id="Resource_25hsa"]
+script = ExtResource("1_14hwe")
+item_id = "wall_straight_349"
+piece_id = &"wall_straight"
+category = &"wall"
+grid_position = Vector2i(0, -12)
+tags = PackedStringArray("wall")
+placement_layer = &"overlay"
+blocks_movement = true
+blocks_projectiles = true
+
+[sub_resource type="Resource" id="Resource_8ppqb"]
+script = ExtResource("1_14hwe")
+item_id = "wall_straight_350"
+piece_id = &"wall_straight"
+category = &"wall"
+grid_position = Vector2i(1, -12)
+tags = PackedStringArray("wall")
+placement_layer = &"overlay"
+blocks_movement = true
+blocks_projectiles = true
+
+[sub_resource type="Resource" id="Resource_iyejf"]
+script = ExtResource("1_14hwe")
+item_id = "wall_straight_351"
+piece_id = &"wall_straight"
+category = &"wall"
+grid_position = Vector2i(2, -12)
+tags = PackedStringArray("wall")
+placement_layer = &"overlay"
+blocks_movement = true
+blocks_projectiles = true
+
+[sub_resource type="Resource" id="Resource_rwwuj"]
+script = ExtResource("1_14hwe")
+item_id = "wall_straight_352"
+piece_id = &"wall_straight"
+category = &"wall"
+grid_position = Vector2i(3, -12)
+tags = PackedStringArray("wall")
+placement_layer = &"overlay"
+blocks_movement = true
+blocks_projectiles = true
+
+[sub_resource type="Resource" id="Resource_ag2gk"]
+script = ExtResource("1_14hwe")
+item_id = "wall_straight_353"
+piece_id = &"wall_straight"
+category = &"wall"
+grid_position = Vector2i(4, -12)
+tags = PackedStringArray("wall")
+placement_layer = &"overlay"
+blocks_movement = true
+blocks_projectiles = true
+
+[sub_resource type="Resource" id="Resource_hn87w"]
+script = ExtResource("1_14hwe")
+item_id = "wall_straight_354"
+piece_id = &"wall_straight"
+category = &"wall"
+grid_position = Vector2i(5, -12)
+tags = PackedStringArray("wall")
+placement_layer = &"overlay"
+blocks_movement = true
+blocks_projectiles = true
+
+[sub_resource type="Resource" id="Resource_jad65"]
+script = ExtResource("1_14hwe")
+item_id = "wall_straight_355"
+piece_id = &"wall_straight"
+category = &"wall"
+grid_position = Vector2i(6, -12)
+tags = PackedStringArray("wall")
+placement_layer = &"overlay"
+blocks_movement = true
+blocks_projectiles = true
+
+[sub_resource type="Resource" id="Resource_dftrj"]
+script = ExtResource("1_14hwe")
+item_id = "wall_straight_356"
+piece_id = &"wall_straight"
+category = &"wall"
+grid_position = Vector2i(7, -12)
+tags = PackedStringArray("wall")
+placement_layer = &"overlay"
+blocks_movement = true
+blocks_projectiles = true
+
+[sub_resource type="Resource" id="Resource_leqop"]
+script = ExtResource("1_14hwe")
+item_id = "wall_straight_357"
+piece_id = &"wall_straight"
+category = &"wall"
+grid_position = Vector2i(-4, -11)
+tags = PackedStringArray("wall")
+placement_layer = &"overlay"
+blocks_movement = true
+blocks_projectiles = true
+
+[sub_resource type="Resource" id="Resource_kru2k"]
+script = ExtResource("1_14hwe")
+item_id = "wall_straight_358"
+piece_id = &"wall_straight"
+category = &"wall"
+grid_position = Vector2i(7, -11)
+tags = PackedStringArray("wall")
+placement_layer = &"overlay"
+blocks_movement = true
+blocks_projectiles = true
+
+[sub_resource type="Resource" id="Resource_74s71"]
+script = ExtResource("1_14hwe")
+item_id = "wall_straight_359"
+piece_id = &"wall_straight"
+category = &"wall"
+grid_position = Vector2i(-4, -10)
+tags = PackedStringArray("wall")
+placement_layer = &"overlay"
+blocks_movement = true
+blocks_projectiles = true
+
+[sub_resource type="Resource" id="Resource_bif87"]
+script = ExtResource("1_14hwe")
+item_id = "wall_straight_360"
+piece_id = &"wall_straight"
+category = &"wall"
+grid_position = Vector2i(7, -10)
+tags = PackedStringArray("wall")
+placement_layer = &"overlay"
+blocks_movement = true
+blocks_projectiles = true
+
+[sub_resource type="Resource" id="Resource_8m3le"]
+script = ExtResource("1_14hwe")
+item_id = "wall_straight_361"
+piece_id = &"wall_straight"
+category = &"wall"
+grid_position = Vector2i(-4, -9)
+tags = PackedStringArray("wall")
+placement_layer = &"overlay"
+blocks_movement = true
+blocks_projectiles = true
+
+[sub_resource type="Resource" id="Resource_01b4p"]
+script = ExtResource("1_14hwe")
+item_id = "wall_straight_362"
+piece_id = &"wall_straight"
+category = &"wall"
+grid_position = Vector2i(7, -9)
+tags = PackedStringArray("wall")
+placement_layer = &"overlay"
+blocks_movement = true
+blocks_projectiles = true
+
+[sub_resource type="Resource" id="Resource_xqqpf"]
+script = ExtResource("1_14hwe")
+item_id = "wall_straight_363"
+piece_id = &"wall_straight"
+category = &"wall"
+grid_position = Vector2i(-4, -8)
+tags = PackedStringArray("wall")
+placement_layer = &"overlay"
+blocks_movement = true
+blocks_projectiles = true
+
+[sub_resource type="Resource" id="Resource_dmayu"]
+script = ExtResource("1_14hwe")
+item_id = "wall_straight_364"
+piece_id = &"wall_straight"
+category = &"wall"
+grid_position = Vector2i(7, -8)
+tags = PackedStringArray("wall")
+placement_layer = &"overlay"
+blocks_movement = true
+blocks_projectiles = true
+
+[sub_resource type="Resource" id="Resource_ycscb"]
+script = ExtResource("1_14hwe")
+item_id = "wall_straight_365"
+piece_id = &"wall_straight"
+category = &"wall"
+grid_position = Vector2i(-8, -7)
+tags = PackedStringArray("wall")
+placement_layer = &"overlay"
+blocks_movement = true
+blocks_projectiles = true
+
+[sub_resource type="Resource" id="Resource_e27sx"]
+script = ExtResource("1_14hwe")
+item_id = "wall_straight_366"
+piece_id = &"wall_straight"
+category = &"wall"
+grid_position = Vector2i(-7, -7)
+tags = PackedStringArray("wall")
+placement_layer = &"overlay"
+blocks_movement = true
+blocks_projectiles = true
+
+[sub_resource type="Resource" id="Resource_5fdco"]
+script = ExtResource("1_14hwe")
+item_id = "wall_straight_367"
+piece_id = &"wall_straight"
+category = &"wall"
+grid_position = Vector2i(-6, -7)
+tags = PackedStringArray("wall")
+placement_layer = &"overlay"
+blocks_movement = true
+blocks_projectiles = true
+
+[sub_resource type="Resource" id="Resource_4rq2k"]
+script = ExtResource("1_14hwe")
+item_id = "wall_straight_368"
+piece_id = &"wall_straight"
+category = &"wall"
+grid_position = Vector2i(-5, -7)
+tags = PackedStringArray("wall")
+placement_layer = &"overlay"
+blocks_movement = true
+blocks_projectiles = true
+
+[sub_resource type="Resource" id="Resource_hq478"]
+script = ExtResource("1_14hwe")
+item_id = "wall_straight_369"
+piece_id = &"wall_straight"
+category = &"wall"
+grid_position = Vector2i(7, -7)
+tags = PackedStringArray("wall")
+placement_layer = &"overlay"
+blocks_movement = true
+blocks_projectiles = true
+
+[sub_resource type="Resource" id="Resource_iq5pv"]
+script = ExtResource("1_14hwe")
+item_id = "wall_straight_370"
+piece_id = &"wall_straight"
+category = &"wall"
+grid_position = Vector2i(-8, -6)
+tags = PackedStringArray("wall")
+placement_layer = &"overlay"
+blocks_movement = true
+blocks_projectiles = true
+
+[sub_resource type="Resource" id="Resource_rn34b"]
+script = ExtResource("1_14hwe")
+item_id = "wall_straight_371"
+piece_id = &"wall_straight"
+category = &"wall"
+grid_position = Vector2i(7, -6)
+tags = PackedStringArray("wall")
+placement_layer = &"overlay"
+blocks_movement = true
+blocks_projectiles = true
+
+[sub_resource type="Resource" id="Resource_glolg"]
+script = ExtResource("1_14hwe")
+item_id = "wall_straight_372"
+piece_id = &"wall_straight"
+category = &"wall"
+grid_position = Vector2i(-8, -5)
+tags = PackedStringArray("wall")
+placement_layer = &"overlay"
+blocks_movement = true
+blocks_projectiles = true
+
+[sub_resource type="Resource" id="Resource_2y03d"]
+script = ExtResource("1_14hwe")
+item_id = "wall_straight_373"
+piece_id = &"wall_straight"
+category = &"wall"
+grid_position = Vector2i(7, -5)
+tags = PackedStringArray("wall")
+placement_layer = &"overlay"
+blocks_movement = true
+blocks_projectiles = true
+
+[sub_resource type="Resource" id="Resource_biovq"]
+script = ExtResource("1_14hwe")
+item_id = "wall_straight_374"
+piece_id = &"wall_straight"
+category = &"wall"
+grid_position = Vector2i(-8, -4)
+tags = PackedStringArray("wall")
+placement_layer = &"overlay"
+blocks_movement = true
+blocks_projectiles = true
+
+[sub_resource type="Resource" id="Resource_5bhjr"]
+script = ExtResource("1_14hwe")
+item_id = "wall_straight_375"
+piece_id = &"wall_straight"
+category = &"wall"
+grid_position = Vector2i(7, -4)
+tags = PackedStringArray("wall")
+placement_layer = &"overlay"
+blocks_movement = true
+blocks_projectiles = true
+
+[sub_resource type="Resource" id="Resource_k3lwk"]
+script = ExtResource("1_14hwe")
+item_id = "wall_straight_376"
+piece_id = &"wall_straight"
+category = &"wall"
+grid_position = Vector2i(-8, -3)
+tags = PackedStringArray("wall")
+placement_layer = &"overlay"
+blocks_movement = true
+blocks_projectiles = true
+
+[sub_resource type="Resource" id="Resource_j4cpb"]
+script = ExtResource("1_14hwe")
+item_id = "wall_straight_377"
+piece_id = &"wall_straight"
+category = &"wall"
+grid_position = Vector2i(7, -3)
+tags = PackedStringArray("wall")
+placement_layer = &"overlay"
+blocks_movement = true
+blocks_projectiles = true
+
+[sub_resource type="Resource" id="Resource_o70vf"]
+script = ExtResource("1_14hwe")
+item_id = "wall_straight_378"
+piece_id = &"wall_straight"
+category = &"wall"
+grid_position = Vector2i(-8, -2)
+tags = PackedStringArray("wall")
+placement_layer = &"overlay"
+blocks_movement = true
+blocks_projectiles = true
+
+[sub_resource type="Resource" id="Resource_jey10"]
+script = ExtResource("1_14hwe")
+item_id = "wall_straight_379"
+piece_id = &"wall_straight"
+category = &"wall"
+grid_position = Vector2i(7, -2)
+tags = PackedStringArray("wall")
+placement_layer = &"overlay"
+blocks_movement = true
+blocks_projectiles = true
+
+[sub_resource type="Resource" id="Resource_y8wa7"]
+script = ExtResource("1_14hwe")
+item_id = "wall_straight_380"
+piece_id = &"wall_straight"
+category = &"wall"
+grid_position = Vector2i(-8, 1)
+tags = PackedStringArray("wall")
+placement_layer = &"overlay"
+blocks_movement = true
+blocks_projectiles = true
+
+[sub_resource type="Resource" id="Resource_jgxdg"]
+script = ExtResource("1_14hwe")
+item_id = "wall_straight_381"
+piece_id = &"wall_straight"
+category = &"wall"
+grid_position = Vector2i(7, 1)
+tags = PackedStringArray("wall")
+placement_layer = &"overlay"
+blocks_movement = true
+blocks_projectiles = true
+
+[sub_resource type="Resource" id="Resource_cey1w"]
+script = ExtResource("1_14hwe")
+item_id = "wall_straight_382"
+piece_id = &"wall_straight"
+category = &"wall"
+grid_position = Vector2i(-8, 2)
+tags = PackedStringArray("wall")
+placement_layer = &"overlay"
+blocks_movement = true
+blocks_projectiles = true
+
+[sub_resource type="Resource" id="Resource_w25la"]
+script = ExtResource("1_14hwe")
+item_id = "wall_straight_383"
+piece_id = &"wall_straight"
+category = &"wall"
+grid_position = Vector2i(7, 2)
+tags = PackedStringArray("wall")
+placement_layer = &"overlay"
+blocks_movement = true
+blocks_projectiles = true
+
+[sub_resource type="Resource" id="Resource_6244e"]
+script = ExtResource("1_14hwe")
+item_id = "wall_straight_384"
+piece_id = &"wall_straight"
+category = &"wall"
+grid_position = Vector2i(-8, 3)
+tags = PackedStringArray("wall")
+placement_layer = &"overlay"
+blocks_movement = true
+blocks_projectiles = true
+
+[sub_resource type="Resource" id="Resource_emwwf"]
+script = ExtResource("1_14hwe")
+item_id = "wall_straight_385"
+piece_id = &"wall_straight"
+category = &"wall"
+grid_position = Vector2i(7, 3)
+tags = PackedStringArray("wall")
+placement_layer = &"overlay"
+blocks_movement = true
+blocks_projectiles = true
+
+[sub_resource type="Resource" id="Resource_j86aq"]
+script = ExtResource("1_14hwe")
+item_id = "wall_straight_386"
+piece_id = &"wall_straight"
+category = &"wall"
+grid_position = Vector2i(-8, 4)
+tags = PackedStringArray("wall")
+placement_layer = &"overlay"
+blocks_movement = true
+blocks_projectiles = true
+
+[sub_resource type="Resource" id="Resource_dcbir"]
+script = ExtResource("1_14hwe")
+item_id = "wall_straight_387"
+piece_id = &"wall_straight"
+category = &"wall"
+grid_position = Vector2i(7, 4)
+tags = PackedStringArray("wall")
+placement_layer = &"overlay"
+blocks_movement = true
+blocks_projectiles = true
+
+[sub_resource type="Resource" id="Resource_sa7oq"]
+script = ExtResource("1_14hwe")
+item_id = "wall_straight_388"
+piece_id = &"wall_straight"
+category = &"wall"
+grid_position = Vector2i(-8, 5)
+tags = PackedStringArray("wall")
+placement_layer = &"overlay"
+blocks_movement = true
+blocks_projectiles = true
+
+[sub_resource type="Resource" id="Resource_ea8f8"]
+script = ExtResource("1_14hwe")
+item_id = "wall_straight_389"
+piece_id = &"wall_straight"
+category = &"wall"
+grid_position = Vector2i(7, 5)
+tags = PackedStringArray("wall")
+placement_layer = &"overlay"
+blocks_movement = true
+blocks_projectiles = true
+
+[sub_resource type="Resource" id="Resource_kn4ui"]
+script = ExtResource("1_14hwe")
+item_id = "wall_straight_390"
+piece_id = &"wall_straight"
+category = &"wall"
+grid_position = Vector2i(-8, 6)
+tags = PackedStringArray("wall")
+placement_layer = &"overlay"
+blocks_movement = true
+blocks_projectiles = true
+
+[sub_resource type="Resource" id="Resource_oqmw7"]
+script = ExtResource("1_14hwe")
+item_id = "wall_straight_391"
+piece_id = &"wall_straight"
+category = &"wall"
+grid_position = Vector2i(4, 6)
+tags = PackedStringArray("wall")
+placement_layer = &"overlay"
+blocks_movement = true
+blocks_projectiles = true
+
+[sub_resource type="Resource" id="Resource_cmn52"]
+script = ExtResource("1_14hwe")
+item_id = "wall_straight_392"
+piece_id = &"wall_straight"
+category = &"wall"
+grid_position = Vector2i(5, 6)
+tags = PackedStringArray("wall")
+placement_layer = &"overlay"
+blocks_movement = true
+blocks_projectiles = true
+
+[sub_resource type="Resource" id="Resource_khnaw"]
+script = ExtResource("1_14hwe")
+item_id = "wall_straight_393"
+piece_id = &"wall_straight"
+category = &"wall"
+grid_position = Vector2i(6, 6)
+tags = PackedStringArray("wall")
+placement_layer = &"overlay"
+blocks_movement = true
+blocks_projectiles = true
+
+[sub_resource type="Resource" id="Resource_8auau"]
+script = ExtResource("1_14hwe")
+item_id = "wall_straight_394"
+piece_id = &"wall_straight"
+category = &"wall"
+grid_position = Vector2i(7, 6)
+tags = PackedStringArray("wall")
+placement_layer = &"overlay"
+blocks_movement = true
+blocks_projectiles = true
+
+[sub_resource type="Resource" id="Resource_ivyoy"]
+script = ExtResource("1_14hwe")
+item_id = "wall_straight_395"
+piece_id = &"wall_straight"
+category = &"wall"
+grid_position = Vector2i(-8, 7)
+tags = PackedStringArray("wall")
+placement_layer = &"overlay"
+blocks_movement = true
+blocks_projectiles = true
+
+[sub_resource type="Resource" id="Resource_4jxn1"]
+script = ExtResource("1_14hwe")
+item_id = "wall_straight_396"
+piece_id = &"wall_straight"
+category = &"wall"
+grid_position = Vector2i(3, 7)
+tags = PackedStringArray("wall")
+placement_layer = &"overlay"
+blocks_movement = true
+blocks_projectiles = true
+
+[sub_resource type="Resource" id="Resource_csvgl"]
+script = ExtResource("1_14hwe")
+item_id = "wall_straight_397"
+piece_id = &"wall_straight"
+category = &"wall"
+grid_position = Vector2i(-8, 8)
+tags = PackedStringArray("wall")
+placement_layer = &"overlay"
+blocks_movement = true
+blocks_projectiles = true
+
+[sub_resource type="Resource" id="Resource_v2vv7"]
+script = ExtResource("1_14hwe")
+item_id = "wall_straight_398"
+piece_id = &"wall_straight"
+category = &"wall"
+grid_position = Vector2i(3, 8)
+tags = PackedStringArray("wall")
+placement_layer = &"overlay"
+blocks_movement = true
+blocks_projectiles = true
+
+[sub_resource type="Resource" id="Resource_1w8ry"]
+script = ExtResource("1_14hwe")
+item_id = "wall_straight_399"
+piece_id = &"wall_straight"
+category = &"wall"
+grid_position = Vector2i(-8, 9)
+tags = PackedStringArray("wall")
+placement_layer = &"overlay"
+blocks_movement = true
+blocks_projectiles = true
+
+[sub_resource type="Resource" id="Resource_7uhix"]
+script = ExtResource("1_14hwe")
+item_id = "wall_straight_400"
+piece_id = &"wall_straight"
+category = &"wall"
+grid_position = Vector2i(3, 9)
+tags = PackedStringArray("wall")
+placement_layer = &"overlay"
+blocks_movement = true
+blocks_projectiles = true
+
+[sub_resource type="Resource" id="Resource_oih87"]
+script = ExtResource("1_14hwe")
+item_id = "wall_straight_401"
+piece_id = &"wall_straight"
+category = &"wall"
+grid_position = Vector2i(-8, 10)
+tags = PackedStringArray("wall")
+placement_layer = &"overlay"
+blocks_movement = true
+blocks_projectiles = true
+
+[sub_resource type="Resource" id="Resource_713js"]
+script = ExtResource("1_14hwe")
+item_id = "wall_straight_402"
+piece_id = &"wall_straight"
+category = &"wall"
+grid_position = Vector2i(3, 10)
+tags = PackedStringArray("wall")
+placement_layer = &"overlay"
+blocks_movement = true
+blocks_projectiles = true
+
+[sub_resource type="Resource" id="Resource_pwtyy"]
+script = ExtResource("1_14hwe")
+item_id = "wall_straight_403"
+piece_id = &"wall_straight"
+category = &"wall"
+grid_position = Vector2i(-8, 11)
+tags = PackedStringArray("wall")
+placement_layer = &"overlay"
+blocks_movement = true
+blocks_projectiles = true
+
+[sub_resource type="Resource" id="Resource_6lwkm"]
+script = ExtResource("1_14hwe")
+item_id = "wall_straight_404"
+piece_id = &"wall_straight"
+category = &"wall"
+grid_position = Vector2i(-7, 11)
+tags = PackedStringArray("wall")
+placement_layer = &"overlay"
+blocks_movement = true
+blocks_projectiles = true
+
+[sub_resource type="Resource" id="Resource_tg0vk"]
+script = ExtResource("1_14hwe")
+item_id = "wall_straight_405"
+piece_id = &"wall_straight"
+category = &"wall"
+grid_position = Vector2i(-6, 11)
+tags = PackedStringArray("wall")
+placement_layer = &"overlay"
+blocks_movement = true
+blocks_projectiles = true
+
+[sub_resource type="Resource" id="Resource_5a13j"]
+script = ExtResource("1_14hwe")
+item_id = "wall_straight_406"
+piece_id = &"wall_straight"
+category = &"wall"
+grid_position = Vector2i(-5, 11)
+tags = PackedStringArray("wall")
+placement_layer = &"overlay"
+blocks_movement = true
+blocks_projectiles = true
+
+[sub_resource type="Resource" id="Resource_423gp"]
+script = ExtResource("1_14hwe")
+item_id = "wall_straight_407"
+piece_id = &"wall_straight"
+category = &"wall"
+grid_position = Vector2i(-4, 11)
+tags = PackedStringArray("wall")
+placement_layer = &"overlay"
+blocks_movement = true
+blocks_projectiles = true
+
+[sub_resource type="Resource" id="Resource_unfr7"]
+script = ExtResource("1_14hwe")
+item_id = "wall_straight_408"
+piece_id = &"wall_straight"
+category = &"wall"
+grid_position = Vector2i(-3, 11)
+tags = PackedStringArray("wall")
+placement_layer = &"overlay"
+blocks_movement = true
+blocks_projectiles = true
+
+[sub_resource type="Resource" id="Resource_s4q7u"]
+script = ExtResource("1_14hwe")
+item_id = "wall_straight_409"
+piece_id = &"wall_straight"
+category = &"wall"
+grid_position = Vector2i(-2, 11)
+tags = PackedStringArray("wall")
+placement_layer = &"overlay"
+blocks_movement = true
+blocks_projectiles = true
+
+[sub_resource type="Resource" id="Resource_v1hyb"]
+script = ExtResource("1_14hwe")
+item_id = "wall_straight_410"
+piece_id = &"wall_straight"
+category = &"wall"
+grid_position = Vector2i(-1, 11)
+tags = PackedStringArray("wall")
+placement_layer = &"overlay"
+blocks_movement = true
+blocks_projectiles = true
+
+[sub_resource type="Resource" id="Resource_ld1x4"]
+script = ExtResource("1_14hwe")
+item_id = "wall_straight_411"
+piece_id = &"wall_straight"
+category = &"wall"
+grid_position = Vector2i(0, 11)
+tags = PackedStringArray("wall")
+placement_layer = &"overlay"
+blocks_movement = true
+blocks_projectiles = true
+
+[sub_resource type="Resource" id="Resource_4rbt2"]
+script = ExtResource("1_14hwe")
+item_id = "wall_straight_412"
+piece_id = &"wall_straight"
+category = &"wall"
+grid_position = Vector2i(1, 11)
+tags = PackedStringArray("wall")
+placement_layer = &"overlay"
+blocks_movement = true
+blocks_projectiles = true
+
+[sub_resource type="Resource" id="Resource_wefs5"]
+script = ExtResource("1_14hwe")
+item_id = "wall_straight_413"
+piece_id = &"wall_straight"
+category = &"wall"
+grid_position = Vector2i(2, 11)
+tags = PackedStringArray("wall")
+placement_layer = &"overlay"
+blocks_movement = true
+blocks_projectiles = true
+
+[sub_resource type="Resource" id="Resource_ltcg5"]
+script = ExtResource("1_14hwe")
+item_id = "wall_straight_414"
+piece_id = &"wall_straight"
+category = &"wall"
+grid_position = Vector2i(3, 11)
+tags = PackedStringArray("wall")
+placement_layer = &"overlay"
+blocks_movement = true
+blocks_projectiles = true
+
+[sub_resource type="Resource" id="Resource_pkes5"]
+script = ExtResource("1_14hwe")
+item_id = "hall_socket_double_415"
+piece_id = &"hall_socket_double"
+category = &"door"
+grid_position = Vector2i(-8, 0)
+rotation_steps = 3
+tags = PackedStringArray("door", "hall", "double")
+placement_layer = &"overlay"
+
+[sub_resource type="Resource" id="Resource_i3njj"]
+script = ExtResource("1_14hwe")
+item_id = "hall_socket_double_416"
+piece_id = &"hall_socket_double"
+category = &"door"
+grid_position = Vector2i(8, 0)
+rotation_steps = 1
+tags = PackedStringArray("door", "hall", "double")
+placement_layer = &"overlay"
+
+[sub_resource type="Resource" id="Resource_j2clm"]
+script = ExtResource("1_14hwe")
+item_id = "encounter_entry_marker_417"
+piece_id = &"encounter_entry_marker"
+category = &"marker"
+grid_position = Vector2i(-6, 0)
+tags = PackedStringArray("marker", "encounter")
+placement_layer = &"overlay"
+
+[sub_resource type="Resource" id="Resource_6oguc"]
+script = ExtResource("1_14hwe")
+item_id = "prop_placement_marker_418"
+piece_id = &"prop_placement_marker"
+category = &"marker"
+grid_position = Vector2i(5, -4)
+tags = PackedStringArray("marker", "prop")
+placement_layer = &"overlay"
+
+[sub_resource type="Resource" id="Resource_4fcr7"]
+script = ExtResource("1_14hwe")
+item_id = "nav_boundary_marker_419"
+piece_id = &"nav_boundary_marker"
+category = &"marker"
+tags = PackedStringArray("marker", "nav")
+placement_layer = &"overlay"
+
+[sub_resource type="Resource" id="Resource_x83oe"]
+script = ExtResource("1_14hwe")
+item_id = "barrel_blocker_420"
+piece_id = &"barrel_blocker"
+category = &"prop"
+grid_position = Vector2i(-3, 0)
+tags = PackedStringArray("prop", "blocker")
+placement_layer = &"overlay"
+blocks_movement = true
+
+[sub_resource type="Resource" id="Resource_aumfq"]
+script = ExtResource("1_14hwe")
+item_id = "barrel_blocker_421"
+piece_id = &"barrel_blocker"
+category = &"prop"
+grid_position = Vector2i(3, 0)
+tags = PackedStringArray("prop", "blocker")
+placement_layer = &"overlay"
+blocks_movement = true
+
+[sub_resource type="Resource" id="Resource_qohpc"]
+script = ExtResource("1_14hwe")
+item_id = "spawn_iron_sentinel_marker_422"
+piece_id = &"spawn_iron_sentinel_marker"
+category = &"spawn"
+grid_position = Vector2i(4, -2)
+tags = PackedStringArray("spawn", "iron_sentinel")
+encounter_group_id = &"combat_main"
+placement_layer = &"overlay"
+
+[sub_resource type="Resource" id="Resource_syob0"]
+script = ExtResource("1_14hwe")
+item_id = "spawn_robot_mob_marker_423"
+piece_id = &"spawn_robot_mob_marker"
+category = &"spawn"
+grid_position = Vector2i(5, 3)
+tags = PackedStringArray("spawn", "robot_mob")
+encounter_group_id = &"combat_main"
+placement_layer = &"overlay"
+
+[resource]
+script = ExtResource("2_h0bpk")
+room_id = "room_boss_approach_large_a"
+room_tags = PackedStringArray("boss", "boss_approach", "connector", "large")
+recommended_enemy_groups = PackedStringArray("elite_guard")
+items = Array[Resource]([SubResource("Resource_ad7ps"), SubResource("Resource_4pc0b"), SubResource("Resource_8lxjl"), SubResource("Resource_3bsg5"), SubResource("Resource_e3yux"), SubResource("Resource_2lckq"), SubResource("Resource_nrgml"), SubResource("Resource_51v1a"), SubResource("Resource_pdy23"), SubResource("Resource_rqggq"), SubResource("Resource_a5f6y"), SubResource("Resource_06oqf"), SubResource("Resource_m2xxm"), SubResource("Resource_opja7"), SubResource("Resource_hugpm"), SubResource("Resource_ts8ik"), SubResource("Resource_7heqx"), SubResource("Resource_hpcsm"), SubResource("Resource_xvjlg"), SubResource("Resource_ry1rg"), SubResource("Resource_upojv"), SubResource("Resource_k0oog"), SubResource("Resource_q34jp"), SubResource("Resource_55hrx"), SubResource("Resource_0ptfq"), SubResource("Resource_wf8v3"), SubResource("Resource_kgvkt"), SubResource("Resource_74up7"), SubResource("Resource_7d7lx"), SubResource("Resource_xyfwn"), SubResource("Resource_k4svk"), SubResource("Resource_1jbuw"), SubResource("Resource_8vpou"), SubResource("Resource_5wjl1"), SubResource("Resource_mn4k0"), SubResource("Resource_vd0gc"), SubResource("Resource_w3hs5"), SubResource("Resource_bxc8m"), SubResource("Resource_eq3xb"), SubResource("Resource_ii2g1"), SubResource("Resource_qcmpl"), SubResource("Resource_loina"), SubResource("Resource_17urb"), SubResource("Resource_mw5dx"), SubResource("Resource_xf0kt"), SubResource("Resource_jmri0"), SubResource("Resource_guy57"), SubResource("Resource_obvvh"), SubResource("Resource_b2vix"), SubResource("Resource_qxibx"), SubResource("Resource_kt8gd"), SubResource("Resource_00r16"), SubResource("Resource_hnrbh"), SubResource("Resource_huubr"), SubResource("Resource_epciw"), SubResource("Resource_dxj13"), SubResource("Resource_3j2ks"), SubResource("Resource_k7gfy"), SubResource("Resource_pct62"), SubResource("Resource_qlxpc"), SubResource("Resource_r4ycp"), SubResource("Resource_84utb"), SubResource("Resource_2clqh"), SubResource("Resource_12eev"), SubResource("Resource_d1oqk"), SubResource("Resource_47e0j"), SubResource("Resource_6qby8"), SubResource("Resource_gs2uw"), SubResource("Resource_h1fjf"), SubResource("Resource_01m4b"), SubResource("Resource_vfsxb"), SubResource("Resource_1wko1"), SubResource("Resource_sgqc4"), SubResource("Resource_03w42"), SubResource("Resource_r3b6u"), SubResource("Resource_fluqr"), SubResource("Resource_r6wb5"), SubResource("Resource_lmo4u"), SubResource("Resource_gunfh"), SubResource("Resource_ko2ta"), SubResource("Resource_rjudw"), SubResource("Resource_c3ddg"), SubResource("Resource_ov6pk"), SubResource("Resource_q3xqd"), SubResource("Resource_42hag"), SubResource("Resource_7v4ea"), SubResource("Resource_mxl1k"), SubResource("Resource_lt08y"), SubResource("Resource_i6inw"), SubResource("Resource_3ac3t"), SubResource("Resource_m2cbw"), SubResource("Resource_cjxxr"), SubResource("Resource_nqqtm"), SubResource("Resource_o17js"), SubResource("Resource_jqsf8"), SubResource("Resource_m0xui"), SubResource("Resource_4mur4"), SubResource("Resource_ki3kb"), SubResource("Resource_xn0vw"), SubResource("Resource_7g1m7"), SubResource("Resource_b5y24"), SubResource("Resource_umgb8"), SubResource("Resource_7ylbr"), SubResource("Resource_psabl"), SubResource("Resource_dfntd"), SubResource("Resource_uq4va"), SubResource("Resource_kng1n"), SubResource("Resource_h7dxq"), SubResource("Resource_nl16w"), SubResource("Resource_5yeo2"), SubResource("Resource_ifmhk"), SubResource("Resource_llcjl"), SubResource("Resource_26i4g"), SubResource("Resource_tmm4a"), SubResource("Resource_oixo1"), SubResource("Resource_cig2a"), SubResource("Resource_qpwhn"), SubResource("Resource_iqqt0"), SubResource("Resource_7d3mn"), SubResource("Resource_od3xx"), SubResource("Resource_gdetx"), SubResource("Resource_5607w"), SubResource("Resource_2f0vs"), SubResource("Resource_wji1a"), SubResource("Resource_0ld7y"), SubResource("Resource_1uvej"), SubResource("Resource_370ku"), SubResource("Resource_kcrur"), SubResource("Resource_v7w3j"), SubResource("Resource_7t50w"), SubResource("Resource_steye"), SubResource("Resource_5rt3u"), SubResource("Resource_4ucy8"), SubResource("Resource_1l0vb"), SubResource("Resource_igxwi"), SubResource("Resource_wkb3d"), SubResource("Resource_tw648"), SubResource("Resource_mgmvd"), SubResource("Resource_6culi"), SubResource("Resource_nwh16"), SubResource("Resource_cpxro"), SubResource("Resource_5i0pd"), SubResource("Resource_iw3gb"), SubResource("Resource_n67x0"), SubResource("Resource_e0idp"), SubResource("Resource_vruj4"), SubResource("Resource_07x5q"), SubResource("Resource_cbp3n"), SubResource("Resource_iw476"), SubResource("Resource_ekilr"), SubResource("Resource_vsvw8"), SubResource("Resource_bpkek"), SubResource("Resource_fldv7"), SubResource("Resource_brmki"), SubResource("Resource_g18f5"), SubResource("Resource_jgdn2"), SubResource("Resource_1ry1u"), SubResource("Resource_qawh2"), SubResource("Resource_x1y0x"), SubResource("Resource_dvgo2"), SubResource("Resource_lptig"), SubResource("Resource_y10so"), SubResource("Resource_kqxq5"), SubResource("Resource_2sqiu"), SubResource("Resource_8dx8i"), SubResource("Resource_g3bj1"), SubResource("Resource_m5y74"), SubResource("Resource_80k2x"), SubResource("Resource_rdxjw"), SubResource("Resource_pvvf6"), SubResource("Resource_58hy1"), SubResource("Resource_cu8wk"), SubResource("Resource_76gxq"), SubResource("Resource_lnaps"), SubResource("Resource_f8tov"), SubResource("Resource_0npmj"), SubResource("Resource_8of5y"), SubResource("Resource_4gtdg"), SubResource("Resource_ggdeo"), SubResource("Resource_u8j57"), SubResource("Resource_r30eu"), SubResource("Resource_c15o6"), SubResource("Resource_c7mvq"), SubResource("Resource_5mivs"), SubResource("Resource_7s1dt"), SubResource("Resource_jegbc"), SubResource("Resource_aefuj"), SubResource("Resource_cemrr"), SubResource("Resource_q0ih3"), SubResource("Resource_4vvhk"), SubResource("Resource_fecfs"), SubResource("Resource_v3jka"), SubResource("Resource_qxd4o"), SubResource("Resource_aegp7"), SubResource("Resource_ir1hx"), SubResource("Resource_yfpgb"), SubResource("Resource_gsfro"), SubResource("Resource_wvth3"), SubResource("Resource_aerrs"), SubResource("Resource_e2615"), SubResource("Resource_cnr8j"), SubResource("Resource_knivs"), SubResource("Resource_ap0v8"), SubResource("Resource_vbg2r"), SubResource("Resource_2q8qt"), SubResource("Resource_w3nff"), SubResource("Resource_yfeph"), SubResource("Resource_dmdkj"), SubResource("Resource_2e83s"), SubResource("Resource_qnoe5"), SubResource("Resource_eycor"), SubResource("Resource_gh6uy"), SubResource("Resource_8vagd"), SubResource("Resource_jhhvf"), SubResource("Resource_rwki5"), SubResource("Resource_vd00l"), SubResource("Resource_pca7k"), SubResource("Resource_8rcgr"), SubResource("Resource_7cfjb"), SubResource("Resource_ixhpg"), SubResource("Resource_sfbmf"), SubResource("Resource_q6muu"), SubResource("Resource_giwwu"), SubResource("Resource_c142v"), SubResource("Resource_tsdrq"), SubResource("Resource_br3nk"), SubResource("Resource_6xc2v"), SubResource("Resource_7ullq"), SubResource("Resource_v3cf3"), SubResource("Resource_coif8"), SubResource("Resource_fl41p"), SubResource("Resource_bp3us"), SubResource("Resource_f3iqy"), SubResource("Resource_mw6dp"), SubResource("Resource_e3acf"), SubResource("Resource_qawww"), SubResource("Resource_tntd4"), SubResource("Resource_hed5e"), SubResource("Resource_o4yw3"), SubResource("Resource_vywan"), SubResource("Resource_vdy8w"), SubResource("Resource_8ogfe"), SubResource("Resource_7qlbi"), SubResource("Resource_amd6i"), SubResource("Resource_77k7f"), SubResource("Resource_orpg1"), SubResource("Resource_trc7u"), SubResource("Resource_82ger"), SubResource("Resource_wumsi"), SubResource("Resource_21ty8"), SubResource("Resource_dtbnq"), SubResource("Resource_if5cw"), SubResource("Resource_ck48u"), SubResource("Resource_lxj86"), SubResource("Resource_7g0o1"), SubResource("Resource_yih8w"), SubResource("Resource_1y4sp"), SubResource("Resource_ipwje"), SubResource("Resource_lf0p0"), SubResource("Resource_fiabn"), SubResource("Resource_klxtk"), SubResource("Resource_htcdx"), SubResource("Resource_a16po"), SubResource("Resource_o68os"), SubResource("Resource_5utx5"), SubResource("Resource_h25vs"), SubResource("Resource_bgi4h"), SubResource("Resource_cqpn3"), SubResource("Resource_1mgkb"), SubResource("Resource_7b0yr"), SubResource("Resource_82u1x"), SubResource("Resource_7th8b"), SubResource("Resource_sq8ew"), SubResource("Resource_iyv4r"), SubResource("Resource_45qrb"), SubResource("Resource_76e6v"), SubResource("Resource_2d6l4"), SubResource("Resource_83vag"), SubResource("Resource_qi1kx"), SubResource("Resource_2mbt5"), SubResource("Resource_hssgs"), SubResource("Resource_1tgbw"), SubResource("Resource_l0kgq"), SubResource("Resource_q8w4x"), SubResource("Resource_nt8gs"), SubResource("Resource_k0hrn"), SubResource("Resource_738rx"), SubResource("Resource_qr1xg"), SubResource("Resource_4q8id"), SubResource("Resource_vwhh5"), SubResource("Resource_yrshf"), SubResource("Resource_mb21k"), SubResource("Resource_758to"), SubResource("Resource_3bn1g"), SubResource("Resource_yo5jc"), SubResource("Resource_57sn4"), SubResource("Resource_bvlix"), SubResource("Resource_4yrfp"), SubResource("Resource_a0sgi"), SubResource("Resource_oouja"), SubResource("Resource_obh64"), SubResource("Resource_8whak"), SubResource("Resource_ghw04"), SubResource("Resource_fvqk1"), SubResource("Resource_stkcg"), SubResource("Resource_pl7m3"), SubResource("Resource_5giyh"), SubResource("Resource_mhp2l"), SubResource("Resource_gwrrg"), SubResource("Resource_1j3ny"), SubResource("Resource_ykpwo"), SubResource("Resource_w6egr"), SubResource("Resource_jgii3"), SubResource("Resource_r7x0i"), SubResource("Resource_5imbt"), SubResource("Resource_bkujc"), SubResource("Resource_cou8i"), SubResource("Resource_ke24t"), SubResource("Resource_l80nw"), SubResource("Resource_5pgse"), SubResource("Resource_isnmi"), SubResource("Resource_csh2y"), SubResource("Resource_v16rq"), SubResource("Resource_s1g72"), SubResource("Resource_024sc"), SubResource("Resource_evmoj"), SubResource("Resource_56ane"), SubResource("Resource_73c8p"), SubResource("Resource_3f754"), SubResource("Resource_7t3pl"), SubResource("Resource_si6qy"), SubResource("Resource_dtxva"), SubResource("Resource_gyriy"), SubResource("Resource_bfxou"), SubResource("Resource_vw6n1"), SubResource("Resource_ubcit"), SubResource("Resource_c474y"), SubResource("Resource_rol0q"), SubResource("Resource_x24hs"), SubResource("Resource_g1wnf"), SubResource("Resource_gr10r"), SubResource("Resource_286q2"), SubResource("Resource_mnog8"), SubResource("Resource_6gtk5"), SubResource("Resource_8qnnr"), SubResource("Resource_7yrt1"), SubResource("Resource_qq18n"), SubResource("Resource_5mrvo"), SubResource("Resource_25hsa"), SubResource("Resource_8ppqb"), SubResource("Resource_iyejf"), SubResource("Resource_rwwuj"), SubResource("Resource_ag2gk"), SubResource("Resource_hn87w"), SubResource("Resource_jad65"), SubResource("Resource_dftrj"), SubResource("Resource_leqop"), SubResource("Resource_kru2k"), SubResource("Resource_74s71"), SubResource("Resource_bif87"), SubResource("Resource_8m3le"), SubResource("Resource_01b4p"), SubResource("Resource_xqqpf"), SubResource("Resource_dmayu"), SubResource("Resource_ycscb"), SubResource("Resource_e27sx"), SubResource("Resource_5fdco"), SubResource("Resource_4rq2k"), SubResource("Resource_hq478"), SubResource("Resource_iq5pv"), SubResource("Resource_rn34b"), SubResource("Resource_glolg"), SubResource("Resource_2y03d"), SubResource("Resource_biovq"), SubResource("Resource_5bhjr"), SubResource("Resource_k3lwk"), SubResource("Resource_j4cpb"), SubResource("Resource_o70vf"), SubResource("Resource_jey10"), SubResource("Resource_y8wa7"), SubResource("Resource_jgxdg"), SubResource("Resource_cey1w"), SubResource("Resource_w25la"), SubResource("Resource_6244e"), SubResource("Resource_emwwf"), SubResource("Resource_j86aq"), SubResource("Resource_dcbir"), SubResource("Resource_sa7oq"), SubResource("Resource_ea8f8"), SubResource("Resource_kn4ui"), SubResource("Resource_oqmw7"), SubResource("Resource_cmn52"), SubResource("Resource_khnaw"), SubResource("Resource_8auau"), SubResource("Resource_ivyoy"), SubResource("Resource_4jxn1"), SubResource("Resource_csvgl"), SubResource("Resource_v2vv7"), SubResource("Resource_1w8ry"), SubResource("Resource_7uhix"), SubResource("Resource_oih87"), SubResource("Resource_713js"), SubResource("Resource_pwtyy"), SubResource("Resource_6lwkm"), SubResource("Resource_tg0vk"), SubResource("Resource_5a13j"), SubResource("Resource_423gp"), SubResource("Resource_unfr7"), SubResource("Resource_s4q7u"), SubResource("Resource_v1hyb"), SubResource("Resource_ld1x4"), SubResource("Resource_4rbt2"), SubResource("Resource_wefs5"), SubResource("Resource_ltcg5"), SubResource("Resource_pkes5"), SubResource("Resource_i3njj"), SubResource("Resource_j2clm"), SubResource("Resource_6oguc"), SubResource("Resource_4fcr7"), SubResource("Resource_x83oe"), SubResource("Resource_aumfq"), SubResource("Resource_qohpc"), SubResource("Resource_syob0")])
