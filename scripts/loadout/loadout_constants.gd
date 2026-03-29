@@ -32,6 +32,32 @@ const STAT_MELEE_DAMAGE: StringName = &"melee_attack_damage"
 const STAT_RANGED_DAMAGE: StringName = &"ranged_damage"
 const STAT_BOMB_DAMAGE: StringName = &"bomb_damage"
 const STAT_DEFEND_DAMAGE_MULTIPLIER: StringName = &"defend_damage_multiplier"
+# Edge affix
+const STAT_CRIT_CHANCE_BONUS: StringName = &"crit_chance_bonus"
+# Flow affix
+const STAT_ATTACK_SPEED_MULTIPLIER: StringName = &"attack_speed_multiplier"
+const STAT_COOLDOWN_REDUCTION: StringName = &"cooldown_reduction"
+# Mass affix
+const STAT_KNOCKBACK_MULTIPLIER: StringName = &"knockback_multiplier"
+const STAT_AOE_RADIUS_BONUS: StringName = &"aoe_radius_bonus"
+# Leech secondary
+const STAT_LIFESTEAL_PERCENT: StringName = &"lifesteal_percent"
+# Bind secondary
+const STAT_ON_HIT_SLOW_CHANCE: StringName = &"on_hit_slow_chance"
+
+# Stats that are displayed as percentages in the UI
+const PERCENT_STATS: Array[StringName] = [
+	STAT_CRIT_CHANCE_BONUS,
+	STAT_COOLDOWN_REDUCTION,
+	STAT_LIFESTEAL_PERCENT,
+	STAT_ON_HIT_SLOW_CHANCE,
+]
+
+# Stats that are displayed as multipliers (e.g. x1.20) in the UI
+const MULTIPLIER_STATS: Array[StringName] = [
+	STAT_ATTACK_SPEED_MULTIPLIER,
+	STAT_KNOCKBACK_MULTIPLIER,
+]
 
 const STAT_ORDER: Array[StringName] = [
 	STAT_MAX_HEALTH,
@@ -40,6 +66,13 @@ const STAT_ORDER: Array[StringName] = [
 	STAT_RANGED_DAMAGE,
 	STAT_BOMB_DAMAGE,
 	STAT_DEFEND_DAMAGE_MULTIPLIER,
+	STAT_CRIT_CHANCE_BONUS,
+	STAT_ATTACK_SPEED_MULTIPLIER,
+	STAT_COOLDOWN_REDUCTION,
+	STAT_KNOCKBACK_MULTIPLIER,
+	STAT_AOE_RADIUS_BONUS,
+	STAT_LIFESTEAL_PERCENT,
+	STAT_ON_HIT_SLOW_CHANCE,
 ]
 
 const PROJECTILE_STYLE_RED: StringName = &"red"
@@ -93,7 +126,11 @@ static func format_stat_modifier_lines(stat_modifiers: Dictionary) -> PackedStri
 			continue
 		var sign := "+" if amount > 0.0 else ""
 		var stat_label := String(stat_key).replace("_", " ").capitalize()
-		if stat_key == STAT_DEFEND_DAMAGE_MULTIPLIER:
+		if stat_key in PERCENT_STATS:
+			lines.append("%s%d%% %s" % [sign, int(roundf(amount * 100.0)), stat_label])
+		elif stat_key in MULTIPLIER_STATS:
+			lines.append("%sx%.2f %s" % [sign, amount, stat_label])
+		elif stat_key == STAT_DEFEND_DAMAGE_MULTIPLIER:
 			lines.append("%s%.2f %s" % [sign, amount, stat_label])
 		elif absf(amount - roundf(amount)) <= 0.001:
 			lines.append("%s%d %s" % [sign, int(roundf(amount)), stat_label])
