@@ -1,27 +1,53 @@
 extends Control
 class_name LobbyMenu
 
-@onready var _session_code_input: LineEdit = $Center/Margin/VBox/CodeRow/SessionCodeInput
-@onready var _join_code_button: Button = $Center/Margin/VBox/CodeRow/JoinCodeButton
-@onready var _host_button: Button = $Center/Margin/VBox/ButtonRow/HostButton
-@onready var _start_run_button: Button = $Center/Margin/VBox/ButtonRow/StartRunButton
-@onready var _ready_button: Button = $Center/Margin/VBox/ButtonRow/ReadyButton
-@onready var _play_offline_button: Button = $Center/Margin/VBox/ButtonRow/PlayOfflineButton
-@onready var _disconnect_button: Button = $Center/Margin/VBox/ButtonRow/DisconnectButton
-@onready var _status_label: Label = $Center/Margin/VBox/StatusLabel
-@onready var _lobby_code_label: LineEdit = $Center/Margin/VBox/LobbyCodeLabel
-@onready var _error_label: Label = $Center/Margin/VBox/ErrorLabel
-@onready var _peers_list: ItemList = $Center/Margin/VBox/PeersList
+@onready var _main_menu_vbox: VBoxContainer = $Center/Margin/VBox/MainMenuVBox
+@onready var _multiplayer_vbox: VBoxContainer = $Center/Margin/VBox/MultiplayerVBox
+@onready var _options_vbox: VBoxContainer = $Center/Margin/VBox/OptionsVBox
+@onready var _singleplayer_button: Button = $Center/Margin/VBox/MainMenuVBox/SingleplayerButton
+@onready var _multiplayer_button: Button = $Center/Margin/VBox/MainMenuVBox/MultiplayerButton
+@onready var _options_button: Button = $Center/Margin/VBox/MainMenuVBox/OptionsButton
+@onready var _exit_button: Button = $Center/Margin/VBox/MainMenuVBox/ExitButton
+@onready var _options_back_button: Button = $Center/Margin/VBox/OptionsVBox/OptionsBackButton
+@onready var _control_scheme_option: OptionButton = (
+	$Center/Margin/VBox/OptionsVBox/TabContainer/Controls/ControlSchemeOption
+)
+@onready var _control_scheme_hint: Label = (
+	$Center/Margin/VBox/OptionsVBox/TabContainer/Controls/ControlSchemeHint
+)
+@onready var _back_button: Button = $Center/Margin/VBox/MultiplayerVBox/BackButton
+@onready var _session_code_input: LineEdit = $Center/Margin/VBox/MultiplayerVBox/CodeRow/SessionCodeInput
+@onready var _join_code_button: Button = $Center/Margin/VBox/MultiplayerVBox/CodeRow/JoinCodeButton
+@onready var _host_button: Button = $Center/Margin/VBox/MultiplayerVBox/ButtonRow/HostButton
+@onready var _start_run_button: Button = $Center/Margin/VBox/MultiplayerVBox/ButtonRow/StartRunButton
+@onready var _ready_button: Button = $Center/Margin/VBox/MultiplayerVBox/ButtonRow/ReadyButton
+@onready var _disconnect_button: Button = $Center/Margin/VBox/MultiplayerVBox/ButtonRow/DisconnectButton
+@onready var _status_label: Label = $Center/Margin/VBox/MultiplayerVBox/StatusLabel
+@onready var _lobby_code_label: LineEdit = $Center/Margin/VBox/MultiplayerVBox/LobbyCodeLabel
+@onready var _error_label: Label = $Center/Margin/VBox/MultiplayerVBox/ErrorLabel
+@onready var _peers_list: ItemList = $Center/Margin/VBox/MultiplayerVBox/PeersList
+
+var _showing_multiplayer_menu: bool = false
+var _showing_options: bool = false
 
 
 func _ready() -> void:
 	_error_label.text = ""
 
+	_control_scheme_option.add_item("Mouse")
+	_control_scheme_option.add_item("WASD + Mouse")
+	_control_scheme_option.item_selected.connect(_on_control_scheme_selected)
+
+	_singleplayer_button.pressed.connect(_on_singleplayer_pressed)
+	_multiplayer_button.pressed.connect(_on_multiplayer_pressed)
+	_options_button.pressed.connect(_on_options_pressed)
+	_exit_button.pressed.connect(_on_exit_pressed)
+	_options_back_button.pressed.connect(_on_options_back_pressed)
+	_back_button.pressed.connect(_on_back_pressed)
 	_host_button.pressed.connect(_on_host_pressed)
 	_join_code_button.pressed.connect(_on_join_code_pressed)
 	_ready_button.pressed.connect(_on_ready_pressed)
 	_start_run_button.pressed.connect(_on_start_run_pressed)
-	_play_offline_button.pressed.connect(_on_play_offline_pressed)
 	_disconnect_button.pressed.connect(_on_disconnect_pressed)
 
 	NetworkSession.state_changed.connect(_on_session_state_changed)
@@ -34,6 +60,89 @@ func _ready() -> void:
 
 	_refresh_ui()
 	_rebuild_peer_list(NetworkSession.get_peer_slot_map())
+	_set_showing_multiplayer_menu(false)
+	_set_showing_options_menu(false)
+	_sync_control_scheme_option()
+
+
+func _refresh_root_menu_visibility() -> void:
+	_options_vbox.visible = _showing_options
+	_multiplayer_vbox.visible = _showing_multiplayer_menu and not _showing_options
+	_main_menu_vbox.visible = not _showing_options and not _showing_multiplayer_menu
+
+
+func _set_showing_multiplayer_menu(show_multiplayer: bool) -> void:
+	if show_multiplayer:
+		_showing_options = false
+	_showing_multiplayer_menu = show_multiplayer
+	_refresh_root_menu_visibility()
+
+
+func _set_showing_options_menu(show_options: bool) -> void:
+	if show_options:
+		_showing_multiplayer_menu = false
+	_showing_options = show_options
+	_refresh_root_menu_visibility()
+	if show_options:
+		_sync_control_scheme_option()
+
+
+func _sync_control_scheme_option() -> void:
+	_control_scheme_option.set_block_signals(true)
+	_control_scheme_option.select(1 if GameSettings.is_wasd_mouse_scheme() else 0)
+	_control_scheme_option.set_block_signals(false)
+	_refresh_control_scheme_hint()
+
+
+func _refresh_control_scheme_hint() -> void:
+	if GameSettings.is_wasd_mouse_scheme():
+		_control_scheme_hint.text = (
+			"WASD move · mouse aim · LMB attack · RMB block · Q bomb · Tab weapon · Space dash"
+		)
+	else:
+		_control_scheme_hint.text = (
+			"Hold LMB to move toward cursor · RMB attack · Q sword · Z block · F bomb · Tab weapon · Space dash"
+		)
+
+
+func _on_control_scheme_selected(index: int) -> void:
+	var scheme := (
+		GameSettings.ControlScheme.WASD_MOUSE
+		if index == 1
+		else GameSettings.ControlScheme.MOUSE
+	)
+	GameSettings.set_control_scheme(scheme)
+	_refresh_control_scheme_hint()
+
+
+func _on_options_pressed() -> void:
+	_error_label.text = ""
+	_set_showing_options_menu(true)
+
+
+func _on_options_back_pressed() -> void:
+	_error_label.text = ""
+	_set_showing_options_menu(false)
+
+
+func _on_singleplayer_pressed() -> void:
+	_error_label.text = ""
+	if not NetworkSession.start_offline_run():
+		_refresh_ui()
+
+
+func _on_multiplayer_pressed() -> void:
+	_error_label.text = ""
+	_set_showing_multiplayer_menu(true)
+
+
+func _on_exit_pressed() -> void:
+	get_tree().quit()
+
+
+func _on_back_pressed() -> void:
+	_error_label.text = ""
+	_set_showing_multiplayer_menu(false)
 
 
 func _on_host_pressed() -> void:
@@ -61,12 +170,6 @@ func _on_ready_pressed() -> void:
 func _on_start_run_pressed() -> void:
 	_error_label.text = ""
 	NetworkSession.request_start_run_from_local_peer()
-
-
-func _on_play_offline_pressed() -> void:
-	_error_label.text = ""
-	if not NetworkSession.start_offline_run():
-		_refresh_ui()
 
 
 func _on_disconnect_pressed() -> void:
@@ -136,6 +239,8 @@ func _refresh_ui() -> void:
 		if bool(ready_map.get(int(key), false)):
 			ready_count += 1
 
+	_singleplayer_button.disabled = has_peer or has_pending_request
+	_multiplayer_button.disabled = has_pending_request
 	_host_button.disabled = has_peer or has_pending_request
 	_join_code_button.disabled = has_peer or has_pending_request
 	_start_run_button.visible = has_peer and in_lobby and not is_dedicated
@@ -143,8 +248,8 @@ func _refresh_ui() -> void:
 	_ready_button.visible = has_peer and in_lobby and not is_dedicated
 	_ready_button.disabled = not (has_peer and in_lobby and not is_dedicated)
 	_ready_button.text = "Unready" if local_ready else "Ready"
-	_play_offline_button.disabled = has_peer or has_pending_request
 	_disconnect_button.disabled = not has_peer
+	_back_button.disabled = has_pending_request
 	_session_code_input.editable = not (has_peer or has_pending_request)
 
 	var session_code := NetworkSession.get_session_code().strip_edges().to_upper()

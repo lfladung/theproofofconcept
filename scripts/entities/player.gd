@@ -39,6 +39,13 @@ enum WeaponMode { SWORD, GUN, BOMB }
 @export var melee_attack_cooldown := 0.5
 @export var melee_attack_damage := 25
 @export var melee_knockback_strength := 11.0
+@export var melee_charge_commit_delay := 0.25
+@export var melee_charge_max_time := 0.72
+@export var melee_charge_min_ratio := 0.08
+@export var melee_charge_damage_min_mult := 0.55
+@export var melee_charge_damage_max_mult := 1.4
+@export var melee_charge_knockback_min_mult := 0.72
+@export var melee_charge_knockback_max_mult := 1.12
 ## Ground Y for debug mesh (XZ play plane ↔ 3D).
 @export var melee_debug_ground_y := 0.04
 @export var show_melee_hit_debug := true
@@ -66,10 +73,11 @@ enum WeaponMode { SWORD, GUN, BOMB }
 @export var ranged_speed := 24.0
 @export var ranged_max_tiles := 8.0
 @export var ranged_spawn_beyond_body := 0.75
+@export var ranged_charge_max_scale := 1.25
 @export var world_units_per_tile := 3.0
 ## Thrown bomb: Tab cycles weapons (see project input map; Space is dodge).
 @export var bomb_damage := 30
-@export var bomb_cooldown := 0.85
+@export var bomb_cooldown := 2.0
 @export var bomb_landing_distance := 14.0
 @export var bomb_aoe_radius := 5.0
 @export var bomb_flight_time := 0.48
@@ -123,6 +131,20 @@ var weapon_mode: WeaponMode = WeaponMode.SWORD
 var _ranged_cooldown_remaining := 0.0
 var _bomb_cooldown_remaining := 0.0
 var _rmb_down := false
+var _lmb_down := false
+const _MELEE_CHARGE_SRC_NONE := 0
+const _MELEE_CHARGE_SRC_MELEE_ACTION := 1
+const _MELEE_CHARGE_SRC_MOUSE_PRIMARY := 2
+var _melee_charging := false
+var _melee_charge_pre_hold_time := 0.0
+var _melee_charge_past_commit_delay := false
+var _melee_charge_time := 0.0
+var _melee_charge_input_source := _MELEE_CHARGE_SRC_NONE
+var _ranged_charging := false
+var _ranged_charge_pre_hold_time := 0.0
+var _ranged_charge_past_commit_delay := false
+var _ranged_charge_time := 0.0
+var _ranged_charge_input_source := _MELEE_CHARGE_SRC_NONE
 ## Right-click attacks: face mouse this frame, resolve attack next physics frame.
 var _pending_rmb_kind: StringName = &""
 var _pending_rmb_facing := Vector2(0.0, -1.0)
@@ -136,6 +158,7 @@ var _local_prev_dodge_down := false
 var _server_last_input_sequence := -1
 var _server_input_move_active := false
 var _server_input_target_world := Vector2.ZERO
+var _server_input_aim_planar := Vector2.ZERO
 var _server_input_dodge_down := false
 var _server_prev_dodge_down := false
 var _server_input_defend_down := false
@@ -391,8 +414,10 @@ func set_menu_input_blocked(blocked: bool) -> void:
 		_set_defending_state(false)
 		velocity = Vector2.ZERO
 		_rmb_down = true
+		_lmb_down = true
 	else:
 		_rmb_down = Input.is_mouse_button_pressed(MOUSE_BUTTON_RIGHT)
+		_lmb_down = Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT)
 
 
 func request_equip_item(item_id: StringName) -> void:
@@ -814,6 +839,7 @@ func _set_downed_state(next_downed: bool, emit_hit_signal: bool = false) -> void
 		_invuln_time_remaining = 0.0
 		_attack_hitbox_visual_time_remaining = 0.0
 		_rmb_down = false
+		_lmb_down = false
 		_clear_pending_rmb_attack()
 	else:
 		_invuln_time_remaining = 0.0
@@ -982,7 +1008,8 @@ func _rpc_submit_movement_input(
 	move_active: bool,
 	target_world: Vector2,
 	dodge_down: bool,
-	defend_down: bool
+	defend_down: bool,
+	aim_planar: Vector2 = Vector2.ZERO,
 ) -> void:
 	if not _is_server_peer():
 		return
@@ -995,6 +1022,7 @@ func _rpc_submit_movement_input(
 	_server_last_input_sequence = sequence
 	_server_input_move_active = move_active
 	_server_input_target_world = target_world
+	_server_input_aim_planar = aim_planar
 	_server_input_dodge_down = dodge_down
 	_server_input_defend_down = defend_down
 
@@ -1110,22 +1138,31 @@ func _apply_local_reconciliation(_delta: float) -> void:
 		var target_world: Vector2 = (
 			target_world_variant if target_world_variant is Vector2 else global_position
 		)
+		var aim_v: Variant = command.get("aim_planar", Vector2.ZERO)
+		var aim_planar: Vector2 = aim_v as Vector2 if aim_v is Vector2 else Vector2.ZERO
 		var dodge_pressed := bool(command.get("dodge_pressed", false))
 		var defend_down := bool(command.get("defend_down", false))
 		var command_delta := float(command.get("delta", 1.0 / maxf(1.0, float(Engine.physics_ticks_per_second))))
-		_apply_movement_step(command_delta, move_active, target_world, dodge_pressed, defend_down)
+		_apply_movement_step(command_delta, move_active, target_world, dodge_pressed, defend_down, aim_planar)
 	_reconcile_has_target = false
 
 
 func _apply_movement_step(
-	delta: float, move_active: bool, target_world: Vector2, dodge_pressed: bool, defend_down: bool
+	delta: float,
+	move_active: bool,
+	target_world: Vector2,
+	dodge_pressed: bool,
+	defend_down: bool,
+	aim_planar: Vector2 = Vector2.ZERO,
 ) -> float:
 	var direction := Vector2.ZERO
 	if move_active:
 		var to_target := target_world - global_position
 		if to_target.length_squared() > 0.01:
 			direction = to_target.normalized()
-	_update_facing_planar(direction, false)
+	_update_facing_planar(
+		direction, false, _resolve_facing_aim_for_move_step(aim_planar, direction, defend_down)
+	)
 	var wants_defending: bool = defend_down and _can_defend_in_current_mode() and _dodge_time_remaining <= 0.0
 	_set_defending_state(wants_defending)
 	_dodge_cooldown_remaining = maxf(0.0, _dodge_cooldown_remaining - delta)
@@ -1157,22 +1194,28 @@ func _apply_movement_step(
 func _server_authoritative_step(delta: float) -> void:
 	var move_active := false
 	var target_world := global_position
+	var aim_planar := Vector2.ZERO
 	var dodge_down := false
 	var defend_down := false
 	if _is_local_owner_peer() and not _menu_input_blocked:
-		move_active = _mouse_steering_active()
-		target_world = _mouse_planar_world()
+		var intent := _local_move_steering_intent()
+		move_active = bool(intent.get("move_active", false))
+		var tw: Variant = intent.get("target_world", global_position)
+		target_world = tw as Vector2 if tw is Vector2 else global_position
+		var av: Variant = intent.get("aim_planar", Vector2.ZERO)
+		aim_planar = av as Vector2 if av is Vector2 else Vector2.ZERO
 		dodge_down = Input.is_action_pressed(&"dodge")
 		defend_down = Input.is_action_pressed(&"defend")
 		_server_last_input_sequence += 1
 	elif _server_has_received_input:
 		move_active = _server_input_move_active
 		target_world = _server_input_target_world
+		aim_planar = _server_input_aim_planar
 		dodge_down = _server_input_dodge_down
 		defend_down = _server_input_defend_down
 	var dodge_pressed := dodge_down and not _server_prev_dodge_down
 	_server_prev_dodge_down = dodge_down
-	_apply_movement_step(delta, move_active, target_world, dodge_pressed, defend_down)
+	_apply_movement_step(delta, move_active, target_world, dodge_pressed, defend_down, aim_planar)
 	_tick_stamina_regen(delta)
 	_broadcast_server_state(delta)
 
@@ -1180,11 +1223,16 @@ func _server_authoritative_step(delta: float) -> void:
 func _client_predicted_step(delta: float) -> void:
 	var move_active := false
 	var target_world := global_position
+	var aim_planar := Vector2.ZERO
 	var dodge_down := false
 	var defend_down := false
 	if not _menu_input_blocked:
-		move_active = _mouse_steering_active()
-		target_world = _mouse_planar_world()
+		var intent := _local_move_steering_intent()
+		move_active = bool(intent.get("move_active", false))
+		var tw: Variant = intent.get("target_world", global_position)
+		target_world = tw as Vector2 if tw is Vector2 else global_position
+		var av: Variant = intent.get("aim_planar", Vector2.ZERO)
+		aim_planar = av as Vector2 if av is Vector2 else Vector2.ZERO
 		dodge_down = Input.is_action_pressed(&"dodge")
 		defend_down = Input.is_action_pressed(&"defend")
 	var dodge_pressed := dodge_down and not _local_prev_dodge_down
@@ -1195,14 +1243,15 @@ func _client_predicted_step(delta: float) -> void:
 		"seq": sequence,
 		"move_active": move_active,
 		"target_world": target_world,
+		"aim_planar": aim_planar,
 		"dodge_down": dodge_down,
 		"defend_down": defend_down,
 		"dodge_pressed": dodge_pressed,
 		"delta": delta,
 	}
 	_pending_input_commands.append(command)
-	_apply_movement_step(delta, move_active, target_world, dodge_pressed, defend_down)
-	_rpc_submit_movement_input.rpc(sequence, move_active, target_world, dodge_down, defend_down)
+	_apply_movement_step(delta, move_active, target_world, dodge_pressed, defend_down, aim_planar)
+	_rpc_submit_movement_input.rpc(sequence, move_active, target_world, dodge_down, defend_down, aim_planar)
 	_apply_local_reconciliation(delta)
 
 
@@ -1303,7 +1352,8 @@ func _spawn_player_ranged_arrow(
 	authoritative_damage: bool,
 	apply_cooldown: bool,
 	projectile_event_id: int = -1,
-	projectile_style_id: StringName = LoadoutConstants.PROJECTILE_STYLE_RED
+	projectile_style_id: StringName = LoadoutConstants.PROJECTILE_STYLE_RED,
+	charge_size_mult: float = 1.0
 ) -> bool:
 	var parent := get_parent()
 	if parent == null:
@@ -1328,7 +1378,8 @@ func _spawn_player_ranged_arrow(
 		vw,
 		true,
 		projectile_style_id,
-		projectile_event_id
+		projectile_event_id,
+		charge_size_mult
 	)
 	parent.add_child(arrow)
 	if authoritative_damage and _is_server_peer() and projectile_event_id > 0 and arrow.has_signal(&"projectile_finished"):
@@ -1378,7 +1429,9 @@ func _spawn_player_bomb(
 	return true
 
 
-func _try_execute_server_melee_attack(requested_facing: Vector2) -> bool:
+func _try_execute_server_melee_attack(
+	requested_facing: Vector2, charge_ratio: float = 1.0, apply_charge_scaling: bool = true
+) -> bool:
 	if not _is_server_peer() or _is_dead:
 		return false
 	if _is_defending:
@@ -1387,6 +1440,9 @@ func _try_execute_server_melee_attack(requested_facing: Vector2) -> bool:
 		return false
 	if _melee_attack_cooldown_remaining > 0.0:
 		return false
+	var cr := clampf(charge_ratio, 0.0, 1.0)
+	if apply_charge_scaling and cr < melee_charge_min_ratio:
+		return false
 	var resolved_facing := requested_facing
 	if resolved_facing.length_squared() > 1e-6:
 		_facing_planar = resolved_facing.normalized()
@@ -1394,7 +1450,7 @@ func _try_execute_server_melee_attack(requested_facing: Vector2) -> bool:
 	_play_melee_attack_presentation()
 	_server_melee_hit_event_sequence += 1
 	var hit_event_id := _server_melee_hit_event_sequence
-	var hit_count := _squash_mobs_in_melee_hit(hit_event_id)
+	var hit_count := _squash_mobs_in_melee_hit(hit_event_id, cr, apply_charge_scaling)
 	_melee_attack_cooldown_remaining = melee_attack_cooldown
 	_server_melee_event_sequence += 1
 	var event_sequence := _server_melee_event_sequence
@@ -1413,7 +1469,17 @@ func _try_execute_server_melee_attack(requested_facing: Vector2) -> bool:
 	return true
 
 
-func _try_execute_server_ranged_attack(requested_facing: Vector2) -> bool:
+func _ranged_projectile_charge_size_mult(
+	charge_ratio: float, apply_charge_scaling: bool
+) -> float:
+	if not apply_charge_scaling:
+		return 1.0
+	return lerpf(1.0, ranged_charge_max_scale, clampf(charge_ratio, 0.0, 1.0))
+
+
+func _try_execute_server_ranged_attack(
+	requested_facing: Vector2, charge_ratio: float = 1.0, apply_charge_scaling: bool = true
+) -> bool:
 	if not _is_server_peer() or _is_dead:
 		return false
 	if _is_defending:
@@ -1422,16 +1488,20 @@ func _try_execute_server_ranged_attack(requested_facing: Vector2) -> bool:
 		return false
 	if _ranged_cooldown_remaining > 0.0:
 		return false
+	var cr := clampf(charge_ratio, 0.0, 1.0)
+	if apply_charge_scaling and cr < melee_charge_min_ratio:
+		return false
 	var resolved_facing := _normalized_attack_facing(requested_facing)
 	_facing_planar = resolved_facing
 	_start_facing_lock(_facing_planar)
 	_play_attack_animation_presentation(&"ranged")
 	var spawn := _compute_ranged_spawn(_facing_planar)
+	var sz := _ranged_projectile_charge_size_mult(cr, apply_charge_scaling)
 	_server_ranged_event_sequence += 1
 	var event_sequence := _server_ranged_event_sequence
 	var projectile_style_id := _equipped_handgun_projectile_style()
 	if not _spawn_player_ranged_arrow(
-		spawn, _facing_planar, true, true, event_sequence, projectile_style_id
+		spawn, _facing_planar, true, true, event_sequence, projectile_style_id, sz
 	):
 		return false
 	_last_applied_ranged_event_sequence = max(_last_applied_ranged_event_sequence, event_sequence)
@@ -1440,7 +1510,9 @@ func _try_execute_server_ranged_attack(requested_facing: Vector2) -> bool:
 			event_sequence,
 			spawn,
 			_facing_planar,
-			String(projectile_style_id)
+			String(projectile_style_id),
+			cr,
+			apply_charge_scaling
 		)
 	if OS.is_debug_build():
 		print(
@@ -1497,7 +1569,12 @@ func _try_execute_server_bomb_attack(requested_facing: Vector2) -> bool:
 	return true
 
 
-func _submit_local_melee_attack_request() -> void:
+func _submit_local_melee_attack_request(
+	charge_ratio: float = 1.0, apply_charge_scaling: bool = true
+) -> void:
+	var cr := clampf(charge_ratio, 0.0, 1.0)
+	if apply_charge_scaling and cr < melee_charge_min_ratio:
+		return
 	if (
 		weapon_mode != WeaponMode.SWORD
 		or not _has_equipped_sword()
@@ -1506,16 +1583,23 @@ func _submit_local_melee_attack_request() -> void:
 	):
 		return
 	if _is_server_peer():
-		_try_execute_server_melee_attack(_facing_planar)
+		_try_execute_server_melee_attack(_facing_planar, cr, apply_charge_scaling)
 		return
 	_local_melee_request_sequence += 1
 	_start_facing_lock(_facing_planar)
-	_rpc_request_melee_attack.rpc_id(1, _local_melee_request_sequence, _facing_planar)
+	_rpc_request_melee_attack.rpc_id(
+		1, _local_melee_request_sequence, _facing_planar, cr, apply_charge_scaling
+	)
 	# Client-side throttle while awaiting authoritative result.
 	_melee_attack_cooldown_remaining = melee_attack_cooldown
 
 
-func _submit_local_ranged_attack_request() -> void:
+func _submit_local_ranged_attack_request(
+	charge_ratio: float = 1.0, apply_charge_scaling: bool = true
+) -> void:
+	var cr := clampf(charge_ratio, 0.0, 1.0)
+	if apply_charge_scaling and cr < melee_charge_min_ratio:
+		return
 	if (
 		weapon_mode != WeaponMode.GUN
 		or not _has_equipped_handgun()
@@ -1524,11 +1608,13 @@ func _submit_local_ranged_attack_request() -> void:
 	):
 		return
 	if _is_server_peer():
-		_try_execute_server_ranged_attack(_facing_planar)
+		_try_execute_server_ranged_attack(_facing_planar, cr, apply_charge_scaling)
 		return
 	_local_ranged_request_sequence += 1
 	_start_facing_lock(_facing_planar)
-	_rpc_request_ranged_attack.rpc_id(1, _local_ranged_request_sequence, _facing_planar)
+	_rpc_request_ranged_attack.rpc_id(
+		1, _local_ranged_request_sequence, _facing_planar, cr, apply_charge_scaling
+	)
 	_ranged_cooldown_remaining = ranged_cooldown
 
 
@@ -1558,11 +1644,13 @@ func _submit_local_weapon_switch_request() -> void:
 	_rpc_request_cycle_weapon.rpc_id(1, _local_weapon_switch_request_sequence)
 
 
-func _handle_local_multiplayer_combat_input() -> void:
+func _handle_local_multiplayer_combat_input(delta: float) -> void:
 	if not _is_local_owner_peer() or _is_dead:
 		return
+	var use_wasd := GameSettings.is_wasd_mouse_scheme()
 	if _menu_input_blocked:
 		_rmb_down = Input.is_mouse_button_pressed(MOUSE_BUTTON_RIGHT)
+		_lmb_down = Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT)
 		_clear_pending_rmb_attack()
 		return
 	var defend_down := Input.is_action_pressed(&"defend") and _can_defend_in_current_mode()
@@ -1573,19 +1661,8 @@ func _handle_local_multiplayer_combat_input() -> void:
 		_clear_pending_rmb_attack()
 		_face_toward_mouse_planar()
 		_submit_local_bomb_attack_request()
-	if not defend_down and weapon_mode == WeaponMode.SWORD and Input.is_action_just_pressed(&"melee_attack"):
-		_submit_local_melee_attack_request()
-	var rmb := Input.is_mouse_button_pressed(MOUSE_BUTTON_RIGHT)
-	var rmb_click := rmb and not _rmb_down
-	_rmb_down = rmb
 	var ui_blocks_attack := get_viewport().gui_get_hovered_control() != null
-	if not defend_down and rmb_click and not ui_blocks_attack:
-		_face_toward_mouse_planar()
-		match weapon_mode:
-			WeaponMode.GUN:
-				_submit_local_ranged_attack_request()
-			_:
-				_submit_local_melee_attack_request()
+	_process_local_melee_charge_input(delta, use_wasd, ui_blocks_attack, defend_down, true)
 
 
 @rpc("any_peer", "call_remote", "reliable")
@@ -1602,7 +1679,12 @@ func _rpc_request_cycle_weapon(request_sequence: int) -> void:
 
 
 @rpc("any_peer", "call_remote", "reliable")
-func _rpc_request_melee_attack(request_sequence: int, facing_planar: Vector2) -> void:
+func _rpc_request_melee_attack(
+	request_sequence: int,
+	facing_planar: Vector2,
+	charge_ratio: float = 1.0,
+	apply_charge_scaling: bool = true
+) -> void:
 	if not _is_server_peer():
 		return
 	var sender_peer := multiplayer.get_remote_sender_id()
@@ -1610,12 +1692,20 @@ func _rpc_request_melee_attack(request_sequence: int, facing_planar: Vector2) ->
 		return
 	if request_sequence <= _server_last_melee_request_sequence:
 		return
+	var cr := clampf(charge_ratio, 0.0, 1.0)
+	if apply_charge_scaling and cr < melee_charge_min_ratio:
+		return
 	_server_last_melee_request_sequence = request_sequence
-	_try_execute_server_melee_attack(facing_planar)
+	_try_execute_server_melee_attack(facing_planar, cr, apply_charge_scaling)
 
 
 @rpc("any_peer", "call_remote", "reliable")
-func _rpc_request_ranged_attack(request_sequence: int, facing_planar: Vector2) -> void:
+func _rpc_request_ranged_attack(
+	request_sequence: int,
+	facing_planar: Vector2,
+	charge_ratio: float = 1.0,
+	apply_charge_scaling: bool = true
+) -> void:
 	if not _is_server_peer():
 		return
 	var sender_peer := multiplayer.get_remote_sender_id()
@@ -1623,8 +1713,11 @@ func _rpc_request_ranged_attack(request_sequence: int, facing_planar: Vector2) -
 		return
 	if request_sequence <= _server_last_ranged_request_sequence:
 		return
+	var cr := clampf(charge_ratio, 0.0, 1.0)
+	if apply_charge_scaling and cr < melee_charge_min_ratio:
+		return
 	_server_last_ranged_request_sequence = request_sequence
-	_try_execute_server_ranged_attack(facing_planar)
+	_try_execute_server_ranged_attack(facing_planar, cr, apply_charge_scaling)
 
 
 @rpc("any_peer", "call_remote", "reliable")
@@ -1694,7 +1787,12 @@ func _rpc_receive_melee_attack_event(
 
 @rpc("any_peer", "call_remote", "reliable")
 func _rpc_receive_ranged_attack_event(
-	event_sequence: int, spawn_position: Vector2, facing_planar: Vector2, projectile_style_id: String
+	event_sequence: int,
+	spawn_position: Vector2,
+	facing_planar: Vector2,
+	projectile_style_id: String,
+	charge_ratio: float = 1.0,
+	apply_charge_scaling: bool = false
 ) -> void:
 	if _is_server_peer():
 		return
@@ -1707,13 +1805,16 @@ func _rpc_receive_ranged_attack_event(
 	_facing_planar = dir
 	_start_facing_lock(_facing_planar)
 	_play_attack_animation_presentation(&"ranged")
+	var cr := clampf(charge_ratio, 0.0, 1.0)
+	var sz := _ranged_projectile_charge_size_mult(cr, apply_charge_scaling)
 	_spawn_player_ranged_arrow(
 		spawn_position,
 		dir,
 		false,
 		false,
 		event_sequence,
-		StringName(projectile_style_id)
+		StringName(projectile_style_id),
+		sz
 	)
 	_ranged_cooldown_remaining = maxf(_ranged_cooldown_remaining, ranged_cooldown)
 	if OS.is_debug_build():
@@ -1809,7 +1910,7 @@ func _rpc_receive_loadout_request_failed(message: String) -> void:
 
 func _physics_process_multiplayer(delta: float) -> void:
 	_run_shared_cooldown_and_debug_tick(delta)
-	_handle_local_multiplayer_combat_input()
+	_handle_local_multiplayer_combat_input(delta)
 	if _is_dead:
 		if _is_server_peer():
 			_broadcast_server_state(delta)
@@ -1968,6 +2069,273 @@ func _face_toward_mouse_planar() -> void:
 
 func _clear_pending_rmb_attack() -> void:
 	_pending_rmb_kind = &""
+	_cancel_melee_charge()
+	_cancel_ranged_charge()
+
+
+func _clear_melee_attack_hold_state() -> void:
+	_melee_charging = false
+	_melee_charge_pre_hold_time = 0.0
+	_melee_charge_past_commit_delay = false
+	_melee_charge_time = 0.0
+	_melee_charge_input_source = _MELEE_CHARGE_SRC_NONE
+	_update_melee_charge_bar_visual(-1.0)
+
+
+func _clear_ranged_attack_hold_state() -> void:
+	_ranged_charging = false
+	_ranged_charge_pre_hold_time = 0.0
+	_ranged_charge_past_commit_delay = false
+	_ranged_charge_time = 0.0
+	_ranged_charge_input_source = _MELEE_CHARGE_SRC_NONE
+	_update_melee_charge_bar_visual(-1.0)
+
+
+func _cancel_melee_charge() -> void:
+	if not _melee_charging:
+		return
+	_clear_melee_attack_hold_state()
+
+
+func _cancel_ranged_charge() -> void:
+	if not _ranged_charging:
+		return
+	_clear_ranged_attack_hold_state()
+
+
+func _update_melee_charge_bar_visual(charge_ratio: float) -> void:
+	if _visual == null or not is_instance_valid(_visual):
+		return
+	if not _visual.has_method(&"set_melee_charge_progress"):
+		return
+	_visual.call(&"set_melee_charge_progress", charge_ratio)
+
+
+func _melee_damage_for_charge_ratio(charge_ratio: float) -> int:
+	var cr := clampf(charge_ratio, 0.0, 1.0)
+	var m := lerpf(melee_charge_damage_min_mult, melee_charge_damage_max_mult, cr)
+	return maxi(1, int(roundf(float(melee_attack_damage) * m)))
+
+
+func _melee_knockback_for_charge_ratio(charge_ratio: float) -> float:
+	var cr := clampf(charge_ratio, 0.0, 1.0)
+	return melee_knockback_strength * lerpf(
+		melee_charge_knockback_min_mult, melee_charge_knockback_max_mult, cr
+	)
+
+
+func _charge_hold_release_detected(
+	input_source: int,
+	use_wasd: bool,
+	lmb_was: bool,
+	rmb_was: bool,
+	lmb_cur: bool,
+	rmb_cur: bool
+) -> bool:
+	match input_source:
+		_MELEE_CHARGE_SRC_MELEE_ACTION:
+			return Input.is_action_just_released(&"melee_attack")
+		_:
+			if use_wasd:
+				return lmb_was and not lmb_cur
+			return rmb_was and not rmb_cur
+
+
+func _process_local_melee_charge_input(
+	delta: float,
+	use_wasd: bool,
+	ui_blocks_attack: bool,
+	defend_down: bool,
+	input_allowed: bool
+) -> void:
+	var lmb_was := _lmb_down
+	var rmb_was := _rmb_down
+	var lmb_cur := Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT) if input_allowed else false
+	var rmb_cur := Input.is_mouse_button_pressed(MOUSE_BUTTON_RIGHT) if input_allowed else false
+
+	if not input_allowed:
+		_cancel_melee_charge()
+		_cancel_ranged_charge()
+		_lmb_down = lmb_cur
+		_rmb_down = rmb_cur
+		return
+
+	if defend_down or ui_blocks_attack:
+		_cancel_melee_charge()
+		_cancel_ranged_charge()
+
+	if (
+		weapon_mode == WeaponMode.SWORD
+		and _has_equipped_sword()
+		and _melee_attack_cooldown_remaining <= 0.0
+		and not defend_down
+		and not ui_blocks_attack
+		and not _is_defending
+	):
+		if _melee_charging:
+			_face_toward_mouse_planar()
+			if not _melee_charge_past_commit_delay:
+				_melee_charge_pre_hold_time += delta
+				if _melee_charge_pre_hold_time >= melee_charge_commit_delay:
+					_melee_charge_past_commit_delay = true
+					_melee_charge_time = 0.0
+					_update_melee_charge_bar_visual(0.0)
+				elif _charge_hold_release_detected(
+					_melee_charge_input_source, use_wasd, lmb_was, rmb_was, lmb_cur, rmb_cur
+				):
+					_commit_melee_strike(0.0, false, false)
+
+			if _melee_charge_past_commit_delay:
+				_melee_charge_time += delta
+				var r := minf(1.0, _melee_charge_time / maxf(0.05, melee_charge_max_time))
+				_update_melee_charge_bar_visual(r)
+				if r >= 1.0:
+					_commit_melee_strike(1.0, true, false)
+				elif _charge_hold_release_detected(
+					_melee_charge_input_source, use_wasd, lmb_was, rmb_was, lmb_cur, rmb_cur
+				):
+					if r >= melee_charge_min_ratio:
+						_commit_melee_strike(r, true, true)
+					else:
+						_cancel_melee_charge()
+		else:
+			var want_start := Input.is_action_just_pressed(&"melee_attack")
+			if use_wasd:
+				want_start = want_start or (lmb_cur and not lmb_was)
+			else:
+				want_start = want_start or (rmb_cur and not rmb_was)
+			if want_start:
+				_cancel_ranged_charge()
+				_melee_charging = true
+				_melee_charge_time = 0.0
+				if Input.is_action_just_pressed(&"melee_attack"):
+					_melee_charge_input_source = _MELEE_CHARGE_SRC_MELEE_ACTION
+					_melee_charge_pre_hold_time = melee_charge_commit_delay
+					_melee_charge_past_commit_delay = true
+					_update_melee_charge_bar_visual(0.0)
+				else:
+					_melee_charge_input_source = _MELEE_CHARGE_SRC_MOUSE_PRIMARY
+					_melee_charge_pre_hold_time = 0.0
+					_melee_charge_past_commit_delay = false
+				_face_toward_mouse_planar()
+
+	elif (
+		weapon_mode == WeaponMode.GUN
+		and _has_equipped_handgun()
+		and _ranged_cooldown_remaining <= 0.0
+		and not defend_down
+		and not ui_blocks_attack
+		and not _is_defending
+	):
+		if _ranged_charging:
+			_face_toward_mouse_planar()
+			if not _ranged_charge_past_commit_delay:
+				_ranged_charge_pre_hold_time += delta
+				if _ranged_charge_pre_hold_time >= melee_charge_commit_delay:
+					_ranged_charge_past_commit_delay = true
+					_ranged_charge_time = 0.0
+					_update_melee_charge_bar_visual(0.0)
+				elif _charge_hold_release_detected(
+					_ranged_charge_input_source, use_wasd, lmb_was, rmb_was, lmb_cur, rmb_cur
+				):
+					_commit_ranged_strike(0.0, false, false)
+
+			if _ranged_charge_past_commit_delay:
+				_ranged_charge_time += delta
+				var r_r := minf(1.0, _ranged_charge_time / maxf(0.05, melee_charge_max_time))
+				_update_melee_charge_bar_visual(r_r)
+				if r_r >= 1.0:
+					_commit_ranged_strike(1.0, true, false)
+				elif _charge_hold_release_detected(
+					_ranged_charge_input_source, use_wasd, lmb_was, rmb_was, lmb_cur, rmb_cur
+				):
+					if r_r >= melee_charge_min_ratio:
+						_commit_ranged_strike(r_r, true, true)
+					else:
+						_cancel_ranged_charge()
+		else:
+			var want_ranged := Input.is_action_just_pressed(&"melee_attack")
+			if use_wasd:
+				want_ranged = want_ranged or (lmb_cur and not lmb_was)
+			else:
+				want_ranged = want_ranged or (rmb_cur and not rmb_was)
+			if want_ranged:
+				_cancel_melee_charge()
+				_ranged_charging = true
+				_ranged_charge_time = 0.0
+				if Input.is_action_just_pressed(&"melee_attack"):
+					_ranged_charge_input_source = _MELEE_CHARGE_SRC_MELEE_ACTION
+					_ranged_charge_pre_hold_time = melee_charge_commit_delay
+					_ranged_charge_past_commit_delay = true
+					_update_melee_charge_bar_visual(0.0)
+				else:
+					_ranged_charge_input_source = _MELEE_CHARGE_SRC_MOUSE_PRIMARY
+					_ranged_charge_pre_hold_time = 0.0
+					_ranged_charge_past_commit_delay = false
+				_face_toward_mouse_planar()
+
+	_lmb_down = lmb_cur
+	_rmb_down = rmb_cur
+
+
+func _commit_melee_strike(
+	charge_ratio: float, apply_charge_scaling: bool, enforce_min_ratio: bool
+) -> void:
+	if not _melee_charging:
+		return
+	var cr := clampf(charge_ratio, 0.0, 1.0)
+	_clear_melee_attack_hold_state()
+	if apply_charge_scaling and enforce_min_ratio and cr < melee_charge_min_ratio:
+		return
+	if _multiplayer_active():
+		if _is_server_peer():
+			_try_execute_server_melee_attack(_facing_planar, cr, apply_charge_scaling)
+		else:
+			_submit_local_melee_attack_request(cr, apply_charge_scaling)
+	else:
+		_execute_local_melee_strike(cr, apply_charge_scaling)
+
+
+func _execute_local_melee_strike(charge_ratio: float, apply_charge_scaling: bool = true) -> void:
+	_start_facing_lock(_facing_planar)
+	_play_melee_attack_presentation()
+	_squash_mobs_in_melee_hit(-1, charge_ratio, apply_charge_scaling)
+	_melee_attack_cooldown_remaining = melee_attack_cooldown
+
+
+func _commit_ranged_strike(
+	charge_ratio: float, apply_charge_scaling: bool, enforce_min_ratio: bool
+) -> void:
+	if not _ranged_charging:
+		return
+	var cr := clampf(charge_ratio, 0.0, 1.0)
+	_clear_ranged_attack_hold_state()
+	if apply_charge_scaling and enforce_min_ratio and cr < melee_charge_min_ratio:
+		return
+	if _multiplayer_active():
+		if _is_server_peer():
+			_try_execute_server_ranged_attack(_facing_planar, cr, apply_charge_scaling)
+		else:
+			_submit_local_ranged_attack_request(cr, apply_charge_scaling)
+	else:
+		_execute_local_ranged_strike(cr, apply_charge_scaling)
+
+
+func _execute_local_ranged_strike(charge_ratio: float, apply_charge_scaling: bool = true) -> void:
+	_start_facing_lock(_facing_planar)
+	_play_attack_animation_presentation(&"ranged")
+	var spawn := _compute_ranged_spawn(_facing_planar)
+	var sz := _ranged_projectile_charge_size_mult(charge_ratio, apply_charge_scaling)
+	_spawn_player_ranged_arrow(
+		spawn,
+		_facing_planar,
+		true,
+		true,
+		-1,
+		_equipped_handgun_projectile_style(),
+		sz
+	)
+	_ranged_cooldown_remaining = ranged_cooldown
 
 
 func _queue_rmb_attack_after_facing_mouse() -> void:
@@ -1975,8 +2343,6 @@ func _queue_rmb_attack_after_facing_mouse() -> void:
 	_pending_rmb_facing = _facing_planar
 	if weapon_mode == WeaponMode.GUN and _has_equipped_handgun() and _ranged_cooldown_remaining <= 0.0:
 		_pending_rmb_kind = &"gun"
-	elif weapon_mode == WeaponMode.SWORD and _has_equipped_sword() and _melee_attack_cooldown_remaining <= 0.0:
-		_pending_rmb_kind = &"melee"
 
 
 func _execute_pending_rmb_attack_if_any() -> void:
@@ -1993,17 +2359,6 @@ func _execute_pending_rmb_attack_if_any() -> void:
 			return
 		_play_attack_animation_presentation(&"ranged")
 		_try_fire_ranged_arrow()
-	elif kind == &"melee":
-		if weapon_mode != WeaponMode.SWORD or not _has_equipped_sword() or _melee_attack_cooldown_remaining > 0.0:
-			return
-		_play_attack_animation_presentation(&"melee")
-		_start_facing_lock(_facing_planar)
-		_squash_mobs_in_melee_hit()
-		_melee_attack_cooldown_remaining = melee_attack_cooldown
-		_attack_hitbox_visual_time_remaining = maxf(
-			_attack_hitbox_visual_time_remaining,
-			attack_hitbox_visual_duration
-		)
 
 
 func _try_throw_bomb() -> bool:
@@ -2104,9 +2459,78 @@ func _mouse_planar_world() -> Vector2:
 	return Vector2(hit_pos.x, hit_pos.z)
 
 
-func _update_facing_planar(direction: Vector2, allow_mouse_fallback: bool = true) -> void:
+const _MOVE_STEER_HINT_DISTANCE := 512.0
+
+
+func _wasd_move_facing_aim(aim_planar: Vector2, move_direction: Vector2) -> Vector2:
+	if GameSettings.is_wasd_mouse_scheme() and move_direction.length_squared() > 1e-6:
+		return Vector2.ZERO
+	return aim_planar
+
+
+func _mouse_aim_direction_planar() -> Vector2:
+	var t := _mouse_planar_world() - global_position
+	if t.length_squared() > 0.0001:
+		return t.normalized()
+	return Vector2.ZERO
+
+
+func _wants_mouse_facing_while_blocking_or_attacking(defend_down: bool) -> bool:
+	var blocking := (
+		defend_down and _can_defend_in_current_mode() and _dodge_time_remaining <= 0.0
+	)
+	var attacking := (
+		_melee_charging
+		or _ranged_charging
+		or _attack_hitbox_visual_time_remaining > 0.0
+	)
+	return blocking or attacking
+
+
+func _resolve_facing_aim_for_move_step(
+	aim_planar: Vector2, move_direction: Vector2, defend_down: bool
+) -> Vector2:
+	if _wants_mouse_facing_while_blocking_or_attacking(defend_down):
+		if (not _multiplayer_active()) or _is_local_owner_peer():
+			var m := _mouse_aim_direction_planar()
+			if m.length_squared() > 1e-6:
+				return m
+		if aim_planar.length_squared() > 1e-6:
+			return aim_planar
+		return Vector2.ZERO
+	return _wasd_move_facing_aim(aim_planar, move_direction)
+
+
+func _local_move_steering_intent() -> Dictionary:
+	if GameSettings.is_wasd_mouse_scheme():
+		var v_raw := Input.get_vector(&"move_left", &"move_right", &"move_up", &"move_down", 0.2)
+		# Planar = world XZ; map get_vector (screen-style axes) into walk space (both axes flipped here).
+		var v := Vector2(-v_raw.x, -v_raw.y)
+		var move_active := v.length_squared() > 0.0001
+		var target_world := (
+			global_position + v.normalized() * _MOVE_STEER_HINT_DISTANCE
+			if move_active
+			else global_position
+		)
+		var aim := _mouse_planar_world() - global_position
+		var aim_planar := aim.normalized() if aim.length_squared() > 0.0001 else Vector2.ZERO
+		return {"move_active": move_active, "target_world": target_world, "aim_planar": aim_planar}
+	return {
+		"move_active": _mouse_steering_active(),
+		"target_world": _mouse_planar_world(),
+		"aim_planar": Vector2.ZERO,
+	}
+
+
+func _update_facing_planar(
+	direction: Vector2, allow_mouse_fallback: bool = true, aim_planar: Vector2 = Vector2.ZERO
+) -> void:
 	if _is_facing_locked():
 		_facing_planar = _facing_lock_planar
+		_sync_melee_hitbox_geometry()
+		return
+	if aim_planar.length_squared() > 1e-4:
+		_facing_planar = aim_planar.normalized()
 		_sync_melee_hitbox_geometry()
 		return
 	var f := direction
@@ -2162,7 +2586,15 @@ func _melee_hit_overlaps_mob(mob: CharacterBody2D) -> bool:
 	return _planar_point_in_melee_hit(mob.global_position)
 
 
-func _squash_mobs_in_melee_hit(hit_event_id: int = -1) -> int:
+func _squash_mobs_in_melee_hit(
+	hit_event_id: int = -1, charge_ratio: float = 1.0, apply_charge_scaling: bool = true
+) -> int:
+	var cr := clampf(charge_ratio, 0.0, 1.0)
+	var dmg: int = melee_attack_damage
+	var kb: float = melee_knockback_strength
+	if apply_charge_scaling:
+		dmg = _melee_damage_for_charge_ratio(cr)
+		kb = _melee_knockback_for_charge_ratio(cr)
 	var attack_facing := _normalized_attack_facing(_facing_planar)
 	_active_melee_attack_facing = attack_facing
 	if _melee_hitbox != null:
@@ -2170,14 +2602,14 @@ func _squash_mobs_in_melee_hit(hit_event_id: int = -1) -> int:
 		_melee_hitbox.repeat_mode = Hitbox2D.RepeatMode.NONE
 		_melee_hitbox.debug_draw_enabled = show_melee_hit_debug
 		var packet := DamagePacketScript.new() as DamagePacket
-		packet.amount = melee_attack_damage
+		packet.amount = dmg
 		packet.kind = &"melee"
 		packet.source_node = self
 		packet.source_uid = get_instance_id()
 		packet.attack_instance_id = hit_event_id
 		packet.origin = global_position
 		packet.direction = attack_facing
-		packet.knockback = melee_knockback_strength
+		packet.knockback = kb
 		packet.apply_iframes = false
 		packet.blockable = false
 		packet.debug_label = &"player_melee"
@@ -2194,15 +2626,15 @@ func _squash_mobs_in_melee_hit(hit_event_id: int = -1) -> int:
 					mob.call(
 						&"apply_authoritative_hit_event",
 						hit_event_id,
-						melee_attack_damage,
+						dmg,
 						attack_facing,
-						melee_knockback_strength
+						kb
 					)
 				)
 				if applied:
 					hit_count += 1
 			elif mob.has_method(&"take_hit"):
-				mob.call(&"take_hit", melee_attack_damage, attack_facing, melee_knockback_strength)
+				mob.call(&"take_hit", dmg, attack_facing, kb)
 				hit_count += 1
 	return hit_count
 
@@ -2394,9 +2826,11 @@ func _physics_process(delta: float) -> void:
 	_ranged_cooldown_remaining = maxf(0.0, _ranged_cooldown_remaining - delta)
 	_bomb_cooldown_remaining = maxf(0.0, _bomb_cooldown_remaining - delta)
 
+	var use_wasd_sp := GameSettings.is_wasd_mouse_scheme()
 	if _menu_input_blocked:
 		_clear_pending_rmb_attack()
 		_rmb_down = Input.is_mouse_button_pressed(MOUSE_BUTTON_RIGHT)
+		_lmb_down = Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT)
 	elif Input.is_action_just_pressed(&"weapon_switch"):
 		_clear_pending_rmb_attack()
 		_cycle_weapon()
@@ -2414,19 +2848,27 @@ func _physics_process(delta: float) -> void:
 	_set_defending_state(defend_down)
 	_tick_stamina_regen(delta)
 
-	var rmb := Input.is_mouse_button_pressed(MOUSE_BUTTON_RIGHT) if not _menu_input_blocked else false
-	var rmb_click := rmb and not _rmb_down
-	_rmb_down = rmb
 	var ui_blocks_attack := get_viewport().gui_get_hovered_control() != null
+	_process_local_melee_charge_input(
+		delta, use_wasd_sp, ui_blocks_attack, defend_down, not _menu_input_blocked
+	)
 
 	var direction := Vector2.ZERO
-	if not _menu_input_blocked and _mouse_steering_active():
-		var target := _mouse_planar_world()
-		var to_target := target - global_position
-		if to_target.length_squared() > 0.01:
-			direction = to_target.normalized()
+	var aim_planar_sp := Vector2.ZERO
+	if not _menu_input_blocked:
+		var intent := _local_move_steering_intent()
+		if bool(intent.get("move_active", false)):
+			var tw: Variant = intent.get("target_world", global_position)
+			var target_world: Vector2 = tw as Vector2 if tw is Vector2 else global_position
+			var to_target := target_world - global_position
+			if to_target.length_squared() > 0.01:
+				direction = to_target.normalized()
+		var av: Variant = intent.get("aim_planar", Vector2.ZERO)
+		aim_planar_sp = av as Vector2 if av is Vector2 else Vector2.ZERO
 
-	_update_facing_planar(direction)
+	_update_facing_planar(
+		direction, true, _resolve_facing_aim_for_move_step(aim_planar_sp, direction, defend_down)
+	)
 	if not _menu_input_blocked:
 		_execute_pending_rmb_attack_if_any()
 	else:
@@ -2462,28 +2904,11 @@ func _physics_process(delta: float) -> void:
 
 	move_and_slide()
 
-	if rmb_click and not ui_blocks_attack and not _is_defending and not _menu_input_blocked:
-		_queue_rmb_attack_after_facing_mouse()
-
 	if _visual:
 		_visual.global_position = Vector3(global_position.x, height, global_position.y)
 		_visual.rotation.y = atan2(_facing_planar.x, _facing_planar.y)
 		if _visual.has_method(&"set_locomotion_from_planar_speed"):
 			_visual.set_locomotion_from_planar_speed(planar_speed, speed)
-
-	var want_melee := false
-	if weapon_mode == WeaponMode.SWORD and not _menu_input_blocked and _has_equipped_sword():
-		if Input.is_action_just_pressed(&"melee_attack"):
-			want_melee = true
-	if want_melee and _melee_attack_cooldown_remaining <= 0.0 and not _is_defending:
-		_play_attack_animation_presentation(&"melee")
-		_start_facing_lock(_facing_planar)
-		_squash_mobs_in_melee_hit()
-		_melee_attack_cooldown_remaining = melee_attack_cooldown
-		_attack_hitbox_visual_time_remaining = maxf(
-			_attack_hitbox_visual_time_remaining,
-			attack_hitbox_visual_duration
-		)
 
 	_attack_hitbox_visual_time_remaining = maxf(0.0, _attack_hitbox_visual_time_remaining - delta)
 	_refresh_debug_visuals(delta)
@@ -2522,6 +2947,7 @@ func reset_for_retry(world_pos: Vector2) -> void:
 	_dodge_cooldown_remaining = 0.0
 	_facing_lock_time_remaining = 0.0
 	_rmb_down = false
+	_lmb_down = false
 	_bomb_cooldown_remaining = 0.0
 	if _body_shape != null:
 		_body_shape.disabled = false

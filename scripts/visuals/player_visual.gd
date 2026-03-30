@@ -218,6 +218,18 @@ var _defending_hold_active := false
 var _downed_hold_active := false
 var _downed_play_nonce := 0
 
+const CHARGE_BAR_FILL_SHADER := preload("res://shaders/charge_bar_fill.gdshader")
+
+## World Y offset for the shared melee/ranged charge strip (world up).
+const CHARGE_BAR_Y := -3.5
+
+## Horizontal bar on the ground while charging; `set_melee_charge_progress(-1)` hides it.
+var _melee_charge_bar_root: Node3D
+var _melee_charge_fill_mi: MeshInstance3D
+var _melee_charge_fill_shader_mat: ShaderMaterial
+var _melee_charge_border_mi: MeshInstance3D
+var _melee_charge_track_mi: MeshInstance3D
+
 var _sword_root: Node3D
 var _sword_mode_beacon: MeshInstance3D
 var _sword_follow_skeleton: Skeleton3D
@@ -358,6 +370,7 @@ func _process(_delta: float) -> void:
 	_update_melee_smear_projectile_spawn()
 	_update_sword_manual_bone_follow()
 	_update_modular_equipment_bone_follow()
+	_sync_charge_bar_world_pose()
 
 
 func _apply_editor_animation_preview() -> void:
@@ -2025,6 +2038,128 @@ func set_locomotion_from_planar_speed(planar_speed: float, max_speed: float) -> 
 	var moving := planar_speed > 0.05
 	var t := clampf(planar_speed / max(max_speed, 0.001), 0.0, 2.5)
 	_play_locomotion(moving, maxf(t, 0.35) if moving else 1.0)
+
+
+func _sync_charge_bar_world_pose() -> void:
+	if _melee_charge_bar_root == null or not is_instance_valid(_melee_charge_bar_root):
+		return
+	if not _melee_charge_bar_root.visible:
+		return
+	# World-locked orientation so yaw / jump tilt on PlayerVisual does not spin or tip the bar.
+	_melee_charge_bar_root.global_position = global_position + Vector3(0.0, CHARGE_BAR_Y, 0.0)
+	_melee_charge_bar_root.global_rotation = Vector3.ZERO
+
+
+func _ensure_melee_charge_bar() -> void:
+	if _melee_charge_bar_root != null and is_instance_valid(_melee_charge_bar_root):
+		return
+	var root := Node3D.new()
+	root.name = &"MeleeChargeBar"
+	root.visible = false
+	add_child(root)
+	_mark_editor_owned(root)
+	# scenes/ui/health_bar.tscn: Bars 208px wide, HealthFrame 27px tall, Inner 2px inset → 204×23 inner.
+	# REF_INNER_W_WORLD maps health inner width to world meters; full bar aspect × CHARGE_BAR_SIZE_MULT (~4× area vs old 1/3 size).
+	const HEALTH_INNER_W_PX := 204.0
+	const HEALTH_INNER_H_PX := 23.0
+	const HEALTH_OUTER_W_PX := 208.0
+	const HEALTH_OUTER_H_PX := 27.0
+	const REF_INNER_W_WORLD := 0.82
+	const CHARGE_BAR_SIZE_MULT := 1.25
+	var m_per_px := REF_INNER_W_WORLD / HEALTH_INNER_W_PX
+	var OUTER := Vector2(HEALTH_OUTER_W_PX * m_per_px, HEALTH_OUTER_H_PX * m_per_px) * CHARGE_BAR_SIZE_MULT
+	var INNER := Vector2(HEALTH_INNER_W_PX * m_per_px, HEALTH_INNER_H_PX * m_per_px) * CHARGE_BAR_SIZE_MULT
+	# Health-bar-style strip: black frame, dark track, yellow fill L→R. Flat in world XZ (no billboard — billboard breaks scale.x fill).
+	const CHARGE_FRAME := Color(0.0, 0.0, 0.0, 1.0)
+	const CHARGE_TRACK := Color(0.32, 0.22, 0.06, 1.0)
+	const CHARGE_FILL := Color(0.98, 0.84, 0.12, 1.0)
+	const CHARGE_FILL_EMISSION := Color(1.0, 0.88, 0.22)
+	# StandardMaterial3D.render_priority must be <= RenderingServer RENDER_PRIORITY_MAX (127 in 4.6).
+	const CHARGE_BAR_PRI_FRAME := 120
+	const CHARGE_BAR_PRI_TRACK := 121
+	const CHARGE_BAR_PRI_FILL := 122
+	const CHARGE_BAR_SORT_FRAME := 4.0
+	const CHARGE_BAR_SORT_TRACK := 5.0
+	const CHARGE_BAR_SORT_FILL := 6.0
+	var layer_step := maxf(0.001, OUTER.y * 0.05)
+	var border_mi := MeshInstance3D.new()
+	border_mi.name = &"ChargeFrame"
+	border_mi.sorting_offset = CHARGE_BAR_SORT_FRAME
+	var border_mesh := PlaneMesh.new()
+	border_mesh.size = OUTER
+	border_mi.mesh = border_mesh
+	border_mi.rotation_degrees = Vector3(-90.0, 0.0, 0.0)
+	border_mi.position = Vector3(0.0, 0.0, -layer_step)
+	var border_mat := StandardMaterial3D.new()
+	border_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	border_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	border_mat.albedo_color = CHARGE_FRAME
+	border_mat.cull_mode = BaseMaterial3D.CULL_DISABLED
+	border_mat.no_depth_test = true
+	border_mat.billboard_mode = BaseMaterial3D.BILLBOARD_DISABLED
+	border_mat.render_priority = CHARGE_BAR_PRI_FRAME
+	border_mi.material_override = border_mat
+	border_mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	root.add_child(border_mi)
+	var track_mi := MeshInstance3D.new()
+	track_mi.name = &"ChargeTrack"
+	track_mi.sorting_offset = CHARGE_BAR_SORT_TRACK
+	var track_mesh := PlaneMesh.new()
+	track_mesh.size = INNER
+	track_mi.mesh = track_mesh
+	track_mi.rotation_degrees = Vector3(-90.0, 0.0, 0.0)
+	track_mi.position = Vector3(0.0, layer_step, 0.0)
+	var track_mat := StandardMaterial3D.new()
+	track_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	track_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	track_mat.albedo_color = CHARGE_TRACK
+	track_mat.cull_mode = BaseMaterial3D.CULL_DISABLED
+	track_mat.no_depth_test = true
+	track_mat.billboard_mode = BaseMaterial3D.BILLBOARD_DISABLED
+	track_mat.render_priority = CHARGE_BAR_PRI_TRACK
+	track_mi.material_override = track_mat
+	track_mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	root.add_child(track_mi)
+	var fill_mi := MeshInstance3D.new()
+	fill_mi.name = &"ChargeFill"
+	fill_mi.sorting_offset = CHARGE_BAR_SORT_FILL
+	var fill_mesh := PlaneMesh.new()
+	fill_mesh.size = INNER
+	fill_mi.mesh = fill_mesh
+	fill_mi.rotation_degrees = Vector3(-90.0, 0.0, 0.0)
+	fill_mi.position = Vector3(0.0, layer_step * 2.5, 0.0)
+	var fill_shader_mat := ShaderMaterial.new()
+	fill_shader_mat.shader = CHARGE_BAR_FILL_SHADER
+	fill_shader_mat.set_shader_parameter(&"albedo_color", Vector3(CHARGE_FILL.r, CHARGE_FILL.g, CHARGE_FILL.b))
+	fill_shader_mat.set_shader_parameter(&"emission_color", Vector3(CHARGE_FILL_EMISSION.r, CHARGE_FILL_EMISSION.g, CHARGE_FILL_EMISSION.b))
+	fill_shader_mat.set_shader_parameter(&"emission_energy", 0.55)
+	fill_shader_mat.set_shader_parameter(&"fill_ratio", 1.0)
+	fill_shader_mat.render_priority = CHARGE_BAR_PRI_FILL
+	fill_mi.material_override = fill_shader_mat
+	fill_mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	root.add_child(fill_mi)
+	_melee_charge_bar_root = root
+	_melee_charge_border_mi = border_mi
+	_melee_charge_track_mi = track_mi
+	_melee_charge_fill_shader_mat = fill_shader_mat
+	_melee_charge_fill_mi = fill_mi
+
+
+## progress in [0, 1] shows the fill; negative progress hides the bar.
+func set_melee_charge_progress(progress: float) -> void:
+	if Engine.is_editor_hint() and not preview_in_editor:
+		return
+	_ensure_melee_charge_bar()
+	if _melee_charge_bar_root == null:
+		return
+	if progress < 0.0:
+		_melee_charge_bar_root.visible = false
+		return
+	var p := clampf(progress, 0.0, 1.0)
+	_melee_charge_bar_root.visible = true
+	_sync_charge_bar_world_pose()
+	if _melee_charge_fill_shader_mat != null:
+		_melee_charge_fill_shader_mat.set_shader_parameter(&"fill_ratio", p)
 
 
 func set_jump_tilt(vertical_velocity: float, jump_impulse: float) -> void:

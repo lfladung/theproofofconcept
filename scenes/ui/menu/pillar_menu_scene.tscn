@@ -1,0 +1,27 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/ui/menu/pillar_root.gd" id="1"]
+
+[node name="MenuScene" type="Node3D"]
+
+[node name="Camera3D" type="Camera3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 0.94551855, 0.32556817, 0, -0.32556817, 0.94551855, 0, 4.8, 19)
+fov = 34.0
+near = 0.1
+far = 80.0
+current = true
+
+[node name="WorldEnvironment" type="WorldEnvironment" parent="."]
+
+[node name="BackgroundPlane" type="MeshInstance3D" parent="."]
+
+[node name="PillarRoot" type="Node3D" parent="."]
+script = ExtResource("1")
+
+[node name="PillarCore" type="GPUParticles3D" parent="PillarRoot"]
+
+[node name="HeroSparkles" type="GPUParticles3D" parent="PillarRoot"]
+
+[node name="RingSpiral" type="Node3D" parent="PillarRoot"]
+
+[node name="Fog" type="GPUParticles3D" parent="PillarRoot"]

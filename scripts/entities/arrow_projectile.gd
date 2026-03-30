@@ -36,6 +36,7 @@ var _authoritative_damage := true
 var _finished := false
 var _projectile_style_id: StringName = &"red"
 var _attack_instance_id := -1
+var _charge_size_mult := 1.0
 
 
 func configure(
@@ -44,7 +45,8 @@ func configure(
 	owner_visual_world: Node3D,
 	fired_by_player: bool = false,
 	projectile_style_id: StringName = &"red",
-	attack_instance_id: int = -1
+	attack_instance_id: int = -1,
+	charge_size_mult: float = 1.0
 ) -> void:
 	global_position = spawn_position
 	_start_pos = spawn_position
@@ -53,6 +55,7 @@ func configure(
 	_fired_by_player = fired_by_player
 	_projectile_style_id = projectile_style_id
 	_attack_instance_id = attack_instance_id
+	_charge_size_mult = clampf(charge_size_mult, 1.0, 2.5)
 
 
 func set_authoritative_damage(enabled: bool) -> void:
@@ -62,11 +65,27 @@ func set_authoritative_damage(enabled: bool) -> void:
 
 
 func _ready() -> void:
+	_apply_charge_scale_to_collision_shapes()
 	body_entered.connect(_on_world_body_entered)
 	if _hitbox != null and not _hitbox.target_resolved.is_connected(_on_hitbox_target_resolved):
 		_hitbox.target_resolved.connect(_on_hitbox_target_resolved)
 	_apply_hitbox_runtime()
 	call_deferred("_deferred_setup_visual")
+
+
+func _apply_charge_scale_to_collision_shapes() -> void:
+	if _charge_size_mult <= 1.0001:
+		return
+	if _world_shape != null and _world_shape.shape is CircleShape2D:
+		var base_w: CircleShape2D = _world_shape.shape as CircleShape2D
+		var dup_w := base_w.duplicate() as CircleShape2D
+		dup_w.radius = base_w.radius * _charge_size_mult
+		_world_shape.shape = dup_w
+	if _shape != null and _shape.shape is CircleShape2D:
+		var base_h: CircleShape2D = _shape.shape as CircleShape2D
+		var dup_h := base_h.duplicate() as CircleShape2D
+		dup_h.radius = base_h.radius * _charge_size_mult
+		_shape.shape = dup_h
 
 
 func _apply_hitbox_runtime() -> void:
@@ -111,7 +130,7 @@ func _deferred_setup_visual() -> void:
 	if vis_scene != null:
 		var vis := vis_scene.instantiate() as Node3D
 		if vis != null:
-			vis.scale = mesh_scale * (0.5 if _fired_by_player else 1.0)
+			vis.scale = mesh_scale * (0.5 if _fired_by_player else 1.0) * _charge_size_mult
 			_vw.add_child(vis)
 			_visual = vis
 	if show_debug_hitbox:
