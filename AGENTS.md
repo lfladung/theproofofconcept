@@ -83,6 +83,44 @@ As of 2026-03-27:
 - The player visual already includes modular equipment attachment points for sword, chest, legs, helmet, and shield.
 - Asset scale anchors, intake prompts, and audit commands live under `tools/asset_pipeline/`.
 
+### Coordinate System (Read Before Adding Anything Positional)
+
+The game uses **2D physics (CharacterBody2D)** for all gameplay logic and converts to 3D visuals at display time. Every position and direction lives in 2D game space until it hits a visual node.
+
+**The canonical mapping:**
+
+```
+2D game space        →  3D world space
+Vector2(x, y)        →  Vector3(x, height, y)
+2D "up" (−Y)         →  3D −Z
+2D "down" (+Y)       →  3D +Z
+```
+
+**Facing angle uses swapped `atan2` arguments everywhere — this is intentional:**
+
+```gdscript
+rotation.y = atan2(facing.x, facing.y)  # NOT the standard atan2(y, x)
+```
+
+The argument swap compensates for the Y↔Z axis remap so the character faces the right direction.
+
+**The conversion helpers used throughout the codebase:**
+
+```gdscript
+# 2D game position → 3D world position
+Vector3(pos2d.x, height, pos2d.y)
+
+# 3D world position → 2D game position
+Vector2(pos3d.x, pos3d.z)
+```
+
+**Rules for new code:**
+
+- All gameplay logic (movement, combat, AI, grid math, hitboxes) works in 2D game space with `Vector2` / `Vector2i`.
+- Only visual nodes (`player_visual.gd`, `enemy_state_visual.gd`, mesh helpers) work in 3D world space.
+- Never feed a raw 3D world position into gameplay logic, and never feed a raw 2D game position into a 3D visual without going through the mapping above.
+- If something spawns, fires, or moves in the wrong direction, the first thing to check is whether it bypassed the Y↔Z remap.
+
 ### Tools And Verification
 
 - Common local multiplayer commands live in `tools/COMMANDS.md`.
