@@ -48,6 +48,9 @@ if ($CheckOnly) {
 		exit 2
 	}
 	$godotArgs += @("--check-only", "--script", $Script)
+} elseif (-not [string]::IsNullOrWhiteSpace($Script)) {
+	# Godot 4.x runs SceneTree tool scripts via `-s` (see `generate_outline_rooms.gd`); `--script` alone won't execute them.
+	$godotArgs += @("-s", $Script)
 }
 if (-not $NoQuit) {
 	$godotArgs += "--quit"
