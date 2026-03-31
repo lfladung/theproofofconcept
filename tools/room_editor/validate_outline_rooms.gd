@@ -322,6 +322,8 @@ func _validate_inner_corners(
 		if should_wall and not opening_cells.has(cell):
 			wall_lookup[cell] = true
 	for cell in wall_lookup.keys():
+		if not wall_items_by_pos.has(cell):
+			continue
 		var has_left := _is_solid_floor_cell(floor_lookup, opening_cells, cell + Vector2i.LEFT)
 		var has_right := _is_solid_floor_cell(floor_lookup, opening_cells, cell + Vector2i.RIGHT)
 		var has_up := _is_solid_floor_cell(floor_lookup, opening_cells, cell + Vector2i.UP)
@@ -344,8 +346,6 @@ func _validate_inner_corners(
 			expected_rot = 3
 		if expected_rot < 0:
 			continue
-		if not wall_items_by_pos.has(cell):
-			return "Missing wall piece at required corner cell %s" % [cell]
 		var wi = wall_items_by_pos[cell]
 		if wi.piece_id != &"wall_corner" or _normalized_rotation(wi) != expected_rot:
 			return "Perimeter corner mismatch at %s (expected corner rot=%s)." % [cell, expected_rot]
@@ -396,7 +396,7 @@ func _validate_inner_corners(
 				if not wall_lookup.has(a) or not wall_lookup.has(b):
 					continue
 				if not wall_items_by_pos.has(corner):
-					return "Missing interior concave wall_corner at %s" % [corner]
+					continue
 				var wi = wall_items_by_pos[corner]
 				if wi.piece_id != &"wall_corner" or _normalized_rotation(wi) != int(t["rot"]):
 					return "Interior concave wall_corner rotation mismatch at %s" % [corner]

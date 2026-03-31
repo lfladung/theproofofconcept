@@ -511,6 +511,45 @@ func _generate_room(spec: Dictionary, rng: RandomNumberGenerator, report_errors:
 	floor_lookup.clear()
 	for cell in floor_cells:
 		floor_lookup[cell] = true
+
+	# Erode thin floor peninsulas: iteratively remove any non-opening floor tile
+	# that forms a 1-tile-wide strip (no floor on both sides of at least one axis).
+	# This prevents walls from forming thin protrusions around carved notches.
+	var erode_changed := true
+	while erode_changed:
+		erode_changed = false
+		var erode_remove: Array[Vector2i] = []
+		for cell in floor_cells:
+			if opening_cells.has(cell):
+				continue
+			var has_left := floor_lookup.has(cell + Vector2i.LEFT)
+			var has_right := floor_lookup.has(cell + Vector2i.RIGHT)
+			var has_up := floor_lookup.has(cell + Vector2i.UP)
+			var has_down := floor_lookup.has(cell + Vector2i.DOWN)
+			if (not has_left and not has_right) or (not has_up and not has_down):
+				erode_remove.append(cell)
+		if not erode_remove.is_empty():
+			erode_changed = true
+			for cell in erode_remove:
+				floor_lookup.erase(cell)
+			var new_floor: Array[Vector2i] = []
+			for cell in floor_cells:
+				if floor_lookup.has(cell):
+					new_floor.append(cell)
+			floor_cells = new_floor
+
+	# Re-prune to reachable region after erosion in case erosion disconnected
+	# any floor pockets from the main area.
+	reachable_floor = _reachable_floor_region_from_center(floor_lookup, opening_cells)
+	pruned_floor_cells = []
+	for cell in floor_cells:
+		if reachable_floor.has(cell):
+			pruned_floor_cells.append(cell)
+	floor_cells = pruned_floor_cells
+	floor_lookup.clear()
+	for cell in floor_cells:
+		floor_lookup[cell] = true
+
 	floor_cells.sort_custom(func(a: Vector2i, b: Vector2i) -> bool:
 		return a.y < b.y if a.y != b.y else a.x < b.x
 	)
@@ -747,17 +786,27 @@ func _build_wall_items(floor_cells: Array[Vector2i], opening_cells: Dictionary) 
 	var wall_lookup: Dictionary = {}
 	var directions := [Vector2i.LEFT, Vector2i.RIGHT, Vector2i.UP, Vector2i.DOWN]
 	var reachable_floor := _reachable_floor_region_from_center(floor_lookup, opening_cells)
+
+	# Build a set of doorway-threshold cells: floor tiles orthogonally adjacent to
+	# an opening cell.  These must stay passable so players can reach the door.
+	var doorway_threshold: Dictionary = {}
+	for oc in opening_cells.keys():
+		for d in directions:
+			var neighbor: Vector2i = (oc as Vector2i) + d
+			if floor_lookup.has(neighbor) and not opening_cells.has(neighbor):
+				doorway_threshold[neighbor] = true
+
 	for cell in floor_cells:
-		# Avoid "hanging" perimeter walls around unreachable floor pockets: only
-		# consider walls anchored on the main reachable floor region.
 		if not reachable_floor.has(cell):
+			continue
+		if opening_cells.has(cell) or doorway_threshold.has(cell):
 			continue
 		var should_wall := false
 		for direction in directions:
 			if not _is_solid_floor_cell(floor_lookup, opening_cells, cell + direction):
 				should_wall = true
 				break
-		if should_wall and not opening_cells.has(cell):
+		if should_wall:
 			wall_lookup[cell] = true
 
 	var wall_cells: Array[Vector2i] = []
@@ -801,6 +850,53 @@ func _build_wall_items(floor_cells: Array[Vector2i], opening_cells: Dictionary) 
 		var p: Vector2i = item.get("position", pos) as Vector2i
 		if not reachable_floor.has(p):
 			items_by_pos.erase(pos)
+
+	# Topology prune: iteratively remove hanging wall ends (degree < 2) starting
+	# from the corners of the bounding box and working inward.  Openings count as
+	# valid terminators so the wall ring beside a doorway doesn't collapse.
+	# Degree-3+ walls (T-junctions at L-shaped boundaries) are kept; protrusions
+	# still get cleaned because the tip is degree 1, and once removed its
+	# neighbor drops in degree, cascading inward until only structural walls remain.
+	var wall_positions: Array[Vector2i] = []
+	for pos in items_by_pos.keys():
+		var item_w: Dictionary = items_by_pos[pos]
+		var pid_w: StringName = item_w.get("piece_id", &"")
+		if pid_w == &"wall_corner" or pid_w == &"wall_straight":
+			wall_positions.append(item_w.get("position", pos) as Vector2i)
+	wall_positions.sort_custom(func(a: Vector2i, b: Vector2i) -> bool:
+		var da: int = abs(a.x) + abs(a.y)
+		var db: int = abs(b.x) + abs(b.y)
+		return da > db
+	)
+	var changed := true
+	while changed:
+		changed = false
+		var to_remove: Array[Vector2i] = []
+		for p_top in wall_positions:
+			if not items_by_pos.has(p_top):
+				continue
+			var item_top: Dictionary = items_by_pos[p_top]
+			var pid_top: StringName = item_top.get("piece_id", &"")
+			if pid_top != &"wall_corner" and pid_top != &"wall_straight":
+				continue
+			var neighbor_count := 0
+			for d in [Vector2i.LEFT, Vector2i.RIGHT, Vector2i.UP, Vector2i.DOWN]:
+				var npos: Vector2i = p_top + d
+				if opening_cells.has(npos):
+					neighbor_count += 1
+					continue
+				if not items_by_pos.has(npos):
+					continue
+				var nitem: Dictionary = items_by_pos[npos]
+				var npid: StringName = nitem.get("piece_id", &"")
+				if npid == &"wall_corner" or npid == &"wall_straight":
+					neighbor_count += 1
+			if neighbor_count < 2:
+				to_remove.append(p_top)
+		if not to_remove.is_empty():
+			changed = true
+			for p_top in to_remove:
+				items_by_pos.erase(p_top)
 
 	# Second pass: adjust boundary wall_corner rotations so they visually connect
 	# to neighboring wall pieces (corners and straights). Interior concave corners
