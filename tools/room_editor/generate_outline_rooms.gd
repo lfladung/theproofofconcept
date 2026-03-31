@@ -768,23 +768,26 @@ func _build_wall_items(floor_cells: Array[Vector2i], opening_cells: Dictionary) 
 	# Add only strictly interior concave-corner fillers:
 	# these are non-wall floor cells diagonally touching a void notch, with both orthogonal
 	# neighbors already on the perimeter wall ring. This restores missing inner corners without
-	# adding broad corner spam.
-	for fill in _build_concave_interior_corner_fillers(floor_cells, floor_lookup, opening_cells, wall_lookup):
+	# adding broad corner spam. Only consider reachable floor cells to avoid hanging fillers.
+	var reachable_floor_cells: Array[Vector2i] = []
+	for cell in floor_cells:
+		if reachable_floor.has(cell):
+			reachable_floor_cells.append(cell)
+	for fill in _build_concave_interior_corner_fillers(reachable_floor_cells, floor_lookup, opening_cells, wall_lookup):
 		var pos: Vector2i = fill.get("position", Vector2i.ZERO) as Vector2i
 		if items_by_pos.has(pos):
 			continue
 		items_by_pos[pos] = fill
 
-	# Prune walls that do not sit on a floor tile; this removes "hanging" perimeter
-	# runs that float over pure void (like the top strip in the tactical arena).
+	# Prune walls that do not sit on a reachable floor tile; this removes "hanging"
+	# perimeter runs that float over pure void or unreachable floor pockets.
 	for pos in items_by_pos.keys():
 		var item: Dictionary = items_by_pos[pos]
 		var pid: StringName = item.get("piece_id", &"")
 		if pid != &"wall_corner" and pid != &"wall_straight":
 			continue
 		var p: Vector2i = item.get("position", pos) as Vector2i
-		# Require a floor tile at the same grid position; walls over pure void are dropped.
-		if not floor_lookup.has(p):
+		if not reachable_floor.has(p):
 			items_by_pos.erase(pos)
 
 	# Second pass: adjust all wall_corner rotations so they visually connect to

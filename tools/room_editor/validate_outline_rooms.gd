@@ -440,6 +440,48 @@ func _validate_socket_alignment(room: RoomBase, floor_lookup: Dictionary, layout
 	return ""
 
 
+func _validate_no_hanging_walls(floor_lookup: Dictionary, opening_cells: Dictionary, wall_items_by_pos: Dictionary) -> String:
+	# Flood-fill from center to find the main reachable floor region, then check
+	# that every wall piece sits on a reachable floor tile.
+	if floor_lookup.is_empty():
+		return ""
+	var start: Variant = null
+	var best_score: int = 1_000_000_000
+	for cell in floor_lookup.keys():
+		if opening_cells.has(cell):
+			continue
+		var c: Vector2i = cell
+		var score: int = abs(c.x) + abs(c.y)
+		if score < best_score:
+			best_score = score
+			start = c
+	if start == null:
+		for cell in floor_lookup.keys():
+			start = cell
+			break
+	if start == null:
+		return ""
+	var q: Array[Vector2i] = [start as Vector2i]
+	var reachable: Dictionary = {start: true}
+	var dirs: Array[Vector2i] = [Vector2i.LEFT, Vector2i.RIGHT, Vector2i.UP, Vector2i.DOWN]
+	var qi := 0
+	while qi < q.size():
+		var cur: Vector2i = q[qi]
+		qi += 1
+		for d in dirs:
+			var nxt: Vector2i = cur + d
+			if reachable.has(nxt):
+				continue
+			if not floor_lookup.has(nxt):
+				continue
+			reachable[nxt] = true
+			q.append(nxt)
+	for pos in wall_items_by_pos.keys():
+		if not reachable.has(pos):
+			return "Hanging wall at %s: wall piece on unreachable floor tile." % [pos]
+	return ""
+
+
 func _validate_room_requirements(room: RoomBase, room_path: String) -> String:
 	if room.authored_layout == null:
 		return "Room %s is missing authored_layout" % room_path
@@ -466,6 +508,9 @@ func _validate_room_requirements(room: RoomBase, room_path: String) -> String:
 	var corner_err := _validate_inner_corners(floor_lookup, opening_cells, wall_items_by_pos)
 	if corner_err != "":
 		return "Room %s: %s" % [room_path, corner_err]
+	var hanging_err := _validate_no_hanging_walls(floor_lookup, opening_cells, wall_items_by_pos)
+	if hanging_err != "":
+		return "Room %s: %s" % [room_path, hanging_err]
 	return ""
 
 
