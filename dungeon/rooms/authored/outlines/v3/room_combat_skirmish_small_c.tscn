@@ -49,14 +49,14 @@ zone_role = &"room_walkable"
 tags = PackedStringArray("marker", "nav")
 
 [node name="spawn_robot_mob_marker_spawn_robot_mob_marker_351" parent="Zones/GeneratedByRoomEditor" instance=ExtResource("4_zone")]
-position = Vector2(18.0, -18.0)
+position = Vector2(-24.0, -21.0)
 zone_type = "enemy_spawn"
 zone_role = &"robot_mob"
 enemy_id = &"robot_mob"
 tags = PackedStringArray("spawn", "robot_mob")
 
 [node name="spawn_dasher_marker_spawn_dasher_marker_352" parent="Zones/GeneratedByRoomEditor" instance=ExtResource("4_zone")]
-position = Vector2(-15.0, 15.0)
+position = Vector2(-12.0, 6.0)
 zone_type = "enemy_spawn"
 zone_role = &"dasher"
 enemy_id = &"dasher"

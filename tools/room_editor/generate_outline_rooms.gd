@@ -481,11 +481,23 @@ func _generate_room(spec: Dictionary, rng: RandomNumberGenerator, report_errors:
 	for cell in floor_cells:
 		floor_lookup[cell] = true
 	# Openings must remain walkable floor anchors for socket alignment and connectivity.
+	# For "empty" base-shape rooms with jittered add_rects, the floor may not extend
+	# to the boundary where openings sit. Bridge inward from each opening cell until
+	# we connect to existing floor so the opening is never isolated.
 	for oc in opening_cells.keys():
 		var open_cell := oc as Vector2i
 		if not floor_lookup.has(open_cell):
 			floor_lookup[open_cell] = true
 			floor_cells.append(open_cell)
+		var inward := _inward_direction_for_cell(open_cell, size)
+		var step := open_cell + inward
+		var bridge_limit := maxi(size.x, size.y)
+		var steps_taken := 0
+		while not floor_lookup.has(step) and steps_taken < bridge_limit:
+			floor_lookup[step] = true
+			floor_cells.append(step)
+			step = step + inward
+			steps_taken += 1
 
 	# Prune the room down to the main reachable region from the logical center
 	# before we place floors, walls, blockers, and spawns. This avoids hanging
@@ -790,11 +802,14 @@ func _build_wall_items(floor_cells: Array[Vector2i], opening_cells: Dictionary) 
 		if not reachable_floor.has(p):
 			items_by_pos.erase(pos)
 
-	# Second pass: adjust all wall_corner rotations so they visually connect to
-	# neighboring wall pieces (corners and straights), not just inferred from floor.
+	# Second pass: adjust boundary wall_corner rotations so they visually connect
+	# to neighboring wall pieces (corners and straights). Interior concave corners
+	# already have their rotation set by void-cell direction and must not be overridden.
 	for pos in items_by_pos.keys():
 		var item: Dictionary = items_by_pos[pos]
 		if item.get("piece_id", &"") != &"wall_corner":
+			continue
+		if bool(item.get("_concave_interior", false)):
 			continue
 		var p: Vector2i = item.get("position", pos) as Vector2i
 		var has_left := false
@@ -893,11 +908,13 @@ func _build_concave_interior_corner_fillers(
 			var void_cell := Vector2i(vx, vy)
 			if _is_solid_floor_cell(floor_lookup, opening_cells, void_cell):
 				continue
+			# Rotation convention matches the validator: rotation is determined by
+			# where the void cell sits relative to the corner cell.
 			var tests := [
-				{"corner": Vector2i(vx - 1, vy - 1), "a": Vector2i(vx - 1, vy), "b": Vector2i(vx, vy - 1)},
-				{"corner": Vector2i(vx + 1, vy - 1), "a": Vector2i(vx + 1, vy), "b": Vector2i(vx, vy - 1)},
-				{"corner": Vector2i(vx + 1, vy + 1), "a": Vector2i(vx + 1, vy), "b": Vector2i(vx, vy + 1)},
-				{"corner": Vector2i(vx - 1, vy + 1), "a": Vector2i(vx - 1, vy), "b": Vector2i(vx, vy + 1)},
+				{"corner": Vector2i(vx - 1, vy - 1), "a": Vector2i(vx - 1, vy), "b": Vector2i(vx, vy - 1), "rot": 1},
+				{"corner": Vector2i(vx + 1, vy - 1), "a": Vector2i(vx + 1, vy), "b": Vector2i(vx, vy - 1), "rot": 2},
+				{"corner": Vector2i(vx + 1, vy + 1), "a": Vector2i(vx + 1, vy), "b": Vector2i(vx, vy + 1), "rot": 3},
+				{"corner": Vector2i(vx - 1, vy + 1), "a": Vector2i(vx - 1, vy), "b": Vector2i(vx, vy + 1), "rot": 0},
 			]
 			for t in tests:
 				var corner: Vector2i = t["corner"] as Vector2i
@@ -915,14 +932,11 @@ func _build_concave_interior_corner_fillers(
 				# Must be a true notch bounded by existing perimeter wall cells.
 				if not wall_lookup.has(a) or not wall_lookup.has(b):
 					continue
-				var has_left := _is_solid_floor_cell(floor_lookup, opening_cells, corner + Vector2i.LEFT)
-				var has_right := _is_solid_floor_cell(floor_lookup, opening_cells, corner + Vector2i.RIGHT)
-				var has_up := _is_solid_floor_cell(floor_lookup, opening_cells, corner + Vector2i.UP)
-				var has_down := _is_solid_floor_cell(floor_lookup, opening_cells, corner + Vector2i.DOWN)
 				out.append({
 					"piece_id": &"wall_corner",
 					"position": corner,
-					"rotation_steps": _corner_rotation_for_walls(has_left, has_right, has_up, has_down)
+					"rotation_steps": int(t["rot"]),
+					"_concave_interior": true,
 				})
 	return out
 
@@ -1142,6 +1156,27 @@ func _wall_item_for_cell(cell: Vector2i, floor_lookup: Dictionary, opening_cells
 	if missing_left or missing_right:
 		return {"piece_id": &"wall_straight", "position": cell, "rotation_steps": 1}
 	return {"piece_id": &"wall_straight", "position": cell, "rotation_steps": 0}
+
+
+func _inward_direction_for_cell(cell: Vector2i, size: Vector2i) -> Vector2i:
+	# Return the direction pointing inward from a boundary cell toward the room center.
+	var rect := _room_rect(size)
+	var left := rect.position.x
+	var right := rect.position.x + rect.size.x - 1
+	var top := rect.position.y
+	var bottom := rect.position.y + rect.size.y - 1
+	if cell.x == left:
+		return Vector2i.RIGHT
+	if cell.x == right:
+		return Vector2i.LEFT
+	if cell.y == top:
+		return Vector2i.DOWN
+	if cell.y == bottom:
+		return Vector2i.UP
+	# Fallback: step toward origin.
+	if absi(cell.x) >= absi(cell.y):
+		return Vector2i(-signi(cell.x), 0) if cell.x != 0 else Vector2i.RIGHT
+	return Vector2i(0, -signi(cell.y)) if cell.y != 0 else Vector2i.DOWN
 
 
 func _opening_cells(size: Vector2i, openings: Array) -> Dictionary:
