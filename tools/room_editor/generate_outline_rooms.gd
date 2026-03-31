@@ -1,4 +1,3 @@
-@tool
 extends SceneTree
 
 const BASE_ROOM_SCENE := preload("res://dungeon/rooms/base/room_base.tscn")
@@ -7,37 +6,226 @@ const LAYOUT_SCRIPT := preload("res://addons/dungeon_room_editor/resources/room_
 const ITEM_SCRIPT := preload("res://addons/dungeon_room_editor/resources/room_placed_item_data.gd")
 const GridMath = preload("res://addons/dungeon_room_editor/core/grid_math.gd")
 
-const OUTPUT_DIR := "res://dungeon/rooms/authored/outlines/v2"
+const DEFAULT_OUTPUT_VERSION := 2
 const DEFAULT_GRID_SIZE := Vector2i(3, 3)
 const HALLWAY_WIDTH := 2
+const MIN_PARALLEL_WALL_INNER_FACE_GAP_TILES := 3
+const DEFAULT_SIZE_BUMP_TILES := 2
+const DEFAULT_VARIANT_COUNT := 1
+const DEFAULT_VARIANT_ATTEMPTS := 25
 
 var _catalog
 var _item_sequence: int = 0
+var _output_version: int = DEFAULT_OUTPUT_VERSION
+var _output_dir: String = ""
+var _suffix: String = "b"
+var _rooms_filter: PackedStringArray = PackedStringArray()
+var _size_bump_tiles: int = DEFAULT_SIZE_BUMP_TILES
+var _variant_count: int = DEFAULT_VARIANT_COUNT
+var _variant_attempts: int = DEFAULT_VARIANT_ATTEMPTS
+var _seed: int = 0
+var _last_generate_error: String = ""
 
 
-func _initialize() -> void:
+func _get_cmd_arg_value(key: String) -> String:
+	# Supports: --key=value and --key value
+	var args := OS.get_cmdline_args()
+	for i in range(args.size()):
+		var a: String = args[i]
+		if a == key and i + 1 < args.size():
+			return String(args[i + 1])
+		var prefix := key + "="
+		if a.begins_with(prefix):
+			return a.substr(prefix.length())
+	return ""
+
+
+func _with_suffix(scene_name: String, suffix: String) -> String:
+	# Scene names look like: room_connector_turn_medium_b -> replace trailing token.
+	var parts := scene_name.split("_")
+	if parts.is_empty():
+		return scene_name
+	parts[parts.size() - 1] = suffix
+	return "_".join(parts)
+
+
+func _spec_matches_filter(spec: Dictionary) -> bool:
+	if _rooms_filter.is_empty():
+		return true
+	var id := String(spec.get("room_id", ""))
+	# Normalize tokens to lower-case for matching.
+	var wants := _rooms_filter
+	for token in wants:
+		var t := String(token).to_lower()
+		if t == "skirmish" and id.contains("skirmish"):
+			return true
+		if t == "tactical" and id.contains("tactical"):
+			return true
+		if t == "chokepoint" and id.contains("chokepoint"):
+			return true
+		if t == "connector" and id.contains("room_connector_"):
+			return true
+	return false
+
+
+func _hash32(s: String) -> int:
+	# Stable-ish hash for deterministic seeding.
+	var h := 2166136261
+	for i in range(s.length()):
+		h = int(posmod(h ^ s.unicode_at(i), 0x7fffffff))
+		h = int(posmod(h * 16777619, 0x7fffffff))
+	return h
+
+
+func _rng_for(room_id: String, variant_index: int) -> RandomNumberGenerator:
+	var rng := RandomNumberGenerator.new()
+	var base := _seed
+	if base == 0:
+		# Deterministic default seed if not provided.
+		base = 1337
+	rng.seed = int(base + _hash32(room_id) + variant_index * 1013)
+	return rng
+
+
+func _jitter_rect(rect: Rect2i, rng: RandomNumberGenerator, max_jitter: int = 1) -> Rect2i:
+	var dx := rng.randi_range(-max_jitter, max_jitter)
+	var dy := rng.randi_range(-max_jitter, max_jitter)
+	return Rect2i(rect.position + Vector2i(dx, dy), rect.size)
+
+
+func _pick_random_floor_cells(
+	floor_cells: Array[Vector2i],
+	opening_cells: Dictionary,
+	count: int,
+	rng: RandomNumberGenerator
+) -> Array[Vector2i]:
+	var candidates: Array[Vector2i] = []
+	for c in floor_cells:
+		if opening_cells.has(c):
+			continue
+		candidates.append(c)
+	candidates.shuffle()
+	var out: Array[Vector2i] = []
+	var n := mini(count, candidates.size())
+	for i in range(n):
+		out.append(candidates[i])
+	return out
+
+
+func _build_variant_spec(base_spec: Dictionary, variant_suffix: String, rng: RandomNumberGenerator) -> Dictionary:
+	var spec: Dictionary = base_spec.duplicate(true)
+	spec["scene_name"] = _with_suffix(String(spec["scene_name"]), variant_suffix)
+	spec["room_id"] = _with_suffix(String(spec["room_id"]), variant_suffix)
+
+	# Slightly larger rooms (tile dimensions).
+	var size: Vector2i = spec.get("size", Vector2i.ZERO)
+	if _size_bump_tiles > 0:
+		size += Vector2i(_size_bump_tiles, _size_bump_tiles)
+	spec["size"] = size
+
+	# Randomize carve rects slightly to produce variations.
+	if spec.has("remove_rects"):
+		var rr: Array = spec.get("remove_rects", [])
+		var out_rr: Array[Rect2i] = []
+		for r in rr:
+			out_rr.append(_jitter_rect(r, rng, 1))
+		spec["remove_rects"] = out_rr
+	if spec.has("add_rects"):
+		var ar: Array = spec.get("add_rects", [])
+		var out_ar: Array[Rect2i] = []
+		for r in ar:
+			out_ar.append(_jitter_rect(r, rng, 1))
+		spec["add_rects"] = out_ar
+
+	# Randomize blockers/spawns a bit (keep same counts).
+	# We do this later after floor_cells are built, because we need valid cells.
+	spec["_randomize_positions"] = true
+	return spec
+
+
+func _init() -> void:
+	var output_version_str := _get_cmd_arg_value("--output_version")
+	if not output_version_str.is_empty():
+		_output_version = int(output_version_str)
+
+	var suffix_arg := _get_cmd_arg_value("--suffix")
+	if not suffix_arg.is_empty():
+		_suffix = suffix_arg
+	else:
+		# Default suffix mapping to match existing naming convention: v1 -> _a, v2 -> _b, v3 -> _c.
+		match _output_version:
+			1:
+				_suffix = "a"
+			2:
+				_suffix = "b"
+			3:
+				_suffix = "c"
+			_:
+				_suffix = "b"
+
+	var rooms_arg := _get_cmd_arg_value("--rooms")
+	if not rooms_arg.is_empty():
+		_rooms_filter = PackedStringArray(rooms_arg.split(","))
+
+	var bump_arg := _get_cmd_arg_value("--size_bump")
+	if not bump_arg.is_empty():
+		_size_bump_tiles = maxi(0, int(bump_arg))
+
+	var seed_arg := _get_cmd_arg_value("--seed")
+	if not seed_arg.is_empty():
+		_seed = int(seed_arg)
+
+	var variants_arg := _get_cmd_arg_value("--variant_count")
+	if not variants_arg.is_empty():
+		_variant_count = maxi(1, int(variants_arg))
+
+	var attempts_arg := _get_cmd_arg_value("--variant_attempts")
+	if not attempts_arg.is_empty():
+		_variant_attempts = maxi(1, int(attempts_arg))
+
+	_output_dir = "res://dungeon/rooms/authored/outlines/v%d" % _output_version
+
 	_catalog = load(CATALOG_PATH)
 	if _catalog == null:
 		push_error("Failed to load room piece catalog at %s" % CATALOG_PATH)
 		quit(1)
 		return
-	var make_dir_result := DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(OUTPUT_DIR))
+	var make_dir_result := DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(_output_dir))
 	if make_dir_result != OK:
-		push_error("Failed to create output directory %s" % OUTPUT_DIR)
+		push_error("Failed to create output directory %s" % _output_dir)
 		quit(1)
 		return
-	var layouts_dir := "%s/layouts" % OUTPUT_DIR
+	var layouts_dir := "%s/layouts" % _output_dir
 	make_dir_result = DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(layouts_dir))
 	if make_dir_result != OK:
 		push_error("Failed to create layouts directory %s" % layouts_dir)
 		quit(1)
 		return
 
-	var room_specs := _build_room_specs()
-	for spec in room_specs:
-		if not _generate_room(spec):
-			quit(1)
-			return
+	var base_specs := _build_room_specs()
+	for base_spec in base_specs:
+		# Allow individual specs to opt out of specific output versions.
+		if _output_version == 3 and bool(base_spec.get("skip_in_v3", false)):
+			continue
+		if not _spec_matches_filter(base_spec):
+			continue
+		for vi in range(_variant_count):
+			var variant_suffix := _suffix if _variant_count == 1 else ("%s%02d" % [_suffix, vi + 1])
+			var rng := _rng_for(String(base_spec.get("room_id", "")), vi)
+			var ok := false
+			var last_err := ""
+			for attempt in range(_variant_attempts):
+				var spec := _build_variant_spec(base_spec, variant_suffix, rng)
+				if _generate_room(spec, rng, false):
+					ok = true
+					break
+				last_err = _last_generate_error
+			if not ok:
+				if last_err.is_empty():
+					last_err = "Unknown generation failure."
+				push_error("Failed to generate variant %s after %s attempts. Last error: %s" % [variant_suffix, _variant_attempts, last_err])
+				quit(1)
+				return
 
 	print("GENERATED_OUTLINE_ROOMS_OK")
 	quit()
@@ -46,7 +234,7 @@ func _initialize() -> void:
 func _build_room_specs() -> Array[Dictionary]:
 	# v2 batch: distinct room_id/scene_name (_b). Combat + chokepoint + boss use 1.5x linear
 	# footprint vs v1; connectors + treasure keep v1 tile sizes.
-	return [
+	var specs: Array[Dictionary] = [
 		{
 			"scene_name": "room_combat_skirmish_small_b",
 			"room_id": "room_combat_skirmish_small_b",
@@ -57,7 +245,13 @@ func _build_room_specs() -> Array[Dictionary]:
 			"allowed_connection_types": PackedStringArray(["corridor", "connector", "arena"]),
 			"recommended_enemy_groups": PackedStringArray(["melee_pack"]),
 			"base_shape": "full",
-			"remove_rects": [Rect2i(-8, -8, 3, 3), Rect2i(5, 3, 3, 3)],
+			# Trim the upper-left ledge more aggressively and remove the
+			# inaccessible 3x3 pocket near the east wall.
+			"remove_rects": [
+				Rect2i(-8, -8, 4, 4),   # widen top-left carve to avoid hanging walls
+				Rect2i(5, 3, 3, 3),     # existing central notch
+				Rect2i(7, 4, 3, 3),     # remove isolated 3x3 pocket centered at (8,5)
+			],
 			"openings": [&"west", &"east"],
 			"entry_marker": Vector2i(-3, 0),
 			"prop_marker": Vector2i(3, -3),
@@ -78,7 +272,14 @@ func _build_room_specs() -> Array[Dictionary]:
 			"allowed_connection_types": PackedStringArray(["corridor", "connector", "arena"]),
 			"recommended_enemy_groups": PackedStringArray(["mixed_patrol"]),
 			"base_shape": "full",
-			"remove_rects": [Rect2i(-12, -12, 5, 6), Rect2i(8, 6, 5, 6)],
+			# Carve out the upper-left ledge to avoid a reachable but undesirable
+			# hanging platform and its top wall run. First rect removes the tall
+			# notch; second rect trims a matching band along the very top edge.
+			"remove_rects": [
+				Rect2i(-12, -12, 5, 6),
+				Rect2i(8, 6, 5, 6),
+				Rect2i(-12, -12, 5, 1),
+			],
 			"openings": [&"west", &"east", &"north"],
 			"entry_marker": Vector2i(-8, 0),
 			"prop_marker": Vector2i(6, 5),
@@ -118,6 +319,10 @@ func _build_room_specs() -> Array[Dictionary]:
 				{"piece_id": &"spawn_robot_mob_marker", "position": Vector2i(-8, 8)},
 				{"piece_id": &"spawn_arrow_tower_marker", "position": Vector2i(9, 8)},
 			],
+			# The v3-sized variant of this large arena currently violates the strict
+			# MIN_PARALLEL_WALL_INNER_FACE_GAP_TILES rule in one corner pocket; skip it
+			# for output_version 3 until the shape is redesigned.
+			"skip_in_v3": true,
 		},
 		{
 			"scene_name": "room_connector_narrow_medium_b",
@@ -238,11 +443,17 @@ func _build_room_specs() -> Array[Dictionary]:
 		},
 	]
 
+	# Return base specs; suffix/variants are applied in `_init()`.
+	return specs
 
-func _generate_room(spec: Dictionary) -> bool:
+
+func _generate_room(spec: Dictionary, rng: RandomNumberGenerator, report_errors: bool = true) -> bool:
+	_last_generate_error = ""
 	var room := BASE_ROOM_SCENE.instantiate()
 	if room == null:
-		push_error("Failed to instantiate base room scene.")
+		_last_generate_error = "Failed to instantiate base room scene."
+		if report_errors:
+			push_error(_last_generate_error)
 		return false
 
 	var size: Vector2i = spec["size"]
@@ -266,7 +477,72 @@ func _generate_room(spec: Dictionary) -> bool:
 
 	var floor_cells := _build_floor_cells(spec)
 	var opening_cells := _opening_cells(size, spec["openings"])
+	var floor_lookup: Dictionary = {}
+	for cell in floor_cells:
+		floor_lookup[cell] = true
+	# Openings must remain walkable floor anchors for socket alignment and connectivity.
+	for oc in opening_cells.keys():
+		var open_cell := oc as Vector2i
+		if not floor_lookup.has(open_cell):
+			floor_lookup[open_cell] = true
+			floor_cells.append(open_cell)
+
+	# Prune the room down to the main reachable region from the logical center
+	# before we place floors, walls, blockers, and spawns. This avoids hanging
+	# ledges and pocket floors that are not actually part of the playable space.
+	var reachable_floor := _reachable_floor_region_from_center(floor_lookup, opening_cells)
+	var pruned_floor_cells: Array[Vector2i] = []
+	for cell in floor_cells:
+		if reachable_floor.has(cell):
+			pruned_floor_cells.append(cell)
+	floor_cells = pruned_floor_cells
+	floor_lookup.clear()
+	for cell in floor_cells:
+		floor_lookup[cell] = true
+	floor_cells.sort_custom(func(a: Vector2i, b: Vector2i) -> bool:
+		return a.y < b.y if a.y != b.y else a.x < b.x
+	)
+	var spacing_err := _validate_parallel_wall_spacing(floor_lookup, opening_cells)
+	if spacing_err != "":
+		_last_generate_error = spacing_err
+		if report_errors:
+			push_error(spacing_err)
+		return false
 	var wall_items := _build_wall_items(floor_cells, opening_cells)
+
+	# Randomize blockers/spawns positions after floor exists (optional per spec).
+	if bool(spec.get("_randomize_positions", false)):
+		if spec.has("blockers"):
+			var blockers: Array = spec.get("blockers", [])
+			var new_blockers := _pick_random_floor_cells(floor_cells, opening_cells, blockers.size(), rng)
+			spec["blockers"] = new_blockers
+		if spec.has("spawns"):
+			var spawns: Array = spec.get("spawns", [])
+			var new_positions := _pick_random_floor_cells(floor_cells, opening_cells, spawns.size(), rng)
+			var out_spawns: Array[Dictionary] = []
+			for i in range(spawns.size()):
+				var s: Dictionary = (spawns[i] as Dictionary).duplicate(true)
+				if i < new_positions.size():
+					s["position"] = new_positions[i]
+				out_spawns.append(s)
+			spec["spawns"] = out_spawns
+
+	# Blockers that land outside the reachable region are dropped to avoid
+	# creating unreachable clutter.
+	var blockers: Array = spec.get("blockers", [])
+	var pruned_blockers: Array[Vector2i] = []
+	for b in blockers:
+		if b is Vector2i and reachable_floor.has(b):
+			pruned_blockers.append(b)
+	spec["blockers"] = pruned_blockers
+
+	var blocked_lookup := _blocked_cells_lookup(spec.get("blockers", []))
+	var accessibility_err := _validate_room_accessibility(floor_lookup, opening_cells, blocked_lookup)
+	if accessibility_err != "":
+		_last_generate_error = accessibility_err
+		if report_errors:
+			push_error(accessibility_err)
+		return false
 
 	_item_sequence = 0
 	for cell in floor_cells:
@@ -301,11 +577,11 @@ func _generate_room(spec: Dictionary) -> bool:
 			StringName(String(spawn_data.get("encounter_group_id", "combat_main")))
 		)
 
-	var layout_path := "%s/layouts/%s.layout.tres" % [OUTPUT_DIR, spec["scene_name"]]
+	var layout_path := "%s/layouts/%s.layout.tres" % [_output_dir, spec["scene_name"]]
 	if ResourceSaver.save(layout, layout_path) != OK:
 		push_error("Failed to save layout at %s" % layout_path)
 		return false
-	var scene_path := "%s/%s.tscn" % [OUTPUT_DIR, spec["scene_name"]]
+	var scene_path := "%s/%s.tscn" % [_output_dir, spec["scene_name"]]
 	if not _write_minimal_room_scene(scene_path, layout_path, spec, layout, room):
 		push_error("Failed to write scene at %s" % scene_path)
 		return false
@@ -335,6 +611,122 @@ func _build_floor_cells(spec: Dictionary) -> Array[Vector2i]:
 	return out
 
 
+func _blocked_cells_lookup(blockers: Array) -> Dictionary:
+	var out: Dictionary = {}
+	for b in blockers:
+		if b is Vector2i:
+			out[b] = true
+	return out
+
+
+func _validate_room_accessibility(
+	floor_lookup: Dictionary,
+	opening_cells: Dictionary,
+	blocked_lookup: Dictionary
+) -> String:
+	# All walkable floor tiles (including doorway/opening tiles) must be connected.
+	# Blockers are treated as non-walkable for this check.
+	var walkable_count := 0
+	for cell in floor_lookup.keys():
+		if not blocked_lookup.has(cell):
+			walkable_count += 1
+	if walkable_count == 0:
+		return "Room accessibility violation: no walkable floor tiles remain."
+
+	var start: Variant = null
+	var has_walkable_opening := false
+	for oc in opening_cells.keys():
+		if floor_lookup.has(oc) and not blocked_lookup.has(oc):
+			has_walkable_opening = true
+			start = oc
+			break
+	# Fall back to any walkable tile if no opening tile survives.
+	if start == null:
+		for cell in floor_lookup.keys():
+			if not blocked_lookup.has(cell):
+				start = cell
+				break
+	# Require at least one walkable opening when openings are authored.
+	if opening_cells.size() > 0 and not has_walkable_opening:
+		return "Room accessibility violation: all opening tiles are blocked or removed."
+
+	var queue: Array[Vector2i] = [start as Vector2i]
+	var visited: Dictionary = {start: true}
+	var dirs: Array[Vector2i] = [Vector2i.LEFT, Vector2i.RIGHT, Vector2i.UP, Vector2i.DOWN]
+	var qi := 0
+	while qi < queue.size():
+		var cur: Vector2i = queue[qi]
+		qi += 1
+		for d in dirs:
+			var nxt: Vector2i = cur + d
+			if visited.has(nxt):
+				continue
+			if not floor_lookup.has(nxt):
+				continue
+			if blocked_lookup.has(nxt):
+				continue
+			visited[nxt] = true
+			queue.append(nxt)
+
+	if visited.size() != walkable_count:
+		for cell in floor_lookup.keys():
+			if blocked_lookup.has(cell):
+				continue
+			if not visited.has(cell):
+				return "Room accessibility violation: unreachable floor tile at %s" % [cell]
+		return "Room accessibility violation: disconnected walkable regions."
+	return ""
+
+
+func _reachable_floor_region_from_center(
+	floor_lookup: Dictionary,
+	opening_cells: Dictionary
+) -> Dictionary:
+	# Identify the main playable region: start from the floor cell closest to the
+	# logical room center (0,0) and flood-fill over floor tiles. Hanging platforms
+	# or pockets disconnected from this region are treated as unreachable.
+	var reachable: Dictionary = {}
+	if floor_lookup.is_empty():
+		return reachable
+
+	var start: Variant = null
+	var best_score: int = 1_000_000_000
+	for cell in floor_lookup.keys():
+		# Prefer cells near the origin; ignore opening-only cells since they are
+		# primarily exterior anchors.
+		if opening_cells.has(cell):
+			continue
+		var c: Vector2i = cell
+		var score: int = abs(c.x) + abs(c.y)
+		if score < best_score:
+			best_score = score
+			start = c
+	if start == null:
+		# Fallback: any floor tile.
+		for cell in floor_lookup.keys():
+			start = cell
+			break
+	if start == null:
+		return reachable
+
+	var queue: Array[Vector2i] = [start as Vector2i]
+	reachable[start] = true
+	var dirs: Array[Vector2i] = [Vector2i.LEFT, Vector2i.RIGHT, Vector2i.UP, Vector2i.DOWN]
+	var qi := 0
+	while qi < queue.size():
+		var cur: Vector2i = queue[qi]
+		qi += 1
+		for d in dirs:
+			var nxt: Vector2i = cur + d
+			if reachable.has(nxt):
+				continue
+			if not floor_lookup.has(nxt):
+				continue
+			reachable[nxt] = true
+			queue.append(nxt)
+	return reachable
+
+
 func _build_wall_items(floor_cells: Array[Vector2i], opening_cells: Dictionary) -> Array[Dictionary]:
 	var floor_lookup: Dictionary = {}
 	for cell in floor_cells:
@@ -342,10 +734,15 @@ func _build_wall_items(floor_cells: Array[Vector2i], opening_cells: Dictionary) 
 
 	var wall_lookup: Dictionary = {}
 	var directions := [Vector2i.LEFT, Vector2i.RIGHT, Vector2i.UP, Vector2i.DOWN]
+	var reachable_floor := _reachable_floor_region_from_center(floor_lookup, opening_cells)
 	for cell in floor_cells:
+		# Avoid "hanging" perimeter walls around unreachable floor pockets: only
+		# consider walls anchored on the main reachable floor region.
+		if not reachable_floor.has(cell):
+			continue
 		var should_wall := false
 		for direction in directions:
-			if not floor_lookup.has(cell + direction):
+			if not _is_solid_floor_cell(floor_lookup, opening_cells, cell + direction):
 				should_wall = true
 				break
 		if should_wall and not opening_cells.has(cell):
@@ -358,9 +755,321 @@ func _build_wall_items(floor_cells: Array[Vector2i], opening_cells: Dictionary) 
 		return a.y < b.y if a.y != b.y else a.x < b.x
 	)
 	var out: Array[Dictionary] = []
+	var items_by_pos: Dictionary = {}
 	for cell in wall_cells:
-		out.append(_wall_item_for_cell(cell, floor_lookup))
+		var item := _wall_item_for_cell(cell, floor_lookup, opening_cells)
+		if item.get("piece_id", &"") == &"wall_straight":
+			var inner_corner_rotation := _inner_corner_rotation_for_cell(cell, floor_lookup, opening_cells, wall_lookup)
+			if inner_corner_rotation >= 0:
+				item["piece_id"] = &"wall_corner"
+				item["rotation_steps"] = inner_corner_rotation
+		items_by_pos[cell] = item
+
+	# Add only strictly interior concave-corner fillers:
+	# these are non-wall floor cells diagonally touching a void notch, with both orthogonal
+	# neighbors already on the perimeter wall ring. This restores missing inner corners without
+	# adding broad corner spam. Only consider reachable floor cells to avoid hanging fillers.
+	var reachable_floor_cells: Array[Vector2i] = []
+	for cell in floor_cells:
+		if reachable_floor.has(cell):
+			reachable_floor_cells.append(cell)
+	for fill in _build_concave_interior_corner_fillers(reachable_floor_cells, floor_lookup, opening_cells, wall_lookup):
+		var pos: Vector2i = fill.get("position", Vector2i.ZERO) as Vector2i
+		if items_by_pos.has(pos):
+			continue
+		items_by_pos[pos] = fill
+
+	# Prune walls that do not sit on a reachable floor tile; this removes "hanging"
+	# perimeter runs that float over pure void or unreachable floor pockets.
+	for pos in items_by_pos.keys():
+		var item: Dictionary = items_by_pos[pos]
+		var pid: StringName = item.get("piece_id", &"")
+		if pid != &"wall_corner" and pid != &"wall_straight":
+			continue
+		var p: Vector2i = item.get("position", pos) as Vector2i
+		if not reachable_floor.has(p):
+			items_by_pos.erase(pos)
+
+	# Second pass: adjust all wall_corner rotations so they visually connect to
+	# neighboring wall pieces (corners and straights), not just inferred from floor.
+	for pos in items_by_pos.keys():
+		var item: Dictionary = items_by_pos[pos]
+		if item.get("piece_id", &"") != &"wall_corner":
+			continue
+		var p: Vector2i = item.get("position", pos) as Vector2i
+		var has_left := false
+		var has_right := false
+		var has_up := false
+		var has_down := false
+		for dir in [Vector2i.LEFT, Vector2i.RIGHT, Vector2i.UP, Vector2i.DOWN]:
+			var npos: Vector2i = p + dir
+			if not items_by_pos.has(npos):
+				continue
+			var nitem: Dictionary = items_by_pos[npos]
+			var pid: StringName = nitem.get("piece_id", &"")
+			if pid != &"wall_corner" and pid != &"wall_straight":
+				continue
+			if dir == Vector2i.LEFT:
+				has_left = true
+			elif dir == Vector2i.RIGHT:
+				has_right = true
+			elif dir == Vector2i.UP:
+				has_up = true
+			elif dir == Vector2i.DOWN:
+				has_down = true
+		var rot := _corner_rotation_for_walls(has_left, has_right, has_up, has_down)
+		item["rotation_steps"] = rot
+		items_by_pos[p] = item
+
+	out.clear()
+	for cell in items_by_pos.keys():
+		out.append(items_by_pos[cell])
+	# Keep stable ordering for deterministic exports.
+	out.sort_custom(func(a: Dictionary, b: Dictionary) -> bool:
+		var ap := a.get("position", Vector2i.ZERO) as Vector2i
+		var bp := b.get("position", Vector2i.ZERO) as Vector2i
+		return ap.y < bp.y if ap.y != bp.y else ap.x < bp.x
+	)
 	return out
+
+
+func _inner_corner_rotation_for_cell(
+	cell: Vector2i,
+	floor_lookup: Dictionary,
+	opening_cells: Dictionary,
+	wall_lookup: Dictionary
+) -> int:
+	# Convert a straight wall into a corner only when the cell borders a concave pocket:
+	# - diagonal is void/opening
+	# - both orthogonal neighbors toward that diagonal are solid floor and perimeter wall cells
+	# This prevents broad corner over-placement while restoring missing inner turns.
+	var tests := [
+		{"diag": Vector2i(1, -1), "a": Vector2i.RIGHT, "b": Vector2i.UP, "rot": 0},
+		{"diag": Vector2i(1, 1), "a": Vector2i.RIGHT, "b": Vector2i.DOWN, "rot": 1},
+		{"diag": Vector2i(-1, 1), "a": Vector2i.LEFT, "b": Vector2i.DOWN, "rot": 2},
+		{"diag": Vector2i(-1, -1), "a": Vector2i.LEFT, "b": Vector2i.UP, "rot": 3},
+	]
+	for t in tests:
+		var diag: Vector2i = cell + (t["diag"] as Vector2i)
+		if _is_solid_floor_cell(floor_lookup, opening_cells, diag):
+			continue
+		var a_cell: Vector2i = cell + (t["a"] as Vector2i)
+		var b_cell: Vector2i = cell + (t["b"] as Vector2i)
+		if not _is_solid_floor_cell(floor_lookup, opening_cells, a_cell):
+			continue
+		if not _is_solid_floor_cell(floor_lookup, opening_cells, b_cell):
+			continue
+		if not wall_lookup.has(a_cell) or not wall_lookup.has(b_cell):
+			continue
+		var has_left := _is_solid_floor_cell(floor_lookup, opening_cells, cell + Vector2i.LEFT)
+		var has_right := _is_solid_floor_cell(floor_lookup, opening_cells, cell + Vector2i.RIGHT)
+		var has_up := _is_solid_floor_cell(floor_lookup, opening_cells, cell + Vector2i.UP)
+		var has_down := _is_solid_floor_cell(floor_lookup, opening_cells, cell + Vector2i.DOWN)
+		return _corner_rotation_for_walls(has_left, has_right, has_up, has_down)
+	return -1
+
+
+func _build_concave_interior_corner_fillers(
+	floor_cells: Array[Vector2i],
+	floor_lookup: Dictionary,
+	opening_cells: Dictionary,
+	wall_lookup: Dictionary
+) -> Array[Dictionary]:
+	var out: Array[Dictionary] = []
+	if floor_cells.is_empty():
+		return out
+	var min_x := floor_cells[0].x
+	var max_x := floor_cells[0].x
+	var min_y := floor_cells[0].y
+	var max_y := floor_cells[0].y
+	for c in floor_cells:
+		min_x = mini(min_x, c.x)
+		max_x = maxi(max_x, c.x)
+		min_y = mini(min_y, c.y)
+		max_y = maxi(max_y, c.y)
+
+	for vx in range(min_x - 1, max_x + 2):
+		for vy in range(min_y - 1, max_y + 2):
+			var void_cell := Vector2i(vx, vy)
+			if _is_solid_floor_cell(floor_lookup, opening_cells, void_cell):
+				continue
+			var tests := [
+				{"corner": Vector2i(vx - 1, vy - 1), "a": Vector2i(vx - 1, vy), "b": Vector2i(vx, vy - 1)},
+				{"corner": Vector2i(vx + 1, vy - 1), "a": Vector2i(vx + 1, vy), "b": Vector2i(vx, vy - 1)},
+				{"corner": Vector2i(vx + 1, vy + 1), "a": Vector2i(vx + 1, vy), "b": Vector2i(vx, vy + 1)},
+				{"corner": Vector2i(vx - 1, vy + 1), "a": Vector2i(vx - 1, vy), "b": Vector2i(vx, vy + 1)},
+			]
+			for t in tests:
+				var corner: Vector2i = t["corner"] as Vector2i
+				var a: Vector2i = t["a"] as Vector2i
+				var b: Vector2i = t["b"] as Vector2i
+				if not _is_solid_floor_cell(floor_lookup, opening_cells, corner):
+					continue
+				if opening_cells.has(corner):
+					continue
+				# Only add filler corners on interior floor cells (not already boundary walls).
+				if wall_lookup.has(corner):
+					continue
+				if _missing_solid_neighbor_count(corner, floor_lookup, opening_cells) != 0:
+					continue
+				# Must be a true notch bounded by existing perimeter wall cells.
+				if not wall_lookup.has(a) or not wall_lookup.has(b):
+					continue
+				var has_left := _is_solid_floor_cell(floor_lookup, opening_cells, corner + Vector2i.LEFT)
+				var has_right := _is_solid_floor_cell(floor_lookup, opening_cells, corner + Vector2i.RIGHT)
+				var has_up := _is_solid_floor_cell(floor_lookup, opening_cells, corner + Vector2i.UP)
+				var has_down := _is_solid_floor_cell(floor_lookup, opening_cells, corner + Vector2i.DOWN)
+				out.append({
+					"piece_id": &"wall_corner",
+					"position": corner,
+					"rotation_steps": _corner_rotation_for_walls(has_left, has_right, has_up, has_down)
+				})
+	return out
+
+
+func _missing_solid_neighbor_count(cell: Vector2i, floor_lookup: Dictionary, opening_cells: Dictionary) -> int:
+	var count := 0
+	for off in [Vector2i.LEFT, Vector2i.RIGHT, Vector2i.UP, Vector2i.DOWN]:
+		if not _is_solid_floor_cell(floor_lookup, opening_cells, cell + off):
+			count += 1
+	return count
+
+
+func _validate_parallel_wall_spacing(
+	floor_lookup: Dictionary,
+	opening_cells: Dictionary,
+) -> String:
+	# Enforce minimum corridor width between facing parallel straight walls.
+	# Measure: from inner face to inner face, in grid tiles.
+	# Exemption:
+	# - only when both walls share the same corner cell (true corner-sharing turn)
+
+	var wall_lookup: Dictionary = {}
+	var directions := [Vector2i.LEFT, Vector2i.RIGHT, Vector2i.UP, Vector2i.DOWN]
+	for cell in floor_lookup.keys():
+		var should_wall := false
+		for direction in directions:
+			if not _is_solid_floor_cell(floor_lookup, opening_cells, cell + direction):
+				should_wall = true
+				break
+		if should_wall and not opening_cells.has(cell):
+			wall_lookup[cell] = true
+
+	var corner_wall_cells: Dictionary = {}
+	var north_walls: Dictionary = {}
+	var south_walls: Dictionary = {}
+	var west_walls: Dictionary = {}
+	var east_walls: Dictionary = {}
+
+	for cell in wall_lookup.keys():
+		var has_left := _is_solid_floor_cell(floor_lookup, opening_cells, cell + Vector2i.LEFT)
+		var has_right := _is_solid_floor_cell(floor_lookup, opening_cells, cell + Vector2i.RIGHT)
+		var has_up := _is_solid_floor_cell(floor_lookup, opening_cells, cell + Vector2i.UP)
+		var has_down := _is_solid_floor_cell(floor_lookup, opening_cells, cell + Vector2i.DOWN)
+		var missing_left := not has_left
+		var missing_right := not has_right
+		var missing_up := not has_up
+		var missing_down := not has_down
+
+		var missing_count := 0
+		missing_count += int(missing_left)
+		missing_count += int(missing_right)
+		missing_count += int(missing_up)
+		missing_count += int(missing_down)
+
+		# Only straight walls participate in the “parallel facing” scan.
+		if missing_count == 2:
+			corner_wall_cells[cell] = true
+			continue
+
+		if missing_count != 1:
+			continue
+
+		if missing_up:
+			north_walls[cell] = true
+		elif missing_down:
+			south_walls[cell] = true
+		elif missing_left:
+			west_walls[cell] = true
+		elif missing_right:
+			east_walls[cell] = true
+
+	# Vertical facing scans: north wall faces south wall along +Y.
+	for n in north_walls.keys():
+		var x: int = n.x
+		var y: int = n.y + 1
+		while floor_lookup.has(Vector2i(x, y)):
+			var cur: Vector2i = Vector2i(x, y)
+			if south_walls.has(cur):
+				# floor_gap is the count of floor cells strictly between the two facing wall rings.
+				# The requested measurement is inner-face-to-inner-face, which is offset by one cell.
+				var floor_gap: int = cur.y - n.y - 1
+				var inner_face_gap: int = floor_gap + 1
+				var exempt := _is_spacing_exempt_by_corner_sharing(n, cur, corner_wall_cells)
+				if inner_face_gap == 1 and not exempt:
+					return (
+						"Parallel wall spacing violation (adjacent) in generator: "
+						+ "gap=%s between north=%s and south=%s"
+						% [inner_face_gap, n, cur]
+					)
+
+				if inner_face_gap < MIN_PARALLEL_WALL_INNER_FACE_GAP_TILES and not exempt:
+					return (
+						"Parallel wall spacing violation (vertical) in generator: "
+						+ "gap=%s < %s between north=%s and south=%s"
+						% [inner_face_gap, MIN_PARALLEL_WALL_INNER_FACE_GAP_TILES, n, cur]
+					)
+				break
+			y += 1
+
+	# Horizontal facing scans: west wall faces east wall along +X.
+	for w in west_walls.keys():
+		var y: int = w.y
+		var x: int = w.x + 1
+		while floor_lookup.has(Vector2i(x, y)):
+			var cur: Vector2i = Vector2i(x, y)
+			if east_walls.has(cur):
+				var floor_gap: int = cur.x - w.x - 1
+				var inner_face_gap: int = floor_gap + 1
+				var exempt := _is_spacing_exempt_by_corner_sharing(w, cur, corner_wall_cells)
+				if inner_face_gap == 1 and not exempt:
+					return (
+						"Parallel wall spacing violation (adjacent) in generator: "
+						+ "gap=%s between west=%s and east=%s"
+						% [inner_face_gap, w, cur]
+					)
+
+				if inner_face_gap < MIN_PARALLEL_WALL_INNER_FACE_GAP_TILES and not exempt:
+					return (
+						"Parallel wall spacing violation (horizontal) in generator: "
+						+ "gap=%s < %s between west=%s and east=%s"
+						% [inner_face_gap, MIN_PARALLEL_WALL_INNER_FACE_GAP_TILES, w, cur]
+					)
+				break
+			x += 1
+
+	return ""
+
+
+func _is_spacing_exempt_by_corner_sharing(a: Vector2i, b: Vector2i, corner_wall_cells: Dictionary) -> bool:
+	# Exempt only if BOTH walls touch the same corner wall cell, i.e. a true 90° turn
+	# sharing a single corner tile. This preserves narrow wall adjacency exactly at the
+	# bend while still enforcing MIN_PARALLEL_WALL_INNER_FACE_GAP_TILES for all
+	# straight corridor spans.
+	for off_a in [Vector2i.LEFT, Vector2i.RIGHT, Vector2i.UP, Vector2i.DOWN]:
+		var ca: Vector2i = a + off_a
+		if not corner_wall_cells.has(ca):
+			continue
+		for off_b in [Vector2i.LEFT, Vector2i.RIGHT, Vector2i.UP, Vector2i.DOWN]:
+			if b + off_b == ca:
+				return true
+	return false
+
+
+func _is_solid_floor_cell(floor_lookup: Dictionary, opening_cells: Dictionary, cell: Vector2i) -> bool:
+	# Opening tiles are still authored as floor for nav/socket anchoring, but they are exterior holes
+	# for wall perimeter logic (corner rotation must see them as "missing" neighbors).
+	return floor_lookup.has(cell) and not opening_cells.has(cell)
 
 
 ## Orthogonal neighbors only see "two voids" for both outside (convex) and inside (concave) 90° bends.
@@ -376,27 +1085,60 @@ func _is_concave_wall_corner_cell(cell: Vector2i, floor_lookup: Dictionary) -> b
 	return floor_in_8 >= 4
 
 
-func _wall_item_for_cell(cell: Vector2i, floor_lookup: Dictionary) -> Dictionary:
-	var has_left := floor_lookup.has(cell + Vector2i.LEFT)
-	var has_right := floor_lookup.has(cell + Vector2i.RIGHT)
-	var has_up := floor_lookup.has(cell + Vector2i.UP)
-	var has_down := floor_lookup.has(cell + Vector2i.DOWN)
+func _corner_rotation_for_walls(has_left: bool, has_right: bool, has_up: bool, has_down: bool) -> int:
+	# Rotation convention for wall corners (connects to adjacent WALLS),
+	# then flipped 180° to match the current mesh orientation:
+	# base:
+	#   0 -> right + above
+	#   1 -> right + below
+	#   2 -> left  + below
+	#   3 -> left  + above
+	if has_right and has_up:
+		return 2
+	if has_right and has_down:
+		return 3
+	if has_left and has_down:
+		return 0
+	if has_left and has_up:
+		return 1
+	return 0
+
+
+func _flip_corner_rotation(rot: int) -> int:
+	# Invert rotation direction for corner pieces so that layout `rotation_steps`
+	# better matches the mesh's visual facing (PreviewBuilder applies a negated yaw).
+	# 0 -> 0, 1 -> 3, 2 -> 2, 3 -> 1
+	return posmod(4 - rot, 4)
+
+
+func _wall_item_for_cell(cell: Vector2i, floor_lookup: Dictionary, opening_cells: Dictionary) -> Dictionary:
+	var has_left := _is_solid_floor_cell(floor_lookup, opening_cells, cell + Vector2i.LEFT)
+	var has_right := _is_solid_floor_cell(floor_lookup, opening_cells, cell + Vector2i.RIGHT)
+	var has_up := _is_solid_floor_cell(floor_lookup, opening_cells, cell + Vector2i.UP)
+	var has_down := _is_solid_floor_cell(floor_lookup, opening_cells, cell + Vector2i.DOWN)
 
 	var missing_left := not has_left
 	var missing_right := not has_right
 	var missing_up := not has_up
 	var missing_down := not has_down
 
+	var missing_count := int(missing_left) + int(missing_right) + int(missing_up) + int(missing_down)
+
 	var use_outer_corner := not _is_concave_wall_corner_cell(cell, floor_lookup)
 
-	if missing_up and missing_left and use_outer_corner:
-		return {"piece_id": &"wall_corner", "position": cell, "rotation_steps": 0}
-	if missing_up and missing_right and use_outer_corner:
-		return {"piece_id": &"wall_corner", "position": cell, "rotation_steps": 1}
-	if missing_down and missing_right and use_outer_corner:
-		return {"piece_id": &"wall_corner", "position": cell, "rotation_steps": 2}
-	if missing_down and missing_left and use_outer_corner:
-		return {"piece_id": &"wall_corner", "position": cell, "rotation_steps": 3}
+	# Corner support:
+	# If exactly two orthogonal neighbors are missing, this is an L-corner perimeter cell.
+	# Use the rotation convention in terms of the *present* wall neighbors so it matches
+	# the design doc:
+	# 0 deg  -> right + above
+	# 90 deg -> right + below
+	# 180 deg-> left  + below
+	# 270 deg-> left  + above
+	if missing_count == 2:
+		var rot := _corner_rotation_for_walls(has_left, has_right, has_up, has_down)
+		return {"piece_id": &"wall_corner", "position": cell, "rotation_steps": rot}
+
+	# Fallback straight-wall handling if we didn't early-return as a corner.
 	if missing_left or missing_right:
 		return {"piece_id": &"wall_straight", "position": cell, "rotation_steps": 1}
 	return {"piece_id": &"wall_straight", "position": cell, "rotation_steps": 0}
@@ -435,15 +1177,30 @@ func _add_socket_for_opening(layout, size: Vector2i, side: StringName) -> void:
 	var top := rect.position.y
 	var bottom := rect.position.y + rect.size.y - 1
 	# grid_position = min tile of the 2-wide opening (matches anchor_rect tile AABB).
+	var rotation_steps := _socket_rotation_for_opening_side(side)
 	match side:
 		&"west":
-			_add_item(layout, &"hall_socket_double", Vector2i(left, -1), 3)
+			_add_item(layout, &"hall_socket_double", Vector2i(left, -1), rotation_steps)
 		&"east":
-			_add_item(layout, &"hall_socket_double", Vector2i(right, -1), 1)
+			_add_item(layout, &"hall_socket_double", Vector2i(right, -1), rotation_steps)
 		&"north":
-			_add_item(layout, &"hall_socket_double", Vector2i(-1, top), 0)
+			_add_item(layout, &"hall_socket_double", Vector2i(-1, top), rotation_steps)
 		&"south":
-			_add_item(layout, &"hall_socket_double", Vector2i(-1, bottom), 2)
+			_add_item(layout, &"hall_socket_double", Vector2i(-1, bottom), rotation_steps)
+
+
+func _socket_rotation_for_opening_side(side: StringName) -> int:
+	match side:
+		&"north":
+			return 0
+		&"east":
+			return 1
+		&"south":
+			return 2
+		&"west":
+			return 3
+		_:
+			return 0
 
 
 func _add_item(

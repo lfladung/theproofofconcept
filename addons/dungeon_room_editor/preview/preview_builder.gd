@@ -195,7 +195,12 @@ func _fallback_color_for_piece(piece) -> Color:
 
 
 func _should_fit_preview_to_grid(piece) -> bool:
-	return piece != null and piece.category == &"floor"
+	if piece == null:
+		return false
+	if piece.category == &"floor":
+		return true
+	# Door / hall sockets: stretch `wall_doorway` preview to `footprint` (e.g. 2×1 double hall).
+	return piece.is_door_socket()
 
 
 func _runtime_floor_material_for_piece(piece) -> Material:
@@ -296,13 +301,19 @@ func _apply_grid_fit_transform(
 		instance.rotation = rotation
 		return
 	var step := GridMath.grid_step(layout, room)
+	var ft := GridMath.rotated_footprint(piece.footprint, item.normalized_rotation_steps())
 	var target_size := Vector2(
-		maxf(step.x * float(maxi(piece.footprint.x, 1)), 0.01),
-		maxf(step.y * float(maxi(piece.footprint.y, 1)), 0.01)
+		maxf(step.x * float(maxi(ft.x, 1)), 0.01),
+		maxf(step.y * float(maxi(ft.y, 1)), 0.01)
 	)
 	var sx := target_size.x / maxf(source_bounds.size.x, 0.01)
 	var sz := target_size.y / maxf(source_bounds.size.z, 0.01)
-	var sy := minf(sx, sz)
+	var sy: float
+	if piece.is_door_socket():
+		# Keep a stable preview height; only stretch width/depth to match footprint.
+		sy = WALL_HEIGHT / maxf(source_bounds.size.y, 0.01)
+	else:
+		sy = minf(sx, sz)
 	instance.scale = Vector3(sx, sy, sz)
 	instance.rotation = rotation
 	var source_center := source_bounds.get_center()
