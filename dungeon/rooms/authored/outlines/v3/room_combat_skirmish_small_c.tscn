@@ -1,64 +1,33 @@
-[gd_scene format=3]
+[gd_scene format=3 uid="uid://dtr17sped8h7n"]
 
 [ext_resource type="PackedScene" path="res://dungeon/rooms/base/room_base.tscn" id="1_room_base"]
-[ext_resource type="Resource" path="res://dungeon/rooms/authored/outlines/v3/layouts/room_combat_skirmish_small_c.layout.tres" id="2_layout"]
-[ext_resource type="PackedScene" path="res://dungeon/rooms/base/door_socket_2d.tscn" id="3_socket"]
-[ext_resource type="PackedScene" path="res://dungeon/metadata/zone_marker_2d.tscn" id="4_zone"]
+[ext_resource type="Resource" uid="uid://cuno68iri1y8k" path="res://dungeon/rooms/authored/outlines/v3/layouts/room_combat_skirmish_small_c.layout.tres" id="2_layout"]
 
-[node name="RoomRoot" instance=ExtResource("1_room_base")]
+[node name="RoomRoot" unique_id=1426930301 instance=ExtResource("1_room_base")]
 room_id = "room_combat_skirmish_small_c"
 size_class = "small"
-room_type = "arena"
-origin_mode = "center"
 tile_size = Vector2i(3, 3)
 room_size_tiles = Vector2i(17, 17)
+allowed_rotations = PackedInt32Array(0, 90, 180, 270)
+standard_room_sizes = PackedInt32Array(10, 16, 24, 32)
 room_tags = PackedStringArray("arena", "combat", "small")
 allowed_connection_types = PackedStringArray("corridor", "connector", "arena")
 encounter_budget = 180
-max_tile_budget = 1024
 authored_layout = ExtResource("2_layout")
 
-[node name="GeneratedByRoomEditor" type="Node2D" parent="Sockets"]
-[node name="hall_socket_double_hall_socket_double_256" parent="Sockets/GeneratedByRoomEditor" instance=ExtResource("3_socket")]
-position = Vector2(-24.0, -1.5)
-direction = "west"
-width_tiles = 2
+[node name="TileWalls" parent="Layout" index="1"]
+z_index = 10
 
-[node name="hall_socket_double_hall_socket_double_257" parent="Sockets/GeneratedByRoomEditor" instance=ExtResource("3_socket")]
-position = Vector2(24.0, -1.5)
-direction = "east"
-width_tiles = 2
+[node name="TileHazards" parent="Layout" index="2"]
+z_index = 20
 
-[node name="GeneratedByRoomEditor" type="Node2D" parent="Zones"]
-[node name="encounter_entry_marker_encounter_entry_marker_258" parent="Zones/GeneratedByRoomEditor" instance=ExtResource("4_zone")]
-position = Vector2(-9.0, 0.0)
-zone_type = "encounter_trigger"
-zone_role = &"entry"
-tags = PackedStringArray("marker", "encounter")
+[node name="TileDeco" parent="Layout" index="3"]
+z_index = 30
 
-[node name="prop_placement_marker_prop_placement_marker_259" parent="Zones/GeneratedByRoomEditor" instance=ExtResource("4_zone")]
-position = Vector2(9.0, -9.0)
-zone_type = "prop_placement"
-zone_role = &"filler"
-tags = PackedStringArray("marker", "prop")
+[node name="GeneratedByRoomEditor" type="Node2D" parent="Sockets" index="4" unique_id=101367947]
 
-[node name="nav_boundary_marker_nav_boundary_marker_260" parent="Zones/GeneratedByRoomEditor" instance=ExtResource("4_zone")]
-position = Vector2(0.0, 0.0)
-zone_type = "nav_boundary"
-zone_role = &"room_walkable"
-tags = PackedStringArray("marker", "nav")
+[node name="GeneratedByRoomEditor" type="Node2D" parent="Zones" index="5" unique_id=1375512901]
 
-[node name="spawn_robot_mob_marker_spawn_robot_mob_marker_263" parent="Zones/GeneratedByRoomEditor" instance=ExtResource("4_zone")]
-position = Vector2(3.0, -18.0)
-zone_type = "enemy_spawn"
-zone_role = &"robot_mob"
-enemy_id = &"robot_mob"
-tags = PackedStringArray("spawn", "robot_mob")
-
-[node name="spawn_dasher_marker_spawn_dasher_marker_264" parent="Zones/GeneratedByRoomEditor" instance=ExtResource("4_zone")]
-position = Vector2(0.0, 24.0)
-zone_type = "enemy_spawn"
-zone_role = &"dasher"
-enemy_id = &"dasher"
-tags = PackedStringArray("spawn", "dasher")
-
+[node name="Visual3DProxy" parent="." index="4"]
+visible = false
+metadata/_room_editor_suppressed_proxy_visible = true

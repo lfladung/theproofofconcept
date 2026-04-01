@@ -40,6 +40,7 @@ stretch = true
 [node name="PreviewViewport" type="SubViewport" parent="Margin/VBox/SubViewportContainer"]
 unique_name_in_owner = true
 disable_3d = false
+own_world_3d = true
 render_target_update_mode = 3
 size = Vector2i(640, 480)
 

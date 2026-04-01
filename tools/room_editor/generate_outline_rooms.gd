@@ -559,7 +559,7 @@ func _generate_room(spec: Dictionary, rng: RandomNumberGenerator, report_errors:
 		if report_errors:
 			push_error(spacing_err)
 		return false
-	var wall_items := _build_wall_items(floor_cells, opening_cells)
+	var wall_items := _build_wall_items(floor_cells, opening_cells, size)
 
 	# Randomize blockers/spawns positions after floor exists (optional per spec).
 	if bool(spec.get("_randomize_positions", false)):
@@ -778,7 +778,11 @@ func _reachable_floor_region_from_center(
 	return reachable
 
 
-func _build_wall_items(floor_cells: Array[Vector2i], opening_cells: Dictionary) -> Array[Dictionary]:
+func _build_wall_items(
+	floor_cells: Array[Vector2i],
+	opening_cells: Dictionary,
+	room_size_tiles: Vector2i
+) -> Array[Dictionary]:
 	var floor_lookup: Dictionary = {}
 	for cell in floor_cells:
 		floor_lookup[cell] = true
@@ -787,14 +791,17 @@ func _build_wall_items(floor_cells: Array[Vector2i], opening_cells: Dictionary) 
 	var directions := [Vector2i.LEFT, Vector2i.RIGHT, Vector2i.UP, Vector2i.DOWN]
 	var reachable_floor := _reachable_floor_region_from_center(floor_lookup, opening_cells)
 
-	# Build a set of doorway-threshold cells: floor tiles orthogonally adjacent to
-	# an opening cell.  These must stay passable so players can reach the door.
+	# Only the tile(s) immediately *inward* from each opening stay wall-free so the
+	# door stays walkable. Tangential neighbors (along the wall beside the opening)
+	# are door jambs and must keep perimeter walls — a full 4-neighbor halo was
+	# stripping those and leaving a floating gap.
 	var doorway_threshold: Dictionary = {}
 	for oc in opening_cells.keys():
-		for d in directions:
-			var neighbor: Vector2i = (oc as Vector2i) + d
-			if floor_lookup.has(neighbor) and not opening_cells.has(neighbor):
-				doorway_threshold[neighbor] = true
+		var open_cell := oc as Vector2i
+		var inward := _inward_direction_for_cell(open_cell, room_size_tiles)
+		var neighbor: Vector2i = open_cell + inward
+		if floor_lookup.has(neighbor) and not opening_cells.has(neighbor):
+			doorway_threshold[neighbor] = true
 
 	for cell in floor_cells:
 		if not reachable_floor.has(cell):
@@ -885,6 +892,11 @@ func _build_wall_items(floor_cells: Array[Vector2i], opening_cells: Dictionary) 
 				if opening_cells.has(npos):
 					neighbor_count += 1
 					continue
+				# Door-adjacent passage tiles deliberately have no wall; count them like
+				# openings so the perimeter ring does not collapse to zero under prune.
+				if doorway_threshold.has(npos):
+					neighbor_count += 1
+					continue
 				if not items_by_pos.has(npos):
 					continue
 				var nitem: Dictionary = items_by_pos[npos]
@@ -928,6 +940,9 @@ func _build_wall_items(floor_cells: Array[Vector2i], opening_cells: Dictionary) 
 				has_up = true
 			elif dir == Vector2i.DOWN:
 				has_down = true
+		var wall_n := int(has_left) + int(has_right) + int(has_up) + int(has_down)
+		if wall_n != 2:
+			continue
 		var rot := _corner_rotation_for_walls(has_left, has_right, has_up, has_down)
 		item["rotation_steps"] = rot
 		items_by_pos[p] = item

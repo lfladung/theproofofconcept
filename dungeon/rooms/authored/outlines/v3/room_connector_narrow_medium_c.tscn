@@ -19,37 +19,37 @@ max_tile_budget = 1024
 authored_layout = ExtResource("2_layout")
 
 [node name="GeneratedByRoomEditor" type="Node2D" parent="Sockets"]
-[node name="hall_socket_double_hall_socket_double_175" parent="Sockets/GeneratedByRoomEditor" instance=ExtResource("3_socket")]
+[node name="hall_socket_double_hall_socket_double_227" parent="Sockets/GeneratedByRoomEditor" instance=ExtResource("3_socket")]
 position = Vector2(-18.0, -1.5)
 direction = "west"
 width_tiles = 2
 
-[node name="hall_socket_double_hall_socket_double_176" parent="Sockets/GeneratedByRoomEditor" instance=ExtResource("3_socket")]
+[node name="hall_socket_double_hall_socket_double_228" parent="Sockets/GeneratedByRoomEditor" instance=ExtResource("3_socket")]
 position = Vector2(15.0, -1.5)
 direction = "east"
 width_tiles = 2
 
 [node name="GeneratedByRoomEditor" type="Node2D" parent="Zones"]
-[node name="encounter_entry_marker_encounter_entry_marker_177" parent="Zones/GeneratedByRoomEditor" instance=ExtResource("4_zone")]
+[node name="encounter_entry_marker_encounter_entry_marker_229" parent="Zones/GeneratedByRoomEditor" instance=ExtResource("4_zone")]
 position = Vector2(-9.0, 0.0)
 zone_type = "encounter_trigger"
 zone_role = &"entry"
 tags = PackedStringArray("marker", "encounter")
 
-[node name="prop_placement_marker_prop_placement_marker_178" parent="Zones/GeneratedByRoomEditor" instance=ExtResource("4_zone")]
+[node name="prop_placement_marker_prop_placement_marker_230" parent="Zones/GeneratedByRoomEditor" instance=ExtResource("4_zone")]
 position = Vector2(6.0, -9.0)
 zone_type = "prop_placement"
 zone_role = &"filler"
 tags = PackedStringArray("marker", "prop")
 
-[node name="nav_boundary_marker_nav_boundary_marker_179" parent="Zones/GeneratedByRoomEditor" instance=ExtResource("4_zone")]
+[node name="nav_boundary_marker_nav_boundary_marker_231" parent="Zones/GeneratedByRoomEditor" instance=ExtResource("4_zone")]
 position = Vector2(0.0, 0.0)
 zone_type = "nav_boundary"
 zone_role = &"room_walkable"
 tags = PackedStringArray("marker", "nav")
 
-[node name="spawn_melee_marker_spawn_melee_marker_182" parent="Zones/GeneratedByRoomEditor" instance=ExtResource("4_zone")]
-position = Vector2(12.0, -9.0)
+[node name="spawn_melee_marker_spawn_melee_marker_234" parent="Zones/GeneratedByRoomEditor" instance=ExtResource("4_zone")]
+position = Vector2(3.0, -18.0)
 zone_type = "enemy_spawn"
 zone_role = &"melee"
 tags = PackedStringArray("spawn")
