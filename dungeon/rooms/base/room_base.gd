@@ -3,6 +3,7 @@ extends Node2D
 class_name RoomBase
 
 const _GENERATED_BY_ROOM_EDITOR := ^"GeneratedByRoomEditor"
+const _FLOOR_EXIT_BOUNDARY_INSET_TILES := 0
 
 @export var room_id := "room_base_template"
 @export_enum("small", "medium", "large", "arena")
@@ -166,6 +167,7 @@ func _validate_room_rules() -> void:
 	_validate_connection_marker_standardization()
 	_validate_traversable_space_contract()
 	_validate_gameplay_zoning_contract()
+	_validate_boss_floor_exit_contract()
 	_validate_origin_standard()
 	_validate_room_classification()
 	_validate_connection_compatibility()
@@ -293,6 +295,58 @@ func _validate_gameplay_zoning_contract() -> void:
 			push_warning(
 				"Room '%s' is missing required gameplay zone type '%s'." % [room_id, required_type]
 			)
+
+
+func _validate_boss_floor_exit_contract() -> void:
+	if room_type != "boss":
+		return
+	var floor_exit_zones: Array[ZoneMarker2D] = []
+	for zone in get_zone_markers():
+		if zone.zone_type == "floor_exit":
+			floor_exit_zones.append(zone)
+	if floor_exit_zones.size() != 1:
+		push_warning(
+			"Room '%s' boss rooms must contain exactly one 'floor_exit' marker, found %s." % [
+				room_id,
+				floor_exit_zones.size(),
+			]
+		)
+		return
+	var entrance_markers := get_connection_markers_by_kind("entrance")
+	if entrance_markers.size() != 1:
+		push_warning(
+			"Room '%s' boss rooms need exactly one entrance marker to derive the floor exit corner." % room_id
+		)
+		return
+	var floor_exit_zone := floor_exit_zones[0]
+	var footprint := floor_exit_zone.get_meta(&"room_editor_footprint_tiles", Vector2i.ONE) as Vector2i
+	var expected_center := _expected_floor_exit_center_local(entrance_markers[0], footprint)
+	if expected_center == Vector2.INF:
+		push_warning("Room '%s' could not derive an expected floor exit corner." % room_id)
+		return
+	var tolerance := maxf(float(tile_size.x), float(tile_size.y)) * 0.35
+	if floor_exit_zone.position.distance_to(expected_center) > tolerance:
+		push_warning(
+			"Room '%s' floor exit marker is not in the corner opposite the entrance." % room_id
+		)
+	var room_rect := get_room_rect_world()
+	var footprint_world := Vector2(
+		float(maxi(1, footprint.x) * tile_size.x),
+		float(maxi(1, footprint.y) * tile_size.y)
+	)
+	var zone_rect := Rect2(floor_exit_zone.position - footprint_world * 0.5, footprint_world)
+	var inset_world := Vector2(
+		float(_FLOOR_EXIT_BOUNDARY_INSET_TILES * tile_size.x),
+		float(_FLOOR_EXIT_BOUNDARY_INSET_TILES * tile_size.y)
+	)
+	var interior_rect := room_rect.grow_individual(
+		-inset_world.x,
+		-inset_world.y,
+		-inset_world.x,
+		-inset_world.y
+	)
+	if not interior_rect.encloses(zone_rect.grow(-0.01)):
+		push_warning("Room '%s' floor exit marker must stay inside the room boundaries." % room_id)
 
 
 func _validate_origin_standard() -> void:
@@ -437,3 +491,49 @@ func _markers_are_on_opposite_halves(entrance_marker: ConnectorMarker2D, exit_ma
 			return absf(float(entrance_local.y) - float(exit_local.y)) >= maxf(2.0, half_y * 0.25)
 		_:
 			return true
+
+
+func _expected_floor_exit_center_local(
+	entrance_marker: ConnectorMarker2D,
+	footprint_tiles: Vector2i
+) -> Vector2:
+	if entrance_marker == null:
+		return Vector2.INF
+	var room_rect := get_room_rect_world()
+	var footprint_world := Vector2(
+		float(maxi(1, footprint_tiles.x) * tile_size.x),
+		float(maxi(1, footprint_tiles.y) * tile_size.y)
+	)
+	var inset_world := Vector2(
+		float(_FLOOR_EXIT_BOUNDARY_INSET_TILES * tile_size.x),
+		float(_FLOOR_EXIT_BOUNDARY_INSET_TILES * tile_size.y)
+	)
+	var min_center_x := room_rect.position.x + inset_world.x + footprint_world.x * 0.5
+	var max_center_x := room_rect.end.x - inset_world.x - footprint_world.x * 0.5
+	var min_center_y := room_rect.position.y + inset_world.y + footprint_world.y * 0.5
+	var max_center_y := room_rect.end.y - inset_world.y - footprint_world.y * 0.5
+	var mid_x := room_rect.get_center().x
+	var mid_y := room_rect.get_center().y
+	match entrance_marker.direction:
+		"west":
+			return Vector2(
+				max_center_x,
+				max_center_y if entrance_marker.position.y <= mid_y else min_center_y
+			)
+		"east":
+			return Vector2(
+				min_center_x,
+				max_center_y if entrance_marker.position.y <= mid_y else min_center_y
+			)
+		"north":
+			return Vector2(
+				max_center_x if entrance_marker.position.x <= mid_x else min_center_x,
+				max_center_y
+			)
+		"south":
+			return Vector2(
+				max_center_x if entrance_marker.position.x <= mid_x else min_center_x,
+				min_center_y
+			)
+		_:
+			return Vector2.INF

@@ -1607,6 +1607,26 @@ func _connection_marker_world_position(
 	)
 
 
+func _zone_marker_world_position(room_name: StringName, zone_type: String, zone_role: StringName = &"") -> Vector2:
+	return (
+		_room_queries.zone_marker_world_position(room_name, zone_type, zone_role)
+		if _room_queries != null
+		else Vector2.ZERO
+	)
+
+
+func _find_zone_marker_world_position(
+	room_name: StringName,
+	zone_type: String,
+	zone_role: StringName = &""
+) -> Dictionary:
+	return (
+		_room_queries.find_zone_marker_world_position(room_name, zone_type, zone_role)
+		if _room_queries != null
+		else {"found": false, "position": Vector2.ZERO}
+	)
+
+
 func _socket_world_position(room_name: StringName, direction: String) -> Vector2:
 	return _connection_marker_world_position(room_name, direction)
 
@@ -1637,12 +1657,7 @@ func _position_runtime_markers() -> void:
 	var exit_key := _layout_room_name("exit_room")
 	var boss_room := _room_by_name(exit_key)
 	if boss_room != null:
-		var half := _room_half_extents(boss_room)
-		var outward := _direction_vector(_opposite_direction(_boss_entry_dir))
-		var inset_x := maxf(0.0, half.x - _BOSS_PORTAL_INSET)
-		var inset_y := maxf(0.0, half.y - _BOSS_PORTAL_INSET)
-		var offset := Vector2(outward.x * inset_x, outward.y * inset_y)
-		_boss_exit_portal.position = boss_room.global_position + offset
+		_boss_exit_portal.position = _boss_floor_exit_world_position(exit_key, boss_room)
 		if _boss_portal_marker != null:
 			_boss_portal_marker.visible = false
 		_ensure_boss_exit_elevator_visual()
@@ -1650,6 +1665,20 @@ func _position_runtime_markers() -> void:
 			_sync_boss_exit_elevator_visual_transform()
 			_boss_exit_elevator_visual.visible = false
 	_position_debug_spawn_exit_portal()
+
+
+func _boss_floor_exit_world_position(exit_key: StringName, boss_room: RoomBase) -> Vector2:
+	var authored_floor_exit := _find_zone_marker_world_position(exit_key, "floor_exit")
+	if bool(authored_floor_exit.get("found", false)):
+		return authored_floor_exit.get("position", Vector2.ZERO)
+	if boss_room == null:
+		return Vector2.ZERO
+	var half := _room_half_extents(boss_room)
+	var outward := _direction_vector(_opposite_direction(_boss_entry_dir))
+	var inset_x := maxf(0.0, half.x - _BOSS_PORTAL_INSET)
+	var inset_y := maxf(0.0, half.y - _BOSS_PORTAL_INSET)
+	var offset := Vector2(outward.x * inset_x, outward.y * inset_y)
+	return boss_room.global_position + offset
 
 
 func _grid_dir_from_delta(d: Vector2i) -> String:

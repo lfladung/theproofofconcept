@@ -122,8 +122,10 @@ static func connection_marker_spans_room_boundary(
 	var room_rect := room_local_rect(room)
 	var step := grid_step(layout, room)
 	var plane_eps := maxf(0.02, maxf(step.x, step.y) * 1.0e-4)
-	var margin := maxf(step.x, step.y) * 0.5 + 0.02
-	if not room_rect.encloses(candidate_rect.grow(plane_eps)):
+	# Connection markers are supposed to sit flush with the room edge. Shrink very slightly
+	# before the containment check so an exact-on-boundary marker is accepted instead of
+	# failing because its rect was expanded outside the room by the epsilon.
+	if not room_rect.encloses(candidate_rect.grow(-plane_eps)):
 		return false
 	match direction:
 		"west":

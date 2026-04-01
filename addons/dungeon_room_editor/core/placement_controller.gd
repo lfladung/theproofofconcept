@@ -19,14 +19,16 @@ func can_place(
 	if room == null or layout == null or catalog == null or piece == null:
 		return {"valid": false, "reason": "Editor session is incomplete."}
 	if piece.is_connection_marker():
-		var ft := GridMath.rotated_footprint(piece.footprint, rotation_steps)
-		if ft.x > 1 or ft.y > 1:
-			var candidates := GridMath.connection_marker_anchor_candidates(
-				grid_position,
-				piece.footprint,
-				rotation_steps
-			)
-			var last_reason := ""
+		var last_reason := ""
+		for test_rotation in _connection_marker_rotation_candidates(rotation_steps):
+			var ft := GridMath.rotated_footprint(piece.footprint, test_rotation)
+			var candidates: Array[Vector2i] = [grid_position]
+			if ft.x > 1 or ft.y > 1:
+				candidates = GridMath.connection_marker_anchor_candidates(
+					grid_position,
+					piece.footprint,
+					test_rotation
+				)
 			for ap in candidates:
 				var r := _evaluate_anchor(
 					room,
@@ -34,17 +36,22 @@ func can_place(
 					catalog,
 					piece,
 					ap,
-					rotation_steps,
+					test_rotation,
 					ignore_item_id,
 					candidate_layer
 				)
 				if bool(r.get("valid", false)):
-					return {"valid": true, "reason": "", "resolved_grid": ap}
+					return {
+						"valid": true,
+						"reason": "",
+						"resolved_grid": ap,
+						"resolved_rotation_steps": test_rotation,
+					}
 				last_reason = String(r.get("reason", ""))
-			return {
-				"valid": false,
-				"reason": last_reason if last_reason != "" else "Connection markers must snap to the matching room boundary.",
-			}
+		return {
+			"valid": false,
+			"reason": last_reason if last_reason != "" else "Connection markers must snap to the matching room boundary.",
+		}
 	var single := _evaluate_anchor(
 		room,
 		layout,
@@ -57,7 +64,12 @@ func can_place(
 	)
 	if not bool(single.get("valid", false)):
 		return single
-	return {"valid": true, "reason": "", "resolved_grid": grid_position}
+	return {
+		"valid": true,
+		"reason": "",
+		"resolved_grid": grid_position,
+		"resolved_rotation_steps": posmod(rotation_steps, 4),
+	}
 
 
 func place_item(session, piece, grid_position: Vector2i) -> Dictionary:
@@ -77,7 +89,7 @@ func place_item(session, piece, grid_position: Vector2i) -> Dictionary:
 	item.piece_id = piece.piece_id
 	item.category = piece.category
 	item.grid_position = resolved
-	item.rotation_steps = session.placement_rotation_steps
+	item.rotation_steps = int(result.get("resolved_rotation_steps", session.placement_rotation_steps))
 	item.tags = piece.default_tags.duplicate()
 	item.encounter_group_id = &""
 	item.enemy_id = piece.enemy_id
@@ -87,6 +99,16 @@ func place_item(session, piece, grid_position: Vector2i) -> Dictionary:
 	session.layout.items.append(item)
 	session.layout.emit_changed()
 	return {"valid": true, "item": item}
+
+
+func _connection_marker_rotation_candidates(preferred_rotation: int) -> PackedInt32Array:
+	var preferred := posmod(preferred_rotation, 4)
+	var ordered := PackedInt32Array([preferred])
+	for offset in range(1, 4):
+		var candidate := posmod(preferred + offset, 4)
+		if not ordered.has(candidate):
+			ordered.append(candidate)
+	return ordered
 
 
 func _evaluate_anchor(

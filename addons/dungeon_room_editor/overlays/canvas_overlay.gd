@@ -87,12 +87,15 @@ func draw(overlay: Control, session, projector: Callable = Callable()) -> void:
 		and GridMath.grid_is_inside_room(session.hover_cell, layout, room)
 	):
 		var draw_anchor: Vector2i = session.hover_cell
+		var draw_rotation_steps: int = session.placement_rotation_steps
 		if session.hover_valid and GridMath.is_defined_grid(session.hover_preview_anchor):
 			draw_anchor = session.hover_preview_anchor
+		if session.hover_valid and session.hover_preview_rotation_steps >= 0:
+			draw_rotation_steps = session.hover_preview_rotation_steps
 		var hover_rect := GridMath.anchor_rect(
 			draw_anchor,
 			preview_piece.footprint,
-			session.placement_rotation_steps,
+			draw_rotation_steps,
 			layout,
 			room
 		)

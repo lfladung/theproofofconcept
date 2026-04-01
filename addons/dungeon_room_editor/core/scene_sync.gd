@@ -111,7 +111,7 @@ func _sync_zone_marker_item(
 	if zone == null:
 		return
 	zone.name = "%s_%s" % [String(piece.piece_id), item.item_id]
-	zone.position = GridMath.grid_to_local(item.grid_position, layout, room)
+	zone.position = GridMath.item_rect(item, piece, layout, room).get_center()
 	zone.zone_type = piece.zone_type if piece.zone_type != "" else "prop_placement"
 	zone.zone_role = piece.zone_role
 	zone.enemy_id = item.resolved_enemy_id(piece)
@@ -245,6 +245,7 @@ func _apply_common_item_metadata(node: Node, item, piece = null) -> void:
 	node.set_meta(&"room_editor_category", item.category)
 	node.set_meta(&"room_editor_encounter_group_id", item.encounter_group_id)
 	node.set_meta(&"room_editor_enemy_id", item.resolved_enemy_id(piece))
+	node.set_meta(&"room_editor_footprint_tiles", piece.footprint if piece != null else Vector2i.ONE)
 	node.set_meta(&"room_editor_placement_layer", item.resolved_placement_layer())
 	node.set_meta(&"room_editor_tags", item.tags)
 	node.set_meta(&"room_editor_blocks_movement", item.blocks_movement)

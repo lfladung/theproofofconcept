@@ -1,0 +1,59 @@
+[gd_scene format=3]
+
+[ext_resource type="PackedScene" path="res://dungeon/rooms/base/room_base.tscn" id="1_room_base"]
+[ext_resource type="Resource" path="res://dungeon/rooms/authored/outlines/v2/layouts/room_connector_turn_medium_b.layout.tres" id="2_layout"]
+[ext_resource type="PackedScene" path="res://dungeon/modules/connectivity/entrance_marker_2d.tscn" id="3_entrance"]
+[ext_resource type="PackedScene" path="res://dungeon/modules/connectivity/exit_marker_2d.tscn" id="5_exit"]
+[ext_resource type="PackedScene" path="res://dungeon/metadata/zone_marker_2d.tscn" id="4_zone"]
+
+[node name="RoomRoot" instance=ExtResource("1_room_base")]
+room_id = "room_connector_turn_medium_b"
+size_class = "medium"
+room_type = "connector"
+origin_mode = "center"
+tile_size = Vector2i(3, 3)
+room_size_tiles = Vector2i(35, 35)
+room_tags = PackedStringArray("connector", "turn", "medium")
+allowed_connection_types = PackedStringArray("corridor", "connector")
+encounter_budget = 180
+max_tile_budget = 2450
+authored_layout = ExtResource("2_layout")
+
+[node name="GeneratedByRoomEditor" type="Node2D" parent="Sockets"]
+[node name="entrance_marker_entrance_marker_409" parent="Sockets/GeneratedByRoomEditor" instance=ExtResource("3_entrance")]
+position = Vector2(9.0, 51.0)
+rotation = 3.14159265358979
+direction = "south"
+width_tiles = 3
+
+[node name="exit_marker_exit_marker_410" parent="Sockets/GeneratedByRoomEditor" instance=ExtResource("5_exit")]
+position = Vector2(51.0, 6.0)
+rotation = 1.5707963267949
+direction = "east"
+width_tiles = 3
+
+[node name="GeneratedByRoomEditor" type="Node2D" parent="Zones"]
+[node name="encounter_entry_marker_encounter_entry_marker_411" parent="Zones/GeneratedByRoomEditor" instance=ExtResource("4_zone")]
+position = Vector2(0.0, 12.0)
+zone_type = "encounter_trigger"
+zone_role = &"entry"
+tags = PackedStringArray("marker", "encounter")
+
+[node name="prop_placement_marker_prop_placement_marker_412" parent="Zones/GeneratedByRoomEditor" instance=ExtResource("4_zone")]
+position = Vector2(9.0, -3.0)
+zone_type = "prop_placement"
+zone_role = &"filler"
+tags = PackedStringArray("marker", "prop")
+
+[node name="nav_boundary_marker_nav_boundary_marker_413" parent="Zones/GeneratedByRoomEditor" instance=ExtResource("4_zone")]
+position = Vector2(3.0, 3.0)
+zone_type = "nav_boundary"
+zone_role = &"room_walkable"
+tags = PackedStringArray("marker", "nav")
+
+[node name="spawn_melee_marker_spawn_melee_marker_415" parent="Zones/GeneratedByRoomEditor" instance=ExtResource("4_zone")]
+position = Vector2(39.0, 9.0)
+zone_type = "enemy_spawn"
+zone_role = &"melee"
+tags = PackedStringArray("spawn")
+

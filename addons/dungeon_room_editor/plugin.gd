@@ -8,12 +8,16 @@ const SelectionControllerScript = preload("res://addons/dungeon_room_editor/core
 const SceneSyncScript = preload("res://addons/dungeon_room_editor/core/scene_sync.gd")
 const SerializerScript = preload("res://addons/dungeon_room_editor/core/serializer.gd")
 const PlaytestLauncherScript = preload("res://addons/dungeon_room_editor/core/playtest_launcher.gd")
+const ItemDataScript = preload("res://addons/dungeon_room_editor/resources/room_placed_item_data.gd")
 
 const MainPanelScene = preload("res://addons/dungeon_room_editor/main_screen/room_editor_main_panel.tscn")
 const PreviewDockScene = preload("res://addons/dungeon_room_editor/docks/preview_dock.tscn")
 const DefaultCatalog = preload("res://addons/dungeon_room_editor/resources/default_room_piece_catalog.tres")
 const ToolMode = SessionScript.ToolMode
 const _NO_CELL := Vector2i(9_999_999, 9_999_999)
+const _AUTO_FLOOR_EXIT_ITEM_ID := "floor_exit_marker_auto"
+const _FLOOR_EXIT_PIECE_ID: StringName = &"floor_exit_marker"
+const _FLOOR_EXIT_BOUNDARY_INSET_TILES := 0
 
 var _session = SessionScript.new()
 var _placement_controller = PlacementControllerScript.new()
@@ -235,6 +239,9 @@ func _sync_ui_state(status_message: String = "") -> void:
 		_sync_empty_state(status_message)
 		return
 	_scene_sync.sync_room(_session.room, _session.layout, DefaultCatalog)
+	var auto_floor_exit_changed := _apply_auto_floor_exit_marker()
+	if auto_floor_exit_changed:
+		_scene_sync.sync_room(_session.room, _session.layout, DefaultCatalog)
 	var visual_root: Node3D = _session.room.get_generated_visual_root()
 	_scene_sync.apply_placement_layer_visibility(visual_root, _session.visible_layer_filter)
 	if _session.layout_path != "":
@@ -268,6 +275,221 @@ func _sync_ui_state(status_message: String = "") -> void:
 		)
 		_main_panel.call(&"set_visible_layer_filter", _session.visible_layer_filter)
 	_apply_visual_3d_proxy_room_editor_policy()
+
+
+func _apply_auto_floor_exit_marker() -> bool:
+	if _session == null or _session.room == null or _session.layout == null or _session.catalog == null:
+		return false
+	var room: RoomBase = _session.room
+	var layout = _session.layout
+	if room.room_type != "boss":
+		return _remove_auto_floor_exit_marker(layout)
+	var piece = _session.catalog.find_piece(_FLOOR_EXIT_PIECE_ID)
+	if piece == null:
+		return false
+	var entrance_markers := room.get_connection_markers_by_kind("entrance")
+	if entrance_markers.size() != 1:
+		return _remove_auto_floor_exit_marker(layout)
+	var anchor := _derive_floor_exit_anchor(room, entrance_markers[0], piece.footprint)
+	if anchor == _NO_CELL:
+		return _remove_auto_floor_exit_marker(layout)
+	var existing_floor_exit_items := _find_floor_exit_items(layout)
+	var managed_item = layout.find_item(_AUTO_FLOOR_EXIT_ITEM_ID)
+	if managed_item == null and not existing_floor_exit_items.is_empty():
+		managed_item = existing_floor_exit_items[0]
+	if managed_item == null:
+		managed_item = ItemDataScript.new()
+		managed_item.item_id = _AUTO_FLOOR_EXIT_ITEM_ID
+		layout.items.append(managed_item)
+	var changed := false
+	changed = _set_if_different(managed_item, &"item_id", _AUTO_FLOOR_EXIT_ITEM_ID) or changed
+	changed = _set_if_different(managed_item, &"piece_id", piece.piece_id) or changed
+	changed = _set_if_different(managed_item, &"category", piece.category) or changed
+	changed = _set_if_different(managed_item, &"grid_position", anchor) or changed
+	changed = _set_if_different(managed_item, &"rotation_steps", 0) or changed
+	changed = _set_if_different(managed_item, &"tags", piece.default_tags.duplicate()) or changed
+	changed = _set_if_different(managed_item, &"encounter_group_id", StringName()) or changed
+	changed = _set_if_different(managed_item, &"enemy_id", StringName()) or changed
+	changed = _set_if_different(
+		managed_item,
+		&"placement_layer",
+		piece.default_placement_layer()
+	) or changed
+	changed = _set_if_different(managed_item, &"blocks_movement", piece.blocks_movement) or changed
+	changed = _set_if_different(
+		managed_item,
+		&"blocks_projectiles",
+		piece.blocks_projectiles
+	) or changed
+	for index in range(layout.items.size() - 1, -1, -1):
+		var item = layout.items[index]
+		if item == null or item == managed_item:
+			continue
+		if not _is_floor_exit_item(item):
+			continue
+		layout.items.remove_at(index)
+		changed = true
+	if changed:
+		layout.emit_changed()
+	return changed
+
+
+func _remove_auto_floor_exit_marker(layout) -> bool:
+	if layout == null:
+		return false
+	var changed := false
+	for index in range(layout.items.size()):
+		var item = layout.items[index]
+		if item != null and item.item_id == _AUTO_FLOOR_EXIT_ITEM_ID:
+			layout.items.remove_at(index)
+			changed = true
+			break
+	if changed:
+		layout.emit_changed()
+	return changed
+
+
+func _derive_floor_exit_anchor(
+	room: RoomBase,
+	entrance_marker: ConnectorMarker2D,
+	footprint: Vector2i
+) -> Vector2i:
+	if room == null or entrance_marker == null:
+		return _NO_CELL
+	var occupancy := _build_floor_exit_occupancy()
+	var floor_lookup: Dictionary = occupancy.get("floor", {})
+	var blocked_lookup: Dictionary = occupancy.get("blocked", {})
+	if floor_lookup.is_empty():
+		return _NO_CELL
+	var room_rect: Rect2i = room.get_room_rect_tiles()
+	var size_tiles := Vector2i(maxi(1, footprint.x), maxi(1, footprint.y))
+	var min_x := room_rect.position.x + _FLOOR_EXIT_BOUNDARY_INSET_TILES
+	var min_y := room_rect.position.y + _FLOOR_EXIT_BOUNDARY_INSET_TILES
+	var max_x := room_rect.position.x + room_rect.size.x - size_tiles.x - _FLOOR_EXIT_BOUNDARY_INSET_TILES
+	var max_y := room_rect.position.y + room_rect.size.y - size_tiles.y - _FLOOR_EXIT_BOUNDARY_INSET_TILES
+	if max_x < min_x or max_y < min_y:
+		return _NO_CELL
+	var room_center_local := room.get_room_rect_world().get_center()
+	var preferred := _NO_CELL
+	match entrance_marker.direction:
+		"west":
+			preferred = Vector2i(
+				max_x,
+				max_y if entrance_marker.position.y <= room_center_local.y else min_y
+			)
+		"east":
+			preferred = Vector2i(
+				min_x,
+				max_y if entrance_marker.position.y <= room_center_local.y else min_y
+			)
+		"north":
+			preferred = Vector2i(
+				max_x if entrance_marker.position.x <= room_center_local.x else min_x,
+				max_y
+			)
+		"south":
+			preferred = Vector2i(
+				max_x if entrance_marker.position.x <= room_center_local.x else min_x,
+				min_y
+			)
+		_:
+			return _NO_CELL
+	return _nearest_valid_floor_exit_anchor(preferred, size_tiles, floor_lookup, blocked_lookup)
+
+
+func _find_floor_exit_items(layout) -> Array:
+	var out: Array = []
+	if layout == null:
+		return out
+	for item in layout.items:
+		if _is_floor_exit_item(item):
+			out.append(item)
+	return out
+
+
+func _is_floor_exit_item(item) -> bool:
+	if item == null:
+		return false
+	if item.piece_id == _FLOOR_EXIT_PIECE_ID:
+		return true
+	return item.tags is PackedStringArray and item.tags.has("floor_exit")
+
+
+func _build_floor_exit_occupancy() -> Dictionary:
+	var floor_lookup: Dictionary = {}
+	var blocked_lookup: Dictionary = {}
+	for item in _session.layout.items:
+		if item == null or _is_floor_exit_item(item):
+			continue
+		var piece = _session.catalog.find_piece(item.piece_id)
+		if piece == null:
+			continue
+		var footprint := GridMath.rotated_footprint(piece.footprint, item.rotation_steps)
+		var placement_layer: StringName = item.resolved_placement_layer(piece)
+		for x in range(footprint.x):
+			for y in range(footprint.y):
+				var cell: Vector2i = item.grid_position + Vector2i(x, y)
+				if piece.category == &"floor" or item.category == &"floor" or placement_layer == &"ground":
+					floor_lookup[cell] = true
+				if (
+					placement_layer == &"overlay"
+					and (
+						piece.category == &"wall"
+						or item.category == &"wall"
+						or piece.blocks_movement
+						or item.blocks_movement
+					)
+				):
+					blocked_lookup[cell] = true
+	return {
+		"floor": floor_lookup,
+		"blocked": blocked_lookup,
+	}
+
+
+func _nearest_valid_floor_exit_anchor(
+	preferred: Vector2i,
+	footprint: Vector2i,
+	floor_lookup: Dictionary,
+	blocked_lookup: Dictionary
+) -> Vector2i:
+	var best := _NO_CELL
+	var best_dist := INF
+	for candidate_variant in floor_lookup.keys():
+		var candidate := candidate_variant as Vector2i
+		if not _floor_exit_footprint_fits(candidate, footprint, floor_lookup, blocked_lookup):
+			continue
+		var dist := preferred.distance_squared_to(candidate)
+		if dist < best_dist:
+			best_dist = dist
+			best = candidate
+	if best != _NO_CELL:
+		return best
+	return _NO_CELL
+
+
+func _floor_exit_footprint_fits(
+	anchor: Vector2i,
+	footprint: Vector2i,
+	floor_lookup: Dictionary,
+	blocked_lookup: Dictionary
+) -> bool:
+	for x in range(footprint.x):
+		for y in range(footprint.y):
+			var cell := anchor + Vector2i(x, y)
+			if not floor_lookup.has(cell):
+				return false
+			if blocked_lookup.has(cell):
+				return false
+	return true
+
+
+func _set_if_different(target: Object, property_name: StringName, next_value: Variant) -> bool:
+	var current_value = target.get(property_name)
+	if current_value == next_value:
+		return false
+	target.set(property_name, next_value)
+	return true
 
 
 func _restore_visual_3d_proxy_after_room_editor(room: Object) -> void:
@@ -597,7 +819,7 @@ func _on_selected_item_changed(payload: Dictionary) -> void:
 		return
 	var resolved_grid = result.get("resolved_grid", next_grid)
 	item.grid_position = resolved_grid if resolved_grid is Vector2i else next_grid
-	item.rotation_steps = next_rotation
+	item.rotation_steps = int(result.get("resolved_rotation_steps", next_rotation))
 	item.placement_layer = StringName(payload.get("placement_layer", item.resolved_placement_layer(piece)))
 	item.tags = (payload.get("tags", item.tags) as PackedStringArray).duplicate()
 	item.encounter_group_id = payload.get("encounter_group_id", item.encounter_group_id)
@@ -641,6 +863,7 @@ func _update_hover(grid: Vector2i) -> void:
 	var reason := ""
 	var valid := true
 	var preview_anchor := _NO_CELL
+	var preview_rotation_steps := -1
 	var piece = _session.active_piece()
 	if piece != null and _session.tool_mode == ToolMode.PLACE:
 		var result = _placement_controller.can_place(
@@ -657,6 +880,9 @@ func _update_hover(grid: Vector2i) -> void:
 			var rg = result.get("resolved_grid", null)
 			if rg is Vector2i:
 				preview_anchor = rg
+			preview_rotation_steps = int(
+				result.get("resolved_rotation_steps", _session.placement_rotation_steps)
+			)
 	elif _drag_item_id != "" and _session.tool_mode == ToolMode.SELECT:
 		var item = _session.selected_item()
 		var selected_piece = _session.selected_piece()
@@ -676,7 +902,8 @@ func _update_hover(grid: Vector2i) -> void:
 				var rg2 = result.get("resolved_grid", null)
 				if rg2 is Vector2i:
 					preview_anchor = rg2
-	_session.set_hover_state(grid, valid, reason, preview_anchor)
+				preview_rotation_steps = int(result.get("resolved_rotation_steps", item.rotation_steps))
+	_session.set_hover_state(grid, valid, reason, preview_anchor, preview_rotation_steps)
 	_set_status(reason)
 	if _room_canvas != null:
 		_room_canvas.call(&"queue_redraw")
@@ -714,13 +941,16 @@ func _place_item_at(grid: Vector2i, sync_after: bool) -> Dictionary:
 	var resolved_grid = pre_place.get("resolved_grid", grid)
 	if not resolved_grid is Vector2i:
 		resolved_grid = grid
+	var resolved_rotation_steps := int(
+		pre_place.get("resolved_rotation_steps", _session.placement_rotation_steps)
+	)
 	for existing in _session.layout.items:
 		if existing == null:
 			continue
 		if (
 			existing.piece_id == piece.piece_id
 			and existing.grid_position == resolved_grid
-			and existing.rotation_steps == _session.placement_rotation_steps
+			and existing.rotation_steps == resolved_rotation_steps
 			and existing.resolved_placement_layer(piece) == piece.default_placement_layer()
 		):
 			return {"handled": true, "changed": false}
@@ -775,6 +1005,7 @@ func _try_move_selected_to(grid: Vector2i) -> bool:
 		return true
 	var resolved_move = result.get("resolved_grid", grid)
 	item.grid_position = resolved_move if resolved_move is Vector2i else grid
+	item.rotation_steps = int(result.get("resolved_rotation_steps", item.rotation_steps))
 	_session.layout.emit_changed()
 	_sync_ui_state("Moved selected item.")
 	return true

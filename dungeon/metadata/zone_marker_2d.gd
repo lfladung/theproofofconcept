@@ -3,6 +3,8 @@ class_name ZoneMarker2D
 
 @export_enum(
 	"enemy_spawn",
+	"spawn_player",
+	"floor_exit",
 	"prop_placement",
 	"patrol_hint",
 	"encounter_trigger",

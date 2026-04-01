@@ -27,6 +27,8 @@ var hover_valid := false
 var hover_reason := ""
 ## When set (e.g. multi-cell door socket), preview uses this anchor instead of hover_cell.
 var hover_preview_anchor := NO_CELL
+## When set, preview uses this rotation instead of placement_rotation_steps.
+var hover_preview_rotation_steps := -1
 var placement_rotation_steps := 0
 var visible_layer_filter: StringName = &"overlay"
 var box_paint_enabled := false
@@ -42,6 +44,7 @@ func bind_room(next_room: RoomBase, next_layout, next_layout_path: String, next_
 	catalog = next_catalog
 	selected_item_id = ""
 	hover_preview_anchor = NO_CELL
+	hover_preview_rotation_steps = -1
 	if active_piece_id == &"" and catalog != null and not catalog.pieces.is_empty():
 		active_piece_id = catalog.pieces[0].piece_id
 	clear_box_paint()
@@ -63,6 +66,7 @@ func clear() -> void:
 	hover_valid = false
 	hover_reason = ""
 	hover_preview_anchor = NO_CELL
+	hover_preview_rotation_steps = -1
 	clear_box_paint()
 	room_changed.emit(null)
 	layout_changed.emit()
@@ -110,19 +114,22 @@ func set_hover_state(
 	cell: Vector2i,
 	is_valid: bool,
 	reason: String = "",
-	preview_anchor: Vector2i = NO_CELL
+	preview_anchor: Vector2i = NO_CELL,
+	preview_rotation_steps: int = -1
 ) -> void:
 	if (
 		hover_cell == cell
 		and hover_valid == is_valid
 		and hover_reason == reason
 		and hover_preview_anchor == preview_anchor
+		and hover_preview_rotation_steps == preview_rotation_steps
 	):
 		return
 	hover_cell = cell
 	hover_valid = is_valid
 	hover_reason = reason
 	hover_preview_anchor = preview_anchor
+	hover_preview_rotation_steps = preview_rotation_steps
 	hover_changed.emit(hover_cell, hover_valid, hover_reason)
 
 

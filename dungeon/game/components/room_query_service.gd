@@ -44,6 +44,28 @@ func socket_world_position(room_name: StringName, direction: String) -> Vector2:
 	return connection_marker_world_position(room_name, direction)
 
 
+func zone_marker_world_position(room_name: StringName, zone_type: String, zone_role: StringName = &"") -> Vector2:
+	var result := find_zone_marker_world_position(room_name, zone_type, zone_role)
+	return result.get("position", Vector2.ZERO)
+
+
+func find_zone_marker_world_position(
+	room_name: StringName,
+	zone_type: String,
+	zone_role: StringName = &""
+) -> Dictionary:
+	var room := room_by_name(room_name)
+	if room == null:
+		return {"found": false, "position": Vector2.ZERO}
+	for zone in room.get_zone_markers():
+		if zone.zone_type != zone_type:
+			continue
+		if zone_role != &"" and zone.zone_role != zone_role:
+			continue
+		return {"found": true, "position": room.global_position + zone.position}
+	return {"found": false, "position": Vector2.ZERO}
+
+
 func is_point_inside_any_room(world_pos: Vector2, margin: float = 0.0) -> bool:
 	if rooms_root == null:
 		return false

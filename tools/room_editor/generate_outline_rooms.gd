@@ -15,6 +15,8 @@ const BORDER_CLEARANCE_TILES := 3
 const DEFAULT_SIZE_BUMP_TILES := 6
 const DEFAULT_VARIANT_COUNT := 1
 const DEFAULT_VARIANT_ATTEMPTS := 25
+const FLOOR_EXIT_BOUNDARY_INSET_TILES := 0
+const AUTO_FLOOR_EXIT_ITEM_ID := "floor_exit_marker_auto"
 
 var _catalog
 var _item_sequence: int = 0
@@ -66,6 +68,8 @@ func _spec_matches_filter(spec: Dictionary) -> bool:
 		if t == "chokepoint" and id.contains("chokepoint"):
 			return true
 		if t == "connector" and id.contains("room_connector_"):
+			return true
+		if id.contains(t):
 			return true
 	return false
 
@@ -933,6 +937,21 @@ func _generate_room(spec: Dictionary, rng: RandomNumberGenerator, report_errors:
 	_add_item(layout, &"encounter_entry_marker", spec["entry_marker"])
 	_add_item(layout, &"prop_placement_marker", prop_marker_position)
 	_add_item(layout, &"nav_boundary_marker", spec["nav_marker"])
+	if String(spec.get("room_type", "")) == "boss":
+		var floor_exit_position := _boss_floor_exit_anchor(
+			size,
+			marker_plan,
+			floor_lookup,
+			opening_cells,
+			wall_items_by_pos
+		)
+		if floor_exit_position == Vector2i(9_999_999, 9_999_999):
+			_last_generate_error = "Failed to derive boss floor-exit anchor."
+			if report_errors:
+				push_error(_last_generate_error)
+			room.free()
+			return false
+		_add_item(layout, &"floor_exit_marker", floor_exit_position, 0, &"", AUTO_FLOOR_EXIT_ITEM_ID)
 
 	if spec.has("loot_marker"):
 		_add_item(layout, &"loot_marker", spec["loot_marker"])
@@ -2179,7 +2198,8 @@ func _add_item(
 	piece_id: StringName,
 	grid_position: Vector2i,
 	rotation_steps: int = 0,
-	encounter_group_id: StringName = &""
+	encounter_group_id: StringName = &"",
+	explicit_item_id: String = ""
 ):
 	var piece = _catalog.find_piece(piece_id)
 	if piece == null:
@@ -2187,7 +2207,7 @@ func _add_item(
 		return null
 	var item = ITEM_SCRIPT.new()
 	_item_sequence += 1
-	item.item_id = "%s_%03d" % [String(piece_id), _item_sequence]
+	item.item_id = explicit_item_id if explicit_item_id != "" else "%s_%03d" % [String(piece_id), _item_sequence]
 	item.piece_id = piece_id
 	item.category = piece.category
 	item.grid_position = grid_position
@@ -2203,6 +2223,85 @@ func _add_item(
 
 func _room_rect(size: Vector2i) -> Rect2i:
 	return Rect2i(Vector2i(-size.x / 2, -size.y / 2), size)
+
+
+func _boss_floor_exit_anchor(
+	size: Vector2i,
+	marker_plan: Array,
+	floor_lookup: Dictionary,
+	opening_cells: Dictionary,
+	wall_items_by_pos: Dictionary
+) -> Vector2i:
+	if marker_plan.is_empty():
+		return Vector2i(9_999_999, 9_999_999)
+	var entrance_side := String(marker_plan[0].get("side", ""))
+	var entrance_center := int(marker_plan[0].get("center", 0))
+	var rect := _room_rect(size)
+	var footprint := Vector2i(3, 3)
+	var min_x := rect.position.x + FLOOR_EXIT_BOUNDARY_INSET_TILES
+	var min_y := rect.position.y + FLOOR_EXIT_BOUNDARY_INSET_TILES
+	var max_x := rect.position.x + rect.size.x - footprint.x - FLOOR_EXIT_BOUNDARY_INSET_TILES
+	var max_y := rect.position.y + rect.size.y - footprint.y - FLOOR_EXIT_BOUNDARY_INSET_TILES
+	if max_x < min_x or max_y < min_y:
+		return Vector2i(9_999_999, 9_999_999)
+	var preferred := Vector2i(9_999_999, 9_999_999)
+	match entrance_side:
+		"west":
+			preferred = Vector2i(max_x, max_y if entrance_center <= 0 else min_y)
+		"east":
+			preferred = Vector2i(min_x, max_y if entrance_center <= 0 else min_y)
+		"north":
+			preferred = Vector2i(max_x if entrance_center <= 0 else min_x, max_y)
+		"south":
+			preferred = Vector2i(max_x if entrance_center <= 0 else min_x, min_y)
+		_:
+			return Vector2i(9_999_999, 9_999_999)
+	return _nearest_valid_floor_exit_anchor(
+		preferred,
+		footprint,
+		floor_lookup,
+		opening_cells,
+		wall_items_by_pos
+	)
+
+
+func _nearest_valid_floor_exit_anchor(
+	preferred: Vector2i,
+	footprint: Vector2i,
+	floor_lookup: Dictionary,
+	opening_cells: Dictionary,
+	blocked_cells: Dictionary
+) -> Vector2i:
+	var best := Vector2i(9_999_999, 9_999_999)
+	var best_dist := INF
+	for candidate_variant in floor_lookup.keys():
+		var candidate := candidate_variant as Vector2i
+		if not _floor_exit_footprint_fits(candidate, footprint, floor_lookup, opening_cells, blocked_cells):
+			continue
+		var dist := preferred.distance_squared_to(candidate)
+		if dist < best_dist:
+			best_dist = dist
+			best = candidate
+	return best
+
+
+func _floor_exit_footprint_fits(
+	anchor: Vector2i,
+	footprint: Vector2i,
+	floor_lookup: Dictionary,
+	opening_cells: Dictionary,
+	blocked_cells: Dictionary
+) -> bool:
+	for x in range(footprint.x):
+		for y in range(footprint.y):
+			var cell := anchor + Vector2i(x, y)
+			if not floor_lookup.has(cell):
+				return false
+			if opening_cells.has(cell):
+				return false
+			if blocked_cells.has(cell):
+				return false
+	return true
 
 
 func _rect_cells(rect: Rect2i) -> Array[Vector2i]:
@@ -2283,7 +2382,8 @@ func _write_minimal_room_scene(
 			"[node name=\"%s_%s\" parent=\"Zones/GeneratedByRoomEditor\" instance=ExtResource(\"4_zone\")]"
 			% [String(item.piece_id), item.item_id]
 		)
-		lines.append("position = Vector2(%s, %s)" % [_grid_to_world(item.grid_position).x, _grid_to_world(item.grid_position).y])
+		var zone_pos := _zone_marker_world_position(item, piece)
+		lines.append("position = Vector2(%s, %s)" % [zone_pos.x, zone_pos.y])
 		lines.append("zone_type = \"%s\"" % piece.zone_type)
 		lines.append("zone_role = &\"%s\"" % String(piece.zone_role))
 		if String(item.resolved_enemy_id(piece)) != "":
@@ -2293,6 +2393,14 @@ func _write_minimal_room_scene(
 		lines.append("")
 	file.store_string("\n".join(lines) + "\n")
 	return true
+
+
+func _zone_marker_world_position(item, piece) -> Vector2:
+	if item == null or piece == null:
+		return Vector2.ZERO
+	var footprint := GridMath.rotated_footprint(piece.footprint, item.rotation_steps)
+	var size_world := Vector2(float(maxi(1, footprint.x) * DEFAULT_GRID_SIZE.x), float(maxi(1, footprint.y) * DEFAULT_GRID_SIZE.y))
+	return _grid_to_world(item.grid_position) + size_world * 0.5 - Vector2(DEFAULT_GRID_SIZE) * 0.5
 
 
 func _packed_string_array_literal(values: PackedStringArray) -> String:

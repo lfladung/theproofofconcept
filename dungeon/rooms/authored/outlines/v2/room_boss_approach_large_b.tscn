@@ -1,13 +1,13 @@
 [gd_scene format=3]
 
 [ext_resource type="PackedScene" path="res://dungeon/rooms/base/room_base.tscn" id="1_room_base"]
-[ext_resource type="Resource" path="res://dungeon/rooms/authored/outlines/v3/layouts/room_boss_approach_large_c02.layout.tres" id="2_layout"]
+[ext_resource type="Resource" path="res://dungeon/rooms/authored/outlines/v2/layouts/room_boss_approach_large_b.layout.tres" id="2_layout"]
 [ext_resource type="PackedScene" path="res://dungeon/modules/connectivity/entrance_marker_2d.tscn" id="3_entrance"]
 [ext_resource type="PackedScene" path="res://dungeon/modules/connectivity/exit_marker_2d.tscn" id="5_exit"]
 [ext_resource type="PackedScene" path="res://dungeon/metadata/zone_marker_2d.tscn" id="4_zone"]
 
 [node name="RoomRoot" instance=ExtResource("1_room_base")]
-room_id = "room_boss_approach_large_c02"
+room_id = "room_boss_approach_large_b"
 size_class = "large"
 room_type = "boss"
 origin_mode = "center"
@@ -20,46 +20,40 @@ max_tile_budget = 3290
 authored_layout = ExtResource("2_layout")
 
 [node name="GeneratedByRoomEditor" type="Node2D" parent="Sockets"]
-[node name="entrance_marker_entrance_marker_1338" parent="Sockets/GeneratedByRoomEditor" instance=ExtResource("3_entrance")]
-position = Vector2(-51.0, -33.0)
+[node name="entrance_marker_entrance_marker_1340" parent="Sockets/GeneratedByRoomEditor" instance=ExtResource("3_entrance")]
+position = Vector2(-51.0, -54.0)
 rotation = 4.71238898038469
 direction = "west"
 width_tiles = 3
 
 [node name="GeneratedByRoomEditor" type="Node2D" parent="Zones"]
-[node name="encounter_entry_marker_encounter_entry_marker_1339" parent="Zones/GeneratedByRoomEditor" instance=ExtResource("4_zone")]
+[node name="encounter_entry_marker_encounter_entry_marker_1341" parent="Zones/GeneratedByRoomEditor" instance=ExtResource("4_zone")]
 position = Vector2(-27.0, 0.0)
 zone_type = "encounter_trigger"
 zone_role = &"entry"
 tags = PackedStringArray("marker", "encounter")
 
-[node name="prop_placement_marker_prop_placement_marker_1340" parent="Zones/GeneratedByRoomEditor" instance=ExtResource("4_zone")]
+[node name="prop_placement_marker_prop_placement_marker_1342" parent="Zones/GeneratedByRoomEditor" instance=ExtResource("4_zone")]
 position = Vector2(24.0, -18.0)
 zone_type = "prop_placement"
 zone_role = &"filler"
 tags = PackedStringArray("marker", "prop")
 
-[node name="nav_boundary_marker_nav_boundary_marker_1341" parent="Zones/GeneratedByRoomEditor" instance=ExtResource("4_zone")]
+[node name="nav_boundary_marker_nav_boundary_marker_1343" parent="Zones/GeneratedByRoomEditor" instance=ExtResource("4_zone")]
 position = Vector2(0.0, 0.0)
 zone_type = "nav_boundary"
 zone_role = &"room_walkable"
 tags = PackedStringArray("marker", "nav")
 
-[node name="floor_exit_marker_floor_exit_marker_auto" parent="Zones/GeneratedByRoomEditor" instance=ExtResource("4_zone")]
-position = Vector2(36.0, 54.0)
-zone_type = "floor_exit"
-zone_role = &"boss_corner"
-tags = PackedStringArray("marker", "boss", "floor_exit")
-
-[node name="spawn_iron_sentinel_marker_spawn_iron_sentinel_marker_1345" parent="Zones/GeneratedByRoomEditor" instance=ExtResource("4_zone")]
-position = Vector2(0.0, 33.0)
+[node name="spawn_iron_sentinel_marker_spawn_iron_sentinel_marker_1346" parent="Zones/GeneratedByRoomEditor" instance=ExtResource("4_zone")]
+position = Vector2(0.0, -27.0)
 zone_type = "enemy_spawn"
 zone_role = &"iron_sentinel"
 enemy_id = &"iron_sentinel"
 tags = PackedStringArray("spawn", "iron_sentinel")
 
-[node name="spawn_robot_mob_marker_spawn_robot_mob_marker_1346" parent="Zones/GeneratedByRoomEditor" instance=ExtResource("4_zone")]
-position = Vector2(0.0, -33.0)
+[node name="spawn_robot_mob_marker_spawn_robot_mob_marker_1347" parent="Zones/GeneratedByRoomEditor" instance=ExtResource("4_zone")]
+position = Vector2(-9.0, 3.0)
 zone_type = "enemy_spawn"
 zone_role = &"robot_mob"
 enemy_id = &"robot_mob"

@@ -212,6 +212,49 @@ Use or refresh this block after any substantial thread so the next thread has a 
 
 ### Task Snapshot
 
+- Date: 2026-04-01
+- Goal: Add a first-class authored `floor_exit` marker for boss rooms and wire the room editor/runtime to use it.
+- Why now: Floor generation is moving onto authored rooms, and boss rooms needed an explicit in-room floor-transition target instead of relying only on hardcoded portal placement.
+- Relevant subsystem: Room editor marker vocabulary, `RoomBase` validation, generated `ZoneMarker2D` metadata, boss-room runtime exit placement.
+- Files likely involved: `dungeon/metadata/zone_marker_2d.gd`, `addons/dungeon_room_editor/{plugin.gd,core/scene_sync.gd,resources/default_room_piece_catalog.tres}`, `dungeon/rooms/base/room_base.gd`, `dungeon/game/components/room_query_service.gd`, `dungeon/game/small_dungeon.gd`.
+- Constraints / must-not-break: Keep connection markers boundary-only, keep the new floor exit as an interior gameplay marker, preserve existing room-editor sidecar workflow, and retain a runtime fallback if an authored boss room has no valid floor-exit marker yet.
+
+### What Changed
+
+- Files touched:
+  - `dungeon/metadata/zone_marker_2d.gd` — added `floor_exit` as a first-class zone type.
+  - `addons/dungeon_room_editor/resources/default_room_piece_catalog.tres` — added a `floor_exit_marker` zone-marker piece with `footprint = Vector2i(3, 3)`, overlay placement, and boss/floor-exit tags.
+  - `addons/dungeon_room_editor/core/scene_sync.gd` — zone markers now spawn at the center of their full footprint instead of only the anchor cell; generated nodes now carry `room_editor_footprint_tiles` metadata.
+  - `addons/dungeon_room_editor/plugin.gd` — boss rooms now auto-manage a dedicated `floor_exit_marker_auto` layout item based on the room’s single entrance marker, placing the 3x3 marker in the opposite corner and removing it when the room is no longer a valid boss-room target.
+  - `dungeon/rooms/base/room_base.gd` — boss rooms now validate that exactly one `floor_exit` marker exists, that it stays inside room bounds, and that it lands in the expected opposite corner relative to the entrance marker.
+  - `dungeon/game/components/room_query_service.gd` — added zone-marker lookup helpers.
+  - `dungeon/game/small_dungeon.gd` — boss exit portal placement now prefers an authored `floor_exit` zone marker and falls back to the old hardcoded opposite-side placement if one is missing.
+- Behavior added or changed:
+  - Boss rooms in the Room Editor automatically get a managed 3x3 `floor_exit` marker.
+  - The corner is derived from both entrance direction and which half of the wall the entrance is on, so “opposite corner” works on both axes.
+  - Runtime boss exit placement can now consume the authored marker center directly.
+- Architectural decisions:
+  - `floor_exit` is a zone marker, not a connection marker, because it represents an interior elevator/portal area rather than a wall connector.
+  - Auto-stamping happens during room-editor sync after connection markers are generated, which lets the feature read the real authored entrance marker without inventing a second source of truth.
+  - Runtime lookup is centralized in `RoomQueryService` so `small_dungeon.gd` does not need direct room-zone scans.
+
+### Risks And Follow-Ups
+
+- Known risks: The boss-room auto-stamp currently assumes exactly one entrance marker; rooms with multiple entrances intentionally warn and do not auto-place a floor exit. Manual duplicate `floor_exit` markers can still be created and will surface as validation warnings rather than being auto-merged.
+- Follow-up tasks:
+  - Open a boss room in the Room Editor and visually confirm the auto-stamped 3x3 marker lands in the intended opposite corner for each entrance orientation.
+  - Once authored-room floor assembly is further along, replace the remaining hardcoded boss-exit fallback path in `small_dungeon.gd`.
+  - Consider giving `floor_exit` a dedicated preview visual in the Room Editor so the 3x3 footprint reads more clearly than a generic zone marker.
+- Open questions: Whether the derived opposite corner should eventually use a stricter authored “room flow axis” instead of wall-half heuristics for asymmetrical boss rooms.
+
+### Next Best Prompt
+
+- Paste-ready prompt for the next thread: "Open a boss-room `RoomBase` scene in the Room Editor and manually validate the new auto-stamped `floor_exit` marker. Test entrances on each wall, confirm the 3x3 marker lands in the correct opposite corner, playtest the room, and fix any visual or authored-layout edge cases without changing the `floor_exit` zone-marker contract."
+
+---
+
+### Task Snapshot
+
 - Date: 2026-03-28
 - Goal: Lay the groundwork for an affix-based equipment upgrade system and introduce the first in-world stat pickup object (stat pillar).
 - Why now: The ideas docs (`ideas/GAMEPLAY_IDEAS.md`, `ideas/EQUIPMENT_UPGRADES.md`) define 7 affix types (Edge, Flow, Mass, Echo, Anchor, Phase, Surge) + secondaries. Before items with those affixes can exist, the stat vocabulary and a runtime bonus delivery mechanism had to be added.
