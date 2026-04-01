@@ -18,10 +18,10 @@ func can_place(
 ) -> Dictionary:
 	if room == null or layout == null or catalog == null or piece == null:
 		return {"valid": false, "reason": "Editor session is incomplete."}
-	if piece.is_door_socket():
+	if piece.is_connection_marker():
 		var ft := GridMath.rotated_footprint(piece.footprint, rotation_steps)
 		if ft.x > 1 or ft.y > 1:
-			var candidates := GridMath.door_socket_anchor_candidates(
+			var candidates := GridMath.connection_marker_anchor_candidates(
 				grid_position,
 				piece.footprint,
 				rotation_steps
@@ -43,7 +43,7 @@ func can_place(
 				last_reason = String(r.get("reason", ""))
 			return {
 				"valid": false,
-				"reason": last_reason if last_reason != "" else "Door sockets must snap to the matching room boundary.",
+				"reason": last_reason if last_reason != "" else "Connection markers must snap to the matching room boundary.",
 			}
 	var single := _evaluate_anchor(
 		room,
@@ -103,10 +103,10 @@ func _evaluate_anchor(
 	if not GridMath.is_inside_room(local_point, room, layout):
 		return {"valid": false, "reason": "Placement is outside the room bounds."}
 	var candidate_rect := GridMath.anchor_rect(anchor, piece.footprint, rotation_steps, layout, room)
-	if piece.is_door_socket():
+	if piece.is_connection_marker():
 		var direction := GridMath.direction_from_rotation(rotation_steps)
-		if not GridMath.door_socket_spans_room_boundary(room, layout, candidate_rect, direction):
-			return {"valid": false, "reason": "Door sockets must snap to the matching room boundary."}
+		if not GridMath.connection_marker_spans_room_boundary(room, layout, candidate_rect, direction):
+			return {"valid": false, "reason": "Connection markers must sit on the room boundary."}
 	var resolved_candidate_layer := _resolve_piece_layer(piece, candidate_layer)
 	for item in layout.items:
 		if item == null or item.item_id == ignore_item_id:

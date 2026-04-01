@@ -19,7 +19,7 @@ func build_catalog(rooms_root: Node2D) -> Dictionary:
 	return {"by_name": by_name, "metadata": metadata}
 
 
-func assemble_from_socket_graph(
+func assemble_from_connection_graph(
 	rooms_root: Node2D, start_room_name: StringName, links: Array[Dictionary]
 ) -> Dictionary:
 	var catalog: Dictionary = build_catalog(rooms_root)
@@ -44,10 +44,10 @@ func assemble_from_socket_graph(
 			var from_dir: String = String(link.get("from_dir", ""))
 			var to_dir: String = String(link.get("to_dir", _opposite_direction(from_dir)))
 			if from_name == StringName() or to_name == StringName():
-				errors.append("Invalid socket link found: %s" % [link])
+				errors.append("Invalid connection link found: %s" % [link])
 				continue
 			if not by_name.has(from_name) or not by_name.has(to_name):
-				errors.append("Socket link references unknown room(s): %s" % [link])
+				errors.append("Connection link references unknown room(s): %s" % [link])
 				continue
 			var from_placed: bool = bool(placed.get(from_name, false))
 			var to_placed: bool = bool(placed.get(to_name, false))
@@ -55,7 +55,7 @@ func assemble_from_socket_graph(
 				if not _validate_existing_connection(
 					by_name[from_name] as RoomBase, by_name[to_name] as RoomBase, from_dir, to_dir
 				):
-					errors.append("Placed rooms '%s' and '%s' failed socket validation." % [from_name, to_name])
+					errors.append("Placed rooms '%s' and '%s' failed marker validation." % [from_name, to_name])
 				progressed = true
 				continue
 			if not from_placed and not to_placed:
@@ -67,9 +67,9 @@ func assemble_from_socket_graph(
 			var place_dir: String = to_dir if from_placed else from_dir
 			var anchor_room: RoomBase = by_name[anchor_name] as RoomBase
 			var place_room: RoomBase = by_name[place_name] as RoomBase
-			if not _place_room_from_socket(anchor_room, place_room, anchor_dir, place_dir):
+			if not _place_room_from_marker(anchor_room, place_room, anchor_dir, place_dir):
 				errors.append(
-					"Failed to place '%s' from '%s' using %s -> %s." % [
+					"Failed to place '%s' from '%s' using marker %s -> %s." % [
 						place_name,
 						anchor_name,
 						anchor_dir,
@@ -81,7 +81,7 @@ func assemble_from_socket_graph(
 			progressed = true
 		pending = next_pending
 		if not progressed and not pending.is_empty():
-			errors.append("Socket graph has unresolved links (possible disconnected branch or cycle mismatch).")
+			errors.append("Connection graph has unresolved links (possible disconnected branch or cycle mismatch).")
 			break
 
 	var overlap_errors: PackedStringArray = _validate_no_overlaps(_placed_rooms(by_name, placed))
@@ -99,13 +99,17 @@ func assemble_from_socket_graph(
 }
 
 
+func assemble_from_socket_graph(rooms_root: Node2D, start_room_name: StringName, links: Array[Dictionary]) -> Dictionary:
+	return assemble_from_connection_graph(rooms_root, start_room_name, links)
+
+
 func _room_metadata(room: RoomBase) -> Dictionary:
-	var sockets: Array[Dictionary] = []
-	for socket in room.get_all_sockets():
-		var sig: Dictionary = socket.socket_signature()
-		sig["name"] = socket.name
-		sig["active"] = socket.connector_type != &"inactive"
-		sockets.append(sig)
+	var markers: Array[Dictionary] = []
+	for marker in room.get_connection_markers():
+		var sig: Dictionary = marker.marker_signature()
+		sig["name"] = marker.name
+		sig["active"] = marker.connection_tag != &"inactive"
+		markers.append(sig)
 	return {
 		"name": room.name,
 		"room_id": room.room_id,
@@ -114,38 +118,41 @@ func _room_metadata(room: RoomBase) -> Dictionary:
 		"room_size_tiles": room.room_size_tiles,
 		"allowed_rotations": room.allowed_rotations,
 		"room_tags": room.room_tags,
-		"sockets": sockets,
+		"connection_markers": markers,
 	}
 
 
 func _validate_existing_connection(from_room: RoomBase, to_room: RoomBase, from_dir: String, to_dir: String) -> bool:
-	var from_socket: DoorSocket2D = _first_active_socket(from_room, from_dir)
-	var to_socket: DoorSocket2D = _first_active_socket(to_room, to_dir)
-	if from_socket == null or to_socket == null:
+	var from_marker: ConnectorMarker2D = _first_active_marker(from_room, from_dir, "exit")
+	var to_marker: ConnectorMarker2D = _first_active_marker(to_room, to_dir, "entrance")
+	if from_marker == null or to_marker == null:
 		return false
-	if not from_socket.is_compatible_with(to_socket):
+	if not from_marker.is_compatible_with(to_marker):
 		return false
-	var from_world: Vector2 = from_room.global_position + from_socket.position
-	var to_world: Vector2 = to_room.global_position + to_socket.position
+	var from_world: Vector2 = from_room.global_position + from_marker.position
+	var to_world: Vector2 = to_room.global_position + to_marker.position
 	return from_world.distance_to(to_world) <= _PLACE_EPSILON
 
 
-func _place_room_from_socket(anchor_room: RoomBase, place_room: RoomBase, anchor_dir: String, place_dir: String) -> bool:
-	var anchor_socket: DoorSocket2D = _first_active_socket(anchor_room, anchor_dir)
-	var place_socket: DoorSocket2D = _first_active_socket(place_room, place_dir)
-	if anchor_socket == null or place_socket == null:
+func _place_room_from_marker(anchor_room: RoomBase, place_room: RoomBase, anchor_dir: String, place_dir: String) -> bool:
+	var anchor_marker: ConnectorMarker2D = _first_active_marker(anchor_room, anchor_dir, "exit")
+	var place_marker: ConnectorMarker2D = _first_active_marker(place_room, place_dir, "entrance")
+	if anchor_marker == null or place_marker == null:
 		return false
-	if not anchor_socket.is_compatible_with(place_socket):
+	if not anchor_marker.is_compatible_with(place_marker):
 		return false
-	var socket_world: Vector2 = anchor_room.global_position + anchor_socket.position
-	place_room.global_position = socket_world - place_socket.position
+	var marker_world: Vector2 = anchor_room.global_position + anchor_marker.position
+	place_room.global_position = marker_world - place_marker.position
 	return true
 
 
-func _first_active_socket(room: RoomBase, direction: String) -> DoorSocket2D:
-	for socket in room.get_socket_by_direction(direction):
-		if socket.connector_type != &"inactive":
-			return socket
+func _first_active_marker(room: RoomBase, direction: String, marker_kind: String = "") -> ConnectorMarker2D:
+	for marker in room.get_connection_markers_by_direction(direction):
+		if marker.connection_tag == &"inactive":
+			continue
+		if marker_kind != "" and marker.marker_kind != marker_kind:
+			continue
+		return marker
 	return null
 
 

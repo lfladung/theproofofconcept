@@ -19,10 +19,24 @@ class_name RoomPieceDefinition
 @export var zone_role: StringName = &"default"
 @export var enemy_id: StringName = &""
 @export var connector_type: StringName = &"standard"
+@export_enum("entrance", "exit") var marker_kind := "entrance"
+@export_range(1, 8, 1) var marker_width_tiles := 3
 
 
 func is_door_socket() -> bool:
 	return mapping_kind == &"door_socket"
+
+
+func is_connection_marker() -> bool:
+	return mapping_kind == &"connection_marker"
+
+
+func is_entrance_marker() -> bool:
+	return is_connection_marker() and marker_kind == "entrance"
+
+
+func is_exit_marker() -> bool:
+	return is_connection_marker() and marker_kind == "exit"
 
 
 func is_zone_marker() -> bool:

@@ -82,9 +82,10 @@ static func anchor_rect(
 	return Rect2(tile_min, world_size)
 
 
-## Point on the door socket rect that should touch the room AABB edge for boundary validation.
 ## All footprint min-corner anchors such that the rotated footprint covers `hover` (any clicked cell).
-static func door_socket_anchor_candidates(hover: Vector2i, footprint: Vector2i, rotation_steps: int) -> Array[Vector2i]:
+static func connection_marker_anchor_candidates(
+	hover: Vector2i, footprint: Vector2i, rotation_steps: int
+) -> Array[Vector2i]:
 	var ft := rotated_footprint(footprint, rotation_steps)
 	var ax_min := hover.x - ft.x + 1
 	var ay_min := hover.y - ft.y + 1
@@ -99,7 +100,7 @@ static func door_socket_anchor_candidates(hover: Vector2i, footprint: Vector2i, 
 	return out
 
 
-static func door_socket_boundary_probe(candidate_rect: Rect2, direction: String) -> Vector2:
+static func connection_marker_boundary_probe(candidate_rect: Rect2, direction: String) -> Vector2:
 	var c := candidate_rect.get_center()
 	match direction:
 		"west":
@@ -114,51 +115,63 @@ static func door_socket_boundary_probe(candidate_rect: Rect2, direction: String)
 			return c
 
 
-## True if the door footprint crosses the room AABB edge (plane), not a single probe point.
-## Tile anchor_rect min corners are half a cell inset from grid lines; the room outline uses the
-## nominal AABB, so point-on-edge checks fail for valid generator anchors (e.g. west hall socket).
-static func door_socket_spans_room_boundary(
+## True if the marker footprint lies on the room AABB edge (plane) while remaining inside the room.
+static func connection_marker_spans_room_boundary(
 	room: RoomBase, layout, candidate_rect: Rect2, direction: String
 ) -> bool:
 	var room_rect := room_local_rect(room)
 	var step := grid_step(layout, room)
 	var plane_eps := maxf(0.02, maxf(step.x, step.y) * 1.0e-4)
 	var margin := maxf(step.x, step.y) * 0.5 + 0.02
+	if not room_rect.encloses(candidate_rect.grow(plane_eps)):
+		return false
 	match direction:
 		"west":
 			var w := room_rect.position.x
-			if candidate_rect.end.x < w - plane_eps or candidate_rect.position.x > w + plane_eps:
+			if absf(candidate_rect.position.x - w) > plane_eps:
 				return false
 			return (
-				candidate_rect.end.y >= room_rect.position.y - margin
-				and candidate_rect.position.y <= room_rect.end.y + margin
+				candidate_rect.end.y <= room_rect.end.y + plane_eps
+				and candidate_rect.position.y >= room_rect.position.y - plane_eps
 			)
 		"east":
 			var e := room_rect.end.x
-			if candidate_rect.end.x < e - plane_eps or candidate_rect.position.x > e + plane_eps:
+			if absf(candidate_rect.end.x - e) > plane_eps:
 				return false
 			return (
-				candidate_rect.end.y >= room_rect.position.y - margin
-				and candidate_rect.position.y <= room_rect.end.y + margin
+				candidate_rect.end.y <= room_rect.end.y + plane_eps
+				and candidate_rect.position.y >= room_rect.position.y - plane_eps
 			)
 		"north":
 			var n := room_rect.position.y
-			if candidate_rect.end.y < n - plane_eps or candidate_rect.position.y > n + plane_eps:
+			if absf(candidate_rect.position.y - n) > plane_eps:
 				return false
 			return (
-				candidate_rect.end.x >= room_rect.position.x - margin
-				and candidate_rect.position.x <= room_rect.end.x + margin
+				candidate_rect.end.x <= room_rect.end.x + plane_eps
+				and candidate_rect.position.x >= room_rect.position.x - plane_eps
 			)
 		"south":
 			var s := room_rect.end.y
-			if candidate_rect.end.y < s - plane_eps or candidate_rect.position.y > s + plane_eps:
+			if absf(candidate_rect.end.y - s) > plane_eps:
 				return false
 			return (
-				candidate_rect.end.x >= room_rect.position.x - margin
-				and candidate_rect.position.x <= room_rect.end.x + margin
+				candidate_rect.end.x <= room_rect.end.x + plane_eps
+				and candidate_rect.position.x >= room_rect.position.x - plane_eps
 			)
 		_:
 			return false
+
+
+static func door_socket_anchor_candidates(hover: Vector2i, footprint: Vector2i, rotation_steps: int) -> Array[Vector2i]:
+	return connection_marker_anchor_candidates(hover, footprint, rotation_steps)
+
+
+static func door_socket_boundary_probe(candidate_rect: Rect2, direction: String) -> Vector2:
+	return connection_marker_boundary_probe(candidate_rect, direction)
+
+
+static func door_socket_spans_room_boundary(room: RoomBase, layout, candidate_rect: Rect2, direction: String) -> bool:
+	return connection_marker_spans_room_boundary(room, layout, candidate_rect, direction)
 
 
 static func item_rect(item, piece, layout, room: RoomBase) -> Rect2:

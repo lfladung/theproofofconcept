@@ -2,7 +2,8 @@
 
 [ext_resource type="PackedScene" path="res://dungeon/rooms/base/room_base.tscn" id="1_room_base"]
 [ext_resource type="Resource" path="res://dungeon/rooms/authored/outlines/v3/layouts/room_combat_tactical_medium_c.layout.tres" id="2_layout"]
-[ext_resource type="PackedScene" path="res://dungeon/rooms/base/door_socket_2d.tscn" id="3_socket"]
+[ext_resource type="PackedScene" path="res://dungeon/modules/connectivity/entrance_marker_2d.tscn" id="3_entrance"]
+[ext_resource type="PackedScene" path="res://dungeon/modules/connectivity/exit_marker_2d.tscn" id="5_exit"]
 [ext_resource type="PackedScene" path="res://dungeon/metadata/zone_marker_2d.tscn" id="4_zone"]
 
 [node name="RoomRoot" instance=ExtResource("1_room_base")]
@@ -11,64 +12,59 @@ size_class = "medium"
 room_type = "arena"
 origin_mode = "center"
 tile_size = Vector2i(3, 3)
-room_size_tiles = Vector2i(26, 26)
+room_size_tiles = Vector2i(32, 32)
 room_tags = PackedStringArray("arena", "combat", "medium")
 allowed_connection_types = PackedStringArray("corridor", "connector", "arena")
 encounter_budget = 180
-max_tile_budget = 1352
+max_tile_budget = 2048
 authored_layout = ExtResource("2_layout")
 
 [node name="GeneratedByRoomEditor" type="Node2D" parent="Sockets"]
-[node name="hall_socket_double_hall_socket_double_710" parent="Sockets/GeneratedByRoomEditor" instance=ExtResource("3_socket")]
-position = Vector2(-39.0, -1.5)
+[node name="entrance_marker_entrance_marker_1116" parent="Sockets/GeneratedByRoomEditor" instance=ExtResource("3_entrance")]
+position = Vector2(-48.0, 0.0)
 direction = "west"
-width_tiles = 2
+width_tiles = 3
 
-[node name="hall_socket_double_hall_socket_double_711" parent="Sockets/GeneratedByRoomEditor" instance=ExtResource("3_socket")]
-position = Vector2(36.0, -1.5)
-direction = "east"
-width_tiles = 2
-
-[node name="hall_socket_double_hall_socket_double_712" parent="Sockets/GeneratedByRoomEditor" instance=ExtResource("3_socket")]
-position = Vector2(-1.5, -39.0)
+[node name="exit_marker_exit_marker_1117" parent="Sockets/GeneratedByRoomEditor" instance=ExtResource("5_exit")]
+position = Vector2(0.0, -48.0)
 direction = "north"
-width_tiles = 2
+width_tiles = 3
 
 [node name="GeneratedByRoomEditor" type="Node2D" parent="Zones"]
-[node name="encounter_entry_marker_encounter_entry_marker_713" parent="Zones/GeneratedByRoomEditor" instance=ExtResource("4_zone")]
+[node name="encounter_entry_marker_encounter_entry_marker_1118" parent="Zones/GeneratedByRoomEditor" instance=ExtResource("4_zone")]
 position = Vector2(-24.0, 0.0)
 zone_type = "encounter_trigger"
 zone_role = &"entry"
 tags = PackedStringArray("marker", "encounter")
 
-[node name="prop_placement_marker_prop_placement_marker_714" parent="Zones/GeneratedByRoomEditor" instance=ExtResource("4_zone")]
+[node name="prop_placement_marker_prop_placement_marker_1119" parent="Zones/GeneratedByRoomEditor" instance=ExtResource("4_zone")]
 position = Vector2(18.0, 15.0)
 zone_type = "prop_placement"
 zone_role = &"filler"
 tags = PackedStringArray("marker", "prop")
 
-[node name="nav_boundary_marker_nav_boundary_marker_715" parent="Zones/GeneratedByRoomEditor" instance=ExtResource("4_zone")]
+[node name="nav_boundary_marker_nav_boundary_marker_1120" parent="Zones/GeneratedByRoomEditor" instance=ExtResource("4_zone")]
 position = Vector2(0.0, 0.0)
 zone_type = "nav_boundary"
 zone_role = &"room_walkable"
 tags = PackedStringArray("marker", "nav")
 
-[node name="spawn_robot_mob_marker_spawn_robot_mob_marker_718" parent="Zones/GeneratedByRoomEditor" instance=ExtResource("4_zone")]
-position = Vector2(12.0, 9.0)
+[node name="spawn_robot_mob_marker_spawn_robot_mob_marker_1123" parent="Zones/GeneratedByRoomEditor" instance=ExtResource("4_zone")]
+position = Vector2(3.0, -33.0)
 zone_type = "enemy_spawn"
 zone_role = &"robot_mob"
 enemy_id = &"robot_mob"
 tags = PackedStringArray("spawn", "robot_mob")
 
-[node name="spawn_dasher_marker_spawn_dasher_marker_719" parent="Zones/GeneratedByRoomEditor" instance=ExtResource("4_zone")]
-position = Vector2(-12.0, 12.0)
+[node name="spawn_dasher_marker_spawn_dasher_marker_1124" parent="Zones/GeneratedByRoomEditor" instance=ExtResource("4_zone")]
+position = Vector2(9.0, 0.0)
 zone_type = "enemy_spawn"
 zone_role = &"dasher"
 enemy_id = &"dasher"
 tags = PackedStringArray("spawn", "dasher")
 
-[node name="spawn_arrow_tower_marker_spawn_arrow_tower_marker_720" parent="Zones/GeneratedByRoomEditor" instance=ExtResource("4_zone")]
-position = Vector2(12.0, 15.0)
+[node name="spawn_arrow_tower_marker_spawn_arrow_tower_marker_1125" parent="Zones/GeneratedByRoomEditor" instance=ExtResource("4_zone")]
+position = Vector2(30.0, -6.0)
 zone_type = "enemy_spawn"
 zone_role = &"arrow_tower"
 enemy_id = &"arrow_tower"

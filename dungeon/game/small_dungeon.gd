@@ -1597,8 +1597,18 @@ func _room_center_2d(room_name: StringName) -> Vector2:
 	return _room_queries.room_center_2d(room_name) if _room_queries != null else Vector2.ZERO
 
 
+func _connection_marker_world_position(
+	room_name: StringName, direction: String, marker_kind: String = ""
+) -> Vector2:
+	return (
+		_room_queries.connection_marker_world_position(room_name, direction, marker_kind)
+		if _room_queries != null
+		else Vector2.ZERO
+	)
+
+
 func _socket_world_position(room_name: StringName, direction: String) -> Vector2:
-	return _room_queries.socket_world_position(room_name, direction) if _room_queries != null else Vector2.ZERO
+	return _connection_marker_world_position(room_name, direction)
 
 
 func _cache_runtime_door_positions() -> void:
@@ -1611,10 +1621,10 @@ func _cache_runtime_door_positions() -> void:
 	_combat_exit_dir = String(_map_layout.get("combat_exit_dir", "east"))
 	_boss_entry_dir = String(_map_layout.get("boss_entry_dir", "west"))
 	_puzzle_gate_dir = String(_map_layout.get("puzzle_gate_dir", "east"))
-	_combat_entry_socket = _socket_world_position(cr, _combat_entry_dir)
-	_combat_exit_socket = _socket_world_position(cr, _combat_exit_dir)
-	_boss_entry_socket = _socket_world_position(er, _boss_entry_dir)
-	_puzzle_gate_socket = _socket_world_position(pr, _puzzle_gate_dir)
+	_combat_entry_socket = _connection_marker_world_position(cr, _combat_entry_dir, "entrance")
+	_combat_exit_socket = _connection_marker_world_position(cr, _combat_exit_dir, "exit")
+	_boss_entry_socket = _connection_marker_world_position(er, _boss_entry_dir, "entrance")
+	_puzzle_gate_socket = _connection_marker_world_position(pr, _puzzle_gate_dir, "exit")
 	_combat_door_x_w = _combat_entry_socket.x
 	_combat_door_x_e = _combat_exit_socket.x
 	_boss_door_x_w = _boss_entry_socket.x
@@ -1917,9 +1927,6 @@ func _build_room_debug_visuals() -> void:
 		child.queue_free()
 	_door_visual_by_socket_key.clear()
 	_puzzle_door_visual = null
-	var door_specs_by_key: Dictionary = {}
-	var combat_nm := _layout_room_name("combat_room")
-	var puzzle_nm := _layout_room_name("puzzle_room")
 	for room in _rooms_root.get_children():
 		if room is not RoomBase:
 			continue
@@ -1930,55 +1937,6 @@ func _build_room_debug_visuals() -> void:
 		var half := rect_local.size * 0.5
 		var rect := Rect2(r.global_position - half, rect_local.size)
 		_add_room_floor_visual(rect, r.name + " (" + r.room_type.to_upper() + ")")
-		for socket in r.get_all_sockets():
-			if socket.connector_type == &"inactive":
-				continue
-			var world_pos := r.global_position + socket.position
-			var dir_key := String(socket.direction)
-			var combat_visuals := (
-				r.name == combat_nm
-				and (dir_key == _combat_entry_dir or dir_key == _combat_exit_dir)
-			)
-			var is_puzzle_gate := false
-			if String(puzzle_nm) != "" and _puzzle_gate_socket.length_squared() > 0.0001:
-				is_puzzle_gate = world_pos.distance_squared_to(_puzzle_gate_socket) < 0.49
-			var dk := "%s:%s" % [int(roundf(world_pos.x * 100.0)), int(roundf(world_pos.y * 100.0))]
-			if not door_specs_by_key.has(dk):
-				door_specs_by_key[dk] = {
-					"world_pos": world_pos,
-					"wall_direction": dir_key,
-					"use_combat_lock_visuals": combat_visuals,
-					"is_puzzle_gate": is_puzzle_gate,
-					"width_tiles": socket.width_tiles,
-				}
-			else:
-				var existing := door_specs_by_key[dk] as Dictionary
-				if combat_visuals and not bool(existing.get("use_combat_lock_visuals", false)):
-					# Shared openings are discovered from both adjacent rooms; prefer combat-room metadata.
-					existing["world_pos"] = world_pos
-					existing["wall_direction"] = dir_key
-					existing["use_combat_lock_visuals"] = true
-					existing["width_tiles"] = socket.width_tiles
-				if is_puzzle_gate:
-					existing["is_puzzle_gate"] = true
-				door_specs_by_key[dk] = existing
-
-	for dk in door_specs_by_key.keys():
-		var spec := door_specs_by_key[dk] as Dictionary
-		var door_pos := spec["world_pos"] as Vector2
-		_spawn_standard_door_piece(door_pos, int(spec.get("width_tiles", 1)))
-		var is_pg := bool(spec.get("is_puzzle_gate", false))
-		var use_cv := bool(spec.get("use_combat_lock_visuals", false)) or is_pg
-		var door := _add_cell_door_3d(
-			door_pos,
-			String(spec.get("wall_direction", "west")),
-			use_cv,
-			is_pg
-		)
-		if is_pg:
-			_puzzle_door_visual = door
-
-	_assign_combat_door_visual_refs()
 
 
 func _assign_combat_door_visual_refs() -> void:
@@ -2157,22 +2115,11 @@ func _add_cell_door_3d(
 	use_combat_lock_visuals: bool,
 	start_visual_closed: bool = false
 ) -> DungeonCellDoor3D:
-	var door := DUNGEON_CELL_DOOR_SCENE.instantiate() as DungeonCellDoor3D
-	door.use_combat_lock_visuals = use_combat_lock_visuals
-	door.start_visual_closed = start_visual_closed
-	door.configure_for_socket(wall_direction)
-	door.position = Vector3(world_pos.x, FLOOR_SLAB_TOP_Y, world_pos.y)
-	_disable_architecture_shadows(door)
-	_door_visuals.add_child(door)
-	_door_visual_by_socket_key[_socket_pos_key(world_pos)] = door
-	return door
+	return null
 
 
 func _apply_combat_doors_locked(locked: bool, animate: bool = true) -> void:
-	# Entry door stays open; only combat exit door is gated by clear state.
-	for asm in [_combat_door_visual_east]:
-		if asm != null:
-			asm.set_combat_locked(locked, animate)
+	return
 
 
 func _set_combat_doors_locked(locked: bool, animate: bool = true) -> void:
@@ -2192,41 +2139,11 @@ func _set_boss_entry_locked(_locked: bool) -> void:
 
 
 func _apply_hard_door_clamps() -> void:
-	var mobs: Array[CharacterBody2D] = []
-	for n in get_tree().get_nodes_in_group(&"mob"):
-		if n is CharacterBody2D:
-			mobs.append(n as CharacterBody2D)
-	var players_to_clamp: Array[CharacterBody2D] = []
-	for peer_id in _players_by_peer.keys():
-		var node: Variant = _players_by_peer.get(peer_id, null)
-		if node is CharacterBody2D and is_instance_valid(node):
-			players_to_clamp.append(node as CharacterBody2D)
-	if players_to_clamp.is_empty() and _player != null and is_instance_valid(_player):
-		players_to_clamp.append(_player)
-	if _door_lock_controller != null:
-		for p in players_to_clamp:
-			_door_lock_controller.apply_hard_door_clamps(
-				p,
-				_puzzle_solved,
-				_puzzle_gate_socket,
-				_puzzle_gate_dir,
-				_encounter_active,
-				_PLAYER_CLAMP_R,
-				_MOB_CLAMP_R,
-				mobs
-			)
+	return
 
 
 func _spawn_standard_door_piece(world_pos: Vector2, width_tiles: int) -> void:
-	var door_piece := DOOR_STANDARD_SCENE.instantiate() as DungeonPiece2D
-	if door_piece == null:
-		return
-	door_piece.tile_size = Vector2i(3, 3)
-	door_piece.footprint_tiles = Vector2i(maxi(1, width_tiles), 1)
-	door_piece.blocks_movement = false
-	door_piece.walkable = true
-	door_piece.position = world_pos
-	_piece_instances_root.add_child(door_piece)
+	return
 
 
 func _on_puzzle_floor_button_activated() -> void:
@@ -2507,11 +2424,7 @@ func _spawn_encounter_modules() -> void:
 
 
 func _cache_locked_sockets_for_encounter(room: RoomBase, encounter_id: StringName) -> void:
-	if _door_lock_controller == null:
-		return
-	var ex_pos := _entry_socket_by_encounter.get(encounter_id, Vector2.ZERO) as Vector2
-	var ex_dir := String(_entry_socket_dir_by_encounter.get(encounter_id, ""))
-	_door_lock_controller.cache_room_locks(room, encounter_id, _door_visual_by_socket_key, ex_pos, ex_dir)
+	return
 
 
 func _socket_pos_key(p: Vector2) -> String:
@@ -2523,8 +2436,7 @@ func _socket_pos_key(p: Vector2) -> String:
 func _apply_encounter_door_visuals_locked(
 	encounter_id: StringName, locked: bool, animate: bool = true
 ) -> void:
-	if _door_lock_controller != null:
-		_door_lock_controller.set_encounter_visuals_locked(encounter_id, locked, animate)
+	return
 
 
 func _set_encounter_door_visuals_locked(encounter_id: StringName, locked: bool, animate: bool = true) -> void:

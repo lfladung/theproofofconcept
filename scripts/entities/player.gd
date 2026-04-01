@@ -1647,7 +1647,7 @@ func _submit_local_weapon_switch_request() -> void:
 func _handle_local_multiplayer_combat_input(delta: float) -> void:
 	if not _is_local_owner_peer() or _is_dead:
 		return
-	var use_wasd := GameSettings.is_wasd_mouse_scheme()
+	var use_wasd := _is_wasd_mouse_scheme_enabled()
 	if _menu_input_blocked:
 		_rmb_down = Input.is_mouse_button_pressed(MOUSE_BUTTON_RIGHT)
 		_lmb_down = Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT)
@@ -2463,9 +2463,16 @@ const _MOVE_STEER_HINT_DISTANCE := 512.0
 
 
 func _wasd_move_facing_aim(aim_planar: Vector2, move_direction: Vector2) -> Vector2:
-	if GameSettings.is_wasd_mouse_scheme() and move_direction.length_squared() > 1e-6:
+	if _is_wasd_mouse_scheme_enabled() and move_direction.length_squared() > 1e-6:
 		return Vector2.ZERO
 	return aim_planar
+
+
+func _is_wasd_mouse_scheme_enabled() -> bool:
+	var settings := get_node_or_null("/root/GameSettings")
+	if settings != null and settings.has_method("is_wasd_mouse_scheme"):
+		return bool(settings.call("is_wasd_mouse_scheme"))
+	return false
 
 
 func _mouse_aim_direction_planar() -> Vector2:
@@ -2502,7 +2509,7 @@ func _resolve_facing_aim_for_move_step(
 
 
 func _local_move_steering_intent() -> Dictionary:
-	if GameSettings.is_wasd_mouse_scheme():
+	if _is_wasd_mouse_scheme_enabled():
 		var v_raw := Input.get_vector(&"move_left", &"move_right", &"move_up", &"move_down", 0.2)
 		# Planar = world XZ; map get_vector (screen-style axes) into walk space (both axes flipped here).
 		var v := Vector2(-v_raw.x, -v_raw.y)
@@ -2826,7 +2833,7 @@ func _physics_process(delta: float) -> void:
 	_ranged_cooldown_remaining = maxf(0.0, _ranged_cooldown_remaining - delta)
 	_bomb_cooldown_remaining = maxf(0.0, _bomb_cooldown_remaining - delta)
 
-	var use_wasd_sp := GameSettings.is_wasd_mouse_scheme()
+	var use_wasd_sp := _is_wasd_mouse_scheme_enabled()
 	if _menu_input_blocked:
 		_clear_pending_rmb_attack()
 		_rmb_down = Input.is_mouse_button_pressed(MOUSE_BUTTON_RIGHT)

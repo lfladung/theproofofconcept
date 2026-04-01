@@ -27,14 +27,21 @@ func room_center_2d(room_name: StringName) -> Vector2:
 	return room.global_position if room != null else Vector2.ZERO
 
 
-func socket_world_position(room_name: StringName, direction: String) -> Vector2:
+func connection_marker_world_position(room_name: StringName, direction: String, marker_kind: String = "") -> Vector2:
 	var room := room_by_name(room_name)
 	if room == null:
 		return Vector2.ZERO
-	for socket in room.get_socket_by_direction(direction):
-		if socket.connector_type != &"inactive":
-			return room.global_position + socket.position
+	for marker in room.get_connection_markers_by_direction(direction):
+		if marker.connection_tag == &"inactive":
+			continue
+		if marker_kind != "" and marker.marker_kind != marker_kind:
+			continue
+		return room.global_position + marker.position
 	return room.global_position
+
+
+func socket_world_position(room_name: StringName, direction: String) -> Vector2:
+	return connection_marker_world_position(room_name, direction)
 
 
 func is_point_inside_any_room(world_pos: Vector2, margin: float = 0.0) -> bool:

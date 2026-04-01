@@ -3,7 +3,8 @@ extends RefCounted
 class_name DungeonRoomSceneSync
 
 const GridMath = preload("res://addons/dungeon_room_editor/core/grid_math.gd")
-const DoorSocketScene = preload("res://dungeon/rooms/base/door_socket_2d.tscn")
+const EntranceMarkerScene = preload("res://dungeon/modules/connectivity/entrance_marker_2d.tscn")
+const ExitMarkerScene = preload("res://dungeon/modules/connectivity/exit_marker_2d.tscn")
 const ZoneMarkerScene = preload("res://dungeon/metadata/zone_marker_2d.tscn")
 const PREVIEW_BUILDER_SCRIPT = preload("res://addons/dungeon_room_editor/preview/preview_builder.gd")
 const BLOCKER_COLLISION_LAYER := 4
@@ -42,8 +43,8 @@ func sync_room(room: RoomBase, layout, catalog) -> void:
 				_sync_runtime_scene_item(room, layout, item, piece, gameplay_root)
 			"zone_marker":
 				_sync_zone_marker_item(room, layout, item, piece, zones_root)
-			"door_socket":
-				_sync_socket_item(room, layout, item, piece, sockets_root)
+			"door_socket", "connection_marker":
+				_sync_connection_marker_item(room, layout, item, piece, sockets_root)
 		if _should_create_blocker(item, piece):
 			_sync_blocker_item(room, layout, item, piece, gameplay_root)
 
@@ -119,24 +120,45 @@ func _sync_zone_marker_item(
 	_apply_common_item_metadata(zone, item, piece)
 
 
-func _sync_socket_item(
+func _sync_connection_marker_item(
 	room: RoomBase,
 	layout,
 	item,
 	piece,
 	parent: Node2D
 ) -> void:
-	var socket := DoorSocketScene.instantiate() as DoorSocket2D
-	if socket == null:
+	var scene := EntranceMarkerScene if piece.marker_kind == "entrance" else ExitMarkerScene
+	var marker := scene.instantiate() as ConnectorMarker2D
+	if marker == null:
 		return
-	socket.name = "%s_%s" % [String(piece.piece_id), item.item_id]
-	var socket_rect := GridMath.item_rect(item, piece, layout, room)
-	socket.position = socket_rect.get_center()
-	socket.direction = GridMath.direction_from_rotation(item.normalized_rotation_steps())
-	socket.connector_type = piece.connector_type
-	var rotated_footprint := GridMath.rotated_footprint(piece.footprint, item.normalized_rotation_steps())
-	socket.width_tiles = maxi(rotated_footprint.x, rotated_footprint.y)
-	parent.add_child(socket)
+	marker.name = "%s_%s" % [String(piece.piece_id), item.item_id]
+	var direction := GridMath.direction_from_rotation(item.normalized_rotation_steps())
+	marker.position = _connection_marker_center_local(item.grid_position, direction, layout, room)
+	marker.direction = direction
+	marker.connection_tag = piece.connector_type
+	marker.connector_type = piece.connector_type
+	marker.marker_kind = piece.marker_kind
+	marker.width_tiles = maxi(piece.marker_width_tiles, 3)
+	parent.add_child(marker)
+
+
+func _connection_marker_center_local(
+	grid_position: Vector2i,
+	direction: String,
+	layout,
+	room: RoomBase
+) -> Vector2:
+	match direction:
+		"north":
+			return GridMath.grid_to_local(grid_position + Vector2i(1, 0), layout, room)
+		"south":
+			return GridMath.grid_to_local(grid_position + Vector2i(1, 0), layout, room)
+		"east":
+			return GridMath.grid_to_local(grid_position + Vector2i(0, 1), layout, room)
+		"west":
+			return GridMath.grid_to_local(grid_position + Vector2i(0, 1), layout, room)
+		_:
+			return GridMath.grid_to_local(grid_position, layout, room)
 
 
 func _sync_blocker_item(

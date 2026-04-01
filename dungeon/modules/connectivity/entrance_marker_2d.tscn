@@ -7,7 +7,8 @@ script = ExtResource("1_marker_script")
 marker_kind = "entrance"
 direction = "east"
 marker_color = Color(0.62, 0.26, 0.86, 1)
-connection_tag = &"entrance"
+connection_tag = &"standard"
+connector_type = &"standard"
 
 [node name="Visual" type="Polygon2D" parent="."]
 color = Color(0.62, 0.26, 0.86, 1)

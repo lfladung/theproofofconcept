@@ -1,7 +1,8 @@
 [gd_scene format=3 uid="uid://room_base_template_scene"]
 
 [ext_resource type="Script" path="res://dungeon/rooms/base/room_base.gd" id="1_room_script"]
-[ext_resource type="PackedScene" path="res://dungeon/rooms/base/door_socket_2d.tscn" id="2_socket_scene"]
+[ext_resource type="PackedScene" path="res://dungeon/modules/connectivity/entrance_marker_2d.tscn" id="2_entrance_scene"]
+[ext_resource type="PackedScene" path="res://dungeon/modules/connectivity/exit_marker_2d.tscn" id="4_exit_scene"]
 [ext_resource type="PackedScene" path="res://dungeon/metadata/zone_marker_2d.tscn" id="3_zone_scene"]
 
 [node name="RoomRoot" type="Node2D"]
@@ -19,25 +20,15 @@ script = ExtResource("1_room_script")
 
 [node name="Sockets" type="Node2D" parent="."]
 
-[node name="DoorSocket_N_1" parent="Sockets" instance=ExtResource("2_socket_scene")]
+[node name="EntranceMarker_N_1" parent="Sockets" instance=ExtResource("2_entrance_scene")]
 position = Vector2(0, -384)
 direction = "north"
-width_tiles = 1
+width_tiles = 3
 
-[node name="DoorSocket_S_1" parent="Sockets" instance=ExtResource("2_socket_scene")]
+[node name="ExitMarker_S_1" parent="Sockets" instance=ExtResource("4_exit_scene")]
 position = Vector2(0, 384)
 direction = "south"
-width_tiles = 1
-
-[node name="DoorSocket_W_1" parent="Sockets" instance=ExtResource("2_socket_scene")]
-position = Vector2(-384, 0)
-direction = "west"
-width_tiles = 1
-
-[node name="DoorSocket_E_1" parent="Sockets" instance=ExtResource("2_socket_scene")]
-position = Vector2(384, 0)
-direction = "east"
-width_tiles = 1
+width_tiles = 3
 
 [node name="Zones" type="Node2D" parent="."]
 

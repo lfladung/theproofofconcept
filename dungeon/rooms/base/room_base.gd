@@ -45,23 +45,39 @@ func _ready() -> void:
 		_validate_room_rules()
 
 
-func get_all_sockets() -> Array[DoorSocket2D]:
-	var sockets: Array[DoorSocket2D] = []
-	var generated_only := _generated_socket_children()
+func get_connection_markers() -> Array[ConnectorMarker2D]:
+	var markers: Array[ConnectorMarker2D] = []
+	var generated_only := _generated_connection_marker_children()
 	if not generated_only.is_empty():
 		return generated_only
 	for child in _sockets.get_children():
-		if child is DoorSocket2D:
-			sockets.append(child)
-	return sockets
+		if child is ConnectorMarker2D:
+			markers.append(child)
+	return markers
 
 
-func get_socket_by_direction(direction: String) -> Array[DoorSocket2D]:
-	var matches: Array[DoorSocket2D] = []
-	for socket in get_all_sockets():
-		if socket.direction == direction:
-			matches.append(socket)
+func get_connection_markers_by_direction(direction: String) -> Array[ConnectorMarker2D]:
+	var matches: Array[ConnectorMarker2D] = []
+	for marker in get_connection_markers():
+		if marker.direction == direction:
+			matches.append(marker)
 	return matches
+
+
+func get_connection_markers_by_kind(marker_kind: String) -> Array[ConnectorMarker2D]:
+	var matches: Array[ConnectorMarker2D] = []
+	for marker in get_connection_markers():
+		if marker.marker_kind == marker_kind:
+			matches.append(marker)
+	return matches
+
+
+func get_all_sockets() -> Array[ConnectorMarker2D]:
+	return get_connection_markers()
+
+
+func get_socket_by_direction(direction: String) -> Array[ConnectorMarker2D]:
+	return get_connection_markers_by_direction(direction)
 
 
 func get_zone_markers() -> Array[ZoneMarker2D]:
@@ -129,14 +145,14 @@ func _apply_layer_z_index() -> void:
 		deco_layer.z_index = 30
 
 
-func _validate_socket_grid_alignment() -> void:
-	for socket in get_all_sockets():
-		var tile_x_ok := is_equal_approx(fposmod(socket.position.x, float(tile_size.x)), 0.0)
-		var tile_y_ok := is_equal_approx(fposmod(socket.position.y, float(tile_size.y)), 0.0)
+func _validate_connection_marker_grid_alignment() -> void:
+	for marker in get_connection_markers():
+		var tile_x_ok := is_equal_approx(fposmod(marker.position.x, float(tile_size.x)), 0.0)
+		var tile_y_ok := is_equal_approx(fposmod(marker.position.y, float(tile_size.y)), 0.0)
 		if not tile_x_ok or not tile_y_ok:
 			push_warning(
-				"Door socket '%s' in room '%s' is not aligned to the %sx%s tile grid." % [
-					socket.name,
+				"Connection marker '%s' in room '%s' is not aligned to the %sx%s tile grid." % [
+					marker.name,
 					room_id,
 					tile_size.x,
 					tile_size.y,
@@ -147,7 +163,7 @@ func _validate_socket_grid_alignment() -> void:
 func _validate_room_rules() -> void:
 	_validate_grid_compliance()
 	_validate_closed_boundary_contract()
-	_validate_door_socket_standardization()
+	_validate_connection_marker_standardization()
 	_validate_traversable_space_contract()
 	_validate_gameplay_zoning_contract()
 	_validate_origin_standard()
@@ -165,7 +181,7 @@ func _validate_grid_compliance() -> void:
 	if room_size_tiles.x <= 0 or room_size_tiles.y <= 0:
 		push_warning("Room '%s' has invalid room size %s." % [room_id, room_size_tiles])
 	if _is_room_editor_authoring_context():
-		_validate_socket_grid_alignment()
+		_validate_connection_marker_grid_alignment()
 		return
 	var width_standard := standard_room_sizes.has(room_size_tiles.x)
 	var height_standard := standard_room_sizes.has(room_size_tiles.y)
@@ -178,7 +194,7 @@ func _validate_grid_compliance() -> void:
 				standard_room_sizes,
 			]
 		)
-	_validate_socket_grid_alignment()
+	_validate_connection_marker_grid_alignment()
 
 
 func _validate_closed_boundary_contract() -> void:
@@ -194,26 +210,63 @@ func _validate_closed_boundary_contract() -> void:
 		)
 
 
-func _validate_door_socket_standardization() -> void:
-	var sockets: Array[DoorSocket2D] = []
+func _validate_connection_marker_standardization() -> void:
+	var markers: Array[ConnectorMarker2D] = []
 	if _is_room_editor_authoring_context():
-		sockets = _generated_socket_children()
-		if sockets.is_empty():
+		markers = _generated_connection_marker_children()
+		if markers.is_empty():
 			return
 	else:
-		sockets = get_all_sockets()
-	if sockets.is_empty():
-		push_warning("Room '%s' has no door sockets." % room_id)
+		markers = get_connection_markers()
+	if markers.is_empty():
+		push_warning("Room '%s' has no connection markers." % room_id)
 		return
 	var allowed_directions := PackedStringArray(["north", "south", "east", "west", "up", "down"])
 	var world_rect := get_room_rect_world()
-	for socket in sockets:
-		if not allowed_directions.has(socket.direction):
-			push_warning("Room '%s' socket '%s' uses invalid direction '%s'." % [room_id, socket.name, socket.direction])
-		if socket.direction in ["north", "south", "east", "west"]:
-			if not _socket_is_on_boundary(socket, world_rect):
+	var entrances := 0
+	var exits := 0
+	for marker in markers:
+		if marker.marker_kind == "entrance":
+			entrances += 1
+		elif marker.marker_kind == "exit":
+			exits += 1
+		else:
+			push_warning(
+				"Room '%s' marker '%s' uses invalid marker_kind '%s'." % [room_id, marker.name, marker.marker_kind]
+			)
+		if not allowed_directions.has(marker.direction):
+			push_warning(
+				"Room '%s' marker '%s' uses invalid direction '%s'." % [room_id, marker.name, marker.direction]
+			)
+		if marker.direction in ["north", "south", "east", "west"]:
+			if not _connection_marker_is_on_boundary(marker, world_rect):
 				push_warning(
-					"Room '%s' socket '%s' is not aligned to room boundary walls." % [room_id, socket.name]
+					"Room '%s' marker '%s' is not aligned to the room boundary." % [room_id, marker.name]
+				)
+			if marker.width_tiles != 3:
+				push_warning(
+					"Room '%s' marker '%s' should use the 3-tile hallway opening width." % [room_id, marker.name]
+				)
+	var expected := _expected_marker_counts()
+	if entrances != int(expected.get("entrance", 0)) or exits != int(expected.get("exit", 0)):
+		push_warning(
+			"Room '%s' has entrance/exit marker count %s/%s, expected %s/%s." % [
+				room_id,
+				entrances,
+				exits,
+				int(expected.get("entrance", 0)),
+				int(expected.get("exit", 0)),
+			]
+		)
+	if entrances == 1 and exits == 1:
+		var entrance_marker := get_connection_markers_by_kind("entrance").front() as ConnectorMarker2D
+		var exit_marker := get_connection_markers_by_kind("exit").front() as ConnectorMarker2D
+		if entrance_marker != null and exit_marker != null:
+			if entrance_marker.direction == exit_marker.direction:
+				push_warning("Room '%s' entrance and exit cannot share the same wall." % room_id)
+			elif not _markers_are_on_opposite_halves(entrance_marker, exit_marker):
+				push_warning(
+					"Room '%s' entrance and exit must be on different walls and opposite room halves." % room_id
 				)
 
 
@@ -296,7 +349,7 @@ func _validate_rotation_compatibility() -> void:
 			)
 
 
-func _socket_is_on_boundary(socket: DoorSocket2D, world_rect: Rect2) -> bool:
+func _connection_marker_is_on_boundary(marker: ConnectorMarker2D, world_rect: Rect2) -> bool:
 	var half_tile_x := tile_size.x * 0.5
 	var half_tile_y := tile_size.y * 0.5
 	var left := world_rect.position.x
@@ -304,20 +357,20 @@ func _socket_is_on_boundary(socket: DoorSocket2D, world_rect: Rect2) -> bool:
 	var top := world_rect.position.y
 	var bottom := world_rect.position.y + world_rect.size.y
 	return (
-		absf(socket.position.x - left) <= half_tile_x
-		or absf(socket.position.x - right) <= half_tile_x
-		or absf(socket.position.y - top) <= half_tile_y
-		or absf(socket.position.y - bottom) <= half_tile_y
+		absf(marker.position.x - left) <= half_tile_x
+		or absf(marker.position.x - right) <= half_tile_x
+		or absf(marker.position.y - top) <= half_tile_y
+		or absf(marker.position.y - bottom) <= half_tile_y
 	)
 
 
-func _generated_socket_children() -> Array[DoorSocket2D]:
+func _generated_connection_marker_children() -> Array[ConnectorMarker2D]:
 	var root := get_generated_sockets_root()
-	var out: Array[DoorSocket2D] = []
+	var out: Array[ConnectorMarker2D] = []
 	if root == null:
 		return out
 	for child in root.get_children():
-		if child is DoorSocket2D:
+		if child is ConnectorMarker2D:
 			out.append(child)
 	return out
 
@@ -358,3 +411,29 @@ func _uses_authored_layout_workflow() -> bool:
 
 func _is_room_editor_authoring_context() -> bool:
 	return Engine.is_editor_hint() and authored_layout != null
+
+
+func _expected_marker_counts() -> Dictionary:
+	match room_type:
+		"treasure", "boss":
+			return {"entrance": 1, "exit": 0}
+		"safe":
+			return {"entrance": 0, "exit": 1}
+		_:
+			return {"entrance": 1, "exit": 1}
+
+
+func _markers_are_on_opposite_halves(entrance_marker: ConnectorMarker2D, exit_marker: ConnectorMarker2D) -> bool:
+	if entrance_marker == null or exit_marker == null:
+		return false
+	var entrance_local := to_room_grid(entrance_marker.position)
+	var exit_local := to_room_grid(exit_marker.position)
+	var half_x := room_size_tiles.x * 0.5
+	var half_y := room_size_tiles.y * 0.5
+	match entrance_marker.direction:
+		"north", "south":
+			return absf(float(entrance_local.x) - float(exit_local.x)) >= maxf(2.0, half_x * 0.25)
+		"east", "west":
+			return absf(float(entrance_local.y) - float(exit_local.y)) >= maxf(2.0, half_y * 0.25)
+		_:
+			return true

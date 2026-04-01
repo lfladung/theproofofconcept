@@ -387,15 +387,15 @@ Use or refresh this block after any substantial thread so the next thread has a 
   - Added `tools/room_editor/validate_outline_rooms.gd` to load/instantiate/verify the generated room scenes and their authored-layout metadata.
   - Extended `addons/dungeon_room_editor/resources/default_room_piece_catalog.tres` with structural marker entries (`encounter_entry_marker`, `prop_placement_marker`, `nav_boundary_marker`, `loot_marker`) plus a `hall_socket_double` logical socket piece for 2-tile-wide hallway exits.
   - Created `res://dungeon/rooms/authored/outlines/` with nine authored rooms and matching sidecar layouts:
-    - `room_combat_skirmish_small_a`
-    - `room_combat_tactical_medium_a`
-    - `room_arena_wave_large_a`
-    - `room_connector_narrow_medium_a`
-    - `room_connector_turn_medium_a`
-    - `room_connector_junction_medium_a`
-    - `room_treasure_reward_small_a`
-    - `room_chokepoint_gate_medium_a`
-    - `room_boss_approach_large_a`
+	- `room_combat_skirmish_small_a`
+	- `room_combat_tactical_medium_a`
+	- `room_arena_wave_large_a`
+	- `room_connector_narrow_medium_a`
+	- `room_connector_turn_medium_a`
+	- `room_connector_junction_medium_a`
+	- `room_treasure_reward_small_a`
+	- `room_chokepoint_gate_medium_a`
+	- `room_boss_approach_large_a`
 - Behavior added or changed:
   - The room-editor catalog now has enough structural marker vocabulary to author room outlines entirely through authored layout items instead of relying on the base template’s default zone setup.
   - Outline rooms now use consistent 2-tile-wide hallway exits and generated double-width logical sockets at those exits, while keeping art dressing intentionally sparse.
@@ -416,15 +416,15 @@ Use or refresh this block after any substantial thread so the next thread has a 
   - The generator and validator scripts parse successfully.
   - All nine room scenes were generated with sidecar layouts.
   - Headless validation successfully instantiated every generated scene as `RoomBase` and confirmed non-empty authored layouts plus generated sockets/zones. Reported counts:
-    - `room_combat_skirmish_small_a`: 133 items, 2 sockets, 5 zones
-    - `room_combat_tactical_medium_a`: 295 items, 3 sockets, 6 zones
-    - `room_arena_wave_large_a`: 656 items, 2 sockets, 8 zones
-    - `room_connector_narrow_medium_a`: 180 items, 2 sockets, 4 zones
-    - `room_connector_turn_medium_a`: 102 items, 2 sockets, 4 zones
-    - `room_connector_junction_medium_a`: 155 items, 3 sockets, 4 zones
-    - `room_treasure_reward_small_a`: 132 items, 1 socket, 5 zones
-    - `room_chokepoint_gate_medium_a`: 189 items, 2 sockets, 6 zones
-    - `room_boss_approach_large_a`: 423 items, 2 sockets, 5 zones
+	- `room_combat_skirmish_small_a`: 133 items, 2 sockets, 5 zones
+	- `room_combat_tactical_medium_a`: 295 items, 3 sockets, 6 zones
+	- `room_arena_wave_large_a`: 656 items, 2 sockets, 8 zones
+	- `room_connector_narrow_medium_a`: 180 items, 2 sockets, 4 zones
+	- `room_connector_turn_medium_a`: 102 items, 2 sockets, 4 zones
+	- `room_connector_junction_medium_a`: 155 items, 3 sockets, 4 zones
+	- `room_treasure_reward_small_a`: 132 items, 1 socket, 5 zones
+	- `room_chokepoint_gate_medium_a`: 189 items, 2 sockets, 6 zones
+	- `room_boss_approach_large_a`: 423 items, 2 sockets, 5 zones
 
 ### Risks And Follow-Ups
 

@@ -199,8 +199,8 @@ func _should_fit_preview_to_grid(piece) -> bool:
 		return false
 	if piece.category == &"floor":
 		return true
-	# Door / hall sockets: stretch `wall_doorway` preview to `footprint` (e.g. 2×1 double hall).
-	return piece.is_door_socket()
+	# Connection markers stretch to footprint so the 3-wide opening reads correctly in preview.
+	return piece.is_door_socket() or piece.is_connection_marker()
 
 
 func _runtime_floor_material_for_piece(piece) -> Material:
@@ -309,7 +309,7 @@ func _apply_grid_fit_transform(
 	var sx := target_size.x / maxf(source_bounds.size.x, 0.01)
 	var sz := target_size.y / maxf(source_bounds.size.z, 0.01)
 	var sy: float
-	if piece.is_door_socket():
+	if piece.is_door_socket() or piece.is_connection_marker():
 		# Keep a stable preview height; only stretch width/depth to match footprint.
 		sy = WALL_HEIGHT / maxf(source_bounds.size.y, 0.01)
 	else:
