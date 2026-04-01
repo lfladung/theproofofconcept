@@ -8,7 +8,8 @@ const GridMath = preload("res://addons/dungeon_room_editor/core/grid_math.gd")
 
 const DEFAULT_OUTPUT_VERSION := 2
 const DEFAULT_GRID_SIZE := Vector2i(3, 3)
-const HALLWAY_WIDTH := 2
+const HALLWAY_WIDTH := 3
+const HALLWAY_DEPTH := 2
 const MIN_PARALLEL_WALL_INNER_FACE_GAP_TILES := 3
 const DEFAULT_SIZE_BUMP_TILES := 2
 const DEFAULT_VARIANT_COUNT := 1
@@ -238,7 +239,7 @@ func _build_room_specs() -> Array[Dictionary]:
 		{
 			"scene_name": "room_combat_skirmish_small_b",
 			"room_id": "room_combat_skirmish_small_b",
-			"size": Vector2i(15, 15),
+			"size": Vector2i(19, 19),
 			"size_class": "small",
 			"room_type": "arena",
 			"room_tags": PackedStringArray(["arena", "combat", "small"]),
@@ -265,7 +266,7 @@ func _build_room_specs() -> Array[Dictionary]:
 		{
 			"scene_name": "room_combat_tactical_medium_b",
 			"room_id": "room_combat_tactical_medium_b",
-			"size": Vector2i(24, 24),
+			"size": Vector2i(28, 28),
 			"size_class": "medium",
 			"room_type": "arena",
 			"room_tags": PackedStringArray(["arena", "combat", "medium"]),
@@ -294,7 +295,7 @@ func _build_room_specs() -> Array[Dictionary]:
 		{
 			"scene_name": "room_arena_wave_large_b",
 			"room_id": "room_arena_wave_large_b",
-			"size": Vector2i(36, 36),
+			"size": Vector2i(40, 40),
 			"size_class": "arena",
 			"room_type": "arena",
 			"room_tags": PackedStringArray(["arena", "combat", "large"]),
@@ -327,7 +328,7 @@ func _build_room_specs() -> Array[Dictionary]:
 		{
 			"scene_name": "room_connector_narrow_medium_b",
 			"room_id": "room_connector_narrow_medium_b",
-			"size": Vector2i(10, 16),
+			"size": Vector2i(14, 20),
 			"size_class": "medium",
 			"room_type": "corridor",
 			"room_tags": PackedStringArray(["corridor", "connector", "narrow"]),
@@ -345,14 +346,14 @@ func _build_room_specs() -> Array[Dictionary]:
 		{
 			"scene_name": "room_connector_turn_medium_b",
 			"room_id": "room_connector_turn_medium_b",
-			"size": Vector2i(16, 16),
+			"size": Vector2i(20, 20),
 			"size_class": "medium",
 			"room_type": "connector",
 			"room_tags": PackedStringArray(["connector", "turn", "medium"]),
 			"allowed_connection_types": PackedStringArray(["corridor", "connector"]),
 			"recommended_enemy_groups": PackedStringArray([]),
 			"base_shape": "empty",
-			"add_rects": [Rect2i(-2, -2, 4, 10), Rect2i(-2, -2, 10, 4)],
+			"add_rects": [Rect2i(-3, -3, 6, 13), Rect2i(-3, -3, 13, 6)],
 			"openings": [&"south", &"east"],
 			"entry_marker": Vector2i(0, 4),
 			"prop_marker": Vector2i(3, -1),
@@ -363,14 +364,14 @@ func _build_room_specs() -> Array[Dictionary]:
 		{
 			"scene_name": "room_connector_junction_medium_b",
 			"room_id": "room_connector_junction_medium_b",
-			"size": Vector2i(16, 16),
+			"size": Vector2i(20, 20),
 			"size_class": "medium",
 			"room_type": "connector",
 			"room_tags": PackedStringArray(["connector", "junction", "medium"]),
 			"allowed_connection_types": PackedStringArray(["corridor", "connector"]),
 			"recommended_enemy_groups": PackedStringArray([]),
 			"base_shape": "empty",
-			"add_rects": [Rect2i(-8, -2, 16, 4), Rect2i(-2, -2, 4, 10), Rect2i(-4, -4, 8, 4)],
+			"add_rects": [Rect2i(-10, -3, 20, 6), Rect2i(-3, -3, 6, 13), Rect2i(-5, -5, 10, 5)],
 			"openings": [&"west", &"east", &"south"],
 			"entry_marker": Vector2i(0, 4),
 			"prop_marker": Vector2i(0, -3),
@@ -381,7 +382,7 @@ func _build_room_specs() -> Array[Dictionary]:
 		{
 			"scene_name": "room_treasure_reward_small_b",
 			"room_id": "room_treasure_reward_small_b",
-			"size": Vector2i(10, 10),
+			"size": Vector2i(14, 14),
 			"size_class": "small",
 			"room_type": "treasure",
 			"room_tags": PackedStringArray(["treasure", "reward", "small"]),
@@ -401,7 +402,7 @@ func _build_room_specs() -> Array[Dictionary]:
 		{
 			"scene_name": "room_chokepoint_gate_medium_b",
 			"room_id": "room_chokepoint_gate_medium_b",
-			"size": Vector2i(24, 15),
+			"size": Vector2i(28, 19),
 			"size_class": "medium",
 			"room_type": "arena",
 			"room_tags": PackedStringArray(["arena", "combat", "chokepoint", "medium"]),
@@ -423,7 +424,7 @@ func _build_room_specs() -> Array[Dictionary]:
 		{
 			"scene_name": "room_boss_approach_large_b",
 			"room_id": "room_boss_approach_large_b",
-			"size": Vector2i(24, 36),
+			"size": Vector2i(28, 40),
 			"size_class": "large",
 			"room_type": "boss",
 			"room_tags": PackedStringArray(["boss", "boss_approach", "connector", "large"]),
@@ -476,28 +477,50 @@ func _generate_room(spec: Dictionary, rng: RandomNumberGenerator, report_errors:
 	room.max_tile_budget = maxi(1024, size.x * size.y * 2)
 
 	var floor_cells := _build_floor_cells(spec)
-	var opening_cells := _opening_cells(size, spec["openings"])
+	var hallway := _build_hallway_geometry(size, spec["openings"], rng)
+	var opening_cells: Dictionary = hallway["opening_cells"]
+	var passage_cells: Dictionary = hallway["passage_cells"]
+	var hallway_all_cells: Dictionary = hallway["all_cells"]
+	var center_positions: Dictionary = hallway["center_positions"]
+
 	var floor_lookup: Dictionary = {}
 	for cell in floor_cells:
 		floor_lookup[cell] = true
-	# Openings must remain walkable floor anchors for socket alignment and connectivity.
-	# For "empty" base-shape rooms with jittered add_rects, the floor may not extend
-	# to the boundary where openings sit. Bridge inward from each opening cell until
-	# we connect to existing floor so the opening is never isolated.
-	for oc in opening_cells.keys():
-		var open_cell := oc as Vector2i
-		if not floor_lookup.has(open_cell):
-			floor_lookup[open_cell] = true
-			floor_cells.append(open_cell)
-		var inward := _inward_direction_for_cell(open_cell, size)
-		var step := open_cell + inward
-		var bridge_limit := maxi(size.x, size.y)
-		var steps_taken := 0
-		while not floor_lookup.has(step) and steps_taken < bridge_limit:
-			floor_lookup[step] = true
-			floor_cells.append(step)
-			step = step + inward
-			steps_taken += 1
+	# Merge hallway floor tiles (flanks + passage + boundary) into the floor.
+	for cell in hallway_all_cells.keys():
+		if not floor_lookup.has(cell):
+			floor_lookup[cell] = true
+			floor_cells.append(cell)
+	# Bridge the 3-wide passage at the room boundary inward so that "empty"
+	# base-shape rooms (whose add_rects may not reach the boundary) stay connected.
+	var hall_rect := _room_rect(size)
+	for raw_side in spec["openings"]:
+		var hside := String(raw_side)
+		var hcenter: int = center_positions[hside]
+		var boundary_cells: Array[Vector2i] = []
+		match hside:
+			"west":
+				for dy in range(-1, 2):
+					boundary_cells.append(Vector2i(hall_rect.position.x, hcenter + dy))
+			"east":
+				for dy in range(-1, 2):
+					boundary_cells.append(Vector2i(hall_rect.position.x + hall_rect.size.x - 1, hcenter + dy))
+			"north":
+				for dx in range(-1, 2):
+					boundary_cells.append(Vector2i(hcenter + dx, hall_rect.position.y))
+			"south":
+				for dx in range(-1, 2):
+					boundary_cells.append(Vector2i(hcenter + dx, hall_rect.position.y + hall_rect.size.y - 1))
+		for bc in boundary_cells:
+			var inward := _inward_direction_for_cell(bc, size)
+			var step := bc + inward
+			var bridge_limit := maxi(size.x, size.y)
+			var steps_taken := 0
+			while not floor_lookup.has(step) and steps_taken < bridge_limit:
+				floor_lookup[step] = true
+				floor_cells.append(step)
+				step = step + inward
+				steps_taken += 1
 
 	# Prune the room down to the main reachable region from the logical center
 	# before we place floors, walls, blockers, and spawns. This avoids hanging
@@ -521,6 +544,8 @@ func _generate_room(spec: Dictionary, rng: RandomNumberGenerator, report_errors:
 		var erode_remove: Array[Vector2i] = []
 		for cell in floor_cells:
 			if opening_cells.has(cell):
+				continue
+			if hallway_all_cells.has(cell):
 				continue
 			var has_left := floor_lookup.has(cell + Vector2i.LEFT)
 			var has_right := floor_lookup.has(cell + Vector2i.RIGHT)
@@ -559,7 +584,7 @@ func _generate_room(spec: Dictionary, rng: RandomNumberGenerator, report_errors:
 		if report_errors:
 			push_error(spacing_err)
 		return false
-	var wall_items := _build_wall_items(floor_cells, opening_cells)
+	var wall_items := _build_wall_items(floor_cells, opening_cells, passage_cells)
 
 	# Randomize blockers/spawns positions after floor exists (optional per spec).
 	if bool(spec.get("_randomize_positions", false)):
@@ -606,7 +631,7 @@ func _generate_room(spec: Dictionary, rng: RandomNumberGenerator, report_errors:
 			int(wall_item.get("rotation_steps", 0))
 		)
 	for side in spec["openings"]:
-		_add_socket_for_opening(layout, size, side)
+		_add_socket_for_opening(layout, size, side, center_positions[String(side)])
 
 	_add_item(layout, &"encounter_entry_marker", spec["entry_marker"])
 	_add_item(layout, &"prop_placement_marker", spec["prop_marker"])
@@ -778,7 +803,7 @@ func _reachable_floor_region_from_center(
 	return reachable
 
 
-func _build_wall_items(floor_cells: Array[Vector2i], opening_cells: Dictionary) -> Array[Dictionary]:
+func _build_wall_items(floor_cells: Array[Vector2i], opening_cells: Dictionary, passage_cells: Dictionary = {}) -> Array[Dictionary]:
 	var floor_lookup: Dictionary = {}
 	for cell in floor_cells:
 		floor_lookup[cell] = true
@@ -787,19 +812,10 @@ func _build_wall_items(floor_cells: Array[Vector2i], opening_cells: Dictionary) 
 	var directions := [Vector2i.LEFT, Vector2i.RIGHT, Vector2i.UP, Vector2i.DOWN]
 	var reachable_floor := _reachable_floor_region_from_center(floor_lookup, opening_cells)
 
-	# Build a set of doorway-threshold cells: floor tiles orthogonally adjacent to
-	# an opening cell.  These must stay passable so players can reach the door.
-	var doorway_threshold: Dictionary = {}
-	for oc in opening_cells.keys():
-		for d in directions:
-			var neighbor: Vector2i = (oc as Vector2i) + d
-			if floor_lookup.has(neighbor) and not opening_cells.has(neighbor):
-				doorway_threshold[neighbor] = true
-
 	for cell in floor_cells:
 		if not reachable_floor.has(cell):
 			continue
-		if opening_cells.has(cell) or doorway_threshold.has(cell):
+		if opening_cells.has(cell) or passage_cells.has(cell):
 			continue
 		var should_wall := false
 		for direction in directions:
@@ -1300,24 +1316,108 @@ func _opening_cells(size: Vector2i, openings: Array) -> Dictionary:
 	return cells
 
 
-func _add_socket_for_opening(layout, size: Vector2i, side: StringName) -> void:
-	# Anchor on the same floor columns/rows as _opening_cells (not one tile past east/south).
+func _build_hallway_geometry(size: Vector2i, openings: Array, rng: RandomNumberGenerator) -> Dictionary:
+	# Build 3-wide mini-hallway geometry for each opening.  Returns:
+	#   all_cells       – every hallway floor tile (flanks + passage), for erosion protection
+	#   passage_cells   – the 3-wide passage tiles only, for wall exclusion
+	#   opening_cells   – the 3 connection-point cells at the outer end
+	#   center_positions – maps side name to the chosen center offset
 	var rect := _room_rect(size)
 	var left := rect.position.x
 	var right := rect.position.x + rect.size.x - 1
 	var top := rect.position.y
 	var bottom := rect.position.y + rect.size.y - 1
-	# grid_position = min tile of the 2-wide opening (matches anchor_rect tile AABB).
+
+	var all_cells: Dictionary = {}
+	var passage_cells: Dictionary = {}
+	var opening_cells: Dictionary = {}
+	var center_positions: Dictionary = {}
+
+	for raw_side in openings:
+		var side := String(raw_side)
+		var center: int
+		match side:
+			"west", "east":
+				center = rng.randi_range(top + 2, bottom - 2)
+				center_positions[side] = center
+				var outer_x: int
+				var inner_x: int
+				var boundary_x: int
+				if side == "west":
+					outer_x = left - HALLWAY_DEPTH
+					inner_x = left - HALLWAY_DEPTH + 1
+					boundary_x = left
+				else:
+					outer_x = right + HALLWAY_DEPTH
+					inner_x = right + HALLWAY_DEPTH - 1
+					boundary_x = right
+				# Two rows outside the room (depth = 2), each 5 tiles wide.
+				for x in [outer_x, inner_x]:
+					for dy in range(-2, 3):
+						var cell := Vector2i(x, center + dy)
+						all_cells[cell] = true
+						if dy >= -1 and dy <= 1:
+							passage_cells[cell] = true
+				# Opening cells at the outermost row (socket anchors).
+				for dy in range(-1, 2):
+					opening_cells[Vector2i(outer_x, center + dy)] = true
+				# Passage tiles at the room boundary so the hallway connects inward.
+				for dy in range(-1, 2):
+					var cell := Vector2i(boundary_x, center + dy)
+					all_cells[cell] = true
+					passage_cells[cell] = true
+			"north", "south":
+				center = rng.randi_range(left + 2, right - 2)
+				center_positions[side] = center
+				var outer_y: int
+				var inner_y: int
+				var boundary_y: int
+				if side == "north":
+					outer_y = top - HALLWAY_DEPTH
+					inner_y = top - HALLWAY_DEPTH + 1
+					boundary_y = top
+				else:
+					outer_y = bottom + HALLWAY_DEPTH
+					inner_y = bottom + HALLWAY_DEPTH - 1
+					boundary_y = bottom
+				for y in [outer_y, inner_y]:
+					for dx in range(-2, 3):
+						var cell := Vector2i(center + dx, y)
+						all_cells[cell] = true
+						if dx >= -1 and dx <= 1:
+							passage_cells[cell] = true
+				for dx in range(-1, 2):
+					opening_cells[Vector2i(center + dx, outer_y)] = true
+				for dx in range(-1, 2):
+					var cell := Vector2i(center + dx, boundary_y)
+					all_cells[cell] = true
+					passage_cells[cell] = true
+
+	return {
+		"all_cells": all_cells,
+		"passage_cells": passage_cells,
+		"opening_cells": opening_cells,
+		"center_positions": center_positions,
+	}
+
+
+func _add_socket_for_opening(layout, size: Vector2i, side: StringName, hallway_center: int = 0) -> void:
+	# Place hall_socket_triple at the outer end of the 3-wide hallway.
+	var rect := _room_rect(size)
+	var left := rect.position.x
+	var right := rect.position.x + rect.size.x - 1
+	var top := rect.position.y
+	var bottom := rect.position.y + rect.size.y - 1
 	var rotation_steps := _socket_rotation_for_opening_side(side)
 	match side:
 		&"west":
-			_add_item(layout, &"hall_socket_double", Vector2i(left, -1), rotation_steps)
+			_add_item(layout, &"hall_socket_triple", Vector2i(left - HALLWAY_DEPTH, hallway_center - 1), rotation_steps)
 		&"east":
-			_add_item(layout, &"hall_socket_double", Vector2i(right, -1), rotation_steps)
+			_add_item(layout, &"hall_socket_triple", Vector2i(right + HALLWAY_DEPTH, hallway_center - 1), rotation_steps)
 		&"north":
-			_add_item(layout, &"hall_socket_double", Vector2i(-1, top), rotation_steps)
+			_add_item(layout, &"hall_socket_triple", Vector2i(hallway_center - 1, top - HALLWAY_DEPTH), rotation_steps)
 		&"south":
-			_add_item(layout, &"hall_socket_double", Vector2i(-1, bottom), rotation_steps)
+			_add_item(layout, &"hall_socket_triple", Vector2i(hallway_center - 1, bottom + HALLWAY_DEPTH), rotation_steps)
 
 
 func _socket_rotation_for_opening_side(side: StringName) -> int:
@@ -1414,9 +1514,9 @@ func _write_minimal_room_scene(
 	lines.append("authored_layout = ExtResource(\"2_layout\")")
 	lines.append("")
 	lines.append("[node name=\"GeneratedByRoomEditor\" type=\"Node2D\" parent=\"Sockets\"]")
-	var socket_piece = _catalog.find_piece(&"hall_socket_double")
+	var socket_piece = _catalog.find_piece(&"hall_socket_triple")
 	for item in layout.items:
-		if item == null or item.piece_id != &"hall_socket_double":
+		if item == null or item.piece_id != &"hall_socket_triple":
 			continue
 		var direction := _direction_name(item.rotation_steps)
 		lines.append(

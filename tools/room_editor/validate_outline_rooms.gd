@@ -108,15 +108,22 @@ func _opening_cells_from_sockets(layout_items: Array) -> Dictionary:
 	for item in layout_items:
 		if item == null:
 			continue
-		if item.piece_id != &"hall_socket_double":
-			continue
 		var gp: Vector2i = item.grid_position
 		var rot := _normalized_rotation(item)
-		cells[gp] = true
-		if rot % 2 == 0:
-			cells[gp + Vector2i.RIGHT] = true
-		else:
-			cells[gp + Vector2i.DOWN] = true
+		if item.piece_id == &"hall_socket_triple":
+			cells[gp] = true
+			if rot % 2 == 0:
+				cells[gp + Vector2i.RIGHT] = true
+				cells[gp + Vector2i(2, 0)] = true
+			else:
+				cells[gp + Vector2i.DOWN] = true
+				cells[gp + Vector2i(0, 2)] = true
+		elif item.piece_id == &"hall_socket_double":
+			cells[gp] = true
+			if rot % 2 == 0:
+				cells[gp + Vector2i.RIGHT] = true
+			else:
+				cells[gp + Vector2i.DOWN] = true
 	return cells
 
 
@@ -158,7 +165,7 @@ func _count_layout_sockets(room: RoomBase) -> int:
 	for item in room.authored_layout.items:
 		if item == null:
 			continue
-		if item.piece_id == &"hall_socket_double" or item.piece_id == &"door_socket_standard":
+		if item.piece_id == &"hall_socket_triple" or item.piece_id == &"hall_socket_double" or item.piece_id == &"door_socket_standard":
 			n += 1
 	return n
 
@@ -404,39 +411,33 @@ func _validate_inner_corners(
 
 
 func _validate_socket_alignment(room: RoomBase, floor_lookup: Dictionary, layout_items: Array) -> String:
-	var rect := _room_rect(room.room_size_tiles)
-	var left := rect.position.x
-	var right := rect.position.x + rect.size.x - 1
-	var top := rect.position.y
-	var bottom := rect.position.y + rect.size.y - 1
 	for item in layout_items:
-		if item == null or item.piece_id != &"hall_socket_double":
+		if item == null:
 			continue
-		var rot := _normalized_rotation(item)
 		var gp: Vector2i = item.grid_position
-		var cells: Array[Vector2i] = [gp]
-		if rot % 2 == 0:
-			cells.append(gp + Vector2i.RIGHT)
+		var rot := _normalized_rotation(item)
+		var cells: Array[Vector2i] = []
+		if item.piece_id == &"hall_socket_triple":
+			cells.append(gp)
+			if rot % 2 == 0:
+				cells.append(gp + Vector2i.RIGHT)
+				cells.append(gp + Vector2i(2, 0))
+			else:
+				cells.append(gp + Vector2i.DOWN)
+				cells.append(gp + Vector2i(0, 2))
+		elif item.piece_id == &"hall_socket_double":
+			cells.append(gp)
+			if rot % 2 == 0:
+				cells.append(gp + Vector2i.RIGHT)
+			else:
+				cells.append(gp + Vector2i.DOWN)
 		else:
-			cells.append(gp + Vector2i.DOWN)
+			continue
 		for c in cells:
 			if not floor_lookup.has(c):
 				return "Socket at %s uses non-floor opening cell %s" % [gp, c]
-		match rot:
-			0:
-				if not (cells[0].y == top and cells[1].y == top):
-					return "North-facing socket at %s is not on north wall." % [gp]
-			1:
-				if not (cells[0].x == right and cells[1].x == right):
-					return "East-facing socket at %s is not on east wall." % [gp]
-			2:
-				if not (cells[0].y == bottom and cells[1].y == bottom):
-					return "South-facing socket at %s is not on south wall." % [gp]
-			3:
-				if not (cells[0].x == left and cells[1].x == left):
-					return "West-facing socket at %s is not on west wall." % [gp]
-			_:
-				return "Invalid socket rotation at %s" % [gp]
+		if rot < 0 or rot > 3:
+			return "Invalid socket rotation at %s" % [gp]
 	return ""
 
 
