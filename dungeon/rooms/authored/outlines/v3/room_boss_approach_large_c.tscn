@@ -20,39 +20,39 @@ max_tile_budget = 2816
 authored_layout = ExtResource("2_layout")
 
 [node name="GeneratedByRoomEditor" type="Node2D" parent="Sockets"]
-[node name="entrance_marker_entrance_marker_1524" parent="Sockets/GeneratedByRoomEditor" instance=ExtResource("3_entrance")]
+[node name="entrance_marker_entrance_marker_1407" parent="Sockets/GeneratedByRoomEditor" instance=ExtResource("3_entrance")]
 position = Vector2(-48.0, 0.0)
 direction = "west"
 width_tiles = 3
 
 [node name="GeneratedByRoomEditor" type="Node2D" parent="Zones"]
-[node name="encounter_entry_marker_encounter_entry_marker_1525" parent="Zones/GeneratedByRoomEditor" instance=ExtResource("4_zone")]
+[node name="encounter_entry_marker_encounter_entry_marker_1408" parent="Zones/GeneratedByRoomEditor" instance=ExtResource("4_zone")]
 position = Vector2(-27.0, 0.0)
 zone_type = "encounter_trigger"
 zone_role = &"entry"
 tags = PackedStringArray("marker", "encounter")
 
-[node name="prop_placement_marker_prop_placement_marker_1526" parent="Zones/GeneratedByRoomEditor" instance=ExtResource("4_zone")]
+[node name="prop_placement_marker_prop_placement_marker_1409" parent="Zones/GeneratedByRoomEditor" instance=ExtResource("4_zone")]
 position = Vector2(24.0, -18.0)
 zone_type = "prop_placement"
 zone_role = &"filler"
 tags = PackedStringArray("marker", "prop")
 
-[node name="nav_boundary_marker_nav_boundary_marker_1527" parent="Zones/GeneratedByRoomEditor" instance=ExtResource("4_zone")]
+[node name="nav_boundary_marker_nav_boundary_marker_1410" parent="Zones/GeneratedByRoomEditor" instance=ExtResource("4_zone")]
 position = Vector2(0.0, 0.0)
 zone_type = "nav_boundary"
 zone_role = &"room_walkable"
 tags = PackedStringArray("marker", "nav")
 
-[node name="spawn_iron_sentinel_marker_spawn_iron_sentinel_marker_1530" parent="Zones/GeneratedByRoomEditor" instance=ExtResource("4_zone")]
-position = Vector2(0.0, -36.0)
+[node name="spawn_iron_sentinel_marker_spawn_iron_sentinel_marker_1413" parent="Zones/GeneratedByRoomEditor" instance=ExtResource("4_zone")]
+position = Vector2(0.0, 24.0)
 zone_type = "enemy_spawn"
 zone_role = &"iron_sentinel"
 enemy_id = &"iron_sentinel"
 tags = PackedStringArray("spawn", "iron_sentinel")
 
-[node name="spawn_robot_mob_marker_spawn_robot_mob_marker_1531" parent="Zones/GeneratedByRoomEditor" instance=ExtResource("4_zone")]
-position = Vector2(0.0, 15.0)
+[node name="spawn_robot_mob_marker_spawn_robot_mob_marker_1414" parent="Zones/GeneratedByRoomEditor" instance=ExtResource("4_zone")]
+position = Vector2(-12.0, 33.0)
 zone_type = "enemy_spawn"
 zone_role = &"robot_mob"
 enemy_id = &"robot_mob"

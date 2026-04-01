@@ -103,6 +103,18 @@ func _normalized_rotation(item) -> int:
 	return posmod(int(item.get("rotation_steps", 0)), 4)
 
 
+func _corner_rotation_for_walls(has_left: bool, has_right: bool, has_up: bool, has_down: bool) -> int:
+	if has_right and has_up:
+		return 2
+	if has_right and has_down:
+		return 3
+	if has_left and has_down:
+		return 0
+	if has_left and has_up:
+		return 1
+	return 0
+
+
 func _connection_marker_cells(item) -> Array[Vector2i]:
 	var gp: Vector2i = item.grid_position
 	var rot := _normalized_rotation(item)
@@ -254,10 +266,10 @@ func _is_solid_floor_cell(floor_lookup: Dictionary, opening_cells: Dictionary, c
 	return floor_lookup.has(cell) and not opening_cells.has(cell)
 
 
-func _validate_parallel_wall_spacing(floor_lookup: Dictionary, opening_cells: Dictionary) -> String:
+func _validate_parallel_wall_spacing(floor_lookup: Dictionary, opening_cells: Dictionary, exempt_cells: Dictionary = {}) -> String:
 	for cell in floor_lookup.keys():
 		var c := cell as Vector2i
-		if opening_cells.has(c):
+		if opening_cells.has(c) or exempt_cells.has(c):
 			continue
 		var horizontal_gap := _parallel_floor_gap_for_axis(c, floor_lookup, opening_cells, true)
 		if horizontal_gap >= 0 and horizontal_gap < MIN_PARALLEL_WALL_FLOOR_GAP_TILES:
@@ -308,6 +320,131 @@ func _validate_accessibility(floor_lookup: Dictionary, opening_cells: Dictionary
 			q.append(nxt)
 	if visited.size() != walkable_count:
 		return "Disconnected floor regions detected."
+	return ""
+
+
+func _find_enclosed_void_cells(floor_lookup: Dictionary, room_rect: Rect2i) -> Dictionary:
+	var outer_rect := Rect2i(room_rect.position - Vector2i.ONE, room_rect.size + Vector2i.ONE * 2)
+	var outside_air: Dictionary = {}
+	var q: Array[Vector2i] = []
+	var dirs: Array[Vector2i] = [Vector2i.LEFT, Vector2i.RIGHT, Vector2i.UP, Vector2i.DOWN]
+
+	for x in range(outer_rect.position.x, outer_rect.end.x):
+		for y in [outer_rect.position.y, outer_rect.end.y - 1]:
+			var edge := Vector2i(x, y)
+			if floor_lookup.has(edge) or outside_air.has(edge):
+				continue
+			outside_air[edge] = true
+			q.append(edge)
+	for y in range(outer_rect.position.y, outer_rect.end.y):
+		for x in [outer_rect.position.x, outer_rect.end.x - 1]:
+			var edge := Vector2i(x, y)
+			if floor_lookup.has(edge) or outside_air.has(edge):
+				continue
+			outside_air[edge] = true
+			q.append(edge)
+
+	var qi := 0
+	while qi < q.size():
+		var cur: Vector2i = q[qi]
+		qi += 1
+		for d in dirs:
+			var nxt := cur + d
+			if not outer_rect.has_point(nxt):
+				continue
+			if floor_lookup.has(nxt):
+				continue
+			if outside_air.has(nxt):
+				continue
+			outside_air[nxt] = true
+			q.append(nxt)
+
+	var enclosed: Dictionary = {}
+	for x in range(room_rect.position.x, room_rect.end.x):
+		for y in range(room_rect.position.y, room_rect.end.y):
+			var cell := Vector2i(x, y)
+			if floor_lookup.has(cell):
+				continue
+			if outside_air.has(cell):
+				continue
+			enclosed[cell] = true
+	return enclosed
+
+
+func _validate_no_enclosed_void_pockets(floor_lookup: Dictionary, room_rect: Rect2i) -> String:
+	var enclosed := _find_enclosed_void_cells(floor_lookup, room_rect)
+	if enclosed.is_empty():
+		return ""
+	var cells: Array[Vector2i] = []
+	for cell in enclosed.keys():
+		cells.append(cell)
+	cells.sort_custom(func(a: Vector2i, b: Vector2i) -> bool:
+		return a.y < b.y if a.y != b.y else a.x < b.x
+	)
+	return "Enclosed empty-space pocket detected at %s" % [cells[0]]
+
+
+func _allowed_border_wall_positions(items: Array) -> Dictionary:
+	var allowed: Dictionary = {}
+	for item in items:
+		if item == null:
+			continue
+		var geometry := _hallway_mouth_geometry(item)
+		for cell in geometry.get("boundary_walls", []):
+			allowed[cell] = true
+	return allowed
+
+
+func _expected_wall_piece_for_neighbors(pos: Vector2i, wall_items_by_pos: Dictionary, opening_cells: Dictionary) -> Dictionary:
+	var structure_lookup: Dictionary = opening_cells.duplicate(true)
+	for p in wall_items_by_pos.keys():
+		structure_lookup[p] = true
+	var has_left := structure_lookup.has(pos + Vector2i.LEFT)
+	var has_right := structure_lookup.has(pos + Vector2i.RIGHT)
+	var has_up := structure_lookup.has(pos + Vector2i.UP)
+	var has_down := structure_lookup.has(pos + Vector2i.DOWN)
+	var horizontal := int(has_left) + int(has_right)
+	var vertical := int(has_up) + int(has_down)
+	if horizontal == 1 and vertical == 1:
+		return {"piece_id": &"wall_corner", "rotation_steps": _corner_rotation_for_walls(has_left, has_right, has_up, has_down)}
+	if horizontal > 0 and vertical == 0:
+		return {"piece_id": &"wall_straight", "rotation_steps": 0}
+	if vertical > 0 and horizontal == 0:
+		return {"piece_id": &"wall_straight", "rotation_steps": 1}
+	return {}
+
+
+func _validate_wall_topology_and_border(
+	room_rect: Rect2i,
+	wall_items_by_pos: Dictionary,
+	opening_cells: Dictionary,
+	allowed_border_walls: Dictionary,
+	exempt_cells: Dictionary = {}
+) -> String:
+	for pos in wall_items_by_pos.keys():
+		var p := pos as Vector2i
+		if exempt_cells.has(p):
+			continue
+		var on_border := (
+			p.x == room_rect.position.x
+			or p.x == room_rect.end.x - 1
+			or p.y == room_rect.position.y
+			or p.y == room_rect.end.y - 1
+		)
+		if on_border and not allowed_border_walls.has(p):
+			return "Wall on room border outside connector mouth at %s" % [p]
+		var item = wall_items_by_pos[p]
+		var expected := _expected_wall_piece_for_neighbors(p, wall_items_by_pos, opening_cells)
+		if expected.is_empty():
+			continue
+		var actual_piece: StringName = item.piece_id
+		var actual_rot := _normalized_rotation(item)
+		var expected_piece: StringName = expected.get("piece_id", &"")
+		var expected_rot := int(expected.get("rotation_steps", 0))
+		if actual_piece != expected_piece:
+			return "Wall topology mismatch at %s: expected %s, found %s" % [p, expected_piece, actual_piece]
+		if actual_rot != expected_rot:
+			return "Wall rotation mismatch at %s: expected %s, found %s" % [p, expected_rot, actual_rot]
 	return ""
 
 
@@ -393,58 +530,6 @@ func _validate_inner_corners(
 		if wi.piece_id != &"wall_corner" or _normalized_rotation(wi) != expected_rot:
 			return "Perimeter corner mismatch at %s (expected corner rot=%s)." % [cell, expected_rot]
 
-	# 2) Interior concave notch fillers that generator requires.
-	if floor_lookup.is_empty():
-		return ""
-	var min_x := 0
-	var max_x := 0
-	var min_y := 0
-	var max_y := 0
-	var first := true
-	for c in floor_lookup.keys():
-		if first:
-			min_x = c.x
-			max_x = c.x
-			min_y = c.y
-			max_y = c.y
-			first = false
-		else:
-			min_x = mini(min_x, c.x)
-			max_x = maxi(max_x, c.x)
-			min_y = mini(min_y, c.y)
-			max_y = maxi(max_y, c.y)
-	for vx in range(min_x - 1, max_x + 2):
-		for vy in range(min_y - 1, max_y + 2):
-			var void_cell := Vector2i(vx, vy)
-			if _is_solid_floor_cell(floor_lookup, opening_cells, void_cell):
-				continue
-			var tests := [
-				{"corner": Vector2i(vx - 1, vy - 1), "a": Vector2i(vx - 1, vy), "b": Vector2i(vx, vy - 1), "rot": 1},
-				{"corner": Vector2i(vx + 1, vy - 1), "a": Vector2i(vx + 1, vy), "b": Vector2i(vx, vy - 1), "rot": 2},
-				{"corner": Vector2i(vx + 1, vy + 1), "a": Vector2i(vx + 1, vy), "b": Vector2i(vx, vy + 1), "rot": 3},
-				{"corner": Vector2i(vx - 1, vy + 1), "a": Vector2i(vx - 1, vy), "b": Vector2i(vx, vy + 1), "rot": 0},
-			]
-			for t in tests:
-				var corner: Vector2i = t["corner"] as Vector2i
-				var a: Vector2i = t["a"] as Vector2i
-				var b: Vector2i = t["b"] as Vector2i
-				if not _is_solid_floor_cell(floor_lookup, opening_cells, corner):
-					continue
-				if opening_cells.has(corner):
-					continue
-				if exempt_cells.has(corner):
-					continue
-				if wall_lookup.has(corner):
-					continue
-				if _missing_solid_neighbor_count(corner, floor_lookup, opening_cells) != 0:
-					continue
-				if not wall_lookup.has(a) or not wall_lookup.has(b):
-					continue
-				if not wall_items_by_pos.has(corner):
-					continue
-				var wi = wall_items_by_pos[corner]
-				if wi.piece_id != &"wall_corner" or _normalized_rotation(wi) != int(t["rot"]):
-					return "Interior concave wall_corner rotation mismatch at %s" % [corner]
 	return ""
 
 
@@ -477,10 +562,10 @@ func _validate_marker_alignment(
 				return "Connection marker at %s is missing interior apron floor cell %s" % [gp, c]
 		for c in geometry.get("boundary_walls", []):
 			if not wall_items_by_pos.has(c):
-				return "Connection marker at %s is missing outer straight wall cell %s" % [gp, c]
+				return "Connection marker at %s is missing outer wall cell %s" % [gp, c]
 			var boundary_wall = wall_items_by_pos[c]
-			if boundary_wall.piece_id != &"wall_straight":
-				return "Connection marker at %s requires wall_straight at outer wall cell %s" % [gp, c]
+			if boundary_wall.piece_id != &"wall_straight" and boundary_wall.piece_id != &"wall_corner":
+				return "Connection marker at %s requires structural wall at outer wall cell %s" % [gp, c]
 		for c in geometry.get("flank_walls", []):
 			if not wall_items_by_pos.has(c):
 				return "Connection marker at %s is missing flank wall cell %s" % [gp, c]
@@ -579,6 +664,7 @@ func _validate_room_requirements(room: RoomBase, room_path: String) -> String:
 	var blocked_lookup := _build_blocked_lookup(items)
 	var wall_items_by_pos := _build_wall_items_by_pos(items)
 	var mouth_exempt_cells: Dictionary = {}
+	var allowed_border_walls := _allowed_border_wall_positions(items)
 	for item in items:
 		if item == null:
 			continue
@@ -598,7 +684,19 @@ func _validate_room_requirements(room: RoomBase, room_path: String) -> String:
 	var marker_count_err := _validate_marker_counts(room, items)
 	if marker_count_err != "":
 		return "Room %s: %s" % [room_path, marker_count_err]
-	var spacing_err := _validate_parallel_wall_spacing(floor_lookup, opening_cells)
+	var void_err := _validate_no_enclosed_void_pockets(floor_lookup, _room_rect(room.room_size_tiles))
+	if void_err != "":
+		return "Room %s: %s" % [room_path, void_err]
+	var wall_topology_err := _validate_wall_topology_and_border(
+		_room_rect(room.room_size_tiles),
+		wall_items_by_pos,
+		opening_cells,
+		allowed_border_walls,
+		mouth_exempt_cells
+	)
+	if wall_topology_err != "":
+		return "Room %s: %s" % [room_path, wall_topology_err]
+	var spacing_err := _validate_parallel_wall_spacing(floor_lookup, opening_cells, allowed_border_walls)
 	if spacing_err != "":
 		return "Room %s: %s" % [room_path, spacing_err]
 	var access_err := _validate_accessibility(floor_lookup, opening_cells, blocked_lookup)
