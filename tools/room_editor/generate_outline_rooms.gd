@@ -901,9 +901,9 @@ func _build_wall_items(floor_cells: Array[Vector2i], opening_cells: Dictionary, 
 				if opening_cells.has(npos):
 					neighbor_count += 1
 					continue
-				# Door-adjacent passage tiles deliberately have no wall; count them like
-				# openings so the perimeter ring does not collapse to zero under prune.
-				if doorway_threshold.has(npos):
+				# Passage tiles deliberately have no wall; count them like openings so
+				# the perimeter ring does not collapse to zero under topology prune.
+				if passage_cells.has(npos):
 					neighbor_count += 1
 					continue
 				if not items_by_pos.has(npos):
