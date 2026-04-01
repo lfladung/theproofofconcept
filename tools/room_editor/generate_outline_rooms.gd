@@ -11,7 +11,8 @@ const DEFAULT_GRID_SIZE := Vector2i(3, 3)
 const HALLWAY_WIDTH := 3
 const HALLWAY_DEPTH := 2
 const MIN_PARALLEL_WALL_FLOOR_GAP_TILES := 3
-const DEFAULT_SIZE_BUMP_TILES := 4
+const BORDER_CLEARANCE_TILES := 3
+const DEFAULT_SIZE_BUMP_TILES := 6
 const DEFAULT_VARIANT_COUNT := 1
 const DEFAULT_VARIANT_ATTEMPTS := 25
 
@@ -94,15 +95,36 @@ func _jitter_rect(rect: Rect2i, rng: RandomNumberGenerator, max_jitter: int = 1)
 	return Rect2i(rect.position + Vector2i(dx, dy), rect.size)
 
 
+func _jitter_rect_with_size_variation(
+	rect: Rect2i,
+	rng: RandomNumberGenerator,
+	max_jitter: int = 2,
+	max_size_delta: int = 2,
+	min_size: int = 2
+) -> Rect2i:
+	var dx := rng.randi_range(-max_jitter, max_jitter)
+	var dy := rng.randi_range(-max_jitter, max_jitter)
+	var dw := rng.randi_range(-max_size_delta, max_size_delta)
+	var dh := rng.randi_range(-max_size_delta, max_size_delta)
+	var size := Vector2i(
+		maxi(min_size, rect.size.x + dw),
+		maxi(min_size, rect.size.y + dh)
+	)
+	return Rect2i(rect.position + Vector2i(dx, dy), size)
+
+
 func _pick_random_floor_cells(
 	floor_cells: Array[Vector2i],
 	opening_cells: Dictionary,
 	count: int,
-	rng: RandomNumberGenerator
+	rng: RandomNumberGenerator,
+	excluded_cells: Dictionary = {}
 ) -> Array[Vector2i]:
 	var candidates: Array[Vector2i] = []
 	for c in floor_cells:
 		if opening_cells.has(c):
+			continue
+		if excluded_cells.has(c):
 			continue
 		candidates.append(c)
 	candidates.shuffle()
@@ -111,6 +133,80 @@ func _pick_random_floor_cells(
 	for i in range(n):
 		out.append(candidates[i])
 	return out
+
+
+func _nearest_valid_interior_floor_cell(
+	preferred: Vector2i,
+	floor_lookup: Dictionary,
+	opening_cells: Dictionary,
+	excluded_cells: Dictionary = {}
+) -> Vector2i:
+	var best := preferred
+	var best_dist := INF
+	for candidate in floor_lookup.keys():
+		var c := candidate as Vector2i
+		if opening_cells.has(c):
+			continue
+		if excluded_cells.has(c):
+			continue
+		var dist := preferred.distance_squared_to(c)
+		if dist < best_dist:
+			best_dist = dist
+			best = c
+	if best_dist < INF:
+		return best
+	for candidate in floor_lookup.keys():
+		var c := candidate as Vector2i
+		if opening_cells.has(c):
+			continue
+		var dist := preferred.distance_squared_to(c)
+		if dist < best_dist:
+			best_dist = dist
+			best = c
+	return best
+
+
+func _normalize_centered_room_size(size: Vector2i) -> Vector2i:
+	var normalized := Vector2i(maxi(size.x, 1), maxi(size.y, 1))
+	if normalized.x % 2 == 0:
+		normalized.x += 1
+	if normalized.y % 2 == 0:
+		normalized.y += 1
+	return normalized
+
+
+func _border_distance(cell: Vector2i, room_rect: Rect2i) -> int:
+	return mini(
+		mini(cell.x - room_rect.position.x, room_rect.end.x - 1 - cell.x),
+		mini(cell.y - room_rect.position.y, room_rect.end.y - 1 - cell.y)
+	)
+
+
+func _interior_excluded_cells(
+	size: Vector2i,
+	hallway_cells: Dictionary,
+	extra_excluded: Dictionary = {}
+) -> Dictionary:
+	var excluded := hallway_cells.duplicate(true)
+	var room_rect := _room_rect(size)
+	for x in range(room_rect.position.x, room_rect.end.x):
+		for y in range(room_rect.position.y, room_rect.end.y):
+			var cell := Vector2i(x, y)
+			if _border_distance(cell, room_rect) < BORDER_CLEARANCE_TILES:
+				excluded[cell] = true
+	for cell in extra_excluded.keys():
+		excluded[cell] = true
+	return excluded
+
+
+func _ensure_floor_contract_cells(floor_cells: Array[Vector2i], floor_lookup: Dictionary, required_cells: Dictionary) -> Array[Vector2i]:
+	for cell in required_cells.keys():
+		var c := cell as Vector2i
+		if floor_lookup.has(c):
+			continue
+		floor_lookup[c] = true
+		floor_cells.append(c)
+	return floor_cells
 
 
 func _build_variant_spec(base_spec: Dictionary, variant_suffix: String, rng: RandomNumberGenerator) -> Dictionary:
@@ -122,21 +218,26 @@ func _build_variant_spec(base_spec: Dictionary, variant_suffix: String, rng: Ran
 	var size: Vector2i = spec.get("size", Vector2i.ZERO)
 	if _size_bump_tiles > 0:
 		size += Vector2i(_size_bump_tiles, _size_bump_tiles)
-	spec["size"] = size
+	spec["size"] = _normalize_centered_room_size(size)
 
 	# Randomize carve rects slightly to produce variations.
+	var allow_shape_rect_jitter := String(spec.get("base_shape", "full")) != "empty"
 	if spec.has("remove_rects"):
 		var rr: Array = spec.get("remove_rects", [])
 		var out_rr: Array[Rect2i] = []
 		for r in rr:
-			out_rr.append(_jitter_rect(r, rng, 1))
+			out_rr.append(_jitter_rect_with_size_variation(r, rng, 2, 2, 2) if allow_shape_rect_jitter else (r as Rect2i))
 		spec["remove_rects"] = out_rr
 	if spec.has("add_rects"):
 		var ar: Array = spec.get("add_rects", [])
 		var out_ar: Array[Rect2i] = []
 		for r in ar:
-			out_ar.append(_jitter_rect(r, rng, 1))
+			out_ar.append(_jitter_rect(r, rng, 2) if allow_shape_rect_jitter else (r as Rect2i))
 		spec["add_rects"] = out_ar
+	if String(spec.get("base_shape", "full")) == "empty":
+		spec["_opening_center_span"] = 3
+	else:
+		spec["_opening_center_span"] = -1
 
 	# Randomize blockers/spawns a bit (keep same counts).
 	# We do this later after floor_cells are built, because we need valid cells.
@@ -346,14 +447,14 @@ func _build_room_specs() -> Array[Dictionary]:
 		{
 			"scene_name": "room_connector_turn_medium_b",
 			"room_id": "room_connector_turn_medium_b",
-			"size": Vector2i(24, 24),
+			"size": Vector2i(28, 28),
 			"size_class": "medium",
 			"room_type": "connector",
 			"room_tags": PackedStringArray(["connector", "turn", "medium"]),
 			"allowed_connection_types": PackedStringArray(["corridor", "connector"]),
 			"recommended_enemy_groups": PackedStringArray([]),
 			"base_shape": "empty",
-			"add_rects": [Rect2i(-4, -4, 8, 18), Rect2i(-4, -4, 18, 8)],
+			"add_rects": [Rect2i(-5, -5, 10, 22), Rect2i(-5, -5, 22, 10)],
 			"openings": [&"south", &"east"],
 			"entry_marker": Vector2i(0, 4),
 			"prop_marker": Vector2i(3, -1),
@@ -364,14 +465,14 @@ func _build_room_specs() -> Array[Dictionary]:
 		{
 			"scene_name": "room_connector_junction_medium_b",
 			"room_id": "room_connector_junction_medium_b",
-			"size": Vector2i(24, 24),
+			"size": Vector2i(28, 28),
 			"size_class": "medium",
 			"room_type": "connector",
 			"room_tags": PackedStringArray(["connector", "junction", "medium"]),
 			"allowed_connection_types": PackedStringArray(["corridor", "connector"]),
 			"recommended_enemy_groups": PackedStringArray([]),
 			"base_shape": "empty",
-			"add_rects": [Rect2i(-12, -4, 24, 8), Rect2i(-4, -4, 8, 18), Rect2i(-6, -8, 12, 8)],
+			"add_rects": [Rect2i(-14, -5, 28, 10), Rect2i(-5, -5, 10, 22), Rect2i(-8, -10, 16, 10)],
 			"openings": [&"west", &"south"],
 			"entry_marker": Vector2i(0, 4),
 			"prop_marker": Vector2i(0, -3),
@@ -483,12 +584,22 @@ func _generate_room(spec: Dictionary, rng: RandomNumberGenerator, report_errors:
 		if not active_openings.has(side):
 			active_openings.append(side)
 	var floor_cells := _build_floor_cells(spec)
-	var hallway := _build_hallway_geometry(size, active_openings, rng)
+	var opening_center_span := int(spec.get("_opening_center_span", -1))
+	var hallway := _build_hallway_geometry(size, active_openings, rng, opening_center_span)
 	var opening_cells: Dictionary = hallway["opening_cells"]
 	var passage_cells: Dictionary = hallway["passage_cells"]
+	var support_floor_cells: Dictionary = hallway["support_floor_cells"]
+	var apron_cells: Dictionary = hallway["apron_cells"]
 	var hallway_all_cells: Dictionary = hallway["all_cells"]
 	var hallway_carve_void_cells: Dictionary = hallway["carve_void_cells"]
 	var center_positions: Dictionary = hallway["center_positions"]
+	var required_hallway_floor_cells := opening_cells.duplicate(true)
+	for cell in passage_cells.keys():
+		required_hallway_floor_cells[cell] = true
+	for cell in support_floor_cells.keys():
+		required_hallway_floor_cells[cell] = true
+	for cell in apron_cells.keys():
+		required_hallway_floor_cells[cell] = true
 
 	var floor_lookup: Dictionary = {}
 	for cell in floor_cells:
@@ -539,6 +650,7 @@ func _generate_room(spec: Dictionary, rng: RandomNumberGenerator, report_errors:
 			while not floor_lookup.has(step) and steps_taken < bridge_limit:
 				floor_lookup[step] = true
 				floor_cells.append(step)
+				hallway_all_cells[step] = true
 				step = step + inward
 				steps_taken += 1
 
@@ -639,12 +751,12 @@ func _generate_room(spec: Dictionary, rng: RandomNumberGenerator, report_errors:
 	floor_cells = _fill_enclosed_void_pockets(floor_cells, floor_lookup, size)
 
 	var allowed_border_walls := _opening_contract_boundary_wall_positions(size, active_openings, center_positions)
-	floor_cells = _strip_non_opening_border_floor_cells(
+	floor_cells = _strip_non_hallway_border_band_floor_cells(
 		floor_cells,
 		floor_lookup,
 		size,
-		opening_cells,
-		allowed_border_walls
+		required_hallway_floor_cells,
+		BORDER_CLEARANCE_TILES
 	)
 	reachable_floor = _reachable_floor_region_from_center(floor_lookup, opening_cells)
 	pruned_floor_cells = []
@@ -656,27 +768,50 @@ func _generate_room(spec: Dictionary, rng: RandomNumberGenerator, report_errors:
 	for cell in floor_cells:
 		floor_lookup[cell] = true
 
+	floor_cells = _ensure_floor_contract_cells(floor_cells, floor_lookup, required_hallway_floor_cells)
+
 	floor_cells.sort_custom(func(a: Vector2i, b: Vector2i) -> bool:
 		return a.y < b.y if a.y != b.y else a.x < b.x
 	)
-	var spacing_err := _validate_parallel_wall_spacing(floor_lookup, opening_cells, allowed_border_walls)
+	var spacing_spacing_exempt: Dictionary = hallway_all_cells.duplicate(true)
+	for cell in allowed_border_walls.keys():
+		spacing_spacing_exempt[cell] = true
+	var spacing_err := _validate_parallel_wall_spacing(floor_lookup, opening_cells, spacing_spacing_exempt)
 	if spacing_err != "":
 		_last_generate_error = spacing_err
 		if report_errors:
 			push_error(spacing_err)
 		room.free()
 		return false
-	var wall_items := _build_wall_items(floor_cells, opening_cells, passage_cells)
+	var wall_items := _build_perimeter_wall_items_for_current_floor(
+		floor_cells,
+		floor_lookup,
+		opening_cells,
+		hallway_all_cells
+	)
 
 	# Randomize blockers/spawns positions after floor exists (optional per spec).
 	if bool(spec.get("_randomize_positions", false)):
+		var spawn_randomize_excluded := _interior_excluded_cells(size, hallway_all_cells)
 		if spec.has("blockers"):
 			var blockers: Array = spec.get("blockers", [])
-			var new_blockers := _pick_random_floor_cells(floor_cells, opening_cells, blockers.size(), rng)
+			var new_blockers := _pick_random_floor_cells(
+				floor_cells,
+				opening_cells,
+				blockers.size(),
+				rng,
+				spawn_randomize_excluded
+			)
 			spec["blockers"] = new_blockers
 		if spec.has("spawns"):
 			var spawns: Array = spec.get("spawns", [])
-			var new_positions := _pick_random_floor_cells(floor_cells, opening_cells, spawns.size(), rng)
+			var new_positions := _pick_random_floor_cells(
+				floor_cells,
+				opening_cells,
+				spawns.size(),
+				rng,
+				spawn_randomize_excluded
+			)
 			var out_spawns: Array[Dictionary] = []
 			for i in range(spawns.size()):
 				var s: Dictionary = (spawns[i] as Dictionary).duplicate(true)
@@ -689,9 +824,21 @@ func _generate_room(spec: Dictionary, rng: RandomNumberGenerator, report_errors:
 	# creating unreachable clutter.
 	var blockers: Array = spec.get("blockers", [])
 	var pruned_blockers: Array[Vector2i] = []
+	var blocker_used: Dictionary = {}
 	for b in blockers:
-		if b is Vector2i and reachable_floor.has(b):
-			pruned_blockers.append(b)
+		if b is not Vector2i:
+			continue
+		var blocker_position := b as Vector2i
+		if not reachable_floor.has(blocker_position) or hallway_all_cells.has(blocker_position):
+			blocker_position = _nearest_valid_interior_floor_cell(
+				blocker_position,
+				floor_lookup,
+				opening_cells,
+				hallway_all_cells.merged(blocker_used, true)
+			)
+		if reachable_floor.has(blocker_position) and not hallway_all_cells.has(blocker_position) and not blocker_used.has(blocker_position):
+			pruned_blockers.append(blocker_position)
+			blocker_used[blocker_position] = true
 	spec["blockers"] = pruned_blockers
 
 	var blocked_lookup := _blocked_cells_lookup(spec.get("blockers", []))
@@ -710,6 +857,63 @@ func _generate_room(spec: Dictionary, rng: RandomNumberGenerator, report_errors:
 	for forced_wall in forced_opening_walls:
 		wall_items.append(forced_wall)
 	wall_items = _normalize_wall_items(wall_items, opening_cells, allowed_border_walls, size)
+	var wall_items_by_pos: Dictionary = {}
+	for wall_item in wall_items:
+		var pos: Vector2i = wall_item.get("position", Vector2i.ZERO) as Vector2i
+		wall_items_by_pos[pos] = wall_item
+	for fill in _build_void_corner_fillers(_room_rect(size), floor_lookup, opening_cells, wall_items_by_pos):
+		var pos: Vector2i = fill.get("position", Vector2i.ZERO) as Vector2i
+		if wall_items_by_pos.has(pos):
+			continue
+		wall_items_by_pos[pos] = fill
+	wall_items.clear()
+	for pos in wall_items_by_pos.keys():
+		wall_items.append(wall_items_by_pos[pos])
+	wall_items.sort_custom(func(a: Dictionary, b: Dictionary) -> bool:
+		var ap := a.get("position", Vector2i.ZERO) as Vector2i
+		var bp := b.get("position", Vector2i.ZERO) as Vector2i
+		return ap.y < bp.y if ap.y != bp.y else ap.x < bp.x
+	)
+	wall_items = _normalize_wall_items(wall_items, opening_cells, allowed_border_walls, size)
+	wall_items_by_pos.clear()
+	for wall_item in wall_items:
+		var pos: Vector2i = wall_item.get("position", Vector2i.ZERO) as Vector2i
+		wall_items_by_pos[pos] = wall_item
+
+	var prop_excluded_cells := _interior_excluded_cells(size, hallway_all_cells, wall_items_by_pos)
+	var adjusted_blockers: Array[Vector2i] = []
+	var adjusted_blocker_used: Dictionary = {}
+	for blocker_position in spec.get("blockers", []):
+		if blocker_position is not Vector2i:
+			continue
+		var next_blocker := _nearest_valid_interior_floor_cell(
+			blocker_position,
+			floor_lookup,
+			opening_cells,
+			prop_excluded_cells.merged(adjusted_blocker_used, true)
+		)
+		if adjusted_blocker_used.has(next_blocker):
+			continue
+		adjusted_blockers.append(next_blocker)
+		adjusted_blocker_used[next_blocker] = true
+	spec["blockers"] = adjusted_blockers
+
+	var prop_marker_position := _nearest_valid_interior_floor_cell(
+		spec["prop_marker"],
+		floor_lookup,
+		opening_cells,
+		prop_excluded_cells
+	)
+	spec["prop_marker"] = prop_marker_position
+	if spec.has("treasure"):
+		var treasure_position := _nearest_valid_interior_floor_cell(
+			spec["treasure"],
+			floor_lookup,
+			opening_cells,
+			prop_excluded_cells.merged(adjusted_blocker_used, true)
+		)
+		spec["treasure"] = treasure_position
+	var spawn_excluded_cells := _interior_excluded_cells(size, hallway_all_cells, wall_items_by_pos)
 	for wall_item in wall_items:
 		_add_item(
 			layout,
@@ -727,7 +931,7 @@ func _generate_room(spec: Dictionary, rng: RandomNumberGenerator, report_errors:
 		)
 
 	_add_item(layout, &"encounter_entry_marker", spec["entry_marker"])
-	_add_item(layout, &"prop_placement_marker", spec["prop_marker"])
+	_add_item(layout, &"prop_placement_marker", prop_marker_position)
 	_add_item(layout, &"nav_boundary_marker", spec["nav_marker"])
 
 	if spec.has("loot_marker"):
@@ -739,9 +943,21 @@ func _generate_room(spec: Dictionary, rng: RandomNumberGenerator, report_errors:
 		_add_item(layout, &"barrel_blocker", blocker_position)
 	var exit_side := String(marker_plan.back().get("side", "")) if not marker_plan.is_empty() else ""
 	for spawn_data in spec.get("spawns", []):
-		var spawn_position := spawn_data.get("position", Vector2i.ZERO) as Vector2i
+		var spawn_position := _nearest_valid_interior_floor_cell(
+			spawn_data.get("position", Vector2i.ZERO) as Vector2i,
+			floor_lookup,
+			opening_cells,
+			spawn_excluded_cells
+		)
 		if exit_side != "":
-			spawn_position = _bias_spawn_cell_toward_side(spawn_position, floor_lookup, opening_cells, size, exit_side)
+			spawn_position = _bias_spawn_cell_toward_side(
+				spawn_position,
+				floor_lookup,
+				opening_cells,
+				size,
+				exit_side,
+				spawn_excluded_cells
+			)
 		_add_item(
 			layout,
 			spawn_data.get("piece_id", &"spawn_melee_marker"),
@@ -994,24 +1210,22 @@ func _opening_contract_boundary_wall_positions(size: Vector2i, openings: Array, 
 	return out
 
 
-func _strip_non_opening_border_floor_cells(
+func _strip_non_hallway_border_band_floor_cells(
 	floor_cells: Array[Vector2i],
 	floor_lookup: Dictionary,
 	size: Vector2i,
-	opening_cells: Dictionary,
-	allowed_border_floor_cells: Dictionary
+	allowed_hallway_cells: Dictionary,
+	clearance_tiles: int = BORDER_CLEARANCE_TILES
 ) -> Array[Vector2i]:
 	var rect := _room_rect(size)
 	var out: Array[Vector2i] = []
 	for cell in floor_cells:
 		var c := cell as Vector2i
-		var on_border := (
-			c.x == rect.position.x
-			or c.x == rect.end.x - 1
-			or c.y == rect.position.y
-			or c.y == rect.end.y - 1
+		var border_distance := mini(
+			mini(c.x - rect.position.x, rect.end.x - 1 - c.x),
+			mini(c.y - rect.position.y, rect.end.y - 1 - c.y)
 		)
-		if on_border and not opening_cells.has(c) and not allowed_border_floor_cells.has(c):
+		if border_distance < clearance_tiles and not allowed_hallway_cells.has(c):
 			floor_lookup.erase(c)
 			continue
 		out.append(c)
@@ -1069,6 +1283,17 @@ func _normalize_wall_items(
 		)
 		if on_border and not allowed_border_walls.has(pos):
 			continue
+		if items_by_pos.has(pos):
+			var existing: Dictionary = items_by_pos[pos]
+			var existing_forced := bool(existing.get("_forced_contract", false))
+			var next_forced := bool(item.get("_forced_contract", false))
+			if existing_forced and not next_forced:
+				continue
+			if existing_forced and next_forced:
+				var existing_piece: StringName = existing.get("piece_id", &"")
+				var next_piece: StringName = item.get("piece_id", &"")
+				if existing_piece == &"wall_corner" and next_piece != &"wall_corner":
+					continue
 		items_by_pos[pos] = item.duplicate(true)
 
 	var structure_lookup: Dictionary = opening_cells.duplicate(true)
@@ -1086,7 +1311,54 @@ func _normalize_wall_items(
 	return out
 
 
-func _build_wall_items(floor_cells: Array[Vector2i], opening_cells: Dictionary, passage_cells: Dictionary = {}) -> Array[Dictionary]:
+func _build_perimeter_wall_items_for_current_floor(
+	floor_cells: Array[Vector2i],
+	floor_lookup: Dictionary,
+	opening_cells: Dictionary,
+	excluded_cells: Dictionary = {}
+) -> Array[Dictionary]:
+	var out: Array[Dictionary] = []
+	for cell in floor_cells:
+		var c := cell as Vector2i
+		if opening_cells.has(c) or excluded_cells.has(c):
+			continue
+		var should_wall := false
+		for direction in [Vector2i.LEFT, Vector2i.RIGHT, Vector2i.UP, Vector2i.DOWN]:
+			if not _is_solid_floor_cell(floor_lookup, opening_cells, c + direction):
+				should_wall = true
+				break
+		if not should_wall:
+			continue
+		out.append(_wall_item_for_cell(c, floor_lookup, opening_cells))
+	out.sort_custom(func(a: Dictionary, b: Dictionary) -> bool:
+		var ap: Vector2i = a.get("position", Vector2i.ZERO) as Vector2i
+		var bp: Vector2i = b.get("position", Vector2i.ZERO) as Vector2i
+		return ap.y < bp.y if ap.y != bp.y else ap.x < bp.x
+	)
+	return out
+
+
+func _rect_from_cells(cells: Array[Vector2i]) -> Rect2i:
+	if cells.is_empty():
+		return Rect2i()
+	var min_x := cells[0].x
+	var max_x := cells[0].x
+	var min_y := cells[0].y
+	var max_y := cells[0].y
+	for c in cells:
+		min_x = mini(min_x, c.x)
+		max_x = maxi(max_x, c.x)
+		min_y = mini(min_y, c.y)
+		max_y = maxi(max_y, c.y)
+	return Rect2i(Vector2i(min_x, min_y), Vector2i(max_x - min_x + 1, max_y - min_y + 1))
+
+
+func _build_wall_items(
+	floor_cells: Array[Vector2i],
+	opening_cells: Dictionary,
+	passage_cells: Dictionary = {},
+	protected_cells: Dictionary = {}
+) -> Array[Dictionary]:
 	var floor_lookup: Dictionary = {}
 	for cell in floor_cells:
 		floor_lookup[cell] = true
@@ -1098,7 +1370,7 @@ func _build_wall_items(floor_cells: Array[Vector2i], opening_cells: Dictionary, 
 	for cell in floor_cells:
 		if not reachable_floor.has(cell):
 			continue
-		if opening_cells.has(cell) or passage_cells.has(cell):
+		if opening_cells.has(cell) or passage_cells.has(cell) or protected_cells.has(cell):
 			continue
 		var should_wall := false
 		for direction in directions:
@@ -1150,58 +1422,6 @@ func _build_wall_items(floor_cells: Array[Vector2i], opening_cells: Dictionary, 
 		if not reachable_floor.has(p):
 			items_by_pos.erase(pos)
 
-	# Topology prune: iteratively remove hanging wall ends (degree < 2) starting
-	# from the corners of the bounding box and working inward.  Openings count as
-	# valid terminators so the wall ring beside a doorway doesn't collapse.
-	# Degree-3+ walls (T-junctions at L-shaped boundaries) are kept; protrusions
-	# still get cleaned because the tip is degree 1, and once removed its
-	# neighbor drops in degree, cascading inward until only structural walls remain.
-	var wall_positions: Array[Vector2i] = []
-	for pos in items_by_pos.keys():
-		var item_w: Dictionary = items_by_pos[pos]
-		var pid_w: StringName = item_w.get("piece_id", &"")
-		if pid_w == &"wall_corner" or pid_w == &"wall_straight":
-			wall_positions.append(item_w.get("position", pos) as Vector2i)
-	wall_positions.sort_custom(func(a: Vector2i, b: Vector2i) -> bool:
-		var da: int = abs(a.x) + abs(a.y)
-		var db: int = abs(b.x) + abs(b.y)
-		return da > db
-	)
-	var changed := true
-	while changed:
-		changed = false
-		var to_remove: Array[Vector2i] = []
-		for p_top in wall_positions:
-			if not items_by_pos.has(p_top):
-				continue
-			var item_top: Dictionary = items_by_pos[p_top]
-			var pid_top: StringName = item_top.get("piece_id", &"")
-			if pid_top != &"wall_corner" and pid_top != &"wall_straight":
-				continue
-			var neighbor_count := 0
-			for d in [Vector2i.LEFT, Vector2i.RIGHT, Vector2i.UP, Vector2i.DOWN]:
-				var npos: Vector2i = p_top + d
-				if opening_cells.has(npos):
-					neighbor_count += 1
-					continue
-				# Passage tiles deliberately have no wall; count them like openings so
-				# the perimeter ring does not collapse to zero under topology prune.
-				if passage_cells.has(npos):
-					neighbor_count += 1
-					continue
-				if not items_by_pos.has(npos):
-					continue
-				var nitem: Dictionary = items_by_pos[npos]
-				var npid: StringName = nitem.get("piece_id", &"")
-				if npid == &"wall_corner" or npid == &"wall_straight":
-					neighbor_count += 1
-			if neighbor_count < 2:
-				to_remove.append(p_top)
-		if not to_remove.is_empty():
-			changed = true
-			for p_top in to_remove:
-				items_by_pos.erase(p_top)
-
 	# Second pass: adjust boundary wall_corner rotations so they visually connect
 	# to neighboring wall pieces (corners and straights). Interior concave corners
 	# already have their rotation set by void-cell direction and must not be overridden.
@@ -1238,6 +1458,12 @@ func _build_wall_items(floor_cells: Array[Vector2i], opening_cells: Dictionary, 
 		var rot := _corner_rotation_for_walls(has_left, has_right, has_up, has_down)
 		item["rotation_steps"] = rot
 		items_by_pos[p] = item
+
+	for fill in _build_void_corner_fillers(_rect_from_cells(floor_cells), floor_lookup, opening_cells, items_by_pos):
+		var pos: Vector2i = fill.get("position", Vector2i.ZERO) as Vector2i
+		if items_by_pos.has(pos):
+			continue
+		items_by_pos[pos] = fill
 
 	out.clear()
 	for cell in items_by_pos.keys():
@@ -1315,33 +1541,49 @@ func _opening_contract_wall_items(size: Vector2i, openings: Array, center_positi
 		var center: int = int(center_positions.get(side, 0))
 		match side:
 			"north":
-				out.append({"piece_id": &"wall_corner", "position": Vector2i(center - 2, top), "rotation_steps": 3, "_forced_contract": true})
-				out.append({"piece_id": &"wall_corner", "position": Vector2i(center + 2, top), "rotation_steps": 0, "_forced_contract": true})
+				out.append({"piece_id": &"wall_straight", "position": Vector2i(center - 2, top), "rotation_steps": 1, "_forced_contract": true})
+				out.append({"piece_id": &"wall_straight", "position": Vector2i(center + 2, top), "rotation_steps": 1, "_forced_contract": true})
 				out.append({"piece_id": &"wall_straight", "position": Vector2i(center - 2, top + 1), "rotation_steps": 1, "_forced_contract": true})
 				out.append({"piece_id": &"wall_straight", "position": Vector2i(center + 2, top + 1), "rotation_steps": 1, "_forced_contract": true})
-				out.append({"piece_id": &"wall_corner", "position": Vector2i(center - 2, top + 2), "rotation_steps": 2, "_forced_contract": true})
-				out.append({"piece_id": &"wall_corner", "position": Vector2i(center + 2, top + 2), "rotation_steps": 1, "_forced_contract": true})
+				out.append({"piece_id": &"wall_straight", "position": Vector2i(center - 2, top + 2), "rotation_steps": 1, "_forced_contract": true})
+				out.append({"piece_id": &"wall_straight", "position": Vector2i(center + 2, top + 2), "rotation_steps": 1, "_forced_contract": true})
+				out.append({"piece_id": &"wall_corner", "position": Vector2i(center - 2, top + 3), "rotation_steps": 1, "_forced_contract": true})
+				out.append({"piece_id": &"wall_corner", "position": Vector2i(center + 2, top + 3), "rotation_steps": 2, "_forced_contract": true})
+				out.append({"piece_id": &"wall_straight", "position": Vector2i(center - 3, top + 3), "rotation_steps": 0})
+				out.append({"piece_id": &"wall_straight", "position": Vector2i(center + 3, top + 3), "rotation_steps": 0})
 			"south":
-				out.append({"piece_id": &"wall_corner", "position": Vector2i(center - 2, bottom), "rotation_steps": 2, "_forced_contract": true})
-				out.append({"piece_id": &"wall_corner", "position": Vector2i(center + 2, bottom), "rotation_steps": 1, "_forced_contract": true})
+				out.append({"piece_id": &"wall_straight", "position": Vector2i(center - 2, bottom), "rotation_steps": 1, "_forced_contract": true})
+				out.append({"piece_id": &"wall_straight", "position": Vector2i(center + 2, bottom), "rotation_steps": 1, "_forced_contract": true})
 				out.append({"piece_id": &"wall_straight", "position": Vector2i(center - 2, bottom - 1), "rotation_steps": 1, "_forced_contract": true})
 				out.append({"piece_id": &"wall_straight", "position": Vector2i(center + 2, bottom - 1), "rotation_steps": 1, "_forced_contract": true})
-				out.append({"piece_id": &"wall_corner", "position": Vector2i(center - 2, bottom - 2), "rotation_steps": 3, "_forced_contract": true})
-				out.append({"piece_id": &"wall_corner", "position": Vector2i(center + 2, bottom - 2), "rotation_steps": 0, "_forced_contract": true})
+				out.append({"piece_id": &"wall_straight", "position": Vector2i(center - 2, bottom - 2), "rotation_steps": 1, "_forced_contract": true})
+				out.append({"piece_id": &"wall_straight", "position": Vector2i(center + 2, bottom - 2), "rotation_steps": 1, "_forced_contract": true})
+				out.append({"piece_id": &"wall_corner", "position": Vector2i(center - 2, bottom - 3), "rotation_steps": 0, "_forced_contract": true})
+				out.append({"piece_id": &"wall_corner", "position": Vector2i(center + 2, bottom - 3), "rotation_steps": 3, "_forced_contract": true})
+				out.append({"piece_id": &"wall_straight", "position": Vector2i(center - 3, bottom - 3), "rotation_steps": 0})
+				out.append({"piece_id": &"wall_straight", "position": Vector2i(center + 3, bottom - 3), "rotation_steps": 0})
 			"east":
-				out.append({"piece_id": &"wall_corner", "position": Vector2i(right, center - 2), "rotation_steps": 0, "_forced_contract": true})
-				out.append({"piece_id": &"wall_corner", "position": Vector2i(right, center + 2), "rotation_steps": 1, "_forced_contract": true})
+				out.append({"piece_id": &"wall_straight", "position": Vector2i(right, center - 2), "rotation_steps": 0, "_forced_contract": true})
+				out.append({"piece_id": &"wall_straight", "position": Vector2i(right, center + 2), "rotation_steps": 0, "_forced_contract": true})
 				out.append({"piece_id": &"wall_straight", "position": Vector2i(right - 1, center - 2), "rotation_steps": 0, "_forced_contract": true})
 				out.append({"piece_id": &"wall_straight", "position": Vector2i(right - 1, center + 2), "rotation_steps": 0, "_forced_contract": true})
-				out.append({"piece_id": &"wall_corner", "position": Vector2i(right - 2, center - 2), "rotation_steps": 3, "_forced_contract": true})
-				out.append({"piece_id": &"wall_corner", "position": Vector2i(right - 2, center + 2), "rotation_steps": 2, "_forced_contract": true})
+				out.append({"piece_id": &"wall_straight", "position": Vector2i(right - 2, center - 2), "rotation_steps": 0, "_forced_contract": true})
+				out.append({"piece_id": &"wall_straight", "position": Vector2i(right - 2, center + 2), "rotation_steps": 0, "_forced_contract": true})
+				out.append({"piece_id": &"wall_corner", "position": Vector2i(right - 3, center - 2), "rotation_steps": 2, "_forced_contract": true})
+				out.append({"piece_id": &"wall_corner", "position": Vector2i(right - 3, center + 2), "rotation_steps": 3, "_forced_contract": true})
+				out.append({"piece_id": &"wall_straight", "position": Vector2i(right - 3, center - 3), "rotation_steps": 1})
+				out.append({"piece_id": &"wall_straight", "position": Vector2i(right - 3, center + 3), "rotation_steps": 1})
 			"west":
-				out.append({"piece_id": &"wall_corner", "position": Vector2i(left, center - 2), "rotation_steps": 3, "_forced_contract": true})
-				out.append({"piece_id": &"wall_corner", "position": Vector2i(left, center + 2), "rotation_steps": 2, "_forced_contract": true})
+				out.append({"piece_id": &"wall_straight", "position": Vector2i(left, center - 2), "rotation_steps": 0, "_forced_contract": true})
+				out.append({"piece_id": &"wall_straight", "position": Vector2i(left, center + 2), "rotation_steps": 0, "_forced_contract": true})
 				out.append({"piece_id": &"wall_straight", "position": Vector2i(left + 1, center - 2), "rotation_steps": 0, "_forced_contract": true})
 				out.append({"piece_id": &"wall_straight", "position": Vector2i(left + 1, center + 2), "rotation_steps": 0, "_forced_contract": true})
-				out.append({"piece_id": &"wall_corner", "position": Vector2i(left + 2, center - 2), "rotation_steps": 0, "_forced_contract": true})
-				out.append({"piece_id": &"wall_corner", "position": Vector2i(left + 2, center + 2), "rotation_steps": 1, "_forced_contract": true})
+				out.append({"piece_id": &"wall_straight", "position": Vector2i(left + 2, center - 2), "rotation_steps": 0, "_forced_contract": true})
+				out.append({"piece_id": &"wall_straight", "position": Vector2i(left + 2, center + 2), "rotation_steps": 0, "_forced_contract": true})
+				out.append({"piece_id": &"wall_corner", "position": Vector2i(left + 3, center - 2), "rotation_steps": 1, "_forced_contract": true})
+				out.append({"piece_id": &"wall_corner", "position": Vector2i(left + 3, center + 2), "rotation_steps": 0, "_forced_contract": true})
+				out.append({"piece_id": &"wall_straight", "position": Vector2i(left + 3, center - 3), "rotation_steps": 1})
+				out.append({"piece_id": &"wall_straight", "position": Vector2i(left + 3, center + 3), "rotation_steps": 1})
 	return out
 
 
@@ -1435,6 +1677,54 @@ func _build_concave_interior_corner_fillers(
 					"rotation_steps": int(t["rot"]),
 					"_concave_interior": true,
 				})
+	return out
+
+
+func _build_void_corner_fillers(
+	room_rect: Rect2i,
+	floor_lookup: Dictionary,
+	opening_cells: Dictionary,
+	wall_items_by_pos: Dictionary
+) -> Array[Dictionary]:
+	var out: Array[Dictionary] = []
+	for y in range(room_rect.position.y, room_rect.end.y):
+		for x in range(room_rect.position.x, room_rect.end.x):
+			var cell := Vector2i(x, y)
+			var border_distance := mini(
+				mini(cell.x - room_rect.position.x, room_rect.end.x - 1 - cell.x),
+				mini(cell.y - room_rect.position.y, room_rect.end.y - 1 - cell.y)
+			)
+			if border_distance < BORDER_CLEARANCE_TILES:
+				continue
+			if floor_lookup.has(cell) or opening_cells.has(cell) or wall_items_by_pos.has(cell):
+				continue
+			var has_left := wall_items_by_pos.has(cell + Vector2i.LEFT)
+			var has_right := wall_items_by_pos.has(cell + Vector2i.RIGHT)
+			var has_up := wall_items_by_pos.has(cell + Vector2i.UP)
+			var has_down := wall_items_by_pos.has(cell + Vector2i.DOWN)
+			var neighbor_count := int(has_left) + int(has_right) + int(has_up) + int(has_down)
+			var horizontal := int(has_left) + int(has_right)
+			var vertical := int(has_up) + int(has_down)
+			if neighbor_count != 2 or horizontal != 1 or vertical != 1:
+				continue
+			var inside_floor := Vector2i.ZERO
+			if has_left and has_up:
+				inside_floor = cell + Vector2i(-1, -1)
+			elif has_right and has_up:
+				inside_floor = cell + Vector2i(1, -1)
+			elif has_right and has_down:
+				inside_floor = cell + Vector2i(1, 1)
+			elif has_left and has_down:
+				inside_floor = cell + Vector2i(-1, 1)
+			else:
+				continue
+			if not _is_solid_floor_cell(floor_lookup, opening_cells, inside_floor):
+				continue
+			out.append({
+				"piece_id": &"wall_corner",
+				"position": cell,
+				"rotation_steps": _corner_rotation_for_walls(has_left, has_right, has_up, has_down),
+			})
 	return out
 
 
@@ -1618,7 +1908,7 @@ func _opening_cells(size: Vector2i, openings: Array) -> Dictionary:
 	return cells
 
 
-func _build_hallway_geometry(size: Vector2i, openings: Array, rng: RandomNumberGenerator) -> Dictionary:
+func _build_hallway_geometry(size: Vector2i, openings: Array, rng: RandomNumberGenerator, center_span: int = -1) -> Dictionary:
 	# Build the full hallway mouth contract first so the room conforms to it:
 	#   border opening row:     3 opening cells on the room edge
 	#   inner passage row:      flank walls + 3 floor passage cells
@@ -1643,16 +1933,18 @@ func _build_hallway_geometry(size: Vector2i, openings: Array, rng: RandomNumberG
 	var all_cells: Dictionary = {}
 	var passage_cells: Dictionary = {}
 	var opening_cells: Dictionary = {}
+	var support_floor_cells: Dictionary = {}
 	var apron_cells: Dictionary = {}
 	var carve_void_cells: Dictionary = {}
 	var center_positions: Dictionary = {}
 
+	var orthogonal_pair_sign := -1 if rng.randi_range(0, 1) == 0 else 1
 	for raw_side in openings:
 		var side := String(raw_side)
 		var center: int
 		match side:
 			"west", "east":
-				center = clampi(0, top + 3, bottom - 3)
+				center = _random_opening_center_for_side(side, left, right, top, bottom, rng, orthogonal_pair_sign, center_span)
 				center_positions[side] = center
 				var boundary_x: int
 				var inner_x: int
@@ -1671,7 +1963,9 @@ func _build_hallway_geometry(size: Vector2i, openings: Array, rng: RandomNumberG
 					passage_cells[passage] = true
 				var support_x := inner_x + 1 if side == "west" else inner_x - 1
 				for dy in range(-1, 2):
-					all_cells[Vector2i(support_x, center + dy)] = true
+					var support_floor := Vector2i(support_x, center + dy)
+					all_cells[support_floor] = true
+					support_floor_cells[support_floor] = true
 				all_cells[Vector2i(inner_x, center - 2)] = true
 				all_cells[Vector2i(inner_x, center + 2)] = true
 				carve_void_cells[Vector2i(inner_x, center - 3)] = true
@@ -1681,7 +1975,7 @@ func _build_hallway_geometry(size: Vector2i, openings: Array, rng: RandomNumberG
 					all_cells[apron] = true
 					apron_cells[apron] = true
 			"north", "south":
-				center = clampi(0, left + 3, right - 3)
+				center = _random_opening_center_for_side(side, left, right, top, bottom, rng, orthogonal_pair_sign, center_span)
 				center_positions[side] = center
 				var boundary_y: int
 				var inner_y: int
@@ -1700,7 +1994,9 @@ func _build_hallway_geometry(size: Vector2i, openings: Array, rng: RandomNumberG
 					passage_cells[passage] = true
 				var support_y := inner_y + 1 if side == "north" else inner_y - 1
 				for dx in range(-1, 2):
-					all_cells[Vector2i(center + dx, support_y)] = true
+					var support_floor := Vector2i(center + dx, support_y)
+					all_cells[support_floor] = true
+					support_floor_cells[support_floor] = true
 				all_cells[Vector2i(center - 2, inner_y)] = true
 				all_cells[Vector2i(center + 2, inner_y)] = true
 				carve_void_cells[Vector2i(center - 3, inner_y)] = true
@@ -1714,6 +2010,7 @@ func _build_hallway_geometry(size: Vector2i, openings: Array, rng: RandomNumberG
 		"all_cells": all_cells,
 		"passage_cells": passage_cells,
 		"opening_cells": opening_cells,
+		"support_floor_cells": support_floor_cells,
 		"apron_cells": apron_cells,
 		"carve_void_cells": carve_void_cells,
 		"center_positions": center_positions,
@@ -1737,6 +2034,70 @@ func _build_marker_plan(room_type: String, openings: Array) -> Array[Dictionary]
 	return plan
 
 
+func _random_opening_center_for_side(
+	side: String,
+	left: int,
+	right: int,
+	top: int,
+	bottom: int,
+	rng: RandomNumberGenerator,
+	orthogonal_pair_sign: int,
+	center_span: int = -1
+) -> int:
+	var vertical_min := top + 5
+	var vertical_max := bottom - 5
+	if vertical_min > vertical_max:
+		vertical_min = top + 3
+		vertical_max = bottom - 3
+	var horizontal_min := left + 5
+	var horizontal_max := right - 5
+	if horizontal_min > horizontal_max:
+		horizontal_min = left + 3
+		horizontal_max = right - 3
+	if center_span >= 0:
+		vertical_min = maxi(vertical_min, -center_span)
+		vertical_max = mini(vertical_max, center_span)
+		horizontal_min = maxi(horizontal_min, -center_span)
+		horizontal_max = mini(horizontal_max, center_span)
+		if vertical_min > vertical_max:
+			vertical_min = clampi(0, top + 3, bottom - 3)
+			vertical_max = vertical_min
+		if horizontal_min > horizontal_max:
+			horizontal_min = clampi(0, left + 3, right - 3)
+			horizontal_max = horizontal_min
+	match side:
+		"west":
+			return _random_center_in_range(vertical_min, vertical_max, rng, orthogonal_pair_sign)
+		"east":
+			return _random_center_in_range(vertical_min, vertical_max, rng, -orthogonal_pair_sign)
+		"north":
+			return _random_center_in_range(horizontal_min, horizontal_max, rng, orthogonal_pair_sign)
+		"south":
+			return _random_center_in_range(horizontal_min, horizontal_max, rng, -orthogonal_pair_sign)
+		_:
+			return 0
+
+
+func _random_center_in_range(min_value: int, max_value: int, rng: RandomNumberGenerator, preferred_sign: int) -> int:
+	if min_value >= max_value:
+		return min_value
+	var values: Array[int] = []
+	for v in range(min_value, max_value + 1):
+		values.append(v)
+	var preferred: Array[int] = []
+	var fallback: Array[int] = []
+	for v in values:
+		if preferred_sign < 0 and v < 0:
+			preferred.append(v)
+		elif preferred_sign > 0 and v > 0:
+			preferred.append(v)
+		else:
+			fallback.append(v)
+	if not preferred.is_empty():
+		return preferred[rng.randi_range(0, preferred.size() - 1)]
+	return fallback[rng.randi_range(0, fallback.size() - 1)]
+
+
 func _add_marker_for_opening(
 	layout, size: Vector2i, side: StringName, marker_kind: String, hallway_center: int = 0
 ) -> void:
@@ -1745,7 +2106,7 @@ func _add_marker_for_opening(
 	var right := rect.position.x + rect.size.x - 1
 	var top := rect.position.y
 	var bottom := rect.position.y + rect.size.y - 1
-	var rotation_steps := _socket_rotation_for_opening_side(side)
+	var rotation_steps := _marker_rotation_for_opening_side(side)
 	var piece_id: StringName = &"entrance_marker" if marker_kind == "entrance" else &"exit_marker"
 	match side:
 		&"west":
@@ -1758,7 +2119,7 @@ func _add_marker_for_opening(
 			_add_item(layout, piece_id, Vector2i(hallway_center - 1, bottom), rotation_steps)
 
 
-func _socket_rotation_for_opening_side(side: StringName) -> int:
+func _marker_rotation_for_opening_side(side: StringName) -> int:
 	match side:
 		&"north":
 			return 0
@@ -1777,15 +2138,18 @@ func _bias_spawn_cell_toward_side(
 	floor_lookup: Dictionary,
 	opening_cells: Dictionary,
 	size: Vector2i,
-	side: String
+	side: String,
+	excluded_cells: Dictionary = {}
 ) -> Vector2i:
-	if _is_cell_in_side_half(cell, size, side):
+	if _is_cell_in_side_half(cell, size, side) and not excluded_cells.has(cell):
 		return cell
 	var best := cell
 	var best_dist := 1_000_000.0
 	for candidate in floor_lookup.keys():
 		var c := candidate as Vector2i
 		if opening_cells.has(c):
+			continue
+		if excluded_cells.has(c):
 			continue
 		if not _is_cell_in_side_half(c, size, side):
 			continue
@@ -1906,6 +2270,7 @@ func _write_minimal_room_scene(
 		)
 		var marker_pos := _connection_marker_center_world(item.grid_position, direction)
 		lines.append("position = Vector2(%s, %s)" % [marker_pos.x, marker_pos.y])
+		lines.append("rotation = %s" % (float(item.rotation_steps) * PI * 0.5))
 		lines.append("direction = \"%s\"" % direction)
 		lines.append("width_tiles = %s" % HALLWAY_WIDTH)
 		lines.append("")

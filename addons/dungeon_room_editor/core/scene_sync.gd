@@ -134,6 +134,7 @@ func _sync_connection_marker_item(
 	marker.name = "%s_%s" % [String(piece.piece_id), item.item_id]
 	var direction := GridMath.direction_from_rotation(item.normalized_rotation_steps())
 	marker.position = _connection_marker_center_local(item.grid_position, direction, layout, room)
+	marker.rotation = float(item.normalized_rotation_steps()) * PI * 0.5
 	marker.direction = direction
 	marker.connection_tag = piece.connector_type
 	marker.connector_type = piece.connector_type

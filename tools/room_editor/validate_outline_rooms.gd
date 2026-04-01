@@ -3,6 +3,7 @@ extends SceneTree
 
 const OUTLINES_ROOT := "res://dungeon/rooms/authored/outlines"
 const MIN_PARALLEL_WALL_FLOOR_GAP_TILES := 3
+const BORDER_CLEARANCE_TILES := 3
 
 var _versions: PackedInt32Array = PackedInt32Array([3])
 var _rooms_filter: PackedStringArray = PackedStringArray()
@@ -151,7 +152,9 @@ func _hallway_mouth_geometry(item) -> Dictionary:
 	var support_floor: Array[Vector2i] = []
 	var flank_walls: Array[Vector2i] = []
 	var boundary_walls: Array[Vector2i] = []
+	var support_walls: Array[Vector2i] = []
 	var support_corners: Array[Vector2i] = []
+	var join_walls: Array[Vector2i] = []
 	var apron: Array[Vector2i] = []
 	match rot:
 		0:
@@ -161,7 +164,9 @@ func _hallway_mouth_geometry(item) -> Dictionary:
 				support_floor.append(gp + Vector2i(dx, 2))
 			boundary_walls = [gp + Vector2i(-1, 0), gp + Vector2i(3, 0)]
 			flank_walls = [gp + Vector2i(-1, 1), gp + Vector2i(3, 1)]
-			support_corners = [gp + Vector2i(-1, 2), gp + Vector2i(3, 2)]
+			support_walls = [gp + Vector2i(-1, 2), gp + Vector2i(3, 2)]
+			support_corners = [gp + Vector2i(-1, 3), gp + Vector2i(3, 3)]
+			join_walls = [gp + Vector2i(-2, 3), gp + Vector2i(4, 3)]
 			for dx in range(-2, 5):
 				apron.append(gp + Vector2i(dx, 3))
 		1:
@@ -171,7 +176,9 @@ func _hallway_mouth_geometry(item) -> Dictionary:
 				support_floor.append(gp + Vector2i(-2, dy))
 			boundary_walls = [gp + Vector2i(0, -1), gp + Vector2i(0, 3)]
 			flank_walls = [gp + Vector2i(-1, -1), gp + Vector2i(-1, 3)]
-			support_corners = [gp + Vector2i(-2, -1), gp + Vector2i(-2, 3)]
+			support_walls = [gp + Vector2i(-2, -1), gp + Vector2i(-2, 3)]
+			support_corners = [gp + Vector2i(-3, -1), gp + Vector2i(-3, 3)]
+			join_walls = [gp + Vector2i(-3, -2), gp + Vector2i(-3, 4)]
 			for dy in range(-2, 5):
 				apron.append(gp + Vector2i(-3, dy))
 		2:
@@ -181,7 +188,9 @@ func _hallway_mouth_geometry(item) -> Dictionary:
 				support_floor.append(gp + Vector2i(dx, -2))
 			boundary_walls = [gp + Vector2i(-1, 0), gp + Vector2i(3, 0)]
 			flank_walls = [gp + Vector2i(-1, -1), gp + Vector2i(3, -1)]
-			support_corners = [gp + Vector2i(-1, -2), gp + Vector2i(3, -2)]
+			support_walls = [gp + Vector2i(-1, -2), gp + Vector2i(3, -2)]
+			support_corners = [gp + Vector2i(-1, -3), gp + Vector2i(3, -3)]
+			join_walls = [gp + Vector2i(-2, -3), gp + Vector2i(4, -3)]
 			for dx in range(-2, 5):
 				apron.append(gp + Vector2i(dx, -3))
 		_:
@@ -191,7 +200,9 @@ func _hallway_mouth_geometry(item) -> Dictionary:
 				support_floor.append(gp + Vector2i(2, dy))
 			boundary_walls = [gp + Vector2i(0, -1), gp + Vector2i(0, 3)]
 			flank_walls = [gp + Vector2i(1, -1), gp + Vector2i(1, 3)]
-			support_corners = [gp + Vector2i(2, -1), gp + Vector2i(2, 3)]
+			support_walls = [gp + Vector2i(2, -1), gp + Vector2i(2, 3)]
+			support_corners = [gp + Vector2i(3, -1), gp + Vector2i(3, 3)]
+			join_walls = [gp + Vector2i(3, -2), gp + Vector2i(3, 4)]
 			for dy in range(-2, 5):
 				apron.append(gp + Vector2i(3, dy))
 	return {
@@ -200,9 +211,23 @@ func _hallway_mouth_geometry(item) -> Dictionary:
 		"support_floor": support_floor,
 		"boundary_walls": boundary_walls,
 		"flank_walls": flank_walls,
+		"support_walls": support_walls,
 		"support_corners": support_corners,
+		"join_walls": join_walls,
 		"apron": apron,
 	}
+
+
+func _expected_marker_wall_rotations(rot: int) -> Dictionary:
+	match rot:
+		0:
+			return {"boundary": [1, 1], "flank": [1, 1], "support": [1, 1], "corners": [1, 2], "join": [0, 0]}
+		1:
+			return {"boundary": [0, 0], "flank": [0, 0], "support": [0, 0], "corners": [2, 3], "join": [1, 1]}
+		2:
+			return {"boundary": [1, 1], "flank": [1, 1], "support": [1, 1], "corners": [0, 3], "join": [0, 0]}
+		_:
+			return {"boundary": [0, 0], "flank": [0, 0], "support": [0, 0], "corners": [1, 0], "join": [1, 1]}
 
 
 func _opening_cells_from_markers(layout_items: Array) -> Dictionary:
@@ -260,6 +285,13 @@ func _count_layout_markers(room: RoomBase) -> int:
 
 func _room_rect(size: Vector2i) -> Rect2i:
 	return Rect2i(Vector2i(-size.x / 2, -size.y / 2), size)
+
+
+func _border_distance(cell: Vector2i, room_rect: Rect2i) -> int:
+	return mini(
+		mini(cell.x - room_rect.position.x, room_rect.end.x - 1 - cell.x),
+		mini(cell.y - room_rect.position.y, room_rect.end.y - 1 - cell.y)
+	)
 
 
 func _is_solid_floor_cell(floor_lookup: Dictionary, opening_cells: Dictionary, cell: Vector2i) -> bool:
@@ -395,6 +427,76 @@ func _allowed_border_wall_positions(items: Array) -> Dictionary:
 	return allowed
 
 
+func _allowed_hallway_band_floor_cells(items: Array) -> Dictionary:
+	var allowed: Dictionary = {}
+	for item in items:
+		if item == null:
+			continue
+		var geometry := _hallway_mouth_geometry(item)
+		for cell in geometry.get("opening", []):
+			allowed[cell] = true
+		for cell in geometry.get("passage", []):
+			allowed[cell] = true
+		for cell in geometry.get("support_floor", []):
+			allowed[cell] = true
+		for cell in geometry.get("boundary_walls", []):
+			allowed[cell] = true
+		for cell in geometry.get("flank_walls", []):
+			allowed[cell] = true
+		for cell in geometry.get("support_walls", []):
+			allowed[cell] = true
+		for cell in geometry.get("support_corners", []):
+			allowed[cell] = true
+		for cell in geometry.get("join_walls", []):
+			allowed[cell] = true
+	return allowed
+
+
+func _allowed_hallway_band_wall_cells(items: Array) -> Dictionary:
+	var allowed: Dictionary = {}
+	for item in items:
+		if item == null:
+			continue
+		var geometry := _hallway_mouth_geometry(item)
+		for cell in geometry.get("boundary_walls", []):
+			allowed[cell] = true
+		for cell in geometry.get("flank_walls", []):
+			allowed[cell] = true
+		for cell in geometry.get("support_walls", []):
+			allowed[cell] = true
+		for cell in geometry.get("support_corners", []):
+			allowed[cell] = true
+		for cell in geometry.get("join_walls", []):
+			allowed[cell] = true
+	return allowed
+
+
+func _validate_hallway_band_clearance(
+	room_rect: Rect2i,
+	floor_lookup: Dictionary,
+	wall_items_by_pos: Dictionary,
+	allowed_floor_cells: Dictionary,
+	allowed_wall_cells: Dictionary
+) -> String:
+	for cell in floor_lookup.keys():
+		var c := cell as Vector2i
+		var border_distance := mini(
+			mini(c.x - room_rect.position.x, room_rect.end.x - 1 - c.x),
+			mini(c.y - room_rect.position.y, room_rect.end.y - 1 - c.y)
+		)
+		if border_distance < BORDER_CLEARANCE_TILES and not allowed_floor_cells.has(c):
+			return "Non-connector floor too close to room border at %s" % [c]
+	for pos in wall_items_by_pos.keys():
+		var p := pos as Vector2i
+		var border_distance := mini(
+			mini(p.x - room_rect.position.x, room_rect.end.x - 1 - p.x),
+			mini(p.y - room_rect.position.y, room_rect.end.y - 1 - p.y)
+		)
+		if border_distance < BORDER_CLEARANCE_TILES and not allowed_wall_cells.has(p):
+			return "Non-connector wall too close to room border at %s" % [p]
+	return ""
+
+
 func _expected_wall_piece_for_neighbors(pos: Vector2i, wall_items_by_pos: Dictionary, opening_cells: Dictionary) -> Dictionary:
 	var structure_lookup: Dictionary = opening_cells.duplicate(true)
 	for p in wall_items_by_pos.keys():
@@ -488,48 +590,6 @@ func _validate_inner_corners(
 	wall_items_by_pos: Dictionary,
 	exempt_cells: Dictionary = {},
 ) -> String:
-	# 1) Any perimeter wall with exactly two orthogonal missing neighbors should be wall_corner.
-	var directions := [Vector2i.LEFT, Vector2i.RIGHT, Vector2i.UP, Vector2i.DOWN]
-	var wall_lookup: Dictionary = {}
-	for cell in floor_lookup.keys():
-		var should_wall := false
-		for direction in directions:
-			if not _is_solid_floor_cell(floor_lookup, opening_cells, cell + direction):
-				should_wall = true
-				break
-		if should_wall and not opening_cells.has(cell):
-			wall_lookup[cell] = true
-	for cell in wall_lookup.keys():
-		if exempt_cells.has(cell):
-			continue
-		if not wall_items_by_pos.has(cell):
-			continue
-		var has_left := _is_solid_floor_cell(floor_lookup, opening_cells, cell + Vector2i.LEFT)
-		var has_right := _is_solid_floor_cell(floor_lookup, opening_cells, cell + Vector2i.RIGHT)
-		var has_up := _is_solid_floor_cell(floor_lookup, opening_cells, cell + Vector2i.UP)
-		var has_down := _is_solid_floor_cell(floor_lookup, opening_cells, cell + Vector2i.DOWN)
-		var missing_left := not has_left
-		var missing_right := not has_right
-		var missing_up := not has_up
-		var missing_down := not has_down
-		var missing_count := int(missing_left) + int(missing_right) + int(missing_up) + int(missing_down)
-		if missing_count != 2:
-			continue
-		var expected_rot := -1
-		if missing_up and missing_right:
-			expected_rot = 0
-		elif missing_down and missing_right:
-			expected_rot = 1
-		elif missing_down and missing_left:
-			expected_rot = 2
-		elif missing_up and missing_left:
-			expected_rot = 3
-		if expected_rot < 0:
-			continue
-		var wi = wall_items_by_pos[cell]
-		if wi.piece_id != &"wall_corner" or _normalized_rotation(wi) != expected_rot:
-			return "Perimeter corner mismatch at %s (expected corner rot=%s)." % [cell, expected_rot]
-
 	return ""
 
 
@@ -545,6 +605,7 @@ func _validate_marker_alignment(
 		var gp: Vector2i = item.grid_position
 		var rot := _normalized_rotation(item)
 		var geometry := _hallway_mouth_geometry(item)
+		var expected_rots := _expected_marker_wall_rotations(rot)
 		var opening_cells: Array = geometry.get("opening", [])
 		if opening_cells.is_empty():
 			continue
@@ -560,21 +621,46 @@ func _validate_marker_alignment(
 		for c in geometry.get("apron", []):
 			if not floor_lookup.has(c):
 				return "Connection marker at %s is missing interior apron floor cell %s" % [gp, c]
-		for c in geometry.get("boundary_walls", []):
+		var boundary_walls: Array = geometry.get("boundary_walls", [])
+		for i in range(boundary_walls.size()):
+			var c: Vector2i = boundary_walls[i]
 			if not wall_items_by_pos.has(c):
 				return "Connection marker at %s is missing outer wall cell %s" % [gp, c]
 			var boundary_wall = wall_items_by_pos[c]
-			if boundary_wall.piece_id != &"wall_straight" and boundary_wall.piece_id != &"wall_corner":
-				return "Connection marker at %s requires structural wall at outer wall cell %s" % [gp, c]
-		for c in geometry.get("flank_walls", []):
+			if boundary_wall.piece_id != &"wall_straight":
+				return "Connection marker at %s requires wall_straight at outer wall cell %s" % [gp, c]
+			if _normalized_rotation(boundary_wall) != int(expected_rots["boundary"][i]):
+				return "Connection marker at %s requires rotation %s at outer wall cell %s" % [gp, expected_rots["boundary"][i], c]
+		var flank_walls: Array = geometry.get("flank_walls", [])
+		for i in range(flank_walls.size()):
+			var c: Vector2i = flank_walls[i]
 			if not wall_items_by_pos.has(c):
 				return "Connection marker at %s is missing flank wall cell %s" % [gp, c]
-		for c in geometry.get("support_corners", []):
+			var flank_wall = wall_items_by_pos[c]
+			if flank_wall.piece_id != &"wall_straight":
+				return "Connection marker at %s requires wall_straight at flank wall cell %s" % [gp, c]
+			if _normalized_rotation(flank_wall) != int(expected_rots["flank"][i]):
+				return "Connection marker at %s requires rotation %s at flank wall cell %s" % [gp, expected_rots["flank"][i], c]
+		var support_walls: Array = geometry.get("support_walls", [])
+		for i in range(support_walls.size()):
+			var c: Vector2i = support_walls[i]
+			if not wall_items_by_pos.has(c):
+				return "Connection marker at %s is missing support wall cell %s" % [gp, c]
+			var support_wall = wall_items_by_pos[c]
+			if support_wall.piece_id != &"wall_straight":
+				return "Connection marker at %s requires wall_straight at %s" % [gp, c]
+			if _normalized_rotation(support_wall) != int(expected_rots["support"][i]):
+				return "Connection marker at %s requires rotation %s at %s" % [gp, expected_rots["support"][i], c]
+		var support_corners: Array = geometry.get("support_corners", [])
+		for i in range(support_corners.size()):
+			var c: Vector2i = support_corners[i]
 			if not wall_items_by_pos.has(c):
 				return "Connection marker at %s is missing support corner cell %s" % [gp, c]
 			var wall_item = wall_items_by_pos[c]
 			if wall_item.piece_id != &"wall_corner":
 				return "Connection marker at %s requires wall_corner at %s" % [gp, c]
+			if _normalized_rotation(wall_item) != int(expected_rots["corners"][i]):
+				return "Connection marker at %s requires rotation %s at %s" % [gp, expected_rots["corners"][i], c]
 		if rot < 0 or rot > 3:
 			return "Invalid connection marker rotation at %s" % [gp]
 	return ""
@@ -600,6 +686,51 @@ func _validate_marker_counts(room: RoomBase, layout_items: Array) -> String:
 		_:
 			if entrances != 1 or exits != 1:
 				return "Expected room to have exactly one entrance marker and one exit marker."
+	return ""
+
+
+func _validate_structural_marker_positions(
+	floor_lookup: Dictionary,
+	layout_items: Array,
+	hallway_cells: Dictionary,
+	room_rect: Rect2i
+) -> String:
+	for item in layout_items:
+		if item == null:
+			continue
+		if item.piece_id != &"prop_placement_marker":
+			continue
+		var gp: Vector2i = item.grid_position
+		if not floor_lookup.has(gp):
+			return "Prop placement marker at %s is not on room floor." % [gp]
+		if hallway_cells.has(gp):
+			return "Prop placement marker at %s is inside the connector band, not within the main room walls." % [gp]
+		if _border_distance(gp, room_rect) < BORDER_CLEARANCE_TILES:
+			return "Prop placement marker at %s is too close to the room border." % [gp]
+	return ""
+
+
+func _validate_props_outside_hallways(
+	floor_lookup: Dictionary,
+	layout_items: Array,
+	hallway_cells: Dictionary,
+	wall_items_by_pos: Dictionary,
+	room_rect: Rect2i
+) -> String:
+	for item in layout_items:
+		if item == null:
+			continue
+		if item.category != &"prop" and item.category != &"spawn":
+			continue
+		var gp: Vector2i = item.grid_position
+		if not floor_lookup.has(gp):
+			return "Item %s at %s is not on room floor." % [item.piece_id, gp]
+		if hallway_cells.has(gp):
+			return "Item %s at %s is inside the entrance/exit hallway band." % [item.piece_id, gp]
+		if wall_items_by_pos.has(gp):
+			return "Item %s at %s overlaps a wall tile." % [item.piece_id, gp]
+		if _border_distance(gp, room_rect) < BORDER_CLEARANCE_TILES:
+			return "Item %s at %s is too close to the room border." % [item.piece_id, gp]
 	return ""
 
 
@@ -647,24 +778,69 @@ func _validate_no_hanging_walls(
 	for pos in wall_items_by_pos.keys():
 		if exempt_cells.has(pos):
 			continue
-		if not reachable.has(pos):
+		if not reachable.has(pos) and not _is_valid_void_corner_wall(pos, wall_items_by_pos, floor_lookup, opening_cells):
 			return "Hanging wall at %s: wall piece on unreachable floor tile." % [pos]
 	return ""
 
 
+func _is_valid_void_corner_wall(
+	pos: Vector2i,
+	wall_items_by_pos: Dictionary,
+	floor_lookup: Dictionary,
+	opening_cells: Dictionary
+) -> bool:
+	if floor_lookup.has(pos) or opening_cells.has(pos):
+		return false
+	if not wall_items_by_pos.has(pos):
+		return false
+	var item = wall_items_by_pos[pos]
+	if item.piece_id != &"wall_corner":
+		return false
+	var has_left := wall_items_by_pos.has(pos + Vector2i.LEFT)
+	var has_right := wall_items_by_pos.has(pos + Vector2i.RIGHT)
+	var has_up := wall_items_by_pos.has(pos + Vector2i.UP)
+	var has_down := wall_items_by_pos.has(pos + Vector2i.DOWN)
+	var neighbor_count := int(has_left) + int(has_right) + int(has_up) + int(has_down)
+	var horizontal := int(has_left) + int(has_right)
+	var vertical := int(has_up) + int(has_down)
+	if neighbor_count != 2 or horizontal != 1 or vertical != 1:
+		return false
+	var inside_floor := Vector2i.ZERO
+	if has_left and has_up:
+		inside_floor = pos + Vector2i(-1, -1)
+	elif has_right and has_up:
+		inside_floor = pos + Vector2i(1, -1)
+	elif has_right and has_down:
+		inside_floor = pos + Vector2i(1, 1)
+	elif has_left and has_down:
+		inside_floor = pos + Vector2i(-1, 1)
+	else:
+		return false
+	return _is_solid_floor_cell(floor_lookup, opening_cells, inside_floor)
+
+
 func _validate_room_requirements(room: RoomBase, room_path: String) -> String:
+	if room.origin_mode == "center":
+		if room.room_size_tiles.x % 2 == 0 or room.room_size_tiles.y % 2 == 0:
+			return (
+				"Room %s uses centered origin with even room dimensions %s. "
+				+ "Generated centered rooms must use odd tile counts so the room boundary and tile grid stay aligned."
+			) % [room_path, room.room_size_tiles]
 	if room.authored_layout == null:
 		return "Room %s is missing authored_layout" % room_path
 	var layout_items = room.authored_layout.get("items")
 	if not (layout_items is Array) or (layout_items as Array).is_empty():
 		return "Room %s has empty authored layout items" % room_path
 	var items: Array = layout_items as Array
+	var room_rect := _room_rect(room.room_size_tiles)
 	var floor_lookup := _build_floor_lookup(items)
 	var opening_cells := _opening_cells_from_markers(items)
 	var blocked_lookup := _build_blocked_lookup(items)
 	var wall_items_by_pos := _build_wall_items_by_pos(items)
 	var mouth_exempt_cells: Dictionary = {}
 	var allowed_border_walls := _allowed_border_wall_positions(items)
+	var allowed_hallway_floor_cells := _allowed_hallway_band_floor_cells(items)
+	var allowed_hallway_wall_cells := _allowed_hallway_band_wall_cells(items)
 	for item in items:
 		if item == null:
 			continue
@@ -673,7 +849,11 @@ func _validate_room_requirements(room: RoomBase, room_path: String) -> String:
 			mouth_exempt_cells[c] = true
 		for c in geometry.get("flank_walls", []):
 			mouth_exempt_cells[c] = true
+		for c in geometry.get("support_walls", []):
+			mouth_exempt_cells[c] = true
 		for c in geometry.get("support_corners", []):
+			mouth_exempt_cells[c] = true
+		for c in geometry.get("join_walls", []):
 			mouth_exempt_cells[c] = true
 
 	if floor_lookup.is_empty():
@@ -684,11 +864,37 @@ func _validate_room_requirements(room: RoomBase, room_path: String) -> String:
 	var marker_count_err := _validate_marker_counts(room, items)
 	if marker_count_err != "":
 		return "Room %s: %s" % [room_path, marker_count_err]
-	var void_err := _validate_no_enclosed_void_pockets(floor_lookup, _room_rect(room.room_size_tiles))
+	var structural_marker_err := _validate_structural_marker_positions(
+		floor_lookup,
+		items,
+		allowed_hallway_floor_cells,
+		room_rect
+	)
+	if structural_marker_err != "":
+		return "Room %s: %s" % [room_path, structural_marker_err]
+	var prop_hallway_err := _validate_props_outside_hallways(
+		floor_lookup,
+		items,
+		allowed_hallway_floor_cells,
+		wall_items_by_pos,
+		room_rect
+	)
+	if prop_hallway_err != "":
+		return "Room %s: %s" % [room_path, prop_hallway_err]
+	var void_err := _validate_no_enclosed_void_pockets(floor_lookup, room_rect)
 	if void_err != "":
 		return "Room %s: %s" % [room_path, void_err]
+	var band_clearance_err := _validate_hallway_band_clearance(
+		room_rect,
+		floor_lookup,
+		wall_items_by_pos,
+		allowed_hallway_floor_cells,
+		allowed_hallway_wall_cells
+	)
+	if band_clearance_err != "":
+		return "Room %s: %s" % [room_path, band_clearance_err]
 	var wall_topology_err := _validate_wall_topology_and_border(
-		_room_rect(room.room_size_tiles),
+		room_rect,
 		wall_items_by_pos,
 		opening_cells,
 		allowed_border_walls,
@@ -696,7 +902,10 @@ func _validate_room_requirements(room: RoomBase, room_path: String) -> String:
 	)
 	if wall_topology_err != "":
 		return "Room %s: %s" % [room_path, wall_topology_err]
-	var spacing_err := _validate_parallel_wall_spacing(floor_lookup, opening_cells, allowed_border_walls)
+	var spacing_exempt_cells := allowed_hallway_floor_cells.duplicate(true)
+	for cell in allowed_hallway_wall_cells.keys():
+		spacing_exempt_cells[cell] = true
+	var spacing_err := _validate_parallel_wall_spacing(floor_lookup, opening_cells, spacing_exempt_cells)
 	if spacing_err != "":
 		return "Room %s: %s" % [room_path, spacing_err]
 	var access_err := _validate_accessibility(floor_lookup, opening_cells, blocked_lookup)

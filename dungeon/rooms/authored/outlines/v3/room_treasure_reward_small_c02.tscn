@@ -1,58 +1,58 @@
 [gd_scene format=3]
 
 [ext_resource type="PackedScene" path="res://dungeon/rooms/base/room_base.tscn" id="1_room_base"]
-[ext_resource type="Resource" path="res://dungeon/rooms/authored/outlines/v3/layouts/room_connector_narrow_medium_c.layout.tres" id="2_layout"]
+[ext_resource type="Resource" path="res://dungeon/rooms/authored/outlines/v3/layouts/room_treasure_reward_small_c02.layout.tres" id="2_layout"]
 [ext_resource type="PackedScene" path="res://dungeon/modules/connectivity/entrance_marker_2d.tscn" id="3_entrance"]
 [ext_resource type="PackedScene" path="res://dungeon/modules/connectivity/exit_marker_2d.tscn" id="5_exit"]
 [ext_resource type="PackedScene" path="res://dungeon/metadata/zone_marker_2d.tscn" id="4_zone"]
 
 [node name="RoomRoot" instance=ExtResource("1_room_base")]
-room_id = "room_connector_narrow_medium_c"
-size_class = "medium"
-room_type = "corridor"
+room_id = "room_treasure_reward_small_c02"
+size_class = "small"
+room_type = "treasure"
 origin_mode = "center"
 tile_size = Vector2i(3, 3)
-room_size_tiles = Vector2i(21, 27)
-room_tags = PackedStringArray("corridor", "connector", "narrow")
+room_size_tiles = Vector2i(21, 21)
+room_tags = PackedStringArray("treasure", "reward", "small")
 allowed_connection_types = PackedStringArray("corridor", "connector")
 encounter_budget = 180
-max_tile_budget = 1134
+max_tile_budget = 1024
 authored_layout = ExtResource("2_layout")
 
 [node name="GeneratedByRoomEditor" type="Node2D" parent="Sockets"]
-[node name="entrance_marker_entrance_marker_412" parent="Sockets/GeneratedByRoomEditor" instance=ExtResource("3_entrance")]
-position = Vector2(-30.0, 0.0)
+[node name="entrance_marker_entrance_marker_296" parent="Sockets/GeneratedByRoomEditor" instance=ExtResource("3_entrance")]
+position = Vector2(-30.0, 15.0)
 rotation = 4.71238898038469
 direction = "west"
 width_tiles = 3
 
-[node name="exit_marker_exit_marker_413" parent="Sockets/GeneratedByRoomEditor" instance=ExtResource("5_exit")]
-position = Vector2(30.0, 0.0)
-rotation = 1.5707963267949
-direction = "east"
-width_tiles = 3
-
 [node name="GeneratedByRoomEditor" type="Node2D" parent="Zones"]
-[node name="encounter_entry_marker_encounter_entry_marker_414" parent="Zones/GeneratedByRoomEditor" instance=ExtResource("4_zone")]
+[node name="encounter_entry_marker_encounter_entry_marker_297" parent="Zones/GeneratedByRoomEditor" instance=ExtResource("4_zone")]
 position = Vector2(-9.0, 0.0)
 zone_type = "encounter_trigger"
 zone_role = &"entry"
 tags = PackedStringArray("marker", "encounter")
 
-[node name="prop_placement_marker_prop_placement_marker_415" parent="Zones/GeneratedByRoomEditor" instance=ExtResource("4_zone")]
-position = Vector2(6.0, -9.0)
+[node name="prop_placement_marker_prop_placement_marker_298" parent="Zones/GeneratedByRoomEditor" instance=ExtResource("4_zone")]
+position = Vector2(0.0, 6.0)
 zone_type = "prop_placement"
 zone_role = &"filler"
 tags = PackedStringArray("marker", "prop")
 
-[node name="nav_boundary_marker_nav_boundary_marker_416" parent="Zones/GeneratedByRoomEditor" instance=ExtResource("4_zone")]
+[node name="nav_boundary_marker_nav_boundary_marker_299" parent="Zones/GeneratedByRoomEditor" instance=ExtResource("4_zone")]
 position = Vector2(0.0, 0.0)
 zone_type = "nav_boundary"
 zone_role = &"room_walkable"
 tags = PackedStringArray("marker", "nav")
 
-[node name="spawn_melee_marker_spawn_melee_marker_419" parent="Zones/GeneratedByRoomEditor" instance=ExtResource("4_zone")]
-position = Vector2(9.0, -3.0)
+[node name="loot_marker_loot_marker_300" parent="Zones/GeneratedByRoomEditor" instance=ExtResource("4_zone")]
+position = Vector2(9.0, 0.0)
+zone_type = "loot_marker"
+zone_role = &"main"
+tags = PackedStringArray("marker", "loot")
+
+[node name="spawn_melee_marker_spawn_melee_marker_303" parent="Zones/GeneratedByRoomEditor" instance=ExtResource("4_zone")]
+position = Vector2(0.0, 18.0)
 zone_type = "enemy_spawn"
 zone_role = &"melee"
 tags = PackedStringArray("spawn")
