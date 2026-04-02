@@ -2683,7 +2683,10 @@ func _add_cell_door_3d(
 
 
 func _apply_combat_doors_locked(locked: bool, animate: bool = true) -> void:
-	return
+	if _combat_door_visual_west != null and is_instance_valid(_combat_door_visual_west):
+		_combat_door_visual_west.set_runtime_locked(locked, animate)
+	if _combat_door_visual_east != null and is_instance_valid(_combat_door_visual_east):
+		_combat_door_visual_east.set_runtime_locked(locked, animate)
 
 
 func _set_combat_doors_locked(locked: bool, animate: bool = true) -> void:
@@ -2703,7 +2706,45 @@ func _set_boss_entry_locked(_locked: bool) -> void:
 
 
 func _apply_hard_door_clamps() -> void:
-	return
+	if _door_lock_controller == null:
+		return
+	var roster: Array[CharacterBody2D] = []
+	if _is_authoritative_world():
+		roster = _authoritative_roster_players()
+	elif _player != null and is_instance_valid(_player):
+		roster.append(_player)
+	for player in roster:
+		_door_lock_controller.apply_hard_door_clamps(
+			player,
+			_puzzle_solved,
+			_puzzle_gate_socket,
+			_puzzle_gate_dir,
+			_encounter_active,
+			_PLAYER_CLAMP_R,
+			_MOB_CLAMP_R,
+			[]
+		)
+	if not _is_authoritative_world():
+		return
+	var mob_bodies: Array[CharacterBody2D] = []
+	for encounter_key in _encounter_mobs.keys():
+		var encounter_id := encounter_key as StringName
+		if not bool(_encounter_active.get(encounter_id, false)):
+			continue
+		var mobs: Array = _encounter_mobs.get(encounter_id, []) as Array
+		for mob_value in mobs:
+			if mob_value is CharacterBody2D and is_instance_valid(mob_value):
+				mob_bodies.append(mob_value as CharacterBody2D)
+	_door_lock_controller.apply_hard_door_clamps(
+		null,
+		_puzzle_solved,
+		_puzzle_gate_socket,
+		_puzzle_gate_dir,
+		_encounter_active,
+		_PLAYER_CLAMP_R,
+		_MOB_CLAMP_R,
+		mob_bodies
+	)
 
 
 func _spawn_standard_door_piece(world_pos: Vector2, width_tiles: int) -> void:
@@ -2961,7 +3002,7 @@ func _spawn_encounter_modules() -> void:
 		if room is not RoomBase:
 			continue
 		var r := room as RoomBase
-		if r.room_type != "arena":
+		if not _room_should_register_encounter(r):
 			continue
 		var encounter_id := StringName("arena_%s" % [String(r.name)])
 		var trigger_name := "ArenaEncounterTrigger_%s" % [String(r.name)]
@@ -3014,7 +3055,17 @@ func _spawn_encounter_modules() -> void:
 
 
 func _cache_locked_sockets_for_encounter(room: RoomBase, encounter_id: StringName) -> void:
-	return
+	if room == null or _door_lock_controller == null:
+		return
+	var exclude_socket := _entry_socket_by_encounter.get(encounter_id, Vector2.ZERO) as Vector2
+	var exclude_dir := String(_entry_socket_dir_by_encounter.get(encounter_id, ""))
+	_door_lock_controller.cache_room_locks(
+		room,
+		encounter_id,
+		_door_visual_by_socket_key,
+		exclude_socket,
+		exclude_dir
+	)
 
 
 func _socket_pos_key(p: Vector2) -> String:
@@ -3026,7 +3077,9 @@ func _socket_pos_key(p: Vector2) -> String:
 func _apply_encounter_door_visuals_locked(
 	encounter_id: StringName, locked: bool, animate: bool = true
 ) -> void:
-	return
+	if _door_lock_controller == null:
+		return
+	_door_lock_controller.set_encounter_visuals_locked(encounter_id, locked, animate)
 
 
 func _set_encounter_door_visuals_locked(encounter_id: StringName, locked: bool, animate: bool = true) -> void:
@@ -3129,6 +3182,14 @@ func _spawn_authored_enemy_points_for_room(room: RoomBase, encounter_id: StringN
 		)
 		spawned_count += 1
 	return spawned_count
+
+
+func _room_should_register_encounter(room: RoomBase) -> bool:
+	if room == null:
+		return false
+	if room.room_type == "arena":
+		return true
+	return not _zone_markers(StringName(room.name), "enemy_spawn").is_empty()
 
 
 func _encounter_trigger_config_for_room(

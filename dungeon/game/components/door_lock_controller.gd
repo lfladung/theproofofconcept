@@ -64,15 +64,14 @@ func apply_hard_door_clamps(
 	mob_radius: float,
 	mob_bodies: Array[CharacterBody2D]
 ) -> void:
-	if player == null:
-		return
-	if not puzzle_solved and puzzle_gate_socket != Vector2.ZERO:
+	if player != null and not puzzle_solved and puzzle_gate_socket != Vector2.ZERO:
 		_clamp_to_locked_socket(player, player_radius, puzzle_gate_socket, puzzle_gate_dir)
 	for encounter_key in encounter_active.keys():
 		var encounter_id := encounter_key as StringName
 		if not bool(encounter_active.get(encounter_id, false)):
 			continue
-		_clamp_encounter_doors(player, player_radius, encounter_id)
+		if player != null:
+			_clamp_encounter_doors(player, player_radius, encounter_id)
 		for mob in mob_bodies:
 			if not _mob_matches_encounter(mob, encounter_id):
 				continue
