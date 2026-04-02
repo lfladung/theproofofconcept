@@ -1,7 +1,7 @@
-[gd_resource type="Resource" script_class="RoomLayoutData" format=3]
+[gd_resource type="Resource" script_class="RoomLayoutData" format=3 uid="uid://3ccfei1vnquv"]
 
-[ext_resource type="Script" path="res://addons/dungeon_room_editor/resources/room_placed_item_data.gd" id="1_xsqr7"]
-[ext_resource type="Script" path="res://addons/dungeon_room_editor/resources/room_layout_data.gd" id="2_c345t"]
+[ext_resource type="Script" uid="uid://bin4dksyxldc0" path="res://addons/dungeon_room_editor/resources/room_placed_item_data.gd" id="1_xsqr7"]
+[ext_resource type="Script" uid="uid://dpj57sp322t4g" path="res://addons/dungeon_room_editor/resources/room_layout_data.gd" id="2_c345t"]
 
 [sub_resource type="Resource" id="Resource_tgdrh"]
 script = ExtResource("1_xsqr7")

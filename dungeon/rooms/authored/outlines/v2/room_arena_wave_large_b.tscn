@@ -34,7 +34,7 @@ width_tiles = 3
 
 [node name="GeneratedByRoomEditor" type="Node2D" parent="Zones"]
 [node name="encounter_entry_marker_encounter_entry_marker_1868" parent="Zones/GeneratedByRoomEditor" instance=ExtResource("4_zone")]
-position = Vector2(-36.0, 0.0)
+position = Vector2(-63.0, -33.0)
 zone_type = "encounter_trigger"
 zone_role = &"entry"
 tags = PackedStringArray("marker", "encounter")
@@ -52,35 +52,35 @@ zone_role = &"room_walkable"
 tags = PackedStringArray("marker", "nav")
 
 [node name="spawn_robot_mob_marker_spawn_robot_mob_marker_1873" parent="Zones/GeneratedByRoomEditor" instance=ExtResource("4_zone")]
-position = Vector2(0.0, 21.0)
+position = Vector2(15.0, 42.0)
 zone_type = "enemy_spawn"
 zone_role = &"robot_mob"
 enemy_id = &"robot_mob"
 tags = PackedStringArray("spawn", "robot_mob")
 
 [node name="spawn_dasher_marker_spawn_dasher_marker_1874" parent="Zones/GeneratedByRoomEditor" instance=ExtResource("4_zone")]
-position = Vector2(21.0, 24.0)
+position = Vector2(0.0, -3.0)
 zone_type = "enemy_spawn"
 zone_role = &"dasher"
 enemy_id = &"dasher"
 tags = PackedStringArray("spawn", "dasher")
 
 [node name="spawn_iron_sentinel_marker_spawn_iron_sentinel_marker_1875" parent="Zones/GeneratedByRoomEditor" instance=ExtResource("4_zone")]
-position = Vector2(0.0, -18.0)
+position = Vector2(0.0, 9.0)
 zone_type = "enemy_spawn"
 zone_role = &"iron_sentinel"
 enemy_id = &"iron_sentinel"
 tags = PackedStringArray("spawn", "iron_sentinel")
 
 [node name="spawn_robot_mob_marker_spawn_robot_mob_marker_1876" parent="Zones/GeneratedByRoomEditor" instance=ExtResource("4_zone")]
-position = Vector2(3.0, 9.0)
+position = Vector2(3.0, 18.0)
 zone_type = "enemy_spawn"
 zone_role = &"robot_mob"
 enemy_id = &"robot_mob"
 tags = PackedStringArray("spawn", "robot_mob")
 
 [node name="spawn_arrow_tower_marker_spawn_arrow_tower_marker_1877" parent="Zones/GeneratedByRoomEditor" instance=ExtResource("4_zone")]
-position = Vector2(45.0, -54.0)
+position = Vector2(0.0, -6.0)
 zone_type = "enemy_spawn"
 zone_role = &"arrow_tower"
 enemy_id = &"arrow_tower"

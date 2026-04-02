@@ -239,7 +239,7 @@ func _build_variant_spec(base_spec: Dictionary, variant_suffix: String, rng: Ran
 			out_ar.append(_jitter_rect(r, rng, 2) if allow_shape_rect_jitter else (r as Rect2i))
 		spec["add_rects"] = out_ar
 	if String(spec.get("base_shape", "full")) == "empty":
-		spec["_opening_center_span"] = 3
+		spec["_opening_center_span"] = int(spec.get("opening_center_span", 3))
 	else:
 		spec["_opening_center_span"] = -1
 
@@ -459,6 +459,7 @@ func _build_room_specs() -> Array[Dictionary]:
 			"recommended_enemy_groups": PackedStringArray([]),
 			"base_shape": "empty",
 			"add_rects": [Rect2i(-5, -5, 10, 22), Rect2i(-5, -5, 22, 10)],
+			"opening_center_span": 2,
 			"openings": [&"south", &"east"],
 			"entry_marker": Vector2i(0, 4),
 			"prop_marker": Vector2i(3, -1),
@@ -597,6 +598,8 @@ func _generate_room(spec: Dictionary, rng: RandomNumberGenerator, report_errors:
 	var hallway_all_cells: Dictionary = hallway["all_cells"]
 	var hallway_carve_void_cells: Dictionary = hallway["carve_void_cells"]
 	var center_positions: Dictionary = hallway["center_positions"]
+	if String(spec.get("base_shape", "full")) == "empty":
+		_trim_empty_shape_hallway_apron_extremes(size, active_openings, center_positions, apron_cells, hallway_all_cells)
 	var required_hallway_floor_cells := opening_cells.duplicate(true)
 	for cell in passage_cells.keys():
 		required_hallway_floor_cells[cell] = true
@@ -690,7 +693,16 @@ func _generate_room(spec: Dictionary, rng: RandomNumberGenerator, report_errors:
 			var has_right := floor_lookup.has(cell + Vector2i.RIGHT)
 			var has_up := floor_lookup.has(cell + Vector2i.UP)
 			var has_down := floor_lookup.has(cell + Vector2i.DOWN)
+			var horizontal_neighbors := int(has_left) + int(has_right)
+			var vertical_neighbors := int(has_up) + int(has_down)
 			if (not has_left and not has_right) or (not has_up and not has_down):
+				erode_remove.append(cell)
+				continue
+			if (
+				horizontal_neighbors == 1
+				and vertical_neighbors == 1
+				and _floor_neighbor_count_8(cell, floor_lookup) <= 3
+			):
 				erode_remove.append(cell)
 		if not erode_remove.is_empty():
 			erode_changed = true
@@ -1372,6 +1384,40 @@ func _build_perimeter_wall_items_for_current_floor(
 	return out
 
 
+func _trim_empty_shape_hallway_apron_extremes(
+	size: Vector2i,
+	active_openings: Array,
+	center_positions: Dictionary,
+	apron_cells: Dictionary,
+	hallway_all_cells: Dictionary
+) -> void:
+	var rect := _room_rect(size)
+	var left := rect.position.x
+	var right := rect.position.x + rect.size.x - 1
+	var top := rect.position.y
+	var bottom := rect.position.y + rect.size.y - 1
+	for raw_side in active_openings:
+		var side := String(raw_side)
+		if not center_positions.has(side):
+			continue
+		var center := int(center_positions[side])
+		var trim_cells: Array[Vector2i] = []
+		match side:
+			"north":
+				trim_cells = [Vector2i(center - 3, top + 3), Vector2i(center + 3, top + 3)]
+			"south":
+				trim_cells = [Vector2i(center - 3, bottom - 3), Vector2i(center + 3, bottom - 3)]
+			"west":
+				trim_cells = [Vector2i(left + 3, center - 3), Vector2i(left + 3, center + 3)]
+			"east":
+				trim_cells = [Vector2i(right - 3, center - 3), Vector2i(right - 3, center + 3)]
+			_:
+				continue
+		for cell in trim_cells:
+			apron_cells.erase(cell)
+			hallway_all_cells.erase(cell)
+
+
 func _rect_from_cells(cells: Array[Vector2i]) -> Rect2i:
 	if cells.is_empty():
 		return Rect2i()
@@ -1754,12 +1800,25 @@ func _build_void_corner_fillers(
 				continue
 			if not _is_solid_floor_cell(floor_lookup, opening_cells, inside_floor):
 				continue
+			if _floor_neighbor_count_8(cell, floor_lookup) < 4:
+				continue
 			out.append({
 				"piece_id": &"wall_corner",
 				"position": cell,
 				"rotation_steps": _corner_rotation_for_walls(has_left, has_right, has_up, has_down),
 			})
 	return out
+
+
+func _floor_neighbor_count_8(cell: Vector2i, floor_lookup: Dictionary) -> int:
+	var count := 0
+	for dy in [-1, 0, 1]:
+		for dx in [-1, 0, 1]:
+			if dx == 0 and dy == 0:
+				continue
+			if floor_lookup.has(cell + Vector2i(dx, dy)):
+				count += 1
+	return count
 
 
 func _missing_solid_neighbor_count(cell: Vector2i, floor_lookup: Dictionary, opening_cells: Dictionary) -> int:

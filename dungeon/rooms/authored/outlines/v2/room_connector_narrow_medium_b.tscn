@@ -34,7 +34,7 @@ width_tiles = 3
 
 [node name="GeneratedByRoomEditor" type="Node2D" parent="Zones"]
 [node name="encounter_entry_marker_encounter_entry_marker_410" parent="Zones/GeneratedByRoomEditor" instance=ExtResource("4_zone")]
-position = Vector2(-9.0, 0.0)
+position = Vector2(-24.0, -21.0)
 zone_type = "encounter_trigger"
 zone_role = &"entry"
 tags = PackedStringArray("marker", "encounter")
@@ -52,7 +52,7 @@ zone_role = &"room_walkable"
 tags = PackedStringArray("marker", "nav")
 
 [node name="spawn_melee_marker_spawn_melee_marker_415" parent="Zones/GeneratedByRoomEditor" instance=ExtResource("4_zone")]
-position = Vector2(6.0, 18.0)
+position = Vector2(0.0, 27.0)
 zone_type = "enemy_spawn"
 zone_role = &"melee"
 tags = PackedStringArray("spawn")

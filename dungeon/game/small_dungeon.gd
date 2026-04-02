@@ -1900,6 +1900,9 @@ func _grid_dir_from_delta(d: Vector2i) -> String:
 
 
 func _critical_path_forward_dir_from_start() -> String:
+	var start_exit_dir := _start_room_exit_direction()
+	if not start_exit_dir.is_empty():
+		return start_exit_dir
 	var critical: Array = _map_layout.get("critical_path", []) as Array
 	if critical.size() < 2:
 		return "east"
@@ -1917,6 +1920,40 @@ func _critical_path_forward_dir_from_start() -> String:
 		elif nm == next_id:
 			next_grid = d.get("grid", Vector2i.ZERO) as Vector2i
 	return _grid_dir_from_delta(next_grid - start_grid)
+
+
+func _start_room_exit_direction() -> String:
+	var start_room := _room_by_name(_layout_room_name("start_room"))
+	if start_room == null:
+		return ""
+	var exit_markers := start_room.get_connection_markers_by_kind("exit")
+	if exit_markers.size() == 1:
+		var exit_marker := exit_markers[0] as ConnectorMarker2D
+		if exit_marker != null:
+			return String(exit_marker.direction)
+	var best_dir := ""
+	var best_distance_sq := INF
+	for candidate in exit_markers:
+		if candidate is not ConnectorMarker2D:
+			continue
+		var marker := candidate as ConnectorMarker2D
+		if marker == null:
+			continue
+		var distance_sq := marker.global_position.distance_squared_to(start_room.global_position)
+		if distance_sq < best_distance_sq:
+			best_distance_sq = distance_sq
+			best_dir = String(marker.direction)
+	if not best_dir.is_empty():
+		return best_dir
+	for direction in ["north", "south", "east", "west"]:
+		var marker_world := _connection_marker_world_position(
+			_layout_room_name("start_room"),
+			direction,
+			"exit"
+		)
+		if marker_world.distance_squared_to(start_room.global_position) > 0.0001:
+			return direction
+	return ""
 
 
 func _position_debug_spawn_exit_portal() -> void:
@@ -2017,8 +2054,9 @@ func _add_horizontal_wall_segments(
 ) -> void:
 	var segments := _segments_from_openings(-half_width, half_width, openings)
 	for seg in segments:
-		var seg_start: float = seg.x
-		var seg_end: float = seg.y
+		var trimmed := _trim_wall_segment_at_room_corners(seg.x, seg.y, -half_width, half_width)
+		var seg_start: float = trimmed.x
+		var seg_end: float = trimmed.y
 		var width := seg_end - seg_start
 		if width <= 0.01:
 			continue
@@ -2031,8 +2069,9 @@ func _add_horizontal_wall_segments(
 func _add_vertical_wall_segments(center: Vector2, local_x: float, half_height: float, openings: Array) -> void:
 	var segments := _segments_from_openings(-half_height, half_height, openings)
 	for seg in segments:
-		var seg_start: float = seg.x
-		var seg_end: float = seg.y
+		var trimmed := _trim_wall_segment_at_room_corners(seg.x, seg.y, -half_height, half_height)
+		var seg_start: float = trimmed.x
+		var seg_end: float = trimmed.y
 		var height := seg_end - seg_start
 		if height <= 0.01:
 			continue
@@ -2061,6 +2100,26 @@ func _segments_from_openings(min_value: float, max_value: float, openings: Array
 	if cursor < max_value:
 		segments.append(Vector2(cursor, max_value))
 	return segments
+
+
+func _trim_wall_segment_at_room_corners(
+	seg_start: float,
+	seg_end: float,
+	min_value: float,
+	max_value: float
+) -> Vector2:
+	var trim_amount := WALL_THICKNESS * 0.5
+	var trimmed_start := seg_start
+	var trimmed_end := seg_end
+	if is_equal_approx(seg_start, min_value):
+		trimmed_start += trim_amount
+	if is_equal_approx(seg_end, max_value):
+		trimmed_end -= trim_amount
+	if trimmed_end < trimmed_start:
+		var midpoint := (trimmed_start + trimmed_end) * 0.5
+		trimmed_start = midpoint
+		trimmed_end = midpoint
+	return Vector2(trimmed_start, trimmed_end)
 
 
 func _add_wall_shape(position_2d: Vector2, size_2d: Vector2) -> void:
