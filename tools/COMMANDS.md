@@ -155,3 +155,20 @@ Generate short walk/attack clips with Godot Movie Maker:
 Output folders:
 - `logs\captures\stills`
 - `logs\captures\videos`
+
+## Dungeon Floor Capture
+
+Capture a batch of authored-room floor screenshots plus a small frame-time summary:
+
+```powershell
+.\tools\capture_dungeon_floor.ps1
+```
+
+Capture specific rooms only:
+
+```powershell
+.\tools\capture_dungeon_floor.ps1 -RoomNames "spawn_room,test_room"
+```
+
+Output folder:
+- `logs\captures\floors\<timestamp>`

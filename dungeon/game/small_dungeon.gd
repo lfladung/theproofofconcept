@@ -100,6 +100,7 @@ const _ENEMY_PREWARM_POSITION := Vector2(1000000.0, 1000000.0)
 const _ELEVATOR_PLAYER_SIZE_MULT := 4.0
 const _ELEVATOR_VISUAL_CLEARANCE_Y := 0.12
 const _DEBUG_ELEVATOR_YAW_OFFSET_DEG := 180.0
+const _AUTHORED_ROOM_FLOOR_THEMES: Array[StringName] = [&"dirt", &"wood", &"dark_wood", &"tile"]
 ## Arrow towers are biased toward room center; keep planned spawns apart so two never share one spot.
 const _TOWER_SPAWN_MIN_SEP := 4.5
 const _MULTIPLAYER_DEBUG_LOGGING := false
@@ -1575,6 +1576,8 @@ func _spawn_authored_rooms_from_layout(layout: Dictionary) -> bool:
 		room.room_tags = PackedStringArray([room.room_type, String(spec.get("role", room.room_type))])
 		room.position = spec.get("world_position", Vector2.ZERO) as Vector2
 		room.rotation_degrees = float(int(spec.get("rotation_deg", 0)))
+		room.set_meta(&"runtime_floor_theme", _random_authored_room_floor_theme())
+		room.set_meta(&"runtime_floor_seed", _rng.randi())
 		_rooms_root.add_child(room)
 		if room.authored_layout != null and _room_editor_scene_sync != null:
 			_room_editor_scene_sync.sync_room(room, room.authored_layout, ROOM_PIECE_CATALOG)
@@ -1595,6 +1598,12 @@ func _spawn_authored_rooms_from_layout(layout: Dictionary) -> bool:
 		_room_queries.invalidate_cache()
 	_rebuild_authored_room_stream_buckets()
 	return spawned_count == specs.size() and spawned_count > 0
+
+
+func _random_authored_room_floor_theme() -> StringName:
+	if _AUTHORED_ROOM_FLOOR_THEMES.is_empty():
+		return &"dirt"
+	return _AUTHORED_ROOM_FLOOR_THEMES[_rng.randi_range(0, _AUTHORED_ROOM_FLOOR_THEMES.size() - 1)]
 
 
 func _apply_adjacency_sockets(adj: Dictionary) -> void:

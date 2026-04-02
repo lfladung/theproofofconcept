@@ -4,6 +4,11 @@ class_name DungeonRoomSerializer
 
 const LayoutScript = preload("res://addons/dungeon_room_editor/resources/room_layout_data.gd")
 const ItemScript = preload("res://addons/dungeon_room_editor/resources/room_placed_item_data.gd")
+const _RUNTIME_FLOOR_MASK_SMALL: StringName = &"floor_mask_small"
+const _RUNTIME_FLOOR_MASK_LARGE: StringName = &"floor_mask_large"
+const _RUNTIME_FLOOR_MASK_EXTRA_LARGE: StringName = &"floor_mask_extra_large"
+const _LEGACY_GENERIC_FLOOR_PREFIXES := ["floor_dirt_", "floor_tile_", "floor_wood_"]
+const _LEGACY_GENERIC_FLOOR_EXCLUDES := ["corner", "spike", "foundation", "grate"]
 
 ## Sidecar layouts live next to the room scene under `layouts/<scene_basename>.layout.tres`.
 ## Legacy sibling `/<basename>.layout.tres` is still loaded if present.
@@ -44,6 +49,8 @@ func ensure_layout_for_room(room: RoomBase) -> Dictionary:
 		layout.room_id = room.room_id if room.room_id != "" else room.name
 	if layout.room_tags.is_empty() and not room.room_tags.is_empty():
 		layout.room_tags = room.room_tags.duplicate()
+	var migrated_layout := _migrate_legacy_runtime_floor_items(layout)
+	var normalized_masks := _normalize_runtime_floor_masks(layout)
 	room.set(&"authored_layout", layout)
 	room.room_id = layout.room_id
 	room.room_tags = layout.room_tags.duplicate()
@@ -57,7 +64,10 @@ func ensure_layout_for_room(room: RoomBase) -> Dictionary:
 			maxi(1, roundi(float(world_height) / float(layout.grid_size.y)))
 		)
 		room.tile_size = layout.grid_size
-	if not layout_path.is_empty() and (layout.resource_path.is_empty() or not ResourceLoader.exists(layout_path)):
+	if (migrated_layout or normalized_masks) and not layout_path.is_empty():
+		_ensure_directory_for_file(layout_path)
+		ResourceSaver.save(layout, layout_path)
+	elif not layout_path.is_empty() and (layout.resource_path.is_empty() or not ResourceLoader.exists(layout_path)):
 		_ensure_directory_for_file(layout_path)
 		ResourceSaver.save(layout, layout_path)
 	return {"layout": layout, "layout_path": layout_path}
@@ -84,6 +94,135 @@ func _ensure_directory_for_file(resource_path: String) -> void:
 	var err := DirAccess.make_dir_recursive_absolute(abs_path)
 	if err != OK and err != ERR_ALREADY_EXISTS:
 		push_warning("DungeonRoomSerializer: could not create directory %s (err %s)" % [abs_path, err])
+
+
+func _migrate_legacy_runtime_floor_items(layout) -> bool:
+	if layout == null:
+		return false
+	var changed := false
+	for item in layout.items:
+		if item == null:
+			continue
+		if item.category != &"floor":
+			continue
+		if not _is_legacy_generic_floor_piece_id(String(item.piece_id)):
+			continue
+		if item.piece_id != _RUNTIME_FLOOR_MASK_SMALL:
+			item.piece_id = _RUNTIME_FLOOR_MASK_SMALL
+			changed = true
+		item.category = &"floor"
+	return changed
+
+
+func _normalize_runtime_floor_masks(layout) -> bool:
+	if layout == null:
+		return false
+	var runtime_mask_items: Array = []
+	var has_explicit_large_masks := false
+	for item in layout.items:
+		if item == null or item.category != &"floor":
+			continue
+		var piece_id := StringName(item.piece_id)
+		if piece_id == _RUNTIME_FLOOR_MASK_LARGE or piece_id == _RUNTIME_FLOOR_MASK_EXTRA_LARGE:
+			has_explicit_large_masks = true
+		if piece_id == _RUNTIME_FLOOR_MASK_SMALL or piece_id == _RUNTIME_FLOOR_MASK_LARGE or piece_id == _RUNTIME_FLOOR_MASK_EXTRA_LARGE:
+			runtime_mask_items.append(item)
+	if runtime_mask_items.is_empty() or has_explicit_large_masks:
+		return false
+	var occupied_small_cells: Dictionary = {}
+	for item_v in runtime_mask_items:
+		var item = item_v
+		if item == null:
+			continue
+		occupied_small_cells[item.grid_position] = true
+	if occupied_small_cells.is_empty():
+		return false
+	var retained_items: Array[Resource] = []
+	for item in layout.items:
+		if item == null:
+			continue
+		var piece_id := StringName(item.piece_id)
+		if piece_id == _RUNTIME_FLOOR_MASK_SMALL or piece_id == _RUNTIME_FLOOR_MASK_LARGE or piece_id == _RUNTIME_FLOOR_MASK_EXTRA_LARGE:
+			continue
+		retained_items.append(item)
+	var rebuilt_masks := _repack_runtime_floor_mask_cells(occupied_small_cells)
+	retained_items.append_array(rebuilt_masks)
+	layout.items = retained_items
+	return true
+
+
+func _repack_runtime_floor_mask_cells(occupied_small_cells: Dictionary) -> Array[Resource]:
+	var remaining: Dictionary = occupied_small_cells.duplicate(true)
+	var rebuilt: Array[Resource] = []
+	var counter := 1
+	while not remaining.is_empty():
+		var origin := _top_left_cell_in_keys(remaining.keys())
+		var size := 1
+		if _runtime_floor_mask_region_fits(origin, 3, remaining):
+			size = 3
+		elif _runtime_floor_mask_region_fits(origin, 2, remaining):
+			size = 2
+		var piece_id := _RUNTIME_FLOOR_MASK_SMALL
+		if size == 2:
+			piece_id = _RUNTIME_FLOOR_MASK_LARGE
+		elif size == 3:
+			piece_id = _RUNTIME_FLOOR_MASK_EXTRA_LARGE
+		rebuilt.append(_make_runtime_floor_mask_item(piece_id, origin, counter))
+		counter += 1
+		for gx in range(origin.x, origin.x + size):
+			for gy in range(origin.y, origin.y + size):
+				remaining.erase(Vector2i(gx, gy))
+	return rebuilt
+
+
+func _runtime_floor_mask_region_fits(origin: Vector2i, size: int, remaining: Dictionary) -> bool:
+	for gx in range(origin.x, origin.x + size):
+		for gy in range(origin.y, origin.y + size):
+			if not remaining.has(Vector2i(gx, gy)):
+				return false
+	return true
+
+
+func _top_left_cell_in_keys(keys: Array) -> Vector2i:
+	var best := Vector2i.ZERO
+	var found := false
+	for key_v in keys:
+		if key_v is not Vector2i:
+			continue
+		var cell := key_v as Vector2i
+		if not found or cell.y < best.y or (cell.y == best.y and cell.x < best.x):
+			best = cell
+			found = true
+	return best
+
+
+func _make_runtime_floor_mask_item(piece_id: StringName, grid_position: Vector2i, counter: int):
+	var item = ItemScript.new()
+	item.item_id = "%s_%03d" % [String(piece_id), counter]
+	item.piece_id = piece_id
+	item.category = &"floor"
+	item.grid_position = grid_position
+	item.rotation_steps = 0
+	item.tags = PackedStringArray(["floor", "runtime_mask"])
+	item.encounter_group_id = &""
+	item.enemy_id = &""
+	item.placement_layer = &"ground"
+	item.blocks_movement = false
+	item.blocks_projectiles = false
+	return item
+
+
+func _is_legacy_generic_floor_piece_id(piece_id: String) -> bool:
+	var normalized := piece_id.to_lower()
+	if normalized.begins_with("floor_mask_"):
+		return false
+	for excluded in _LEGACY_GENERIC_FLOOR_EXCLUDES:
+		if normalized.contains(excluded):
+			return false
+	for prefix in _LEGACY_GENERIC_FLOOR_PREFIXES:
+		if normalized.begins_with(prefix):
+			return true
+	return false
 
 
 func export_layout_json(layout, path: String) -> bool:
