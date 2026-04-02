@@ -934,7 +934,22 @@ func _generate_room(spec: Dictionary, rng: RandomNumberGenerator, report_errors:
 			center_positions[String(marker_info.get("side", ""))]
 		)
 
-	_add_item(layout, &"encounter_entry_marker", spec["entry_marker"])
+	var encounter_entry_position := _encounter_entry_anchor(
+		size,
+		marker_plan,
+		center_positions,
+		floor_lookup,
+		opening_cells,
+		wall_items_by_pos
+	)
+	if encounter_entry_position == Vector2i(9_999_999, 9_999_999):
+		encounter_entry_position = _nearest_valid_interior_floor_cell(
+			spec["entry_marker"],
+			floor_lookup,
+			opening_cells,
+			prop_excluded_cells
+		)
+	_add_item(layout, &"encounter_entry_marker", encounter_entry_position)
 	_add_item(layout, &"prop_placement_marker", prop_marker_position)
 	_add_item(layout, &"nav_boundary_marker", spec["nav_marker"])
 	if String(spec.get("room_type", "")) == "boss":
@@ -2136,6 +2151,40 @@ func _add_marker_for_opening(
 			_add_item(layout, piece_id, Vector2i(hallway_center - 1, top), rotation_steps)
 		&"south":
 			_add_item(layout, piece_id, Vector2i(hallway_center - 1, bottom), rotation_steps)
+
+
+func _encounter_entry_anchor(
+	size: Vector2i,
+	marker_plan: Array,
+	center_positions: Dictionary,
+	floor_lookup: Dictionary,
+	opening_cells: Dictionary,
+	blocked_cells: Dictionary
+) -> Vector2i:
+	if marker_plan.is_empty():
+		return Vector2i(9_999_999, 9_999_999)
+	var entrance_side := ""
+	for marker_info in marker_plan:
+		if String(marker_info.get("kind", "")) == "entrance":
+			entrance_side = String(marker_info.get("side", ""))
+			break
+	if entrance_side.is_empty() or not center_positions.has(entrance_side):
+		return Vector2i(9_999_999, 9_999_999)
+	var rect := _room_rect(size)
+	var center := int(center_positions[entrance_side])
+	var target := Vector2i.ZERO
+	match entrance_side:
+		"west":
+			target = Vector2i(rect.position.x + 2, center)
+		"east":
+			target = Vector2i(rect.position.x + rect.size.x - 3, center)
+		"north":
+			target = Vector2i(center, rect.position.y + 2)
+		"south":
+			target = Vector2i(center, rect.position.y + rect.size.y - 3)
+		_:
+			return Vector2i(9_999_999, 9_999_999)
+	return _nearest_valid_interior_floor_cell(target, floor_lookup, opening_cells, blocked_cells)
 
 
 func _marker_rotation_for_opening_side(side: StringName) -> int:

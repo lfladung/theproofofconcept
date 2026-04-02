@@ -11,6 +11,11 @@ const DAMAGE_TEXT_STYLE_BLOCK := &"block"
 const DAMAGE_TEXT_HP_COLOR := Color(1.0, 0.15, 0.15, 1.0)
 const DAMAGE_TEXT_BLOCK_COLOR := Color(0.25, 0.62, 1.0, 1.0)
 const DAMAGE_TEXT_OUTLINE_COLOR := Color(0.0, 0.0, 0.0, 1.0)
+const _PLAYER_ROSTER_CACHE_INTERVAL_USEC := 100000
+
+static var _cached_player_nodes: Array = []
+static var _cached_player_tree_id := 0
+static var _cached_player_snapshot_usec := 0
 
 @export var max_health := 50
 @export var drops_coin_on_death := true
@@ -402,17 +407,11 @@ func _is_better_player_target_choice(
 
 
 func _pick_nearest_player_target() -> Node2D:
-	var tree: SceneTree = get_tree()
-	if tree == null:
-		return null
 	var best_node: Node2D = null
 	var best_d2 := INF
 	var best_peer_id := 0
 	var best_name := ""
-	for node in tree.get_nodes_in_group(&"player"):
-		if node is not Node2D:
-			continue
-		var candidate := node as Node2D
+	for candidate in _targetable_player_candidates():
 		if not _is_targetable_player(candidate):
 			continue
 		var candidate_d2 := global_position.distance_squared_to(candidate.global_position)
@@ -434,3 +433,26 @@ func _pick_nearest_player_target() -> Node2D:
 			best_peer_id = candidate_peer_id
 			best_name = candidate_name
 	return best_node
+
+
+func _targetable_player_candidates() -> Array[Node2D]:
+	var out: Array[Node2D] = []
+	var tree: SceneTree = get_tree()
+	if tree == null:
+		return out
+	var tree_id := tree.get_instance_id()
+	var now_usec := Time.get_ticks_usec()
+	if (
+		tree_id != _cached_player_tree_id
+		or now_usec - _cached_player_snapshot_usec >= _PLAYER_ROSTER_CACHE_INTERVAL_USEC
+	):
+		_cached_player_nodes.clear()
+		for node in tree.get_nodes_in_group(&"player"):
+			if node is Node2D and is_instance_valid(node):
+				_cached_player_nodes.append(node)
+		_cached_player_tree_id = tree_id
+		_cached_player_snapshot_usec = now_usec
+	for node in _cached_player_nodes:
+		if node is Node2D and is_instance_valid(node):
+			out.append(node as Node2D)
+	return out

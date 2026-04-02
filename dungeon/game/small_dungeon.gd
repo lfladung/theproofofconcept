@@ -46,6 +46,11 @@ const PUZZLE_FLOOR_BUTTON_SCENE := preload("res://dungeon/modules/gameplay/puzzl
 const ROOM_BASE_SCENE := preload("res://dungeon/rooms/base/room_base.tscn")
 const TRAP_TILE_SCENE := preload("res://dungeon/modules/gameplay/trap_tile_2d.tscn")
 const DUNGEON_CELL_DOOR_SCENE := preload("res://dungeon/visuals/dungeon_cell_door_3d.tscn")
+const RoomEditorSceneSyncScript = preload("res://addons/dungeon_room_editor/core/scene_sync.gd")
+const RoomPreviewBuilderScript = preload("res://addons/dungeon_room_editor/preview/preview_builder.gd")
+const ROOM_PIECE_CATALOG = preload("res://addons/dungeon_room_editor/resources/default_room_piece_catalog.tres")
+const AuthoredRoomCatalogScript = preload("res://dungeon/game/floor_generation/authored_room_catalog.gd")
+const AuthoredFloorGeneratorScript = preload("res://dungeon/game/floor_generation/authored_floor_generator.gd")
 const PLAYER_SCENE := preload("res://scenes/entities/player.tscn")
 const LOADOUT_OVERLAY_SCENE := preload("res://scenes/ui/loadout/loadout_overlay.tscn")
 const LoadoutRepositoryScript = preload("res://scripts/loadout/loadout_repository.gd")
@@ -88,11 +93,15 @@ const _BOSS_W_EXT_X := 182.0
 const _BOSS_PORTAL_INSET := 1.5
 const _ROOM_SIZE_SCALE := 1.5
 const _BACK_HALF_MIN_RATIO := 0.22
+const _AUTHORED_VISUAL_STREAM_MARGIN := 18.0
+const _AUTHORED_VISUAL_STREAM_UNLOAD_MARGIN := 36.0
+const _ENEMY_PREWARM_POSITION := Vector2(1000000.0, 1000000.0)
 const _ELEVATOR_PLAYER_SIZE_MULT := 4.0
 const _ELEVATOR_VISUAL_CLEARANCE_Y := 0.12
 const _DEBUG_ELEVATOR_YAW_OFFSET_DEG := 180.0
 ## Arrow towers are biased toward room center; keep planned spawns apart so two never share one spot.
 const _TOWER_SPAWN_MIN_SEP := 4.5
+const _MULTIPLAYER_DEBUG_LOGGING := false
 
 @onready var _world_bounds: StaticBody2D = $GameWorld2D/WorldBounds
 @onready var _rooms_root: Node2D = $GameWorld2D/Rooms
@@ -133,6 +142,8 @@ var _door_visual_by_socket_key: Dictionary = {}
 var _boundary_wall_keys: Dictionary = {}
 ## Merged mesh AABB in GLB root space (cached per path) for floor tile scaling.
 var _floor_glb_aabb_by_path: Dictionary = {}
+## First usable floor material extracted from the source GLB, cached per path for top-only runtime tiles.
+var _runtime_floor_material_by_path: Dictionary = {}
 var _elevator_visual_aabb_cache := AABB()
 var _has_elevator_visual_aabb_cache := false
 var _rng: RandomNumberGenerator = RandomNumberGenerator.new()
@@ -187,19 +198,34 @@ var _coin_network_id_sequence := 0
 var _coin_totals_by_peer: Dictionary = {}
 var _shared_coin_total := 0
 var _awaiting_layout_snapshot := false
+var _pending_enemy_spawn_requests: Array[Dictionary] = []
+var _authored_room_catalog
+var _authored_floor_generator
+var _room_editor_scene_sync
+var _room_preview_builder
+var _authored_room_visual_nodes: Dictionary = {}
+var _enemy_assets_prewarmed := false
 ## Accumulated LevelBackdropQuad position in Camera3D local XY (Z from BACKDROP_QUAD_DISTANCE).
 var _backdrop_offset_cam := Vector3.ZERO
 var _prev_backdrop_camera_ref := Vector3.ZERO
-@export var show_combat_debug_overlay := true
+@export_enum("legacy_grid", "authored_rooms") var floor_generation_mode := "authored_rooms"
+@export var show_combat_debug_overlay := false
 @export var show_fps_counter := true
 @export var combat_debug_update_interval := 0.25
 @export var fps_counter_update_interval := 0.25
+@export var authored_room_visual_streaming_enabled := true
+@export var authored_room_visual_stream_update_interval := 0.2
+@export var prespawn_encounter_mobs := false
+@export var encounter_spawn_queue_interval := 0.05
+@export var prewarm_enemy_assets := true
 var _combat_debug_label: Label
 var _combat_debug_last_text := ""
 var _combat_debug_refresh_time_remaining := 0.0
 var _fps_counter_label: Label
 var _fps_counter_last_text := ""
 var _fps_counter_refresh_time_remaining := 0.0
+var _authored_room_visual_stream_time_remaining := 0.0
+var _encounter_spawn_queue_time_remaining := 0.0
 
 func _ready() -> void:
 	_rng.randomize()
@@ -711,10 +737,12 @@ func _on_player_weapon_mode_changed(display_name: String) -> void:
 func _process(delta: float) -> void:
 	if _camera_follow != null:
 		_camera_follow.tick(delta)
+	_tick_authored_room_visual_streaming(delta)
 	_refresh_info_label_with_room_type()
 	_refresh_combat_debug_overlay(delta)
 	_refresh_fps_counter(delta)
 	if _is_authoritative_world():
+		_process_pending_enemy_spawns(delta)
 		_process_authoritative_revive_and_wipe()
 		_refresh_encounter_state()
 		_try_schedule_floor_advance_if_all_players_on_elevator()
@@ -913,59 +941,90 @@ func _regenerate_level(randomize_layout: bool) -> void:
 	_party_wipe_pending = false
 	_puzzle_solved = false
 	_puzzle_gate_socket = Vector2.ZERO
+	_pending_enemy_spawn_requests.clear()
+	_encounter_spawn_queue_time_remaining = 0.0
 	_clear_floor_loot()
 	for n in get_tree().get_nodes_in_group(&"mob"):
 		if n is Node:
 			(n as Node).queue_free()
 	_enemy_nodes_by_network_id.clear()
 	var assembled_ok := false
-	if _networked_run and not _is_authoritative_world():
-		if _map_layout.is_empty():
-			_request_layout_snapshot_from_server()
-			return
-		_awaiting_layout_snapshot = false
-		_destroy_dynamic_rooms()
-		_spawn_rooms_from_layout(_map_layout)
-		var links_client: Array = _map_layout.get("links", []) as Array
-		_apply_adjacency_sockets(DungeonMapLayoutV1.adjacency_from_links(links_client))
-		assembled_ok = _assemble_rooms_procedurally(_map_layout)
+	if _is_authored_floor_mode():
+		if _networked_run and not _is_authoritative_world():
+			if _map_layout.is_empty():
+				_request_layout_snapshot_from_server()
+				return
+			_awaiting_layout_snapshot = false
+			_destroy_dynamic_rooms()
+			assembled_ok = _spawn_authored_rooms_from_layout(_map_layout)
+		else:
+			_map_layout = {}
+			var max_tries := 4 if randomize_layout else 1
+			for _attempt in range(max_tries):
+				var generated := _generate_authored_floor_layout()
+				if not bool(generated.get("ok", false)):
+					var failures := generated.get("failure_buckets", {}) as Dictionary
+					_last_assembly_errors = PackedStringArray([JSON.stringify(failures)])
+					continue
+				_map_layout = generated
+				_destroy_dynamic_rooms()
+				assembled_ok = _spawn_authored_rooms_from_layout(_map_layout)
+				if assembled_ok:
+					break
 	else:
-		_map_layout = {}
-		var max_tries := 4 if randomize_layout else 1
-		for _attempt in range(max_tries):
-			var generated := DungeonMapLayoutV1.generate(_rng)
-			if not bool(generated.get("ok", false)):
-				continue
-			var level_data := LevelDataV1.from_layout(
-				generated,
-				{
-					"levelId": "floor_%s" % [_floor_index],
-					"seed": int(_rng.seed),
-					"difficulty": _floor_index,
-					"theme": "procedural",
-				}
-			)
-			var schema_check := LevelDataV1.validate(level_data)
-			if not bool(schema_check.get("ok", false)):
-				var schema_errors: Array = schema_check.get("errors", []) as Array
-				var packed := PackedStringArray()
-				for msg in schema_errors:
-					packed.append(String(msg))
-				_last_assembly_errors = packed
-				continue
-			_map_layout = generated
-			_map_layout["level_data"] = level_data
+		if _networked_run and not _is_authoritative_world():
+			if _map_layout.is_empty():
+				_request_layout_snapshot_from_server()
+				return
+			_awaiting_layout_snapshot = false
 			_destroy_dynamic_rooms()
 			_spawn_rooms_from_layout(_map_layout)
-			var links_server: Array = _map_layout.get("links", []) as Array
-			_apply_adjacency_sockets(DungeonMapLayoutV1.adjacency_from_links(links_server))
+			var links_client: Array = _map_layout.get("links", []) as Array
+			_apply_adjacency_sockets(DungeonMapLayoutV1.adjacency_from_links(links_client))
 			assembled_ok = _assemble_rooms_procedurally(_map_layout)
-			if assembled_ok:
-				break
+		else:
+			_map_layout = {}
+			var max_tries := 4 if randomize_layout else 1
+			for _attempt in range(max_tries):
+				var generated_legacy := DungeonMapLayoutV1.generate(_rng)
+				if not bool(generated_legacy.get("ok", false)):
+					continue
+				var level_data := LevelDataV1.from_layout(
+					generated_legacy,
+					{
+						"levelId": "floor_%s" % [_floor_index],
+						"seed": int(_rng.seed),
+						"difficulty": _floor_index,
+						"theme": "procedural",
+					}
+				)
+				var schema_check := LevelDataV1.validate(level_data)
+				if not bool(schema_check.get("ok", false)):
+					var schema_errors: Array = schema_check.get("errors", []) as Array
+					var packed := PackedStringArray()
+					for msg in schema_errors:
+						packed.append(String(msg))
+					_last_assembly_errors = packed
+					continue
+				_map_layout = generated_legacy
+				_map_layout["level_data"] = level_data
+				_destroy_dynamic_rooms()
+				_spawn_rooms_from_layout(_map_layout)
+				var links_server: Array = _map_layout.get("links", []) as Array
+				_apply_adjacency_sockets(DungeonMapLayoutV1.adjacency_from_links(links_server))
+				assembled_ok = _assemble_rooms_procedurally(_map_layout)
+				if assembled_ok:
+					break
 	if not assembled_ok:
+		var label := "Authored room floor build" if _is_authored_floor_mode() else "Grid dungeon assembly"
+		var details := ""
+		if not _last_assembly_errors.is_empty():
+			details = " Details: %s" % _last_assembly_errors[0]
 		push_warning(
-			"Grid dungeon assembly failed (%s validation issues); skipping floor build." % [
-				_last_assembly_errors.size()
+			"%s failed (%s validation issues); skipping floor build.%s" % [
+				label,
+				_last_assembly_errors.size(),
+				details,
 			]
 		)
 		return
@@ -975,6 +1034,7 @@ func _regenerate_level(randomize_layout: bool) -> void:
 	_build_room_debug_visuals()
 	_spawn_gameplay_objects()
 	_spawn_encounter_modules()
+	_prewarm_enemy_assets_once()
 	_spawn_entrance_exit_markers()
 	_set_combat_doors_locked(false, false)
 	_set_boss_entry_locked(false)
@@ -985,8 +1045,7 @@ func _regenerate_level(randomize_layout: bool) -> void:
 	_debug_spawn_exit_portal.monitorable = false
 	if _debug_spawn_exit_elevator_visual != null and is_instance_valid(_debug_spawn_exit_elevator_visual):
 		_debug_spawn_exit_elevator_visual.visible = false
-	var entrance_spawn := _room_center_2d(_layout_room_name("start_room"))
-	_position_players_at_spawn(entrance_spawn)
+	_position_players_at_floor_start()
 	_has_generated_floor = true
 	_reset_backdrop_parallax_to_player()
 	if _player != null and is_instance_valid(_player):
@@ -1013,12 +1072,15 @@ func _regenerate_level(randomize_layout: bool) -> void:
 		_ensure_layout_backdrop_path_server()
 	_log_generation_debug(_map_layout)
 	var room_count := (_map_layout.get("room_specs", []) as Array).size()
-	_set_info_base_text(
-		"Floor %s — linear spine (%s rooms). Puzzle button unlocks progression; treasure branch is optional." % [
-			_floor_index,
-			room_count,
-		]
-	)
+	if _is_authored_floor_mode():
+		_set_info_base_text("Floor %s — authored critical path (%s rooms)." % [_floor_index, room_count])
+	else:
+		_set_info_base_text(
+			"Floor %s — linear spine (%s rooms). Puzzle button unlocks progression; treasure branch is optional." % [
+				_floor_index,
+				room_count,
+			]
+		)
 	if _networked_run and not _is_authoritative_world():
 		_request_runtime_snapshot_from_server()
 	_apply_layout_backdrop_from_layout()
@@ -1048,6 +1110,52 @@ func _position_players_at_spawn(entrance_spawn: Vector2) -> void:
 		player.global_position = entrance_spawn + offset
 		player.velocity = Vector2.ZERO
 		player.set_meta(&"spawn_initialized", true)
+
+
+func _position_players_at_floor_start() -> void:
+	if not _is_authored_floor_mode():
+		var entrance_spawn := _room_center_2d(_layout_room_name("start_room"))
+		_position_players_at_spawn(entrance_spawn)
+		return
+	var start_room_name := _layout_room_name("start_room")
+	var spawn_positions := _authored_spawn_positions(start_room_name)
+	if spawn_positions.is_empty():
+		spawn_positions.append(_room_center_2d(start_room_name))
+	var peer_ids: Array[int] = _peer_ids_sorted_by_slot(_peer_slots)
+	if peer_ids.is_empty():
+		peer_ids.append(_local_peer_id())
+	var fallback_offsets: Array[Vector2] = [
+		Vector2.ZERO,
+		Vector2(4.0, 0.0),
+		Vector2(-4.0, 0.0),
+		Vector2(0.0, 4.0),
+		Vector2(0.0, -4.0),
+		Vector2(6.0, 3.0),
+		Vector2(-6.0, 3.0),
+	]
+	var anchor := spawn_positions[0]
+	for i in range(peer_ids.size()):
+		var peer_id := peer_ids[i]
+		var node: Variant = _players_by_peer.get(peer_id, null)
+		if node is not CharacterBody2D:
+			continue
+		var player := node as CharacterBody2D
+		var target := spawn_positions[i] if i < spawn_positions.size() else (
+			anchor + (
+				fallback_offsets[i]
+				if i < fallback_offsets.size()
+				else Vector2(float(i) * 2.0, 0.0)
+			)
+		)
+		player.global_position = target
+		player.velocity = Vector2.ZERO
+		player.set_meta(&"spawn_initialized", true)
+
+
+func _authored_spawn_positions(start_room_name: StringName) -> Array[Vector2]:
+	if _room_queries == null:
+		return []
+	return _room_queries.zone_marker_world_positions(start_room_name, "spawn_player", &"floor_start")
 
 
 func _position_uninitialized_players(anchor: Vector2) -> void:
@@ -1115,15 +1223,16 @@ func _log_player_authority_roster(reason: String) -> void:
 		if i > 0:
 			summary += " | "
 		summary += parts[i]
-	print(
-		"[M2][Roster][%s] local_peer=%s networked=%s players=%s :: %s" % [
-			reason,
-			local_peer,
-			_networked_run,
-			_players_by_peer.size(),
-			summary,
-		]
-	)
+	if OS.is_debug_build() and _MULTIPLAYER_DEBUG_LOGGING:
+		print(
+			"[M2][Roster][%s] local_peer=%s networked=%s players=%s :: %s" % [
+				reason,
+				local_peer,
+				_networked_run,
+				_players_by_peer.size(),
+				summary,
+			]
+		)
 
 
 func _enable_debug_spawn_portal_after_physics(token: int) -> void:
@@ -1395,6 +1504,9 @@ func _destroy_dynamic_rooms() -> void:
 
 
 func _spawn_rooms_from_layout(layout: Dictionary) -> void:
+	if String(layout.get("generator_mode", "")) == "authored_rooms":
+		_spawn_authored_rooms_from_layout(layout)
+		return
 	var specs: Array = layout.get("room_specs", []) as Array
 	for spec in specs:
 		if spec is not Dictionary:
@@ -1420,6 +1532,52 @@ func _spawn_rooms_from_layout(layout: Dictionary) -> void:
 			room.min_difficulty_tier = 4
 			room.max_difficulty_tier = 8
 		_rooms_root.add_child(room)
+
+
+func _spawn_authored_rooms_from_layout(layout: Dictionary) -> bool:
+	_ensure_authored_floor_generator()
+	var specs: Array = layout.get("room_specs", []) as Array
+	var spawned_count := 0
+	for spec_value in specs:
+		if spec_value is not Dictionary:
+			continue
+		var spec := spec_value as Dictionary
+		var scene_path := String(spec.get("scene_path", "")).strip_edges()
+		if scene_path.is_empty():
+			push_warning("Authored room spec missing scene_path.")
+			continue
+		var packed := load(scene_path) as PackedScene
+		if packed == null:
+			push_warning("Could not load authored room scene: %s" % scene_path)
+			continue
+		var room := packed.instantiate() as RoomBase
+		if room == null:
+			push_warning("Authored room scene is not a RoomBase: %s" % scene_path)
+			continue
+		var room_name := String(spec.get("name", _scene_base_name(scene_path)))
+		room.name = room_name
+		room.room_id = String(spec.get("room_id", room.room_id))
+		room.room_type = String(spec.get("room_type", room.room_type))
+		room.room_tags = PackedStringArray([room.room_type, String(spec.get("role", room.room_type))])
+		room.position = spec.get("world_position", Vector2.ZERO) as Vector2
+		room.rotation_degrees = float(int(spec.get("rotation_deg", 0)))
+		_rooms_root.add_child(room)
+		if room.authored_layout != null and _room_editor_scene_sync != null:
+			_room_editor_scene_sync.sync_room(room, room.authored_layout, ROOM_PIECE_CATALOG)
+			var visual_proxy := room.get_node_or_null(^"Visual3DProxy") as Node3D
+			if visual_proxy != null:
+				visual_proxy.visible = false
+		room.set_meta(&"authored_room_role", String(spec.get("role", "")))
+		room.set_meta(&"authored_room_scene_path", scene_path)
+		room.set_meta(&"authored_room_rotation_deg", int(spec.get("rotation_deg", 0)))
+		room.set_meta(&"authored_room_center_cell", spec.get("grid", Vector2i.ZERO))
+		room.set_meta(&"authored_room_tile_size", spec.get("tile_size", room.tile_size))
+		room.set_meta(&"authored_room_occupied_cells_world", spec.get("occupied_cells", []))
+		room.set_meta(&"authored_room_walkable_cells_world", spec.get("walkable_cells", []))
+		room.set_meta(&"authored_connection_markers_world", spec.get("connection_markers", []))
+		room.set_meta(&"authored_zone_markers_world", spec.get("zone_markers", []))
+		spawned_count += 1
+	return spawned_count == specs.size() and spawned_count > 0
 
 
 func _apply_adjacency_sockets(adj: Dictionary) -> void:
@@ -1514,6 +1672,39 @@ func _layout_room_name(key: String, fallback: String = "") -> StringName:
 	return StringName(String(_map_layout.get(key, fallback)))
 
 
+func _scene_base_name(scene_path: String) -> String:
+	return scene_path.get_file().get_basename()
+
+
+func _is_authored_floor_mode() -> bool:
+	return floor_generation_mode == "authored_rooms"
+
+
+func _ensure_authored_floor_generator() -> void:
+	if _authored_room_catalog == null:
+		_authored_room_catalog = AuthoredRoomCatalogScript.new()
+	if _authored_floor_generator == null:
+		_authored_floor_generator = AuthoredFloorGeneratorScript.new()
+	if _room_editor_scene_sync == null:
+		_room_editor_scene_sync = RoomEditorSceneSyncScript.new()
+	if _room_preview_builder == null:
+		_room_preview_builder = RoomPreviewBuilderScript.new()
+
+
+func _generate_authored_floor_layout() -> Dictionary:
+	_ensure_authored_floor_generator()
+	_authored_room_catalog.build()
+	return _authored_floor_generator.generate_floor(
+		_authored_room_catalog,
+		_rng,
+		{
+			"min_rooms": 7,
+			"max_rooms": 9,
+			"max_floor_attempts": 20,
+		}
+	)
+
+
 func _tower_spawn_near_center(encounter_id: StringName, module_pos: Vector2) -> Vector2:
 	if _map_layout.is_empty():
 		return module_pos
@@ -1546,8 +1737,11 @@ func _encounter_room_for_tower_separation(encounter_id: StringName) -> RoomBase:
 func _clamp_pos_to_room(room: RoomBase, pos: Vector2) -> Vector2:
 	if room == null:
 		return pos
-	var room_rect_local := room.get_room_rect_world()
-	var room_rect := Rect2(room.global_position - room_rect_local.size * 0.5, room_rect_local.size)
+	var room_rect := (
+		_room_queries.room_bounds_rect(room)
+		if _room_queries != null
+		else Rect2(room.global_position - room.get_room_rect_world().size * 0.5, room.get_room_rect_world().size)
+	)
 	var inset := 0.9
 	return Vector2(
 		clampf(pos.x, room_rect.position.x + inset, room_rect.end.x - inset),
@@ -1624,6 +1818,18 @@ func _find_zone_marker_world_position(
 		_room_queries.find_zone_marker_world_position(room_name, zone_type, zone_role)
 		if _room_queries != null
 		else {"found": false, "position": Vector2.ZERO}
+	)
+
+
+func _zone_markers(
+	room_name: StringName,
+	zone_type: String,
+	zone_role: StringName = &""
+) -> Array[Dictionary]:
+	return (
+		_room_queries.zone_markers(room_name, zone_type, zone_role)
+		if _room_queries != null
+		else []
 	)
 
 
@@ -1761,6 +1967,8 @@ func _build_world_bounds() -> void:
 	_free_children_immediate(_piece_instances_root)
 	_free_children_immediate(_encounter_modules_root)
 	_free_children_immediate(_wall_visuals)
+	if _is_authored_floor_mode():
+		return
 	for room in _rooms_root.get_children():
 		if room is not RoomBase:
 			continue
@@ -1950,12 +2158,14 @@ func _add_wall_visual(position_2d: Vector2, size_2d: Vector2) -> void:
 
 
 func _build_room_debug_visuals() -> void:
-	for child in _room_visuals.get_children():
-		child.queue_free()
+	_clear_authored_room_visuals()
 	for child in _door_visuals.get_children():
 		child.queue_free()
 	_door_visual_by_socket_key.clear()
 	_puzzle_door_visual = null
+	if _is_authored_floor_mode():
+		_rebuild_authored_room_visuals()
+		return
 	for room in _rooms_root.get_children():
 		if room is not RoomBase:
 			continue
@@ -1966,6 +2176,114 @@ func _build_room_debug_visuals() -> void:
 		var half := rect_local.size * 0.5
 		var rect := Rect2(r.global_position - half, rect_local.size)
 		_add_room_floor_visual(rect, r.name + " (" + r.room_type.to_upper() + ")")
+
+
+func _rebuild_authored_room_visuals() -> void:
+	_authored_room_visual_stream_time_remaining = 0.0
+	if authored_room_visual_streaming_enabled:
+		_refresh_authored_room_visual_streaming(true)
+		return
+	for room_node in _rooms_root.get_children():
+		if room_node is not RoomBase:
+			continue
+		var room := room_node as RoomBase
+		_ensure_authored_room_visual_loaded(room)
+
+
+func _tick_authored_room_visual_streaming(delta: float) -> void:
+	if not _is_authored_floor_mode() or not authored_room_visual_streaming_enabled:
+		return
+	if not _has_generated_floor:
+		return
+	_authored_room_visual_stream_time_remaining -= delta
+	if _authored_room_visual_stream_time_remaining > 0.0:
+		return
+	_authored_room_visual_stream_time_remaining = maxf(authored_room_visual_stream_update_interval, 0.05)
+	_refresh_authored_room_visual_streaming(false)
+
+
+func _refresh_authored_room_visual_streaming(force: bool) -> void:
+	if _room_queries == null:
+		return
+	var focus := _authored_visual_focus_position()
+	var load_rect := _authored_visual_stream_rect(focus, _AUTHORED_VISUAL_STREAM_MARGIN)
+	var unload_rect := _authored_visual_stream_rect(focus, _AUTHORED_VISUAL_STREAM_UNLOAD_MARGIN)
+	for room_node in _rooms_root.get_children():
+		if room_node is not RoomBase:
+			continue
+		var room := room_node as RoomBase
+		var room_key := String(room.name)
+		var room_bounds := _room_queries.room_bounds_rect(room)
+		var should_load := force or load_rect.intersects(room_bounds)
+		if should_load:
+			_ensure_authored_room_visual_loaded(room)
+			continue
+		if _authored_room_visual_nodes.has(room_key) and not unload_rect.intersects(room_bounds):
+			_unload_authored_room_visual(room_key)
+
+
+func _ensure_authored_room_visual_loaded(room: RoomBase) -> void:
+	if room == null:
+		return
+	var room_key := String(room.name)
+	var existing = _authored_room_visual_nodes.get(room_key, null)
+	if existing is Node3D and is_instance_valid(existing):
+		return
+	var container := _build_authored_room_visual_container(room)
+	if container == null:
+		return
+	_room_visuals.add_child(container)
+	_authored_room_visual_nodes[room_key] = container
+
+
+func _build_authored_room_visual_container(room: RoomBase) -> Node3D:
+	if room == null or room.authored_layout == null or _room_preview_builder == null:
+		return null
+	var container := Node3D.new()
+	container.name = "%s_VisualRoot" % String(room.name)
+	container.position = Vector3(room.global_position.x, 0.0, room.global_position.y)
+	container.rotation = Vector3(0.0, -deg_to_rad(room.rotation_degrees), 0.0)
+	_room_preview_builder.rebuild_preview(
+		container,
+		room,
+		room.authored_layout,
+		ROOM_PIECE_CATALOG,
+		&"all",
+		false,
+		true
+	)
+	if container.get_child_count() == 0:
+		container.queue_free()
+		return null
+	return container
+
+
+func _unload_authored_room_visual(room_key: String) -> void:
+	var existing = _authored_room_visual_nodes.get(room_key, null)
+	if existing is Node3D and is_instance_valid(existing):
+		(existing as Node3D).queue_free()
+	_authored_room_visual_nodes.erase(room_key)
+
+
+func _clear_authored_room_visuals() -> void:
+	for child in _room_visuals.get_children():
+		child.queue_free()
+	_authored_room_visual_nodes.clear()
+
+
+func _authored_visual_focus_position() -> Vector2:
+	return _reference_player_position()
+
+
+func _authored_visual_stream_rect(focus: Vector2, extra_margin: float) -> Rect2:
+	var viewport_size := get_viewport().get_visible_rect().size
+	var aspect := viewport_size.x / maxf(viewport_size.y, 0.001)
+	var half_height := _camera_3d.size + extra_margin
+	var half_width := (_camera_3d.size * aspect) + extra_margin
+	return Rect2(
+		Vector2(focus.x - half_width, focus.y - half_height),
+		Vector2(half_width * 2.0, half_height * 2.0)
+	)
 
 
 func _assign_combat_door_visual_refs() -> void:
@@ -1982,7 +2300,7 @@ func _assign_combat_door_visual_refs() -> void:
 		if s.connector_type == &"inactive":
 			continue
 		var d := String(s.direction)
-		var sp := cr.global_position + s.position
+		var sp := s.global_position
 		if d == _combat_entry_dir:
 			west_world = sp
 			has_w = true
@@ -2045,6 +2363,45 @@ func _get_floor_glb_tile_aabb(glb_scene: PackedScene) -> AABB:
 	return aabb
 
 
+func _runtime_floor_material(glb_scene: PackedScene) -> Material:
+	if glb_scene == null:
+		return null
+	var path_key := glb_scene.resource_path
+	if _runtime_floor_material_by_path.has(path_key):
+		return _runtime_floor_material_by_path[path_key] as Material
+	var root := glb_scene.instantiate() as Node3D
+	if root == null:
+		return null
+	var material: Material = null
+	for mesh_instance in _mesh_instances_in_root(root):
+		if mesh_instance.material_override != null:
+			material = mesh_instance.material_override
+			break
+		if mesh_instance.mesh == null:
+			continue
+		for surface_index in range(mesh_instance.mesh.get_surface_count()):
+			material = mesh_instance.mesh.surface_get_material(surface_index)
+			if material != null:
+				break
+		if material != null:
+			break
+	root.free()
+	if material != null:
+		_runtime_floor_material_by_path[path_key] = material
+	return material
+
+
+func _mesh_instances_in_root(root: Node3D) -> Array[MeshInstance3D]:
+	var out: Array[MeshInstance3D] = []
+	if root is MeshInstance3D:
+		out.append(root as MeshInstance3D)
+	for candidate in root.find_children("*", "MeshInstance3D", true, false):
+		var mesh_instance := candidate as MeshInstance3D
+		if mesh_instance != null:
+			out.append(mesh_instance)
+	return out
+
+
 func _merged_mesh_aabb_in_glb_root(root: Node3D) -> AABB:
 	var merged := AABB()
 	var any := false
@@ -2101,31 +2458,47 @@ static func _glb_transform_aabb(xf: Transform3D, aabb: AABB) -> AABB:
 
 func _add_room_floor_visual(rect: Rect2, label_text: String) -> void:
 	var glb_scene := _ground_glb_scene_for_dungeon_floor()
-	var src := _get_floor_glb_tile_aabb(glb_scene)
 	var tw := maxf(0.01, FLOOR_TEXTURE_TILE_WORLD)
 	var tiles_x := maxi(1, ceili(rect.size.x / tw))
 	var tiles_z := maxi(1, ceili(rect.size.y / tw))
 	var module_x := rect.size.x / float(tiles_x)
 	var module_z := rect.size.y / float(tiles_z)
-	var sx := module_x / maxf(0.01, src.size.x)
-	var sy := ROOM_HEIGHT / maxf(0.01, src.size.y)
-	var sz := module_z / maxf(0.01, src.size.z)
-	var src_center := src.get_center()
-	var top_y := src.position.y + src.size.y
 	var base_x := rect.position.x + module_x * 0.5
 	var base_z := rect.position.y + module_z * 0.5
-	for ix in range(tiles_x):
-		for iz in range(tiles_z):
-			var tile := glb_scene.instantiate() as Node3D
-			if tile == null:
-				continue
-			tile.scale = Vector3(sx, sy, sz)
-			var px := base_x + float(ix) * module_x
-			var pz := base_z + float(iz) * module_z
-			var py := FLOOR_SLAB_TOP_Y - top_y * sy
-			tile.position = Vector3(px - src_center.x * sx, py, pz - src_center.z * sz)
-			_disable_architecture_shadows(tile)
-			_room_visuals.add_child(tile)
+	var runtime_floor_material := _runtime_floor_material(glb_scene)
+	if runtime_floor_material != null:
+		for ix in range(tiles_x):
+			for iz in range(tiles_z):
+				var tile := MeshInstance3D.new()
+				var plane := PlaneMesh.new()
+				plane.size = Vector2(module_x, module_z)
+				tile.name = "RoomFloorTop_%s_%s" % [ix, iz]
+				tile.mesh = plane
+				tile.material_override = runtime_floor_material
+				var px := base_x + float(ix) * module_x
+				var pz := base_z + float(iz) * module_z
+				tile.position = Vector3(px, FLOOR_SLAB_TOP_Y, pz)
+				_disable_architecture_shadows(tile)
+				_room_visuals.add_child(tile)
+	else:
+		var src := _get_floor_glb_tile_aabb(glb_scene)
+		var sx := module_x / maxf(0.01, src.size.x)
+		var sy := ROOM_HEIGHT / maxf(0.01, src.size.y)
+		var sz := module_z / maxf(0.01, src.size.z)
+		var src_center := src.get_center()
+		var top_y := src.position.y + src.size.y
+		for ix in range(tiles_x):
+			for iz in range(tiles_z):
+				var tile := glb_scene.instantiate() as Node3D
+				if tile == null:
+					continue
+				tile.scale = Vector3(sx, sy, sz)
+				var px := base_x + float(ix) * module_x
+				var pz := base_z + float(iz) * module_z
+				var py := FLOOR_SLAB_TOP_Y - top_y * sy
+				tile.position = Vector3(px - src_center.x * sx, py, pz - src_center.z * sz)
+				_disable_architecture_shadows(tile)
+				_room_visuals.add_child(tile)
 
 	var cx := rect.position.x + rect.size.x * 0.5
 	var cz := rect.position.y + rect.size.y * 0.5
@@ -2202,6 +2575,8 @@ func _set_puzzle_gate_solved(solved: bool, animate: bool = true, replicate: bool
 
 
 func _spawn_gameplay_objects() -> void:
+	if _is_authored_floor_mode():
+		return
 	if _map_layout.is_empty():
 		return
 	var treasure_room := _layout_room_name("treasure_room")
@@ -2359,6 +2734,10 @@ func _spawn_trap_tile_at(world_pos: Vector2) -> void:
 
 func _spawn_entrance_exit_markers() -> void:
 	var entrance_pos := _room_center_2d(_layout_room_name("start_room"))
+	if _is_authored_floor_mode():
+		var spawn_positions := _authored_spawn_positions(_layout_room_name("start_room"))
+		if not spawn_positions.is_empty():
+			entrance_pos = spawn_positions[0]
 	var exit_pos := _boss_exit_portal.position
 	var entrance_marker := ENTRANCE_MARKER_SCENE.instantiate() as ConnectorMarker2D
 	if entrance_marker:
@@ -2409,7 +2788,13 @@ func _spawn_encounter_modules() -> void:
 	_entry_socket_by_encounter[&"boss"] = _boss_entry_socket
 	_entry_socket_dir_by_encounter[&"boss"] = _boss_entry_dir
 	_cache_locked_sockets_for_encounter(boss_room, &"boss")
-	_spawn_encounter_trigger(boss_center, &"boss", "BossEncounterTrigger")
+	var boss_trigger := _encounter_trigger_config_for_room(boss_room, &"boss", boss_center)
+	_spawn_encounter_trigger(
+		boss_trigger.get("position", boss_center) as Vector2,
+		&"boss",
+		"BossEncounterTrigger",
+		boss_trigger.get("size", Vector2.ZERO) as Vector2
+	)
 	for room in _rooms_root.get_children():
 		if room is not RoomBase:
 			continue
@@ -2426,30 +2811,44 @@ func _spawn_encounter_modules() -> void:
 			# Fire once the player is well inside the arena (entry socket is excluded from pull-in clamps).
 			var inward := (-_direction_vector(_combat_entry_dir)).normalized()
 			trigger_pos = _combat_entry_socket + inward * (_DOOR_SLAB_HALF + _COMBAT_ENTRY_TRIGGER_INSET)
-			match _combat_entry_dir:
-				"west", "east":
-					trigger_sz = Vector2(6.0, _DOOR_CLAMP_Y_EXT * 2.0 + 2.0)
-				"north", "south":
-					trigger_sz = Vector2(_DOOR_CLAMP_Y_EXT * 2.0 + 2.0, 6.0)
-				_:
-					trigger_sz = Vector2(6.0, 14.0)
-		_spawn_encounter_trigger(trigger_pos, encounter_id, trigger_name, trigger_sz)
-		_spawn_arena_modules_for_room(r, encounter_id)
-		_spawn_count_by_encounter[encounter_id] = _rng.randi_range(2, 4)
+			trigger_sz = _encounter_entry_trigger_size(_combat_entry_dir)
+		var trigger_config := _encounter_trigger_config_for_room(
+			r,
+			encounter_id,
+			trigger_pos,
+			trigger_sz
+		)
+		_spawn_encounter_trigger(
+			trigger_config.get("position", trigger_pos) as Vector2,
+			encounter_id,
+			trigger_name,
+			trigger_config.get("size", trigger_sz) as Vector2
+		)
+		var authored_spawn_count := _spawn_authored_enemy_points_for_room(r, encounter_id)
+		if authored_spawn_count > 0:
+			_spawn_count_by_encounter[encounter_id] = authored_spawn_count
+		else:
+			_spawn_arena_modules_for_room(r, encounter_id)
+			_spawn_count_by_encounter[encounter_id] = _rng.randi_range(2, 4)
 		_encounter_active[encounter_id] = false
 		_encounter_completed[encounter_id] = false
 		_encounter_mobs[encounter_id] = []
 		if r.name == combat_room_name:
 			_combat_encounter_id = encounter_id
 
-	var boss_half := _room_half_extents(boss_room)
-	var bpx := maxf(5.0, boss_half.x - 12.0)
-	var bpy := maxf(5.0, boss_half.y - 12.0)
-	_spawn_enemy_spawn_point(boss_center + Vector2(-bpx, -bpy), &"boss")
-	_spawn_enemy_spawn_point(boss_center + Vector2(bpx, bpy), &"boss")
-	var boss_vol_size := Vector2(maxf(16.0, boss_half.x * 0.4), maxf(12.0, boss_half.y * 0.35))
-	_spawn_enemy_spawn_volume(boss_center + Vector2(-bpx, bpy), boss_vol_size, &"boss")
-	_prespawn_encounter_mobs()
+	var boss_spawn_count := _spawn_authored_enemy_points_for_room(boss_room, &"boss")
+	if boss_spawn_count > 0:
+		_spawn_count_by_encounter[&"boss"] = boss_spawn_count
+	else:
+		var boss_half := _room_half_extents(boss_room)
+		var bpx := maxf(5.0, boss_half.x - 12.0)
+		var bpy := maxf(5.0, boss_half.y - 12.0)
+		_spawn_enemy_spawn_point(boss_center + Vector2(-bpx, -bpy), &"boss")
+		_spawn_enemy_spawn_point(boss_center + Vector2(bpx, bpy), &"boss")
+		var boss_vol_size := Vector2(maxf(16.0, boss_half.x * 0.4), maxf(12.0, boss_half.y * 0.35))
+		_spawn_enemy_spawn_volume(boss_center + Vector2(-bpx, bpy), boss_vol_size, &"boss")
+	if prespawn_encounter_mobs:
+		_prespawn_encounter_mobs()
 
 
 func _cache_locked_sockets_for_encounter(room: RoomBase, encounter_id: StringName) -> void:
@@ -2497,12 +2896,20 @@ func _spawn_encounter_trigger(
 	_encounter_modules_root.add_child(trigger)
 
 
-func _spawn_enemy_spawn_point(position_2d: Vector2, encounter_id: StringName) -> void:
+func _spawn_enemy_spawn_point(
+	position_2d: Vector2,
+	encounter_id: StringName,
+	enemy_id: StringName = &"",
+	authored_marker := false
+) -> void:
 	var point := SPAWN_POINT_SCENE.instantiate() as EnemySpawnPoint2D
 	if point == null:
 		return
 	point.encounter_id = encounter_id
+	point.enemy_id = enemy_id
 	point.position = position_2d
+	if authored_marker:
+		point.set_meta(&"authored_marker", true)
 	_encounter_modules_root.add_child(point)
 	if not _spawn_points_by_encounter.has(encounter_id):
 		_spawn_points_by_encounter[encounter_id] = []
@@ -2542,6 +2949,52 @@ func _spawn_arena_modules_for_room(room: RoomBase, encounter_id: StringName) -> 
 	var vol_size := Vector2(maxf(12.0, half.x * 0.5), maxf(10.0, half.y * 0.4))
 	_spawn_enemy_spawn_volume(center + Vector2(-px * 0.78, -py * 0.72), vol_size, encounter_id)
 	_spawn_enemy_spawn_volume(center + Vector2(px * 0.78, py * 0.72), vol_size, encounter_id)
+
+
+func _spawn_authored_enemy_points_for_room(room: RoomBase, encounter_id: StringName) -> int:
+	if room == null:
+		return 0
+	var room_name := StringName(room.name)
+	var spawn_markers := _zone_markers(room_name, "enemy_spawn")
+	var spawned_count := 0
+	for marker in spawn_markers:
+		var position := marker.get("world_position", Vector2.ZERO) as Vector2
+		_spawn_enemy_spawn_point(
+			position,
+			encounter_id,
+			marker.get("enemy_id", &"") as StringName,
+			true
+		)
+		spawned_count += 1
+	return spawned_count
+
+
+func _encounter_trigger_config_for_room(
+	room: RoomBase,
+	encounter_id: StringName,
+	fallback_position: Vector2,
+	fallback_size: Vector2 = Vector2.ZERO
+) -> Dictionary:
+	if room == null:
+		return {"position": fallback_position, "size": fallback_size}
+	var markers := _zone_markers(StringName(room.name), "encounter_trigger", &"entry")
+	if markers.is_empty():
+		return {"position": fallback_position, "size": fallback_size}
+	var direction := String(_entry_socket_dir_by_encounter.get(encounter_id, ""))
+	return {
+		"position": markers[0].get("world_position", fallback_position) as Vector2,
+		"size": _encounter_entry_trigger_size(direction),
+	}
+
+
+func _encounter_entry_trigger_size(direction: String) -> Vector2:
+	match direction:
+		"west", "east":
+			return Vector2(6.0, _DOOR_CLAMP_Y_EXT * 2.0 + 2.0)
+		"north", "south":
+			return Vector2(_DOOR_CLAMP_Y_EXT * 2.0 + 2.0, 6.0)
+		_:
+			return Vector2(6.0, 14.0)
 
 
 func _on_encounter_triggered(encounter_id: StringName) -> void:
@@ -2585,7 +3038,7 @@ func _start_boss_encounter() -> void:
 		var adjusted_count := maxi(1, int(ceili(float(raw_count) * 0.5)))
 		_spawn_encounter_wave(
 			&"boss",
-			adjusted_count,
+			int(_spawn_count_by_encounter.get(&"boss", adjusted_count)),
 			1.25 + float(_floor_index - 1) * 0.05
 		)
 
@@ -2626,14 +3079,20 @@ func _spawn_encounter_wave(encounter_id: StringName, total_count: int, speed_mul
 			break
 		if point_node is EnemySpawnPoint2D:
 			var point := point_node as EnemySpawnPoint2D
-			var scene_for_spawn := planned_scenes[spawned] if spawned < planned_scenes.size() else null
+			var scene_for_spawn := (
+				_enemy_scene_from_id(point.enemy_id)
+				if point.enemy_id != &""
+				else planned_scenes[spawned] if spawned < planned_scenes.size() else null
+			)
 			var pos := point.get_spawn_position()
-			if scene_for_spawn == ARROW_TOWER_SCENE:
-				pos = _tower_spawn_near_center(encounter_id, pos)
-			pos = _bias_spawn_to_back_half(encounter_id, pos)
-			if scene_for_spawn == ARROW_TOWER_SCENE:
-				pos = _separate_tower_spawn(encounter_id, pos)
-				_register_planned_tower_spawn(encounter_id, pos)
+			var authored_marker := bool(point.get_meta(&"authored_marker", false))
+			if not authored_marker:
+				if scene_for_spawn == ARROW_TOWER_SCENE:
+					pos = _tower_spawn_near_center(encounter_id, pos)
+				pos = _bias_spawn_to_back_half(encounter_id, pos)
+				if scene_for_spawn == ARROW_TOWER_SCENE:
+					pos = _separate_tower_spawn(encounter_id, pos)
+					_register_planned_tower_spawn(encounter_id, pos)
 			_spawn_encounter_mob(
 				encounter_id,
 				pos,
@@ -2675,15 +3134,18 @@ func _spawn_encounter_mob(
 	enemy_scene: PackedScene = null,
 	start_aggro := false
 ) -> void:
-	call_deferred(
-		"_spawn_encounter_mob_deferred",
-		encounter_id,
-		spawn_position,
-		target_position,
-		speed_multiplier,
-		enemy_scene,
-		start_aggro
+	_pending_enemy_spawn_requests.append(
+		{
+			"encounter_id": encounter_id,
+			"spawn_position": spawn_position,
+			"target_position": target_position,
+			"speed_multiplier": speed_multiplier,
+			"enemy_scene": enemy_scene,
+			"start_aggro": start_aggro,
+		}
 	)
+	if _pending_enemy_spawn_requests.size() == 1:
+		_encounter_spawn_queue_time_remaining = 0.0
 
 
 func _spawn_encounter_mob_deferred(
@@ -2719,6 +3181,46 @@ func _spawn_encounter_mob_deferred(
 			speed_multiplier,
 			final_aggro
 		)
+
+
+func _process_pending_enemy_spawns(delta: float) -> void:
+	if _pending_enemy_spawn_requests.is_empty():
+		return
+	_encounter_spawn_queue_time_remaining -= delta
+	if _encounter_spawn_queue_time_remaining > 0.0:
+		return
+	var request := _pending_enemy_spawn_requests.pop_front() as Dictionary
+	_spawn_encounter_mob_deferred(
+		request.get("encounter_id", &"") as StringName,
+		request.get("spawn_position", Vector2.ZERO) as Vector2,
+		request.get("target_position", Vector2.ZERO) as Vector2,
+		float(request.get("speed_multiplier", 1.0)),
+		request.get("enemy_scene", null) as PackedScene,
+		bool(request.get("start_aggro", false))
+	)
+	_encounter_spawn_queue_time_remaining = maxf(0.01, encounter_spawn_queue_interval)
+
+
+func _prewarm_enemy_assets_once() -> void:
+	if _enemy_assets_prewarmed or not prewarm_enemy_assets or _is_dedicated_server_session():
+		return
+	for scene in [DASHER_SCENE, ARROW_TOWER_SCENE, IRON_SENTINEL_SCENE, ROBOT_MOB_SCENE]:
+		if scene == null:
+			continue
+		var enemy: Node = scene.instantiate()
+		if enemy == null:
+			continue
+		enemy.process_mode = Node.PROCESS_MODE_DISABLED
+		if enemy is EnemyBase:
+			var enemy_base := enemy as EnemyBase
+			enemy_base.configure_spawn(_ENEMY_PREWARM_POSITION, _ENEMY_PREWARM_POSITION)
+			enemy_base.set_aggro_enabled(false)
+		if enemy is Node2D:
+			(enemy as Node2D).global_position = _ENEMY_PREWARM_POSITION
+		$GameWorld2D.add_child(enemy)
+		$GameWorld2D.remove_child(enemy)
+		enemy.queue_free()
+	_enemy_assets_prewarmed = true
 
 
 func _set_encounter_mobs_aggro(encounter_id: StringName, enabled: bool) -> void:
@@ -2975,10 +3477,16 @@ func _prespawn_encounter_mobs() -> void:
 		var encounter_id := encounter_key as StringName
 		var count := clampi(int(_spawn_count_by_encounter.get(encounter_id, 0)), 0, 4)
 		if count > 0:
-			_spawn_encounter_wave(encounter_id, count, 1.0 + float(_floor_index - 1) * 0.08)
-	var raw_count := 2 + int(floor(float(_floor_index - 1) / 2.0))
-	var adjusted_count := maxi(1, int(ceili(float(raw_count) * 0.5)))
-	_spawn_encounter_wave(&"boss", adjusted_count, 1.25 + float(_floor_index - 1) * 0.05)
+			var speed_multiplier := (
+				1.25 + float(_floor_index - 1) * 0.05
+				if encounter_id == &"boss"
+				else 1.0 + float(_floor_index - 1) * 0.08
+			)
+			_spawn_encounter_wave(encounter_id, count, speed_multiplier)
+	if not _spawn_count_by_encounter.has(&"boss"):
+		var raw_count := 2 + int(floor(float(_floor_index - 1) / 2.0))
+		var adjusted_count := maxi(1, int(ceili(float(raw_count) * 0.5)))
+		_spawn_encounter_wave(&"boss", adjusted_count, 1.25 + float(_floor_index - 1) * 0.05)
 
 
 func _cache_entry_socket_for_encounter(room: RoomBase, encounter_id: StringName) -> void:
@@ -2991,7 +3499,7 @@ func _cache_entry_socket_for_encounter(room: RoomBase, encounter_id: StringName)
 	for socket in room.get_all_sockets():
 		if socket.connector_type == &"inactive":
 			continue
-		var world_pos := room.global_position + socket.position
+		var world_pos := socket.global_position
 		var d := world_pos.distance_squared_to(start_center)
 		if d < best_dist:
 			best_dist = d
@@ -3002,13 +3510,8 @@ func _cache_entry_socket_for_encounter(room: RoomBase, encounter_id: StringName)
 
 
 func _bias_spawn_to_back_half(encounter_id: StringName, candidate_pos: Vector2) -> Vector2:
-	var room_name := StringName()
-	var id_text := String(encounter_id)
-	if id_text == "boss":
-		room_name = _layout_room_name("exit_room")
-	elif id_text.begins_with("arena_"):
-		room_name = StringName(id_text.trim_prefix("arena_"))
-	else:
+	var room_name := _room_name_for_encounter(encounter_id)
+	if room_name == &"":
 		return candidate_pos
 	var room := _room_by_name(room_name)
 	if room == null:
@@ -3025,12 +3528,7 @@ func _bias_spawn_to_back_half(encounter_id: StringName, candidate_pos: Vector2) 
 	if dot_back >= back_limit:
 		return candidate_pos
 	var adjusted := candidate_pos + back_dir * (back_limit - dot_back)
-	# Keep spawn inside the owning room even after back-half bias.
-	var room_rect_local := room.get_room_rect_world()
-	var room_rect := Rect2(room.global_position - room_rect_local.size * 0.5, room_rect_local.size)
-	adjusted.x = clampf(adjusted.x, room_rect.position.x + 0.9, room_rect.end.x - 0.9)
-	adjusted.y = clampf(adjusted.y, room_rect.position.y + 0.9, room_rect.end.y - 0.9)
-	return adjusted
+	return _clamp_pos_to_room(room, adjusted)
 
 
 func _resolve_encounter_for_spawn(requested_encounter_id: StringName, spawn_pos: Vector2) -> StringName:
@@ -3074,6 +3572,29 @@ func _pick_ranged_enemy_scene(encounter_id: StringName) -> PackedScene:
 	if String(encounter_id) == "boss":
 		return ROBOT_MOB_SCENE if randf() < 0.55 else ARROW_TOWER_SCENE
 	return ROBOT_MOB_SCENE if randf() < 0.6 else ARROW_TOWER_SCENE
+
+
+func _enemy_scene_from_id(enemy_id: StringName) -> PackedScene:
+	match String(enemy_id):
+		"arrow_tower":
+			return ARROW_TOWER_SCENE
+		"iron_sentinel":
+			return IRON_SENTINEL_SCENE
+		"robot_mob":
+			return ROBOT_MOB_SCENE
+		"dasher":
+			return DASHER_SCENE
+		_:
+			return null
+
+
+func _room_name_for_encounter(encounter_id: StringName) -> StringName:
+	var id_text := String(encounter_id)
+	if id_text == "boss":
+		return _layout_room_name("exit_room")
+	if id_text.begins_with("arena_"):
+		return StringName(id_text.trim_prefix("arena_"))
+	return &""
 
 
 func _on_encounter_mob_removed(encounter_id: StringName, mob: EnemyBase) -> void:

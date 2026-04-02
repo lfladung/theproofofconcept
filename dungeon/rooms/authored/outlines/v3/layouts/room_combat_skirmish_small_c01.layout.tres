@@ -1,7 +1,7 @@
-[gd_resource type="Resource" script_class="RoomLayoutData" format=3 uid="uid://6y03rbdgd7f6"]
+[gd_resource type="Resource" script_class="RoomLayoutData" format=3]
 
-[ext_resource type="Script" uid="uid://bin4dksyxldc0" path="res://addons/dungeon_room_editor/resources/room_placed_item_data.gd" id="1_ck5uy"]
-[ext_resource type="Script" uid="uid://dpj57sp322t4g" path="res://addons/dungeon_room_editor/resources/room_layout_data.gd" id="2_gifnp"]
+[ext_resource type="Script" path="res://addons/dungeon_room_editor/resources/room_placed_item_data.gd" id="1_ck5uy"]
+[ext_resource type="Script" path="res://addons/dungeon_room_editor/resources/room_layout_data.gd" id="2_gifnp"]
 
 [sub_resource type="Resource" id="Resource_dub26"]
 script = ExtResource("1_ck5uy")
@@ -4326,7 +4326,7 @@ script = ExtResource("1_ck5uy")
 item_id = "encounter_entry_marker_460"
 piece_id = &"encounter_entry_marker"
 category = &"marker"
-grid_position = Vector2i(-3, 0)
+grid_position = Vector2i(-10, 1)
 tags = PackedStringArray("marker", "encounter")
 placement_layer = &"overlay"
 
@@ -4352,7 +4352,7 @@ script = ExtResource("1_ck5uy")
 item_id = "barrel_blocker_463"
 piece_id = &"barrel_blocker"
 category = &"prop"
-grid_position = Vector2i(-2, 7)
+grid_position = Vector2i(-7, -2)
 tags = PackedStringArray("prop", "blocker")
 placement_layer = &"overlay"
 blocks_movement = true
@@ -4362,7 +4362,7 @@ script = ExtResource("1_ck5uy")
 item_id = "barrel_blocker_464"
 piece_id = &"barrel_blocker"
 category = &"prop"
-grid_position = Vector2i(1, 3)
+grid_position = Vector2i(4, 5)
 tags = PackedStringArray("prop", "blocker")
 placement_layer = &"overlay"
 blocks_movement = true
@@ -4372,7 +4372,7 @@ script = ExtResource("1_ck5uy")
 item_id = "spawn_robot_mob_marker_465"
 piece_id = &"spawn_robot_mob_marker"
 category = &"spawn"
-grid_position = Vector2i(2, 8)
+grid_position = Vector2i(0, -2)
 tags = PackedStringArray("spawn", "robot_mob")
 encounter_group_id = &"combat_main"
 placement_layer = &"overlay"
@@ -4382,7 +4382,7 @@ script = ExtResource("1_ck5uy")
 item_id = "spawn_dasher_marker_466"
 piece_id = &"spawn_dasher_marker"
 category = &"spawn"
-grid_position = Vector2i(5, 7)
+grid_position = Vector2i(6, -1)
 tags = PackedStringArray("spawn", "dasher")
 encounter_group_id = &"combat_main"
 placement_layer = &"overlay"

@@ -34,7 +34,7 @@ width_tiles = 3
 
 [node name="GeneratedByRoomEditor" type="Node2D" parent="Zones"]
 [node name="encounter_entry_marker_encounter_entry_marker_980" parent="Zones/GeneratedByRoomEditor" instance=ExtResource("4_zone")]
-position = Vector2(-24.0, 0.0)
+position = Vector2(-45.0, -21.0)
 zone_type = "encounter_trigger"
 zone_role = &"entry"
 tags = PackedStringArray("marker", "encounter")
@@ -52,21 +52,21 @@ zone_role = &"room_walkable"
 tags = PackedStringArray("marker", "nav")
 
 [node name="spawn_robot_mob_marker_spawn_robot_mob_marker_985" parent="Zones/GeneratedByRoomEditor" instance=ExtResource("4_zone")]
-position = Vector2(39.0, -27.0)
+position = Vector2(-6.0, 0.0)
 zone_type = "enemy_spawn"
 zone_role = &"robot_mob"
 enemy_id = &"robot_mob"
 tags = PackedStringArray("spawn", "robot_mob")
 
 [node name="spawn_dasher_marker_spawn_dasher_marker_986" parent="Zones/GeneratedByRoomEditor" instance=ExtResource("4_zone")]
-position = Vector2(-21.0, -12.0)
+position = Vector2(27.0, -18.0)
 zone_type = "enemy_spawn"
 zone_role = &"dasher"
 enemy_id = &"dasher"
 tags = PackedStringArray("spawn", "dasher")
 
 [node name="spawn_arrow_tower_marker_spawn_arrow_tower_marker_987" parent="Zones/GeneratedByRoomEditor" instance=ExtResource("4_zone")]
-position = Vector2(0.0, 0.0)
+position = Vector2(-24.0, -21.0)
 zone_type = "enemy_spawn"
 zone_role = &"arrow_tower"
 enemy_id = &"arrow_tower"

@@ -28,7 +28,7 @@ width_tiles = 3
 
 [node name="GeneratedByRoomEditor" type="Node2D" parent="Zones"]
 [node name="encounter_entry_marker_encounter_entry_marker_1341" parent="Zones/GeneratedByRoomEditor" instance=ExtResource("4_zone")]
-position = Vector2(-27.0, 0.0)
+position = Vector2(-45.0, -54.0)
 zone_type = "encounter_trigger"
 zone_role = &"entry"
 tags = PackedStringArray("marker", "encounter")
@@ -52,14 +52,14 @@ zone_role = &"boss_corner"
 tags = PackedStringArray("marker", "boss", "floor_exit")
 
 [node name="spawn_iron_sentinel_marker_spawn_iron_sentinel_marker_1347" parent="Zones/GeneratedByRoomEditor" instance=ExtResource("4_zone")]
-position = Vector2(0.0, -12.0)
+position = Vector2(0.0, 36.0)
 zone_type = "enemy_spawn"
 zone_role = &"iron_sentinel"
 enemy_id = &"iron_sentinel"
 tags = PackedStringArray("spawn", "iron_sentinel")
 
 [node name="spawn_robot_mob_marker_spawn_robot_mob_marker_1348" parent="Zones/GeneratedByRoomEditor" instance=ExtResource("4_zone")]
-position = Vector2(0.0, 39.0)
+position = Vector2(-3.0, 27.0)
 zone_type = "enemy_spawn"
 zone_role = &"robot_mob"
 enemy_id = &"robot_mob"

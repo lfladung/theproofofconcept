@@ -3,8 +3,9 @@ extends EnemyBase
 
 const LEGACY_MOB_VISUAL_SCENE := preload("res://scenes/visuals/mob_visual.tscn")
 const EnemyStateVisualScript = preload("res://scripts/visuals/enemy_state_visual.gd")
-const SHARDLING_IDLE_SCENE_PATH := "res://art/characters/enemies/shardling_texture.glb"
-const SHARDLING_WALK_SCENE_PATH := "res://art/characters/enemies/shardling_walk.glb"
+const SHARDLING_IDLE_SCENE := preload("res://art/characters/enemies/shardling_texture.glb")
+const SHARDLING_WALK_SCENE := preload("res://art/characters/enemies/shardling_walk.glb")
+const _TELEGRAPH_PROGRESS_STEPS := 12
 
 @export var min_speed := 10.0
 @export var max_speed := 18.0
@@ -55,6 +56,7 @@ var _stun_time_remaining := 0.0
 var _knockback_time_remaining := 0.0
 var _knockback_velocity := Vector2.ZERO
 var _aggro_enabled := true
+var _telegraph_progress_step := -1
 @onready var _nav_agent: NavigationAgent2D = $NavigationAgent2D
 @onready var _dash_contact_hitbox: Hitbox2D = $DashContactHitbox
 
@@ -178,6 +180,7 @@ func _enemy_network_apply_remote_state(state: Dictionary) -> void:
 func _sync_visual_from_body() -> void:
 	if _visual == null:
 		return
+	_visual.set_high_detail_enabled(_should_use_high_detail_visuals())
 	_visual.set_state(_resolve_visual_state_name())
 	_visual.sync_from_2d(global_position, _resolve_visual_facing_direction())
 
@@ -308,36 +311,45 @@ func _update_telegraph_visual() -> void:
 		return
 	if not _is_telegraphing:
 		_telegraph_mesh.visible = false
+		_telegraph_progress_step = -1
 		return
 	_telegraph_mesh.visible = true
 	var progress := clampf(_telegraph_time / maxf(0.01, telegraph_duration), 0.0, 1.0)
 	var dir := _dash_dir.normalized()
-	var right := Vector2(-dir.y, dir.x)
-	var base := global_position
-	var shaft_end := base + dir * maxf(0.1, arrow_length - arrow_head_length)
-	var tip := base + dir * arrow_length
-	var l0 := base + right * arrow_half_width
-	var r0 := base - right * arrow_half_width
-	var l1 := shaft_end + right * arrow_half_width
-	var r1 := shaft_end - right * arrow_half_width
-	var h1 := shaft_end + right * (arrow_half_width * 1.8)
-	var h2 := shaft_end - right * (arrow_half_width * 1.8)
-	var fill_tip := base + dir * (arrow_length * progress)
-
+	_telegraph_mesh.global_position = Vector3(global_position.x, arrow_ground_y, global_position.y)
+	_telegraph_mesh.rotation = Vector3(0.0, atan2(dir.x, dir.y), 0.0)
+	var progress_step := int(round(progress * float(_TELEGRAPH_PROGRESS_STEPS)))
+	if progress_step == _telegraph_progress_step:
+		return
+	_telegraph_progress_step = progress_step
+	var fill_ratio := float(progress_step) / float(_TELEGRAPH_PROGRESS_STEPS)
+	var shaft_end_z := maxf(0.1, arrow_length - arrow_head_length)
+	var tip_z := arrow_length
+	var half_width := arrow_half_width
+	var head_half_width := arrow_half_width * 1.8
+	var fill_tip_z := arrow_length * fill_ratio
 	var imm := ImmediateMesh.new()
 	imm.surface_begin(Mesh.PRIMITIVE_LINES, _outline_mat)
-	for pair in [[l0, l1], [l1, h1], [h1, tip], [tip, h2], [h2, r1], [r1, r0], [r0, l0]]:
-		var a := pair[0] as Vector2
-		var b := pair[1] as Vector2
-		imm.surface_add_vertex(Vector3(a.x, arrow_ground_y, a.y))
-		imm.surface_add_vertex(Vector3(b.x, arrow_ground_y, b.y))
+	for pair in [
+		[Vector3(half_width, 0.0, 0.0), Vector3(half_width, 0.0, shaft_end_z)],
+		[Vector3(half_width, 0.0, shaft_end_z), Vector3(head_half_width, 0.0, shaft_end_z)],
+		[Vector3(head_half_width, 0.0, shaft_end_z), Vector3(0.0, 0.0, tip_z)],
+		[Vector3(0.0, 0.0, tip_z), Vector3(-head_half_width, 0.0, shaft_end_z)],
+		[Vector3(-head_half_width, 0.0, shaft_end_z), Vector3(-half_width, 0.0, shaft_end_z)],
+		[Vector3(-half_width, 0.0, shaft_end_z), Vector3(-half_width, 0.0, 0.0)],
+		[Vector3(-half_width, 0.0, 0.0), Vector3(half_width, 0.0, 0.0)],
+	]:
+		imm.surface_add_vertex(pair[0] as Vector3)
+		imm.surface_add_vertex(pair[1] as Vector3)
 	imm.surface_end()
 
 	imm.surface_begin(Mesh.PRIMITIVE_TRIANGLES, _fill_mat)
-	var tri_a := base + right * (arrow_half_width * 0.55)
-	var tri_b := base - right * (arrow_half_width * 0.55)
-	for v in [tri_a, tri_b, fill_tip]:
-		imm.surface_add_vertex(Vector3(v.x, arrow_ground_y + 0.001, v.y))
+	for v in [
+		Vector3(half_width * 0.55, 0.001, 0.0),
+		Vector3(-half_width * 0.55, 0.001, 0.0),
+		Vector3(0.0, 0.001, fill_tip_z),
+	]:
+		imm.surface_add_vertex(v as Vector3)
 	imm.surface_end()
 	_telegraph_mesh.mesh = imm
 
@@ -348,6 +360,15 @@ func _sync_visual_anim_speed(for_speed: float = -1.0) -> void:
 	var s := for_speed if for_speed > 0.0 else velocity.length()
 	var playback_scale := clampf(s / maxf(min_speed, 0.01), 0.35, 2.5) if s > 0.05 else 1.0
 	_visual.set_playback_speed_scale(playback_scale)
+
+
+func _should_use_high_detail_visuals() -> bool:
+	if _is_telegraphing or _is_dashing or _stun_time_remaining > 0.0:
+		return true
+	if _target_player != null and is_instance_valid(_target_player):
+		var detail_range := maxf(stop_distance + dash_distance, 18.0)
+		return global_position.distance_squared_to(_target_player.global_position) <= detail_range * detail_range
+	return velocity.length_squared() > 0.04
 
 
 func take_hit(damage: int, knockback_dir: Vector2, knockback_strength: float) -> void:
@@ -473,8 +494,8 @@ func _resolve_visual_facing_direction() -> Vector2:
 
 
 func _build_visual_state_config() -> Dictionary:
-	var idle_scene := _load_visual_scene(SHARDLING_IDLE_SCENE_PATH)
-	var walk_scene := _load_visual_scene(SHARDLING_WALK_SCENE_PATH)
+	var idle_scene := SHARDLING_IDLE_SCENE
+	var walk_scene := SHARDLING_WALK_SCENE
 	if idle_scene == null and walk_scene == null:
 		return {
 			&"idle": {
@@ -501,8 +522,3 @@ func _build_visual_state_config() -> Dictionary:
 			"keywords": ["walk", "run", "moving"],
 		},
 	}
-
-
-func _load_visual_scene(path: String) -> PackedScene:
-	var resource := load(path)
-	return resource as PackedScene if resource is PackedScene else null

@@ -33,7 +33,15 @@ var _preview_dock: Control
 var _preview_popout_window: Window
 var _preview_popout_dock: Control
 var _room_canvas: Control
-var _last_edited_room: RoomBase
+var _last_edited_room_ref: WeakRef
+var _last_edited_room: RoomBase:
+	get:
+		if _last_edited_room_ref == null:
+			return null
+		var resolved := _last_edited_room_ref.get_ref()
+		return resolved as RoomBase
+	set(value):
+		_last_edited_room_ref = weakref(value) if value != null else null
 var _drag_item_id := ""
 var _last_drag_cell := _NO_CELL
 

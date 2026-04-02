@@ -8,11 +8,12 @@ signal downed_state_changed(is_downed: bool)
 signal loadout_changed(snapshot: Dictionary)
 signal loadout_request_failed(message: String)
 
-const ARROW_PROJECTILE_SCENE := preload("res://scenes/entities/arrow_projectile.tscn")
+const ArrowProjectilePoolScript = preload("res://scripts/entities/arrow_projectile_pool.gd")
 const PLAYER_BOMB_SCENE := preload("res://scenes/entities/player_bomb.tscn")
 const PLAYER_VISUAL_SCENE := preload("res://scenes/visuals/player_visual.tscn")
 const LoadoutConstants = preload("res://scripts/loadout/loadout_constants.gd")
 const DamagePacketScript = preload("res://scripts/combat/damage_packet.gd")
+const _MULTIPLAYER_DEBUG_LOGGING := false
 const REVIVE_HEALTH := 50
 
 enum WeaponMode { SWORD, GUN, BOMB }
@@ -48,11 +49,11 @@ enum WeaponMode { SWORD, GUN, BOMB }
 @export var melee_charge_knockback_max_mult := 1.12
 ## Ground Y for debug mesh (XZ play plane ↔ 3D).
 @export var melee_debug_ground_y := 0.04
-@export var show_melee_hit_debug := true
+@export var show_melee_hit_debug := false
 ## Y offset on XZ plane for body collision overlays (below melee quad so layers read clearly).
 @export var hitbox_debug_ground_y := 0.028
-@export var show_player_hitbox_debug := true
-@export var show_mob_hitbox_debug := true
+@export var show_player_hitbox_debug := false
+@export var show_mob_hitbox_debug := false
 @export var show_shield_block_debug := false
 @export var debug_visual_update_interval := 0.05
 @export var hitbox_debug_circle_segments := 40
@@ -495,7 +496,7 @@ func set_network_owner_peer_id(peer_id: int) -> void:
 	set_multiplayer_authority(network_owner_peer_id, true)
 	if _loadout_owner_id == &"":
 		_loadout_owner_id = StringName("peer_%s" % [network_owner_peer_id])
-	if OS.is_debug_build():
+	if OS.is_debug_build() and _MULTIPLAYER_DEBUG_LOGGING:
 		var has_peer := multiplayer.multiplayer_peer != null
 		var local_peer := multiplayer.get_unique_id() if has_peer else 1
 		var local_authority := is_multiplayer_authority() if has_peer else network_owner_peer_id == local_peer
@@ -1363,13 +1364,14 @@ func _spawn_player_ranged_arrow(
 		if existing_v is ArrowProjectile and is_instance_valid(existing_v):
 			return true
 	var vw := get_node_or_null("../../VisualWorld3D") as Node3D
-	var arrow := ARROW_PROJECTILE_SCENE.instantiate() as ArrowProjectile
+	var arrow := ArrowProjectilePoolScript.acquire_projectile(parent)
 	if arrow == null:
 		return false
 	arrow.damage = ranged_damage
 	arrow.speed = ranged_speed
 	arrow.max_distance = ranged_max_tiles * world_units_per_tile
 	arrow.knockback_strength = ranged_knockback
+	arrow.mesh_scale = Vector3(1.6, 1.6, 1.6)
 	if arrow.has_method(&"set_authoritative_damage"):
 		arrow.call(&"set_authoritative_damage", authoritative_damage)
 	arrow.configure(
@@ -1381,7 +1383,6 @@ func _spawn_player_ranged_arrow(
 		projectile_event_id,
 		charge_size_mult
 	)
-	parent.add_child(arrow)
 	if authoritative_damage and _is_server_peer() and projectile_event_id > 0 and arrow.has_signal(&"projectile_finished"):
 		arrow.projectile_finished.connect(
 			_on_server_authoritative_ranged_projectile_finished.bind(projectile_event_id),

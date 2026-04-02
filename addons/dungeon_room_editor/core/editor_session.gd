@@ -15,7 +15,15 @@ signal visible_layer_changed(layer_filter: StringName)
 
 enum ToolMode { PLACE, SELECT, ERASE, ROTATE }
 
-var room: RoomBase
+var _room_ref: WeakRef
+var room: RoomBase:
+	get:
+		if _room_ref == null:
+			return null
+		var resolved := _room_ref.get_ref()
+		return resolved as RoomBase
+	set(value):
+		_room_ref = weakref(value) if value != null else null
 var layout
 var layout_path := ""
 var catalog

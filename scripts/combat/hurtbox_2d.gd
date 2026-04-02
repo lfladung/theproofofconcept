@@ -12,13 +12,15 @@ class_name Hurtbox2D
 func _ready() -> void:
 	monitoring = false
 	monitorable = active
-	queue_redraw()
+	if debug_draw_enabled:
+		queue_redraw()
 
 
 func set_active(enabled: bool) -> void:
 	active = enabled
 	monitorable = enabled
-	queue_redraw()
+	if debug_draw_enabled:
+		queue_redraw()
 
 
 func is_active() -> bool:

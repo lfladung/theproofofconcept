@@ -1,16 +1,17 @@
 extends EnemyBase
 class_name IronSentinelMob
 
-const SENTINEL_IDLE_SCENE_PATH := "res://art/characters/enemies/Iron_Sentinel/Iron_Sentinel_Idle.glb"
-const SENTINEL_BLOCK_SCENE_PATH := "res://art/characters/enemies/Iron_Sentinel/Iron_Sentinel_Block.glb"
-const SENTINEL_WALK_BLOCK_SCENE_PATH := "res://art/characters/enemies/Iron_Sentinel/Iron_Sentinel_Walk_and_Block.glb"
-const SENTINEL_RUN_SCENE_PATH := "res://art/characters/enemies/Iron_Sentinel/Iron_Sentinel_Running.glb"
-const SENTINEL_PUNCH_SCENE_PATH := "res://art/characters/enemies/Iron_Sentinel/Iron_Sentinel_Left_Hook_from_Guard.glb"
-const SENTINEL_STOMP_SCENE_PATH := "res://art/characters/enemies/Iron_Sentinel/Iron_Sentinel_Ground_Stomp.glb"
-const SENTINEL_FALL_SCENE_PATH := "res://art/characters/enemies/Iron_Sentinel/Iron_Sentinel_Falling_down.glb"
-const SENTINEL_STAND_UP_SCENE_PATH := "res://art/characters/enemies/Iron_Sentinel/Iron_Sentinel_Stand_Up.glb"
+const SENTINEL_IDLE_SCENE := preload("res://art/characters/enemies/Iron_Sentinel/Iron_Sentinel_Idle.glb")
+const SENTINEL_BLOCK_SCENE := preload("res://art/characters/enemies/Iron_Sentinel/Iron_Sentinel_Block.glb")
+const SENTINEL_WALK_BLOCK_SCENE := preload("res://art/characters/enemies/Iron_Sentinel/Iron_Sentinel_Walk_and_Block.glb")
+const SENTINEL_RUN_SCENE := preload("res://art/characters/enemies/Iron_Sentinel/Iron_Sentinel_Running.glb")
+const SENTINEL_PUNCH_SCENE := preload("res://art/characters/enemies/Iron_Sentinel/Iron_Sentinel_Left_Hook_from_Guard.glb")
+const SENTINEL_STOMP_SCENE := preload("res://art/characters/enemies/Iron_Sentinel/Iron_Sentinel_Ground_Stomp.glb")
+const SENTINEL_FALL_SCENE := preload("res://art/characters/enemies/Iron_Sentinel/Iron_Sentinel_Falling_down.glb")
+const SENTINEL_STAND_UP_SCENE := preload("res://art/characters/enemies/Iron_Sentinel/Iron_Sentinel_Stand_Up.glb")
 const SentinelDamagePacketScript = preload("res://scripts/combat/damage_packet.gd")
 const EnemyStateVisualScript = preload("res://scripts/visuals/enemy_state_visual.gd")
+const _TELEGRAPH_PROGRESS_STEPS := 12
 
 enum AttackState {
 	NONE,
@@ -54,6 +55,7 @@ enum RecoveryState {
 @export var mesh_scale := Vector3(5.1, 5.1, 5.1)
 @export var facing_yaw_offset_deg := 0.0
 @export var telegraph_ground_y := 0.06
+@export var show_guard_debug_visual := false
 @export var guard_debug_ground_y := 0.08
 @export var guard_debug_radius := 8.5
 
@@ -85,10 +87,13 @@ var _recovery_elapsed := 0.0
 var _recovery_duration := 0.0
 var _recovery_playback_speed_scale := 1.0
 var _guard_break_accumulated_damage := 0.0
+var _telegraph_cache_key := ""
 
 @onready var _nav_agent: NavigationAgent2D = $NavigationAgent2D
 @onready var _punch_hitbox: Hitbox2D = $PunchHitbox
 @onready var _stomp_hitbox: Hitbox2D = $StompHitbox
+@onready var _punch_shape_node: CollisionShape2D = $PunchHitbox/CollisionShape2D
+@onready var _stomp_shape_node: CollisionShape2D = $StompHitbox/CollisionShape2D
 
 
 func apply_speed_multiplier(multiplier: float) -> void:
@@ -121,7 +126,8 @@ func _ready() -> void:
 		vw.add_child(vis)
 		_visual = vis
 		_create_telegraph_mesh(vw)
-		_create_guard_debug_mesh(vw)
+		if show_guard_debug_visual:
+			_create_guard_debug_mesh(vw)
 	_sync_visual()
 	if _nav_agent != null:
 		_nav_agent.path_desired_distance = 0.75
@@ -265,6 +271,7 @@ func _start_attack(next_attack_state: int, direction: Vector2) -> void:
 	_guard_advancing = false
 	_guard_break_accumulated_damage = 0.0
 	velocity = Vector2.ZERO
+	_refresh_attack_hitboxes()
 	var visual_state := _visual_state_name()
 	var attack_duration := 0.0
 	if _visual != null:
@@ -423,16 +430,14 @@ func _activate_stomp_hitbox() -> void:
 
 func _refresh_attack_hitboxes() -> void:
 	if _punch_hitbox != null:
-		var shape_node := _punch_hitbox.get_node_or_null("CollisionShape2D") as CollisionShape2D
-		if shape_node != null and shape_node.shape is RectangleShape2D:
-			var rect := shape_node.shape as RectangleShape2D
+		if _punch_shape_node != null and _punch_shape_node.shape is RectangleShape2D:
+			var rect := _punch_shape_node.shape as RectangleShape2D
 			rect.size = Vector2(punch_width, punch_reach)
 		_punch_hitbox.position = _attack_dir * (punch_reach * 0.45)
 		_punch_hitbox.rotation = _attack_dir.angle() + PI * 0.5
 	if _stomp_hitbox != null:
-		var stomp_shape_node := _stomp_hitbox.get_node_or_null("CollisionShape2D") as CollisionShape2D
-		if stomp_shape_node != null and stomp_shape_node.shape is CircleShape2D:
-			var circle := stomp_shape_node.shape as CircleShape2D
+		if _stomp_shape_node != null and _stomp_shape_node.shape is CircleShape2D:
+			var circle := _stomp_shape_node.shape as CircleShape2D
 			circle.radius = stomp_radius
 		_stomp_hitbox.position = Vector2.ZERO
 
@@ -477,7 +482,7 @@ func _sync_visual() -> void:
 		_sync_guard_debug_visual()
 		return
 	var facing_dir := _resolve_visual_facing_direction()
-	_refresh_attack_hitboxes()
+	_visual.set_high_detail_enabled(_should_use_high_detail_visuals())
 	_visual.set_state(_visual_state_name())
 	_visual.sync_from_2d(global_position, facing_dir)
 	if _recovery_state == RecoveryState.DOWNED_HOLD:
@@ -494,6 +499,15 @@ func _sync_visual() -> void:
 		playback_scale *= _recovery_playback_speed_scale
 	_visual.set_playback_speed_scale(playback_scale)
 	_sync_guard_debug_visual(facing_dir)
+
+
+func _should_use_high_detail_visuals() -> bool:
+	if _attack_state != AttackState.NONE or _recovery_state != RecoveryState.NONE:
+		return true
+	if _target_player != null and is_instance_valid(_target_player):
+		var detail_range := maxf(melee_range, punch_reach) + 8.0
+		return global_position.distance_squared_to(_target_player.global_position) <= detail_range * detail_range
+	return _guard_advancing or velocity.length_squared() > 0.04
 
 
 func _resolve_visual_facing_direction() -> Vector2:
@@ -518,14 +532,14 @@ func _refresh_target_player(delta: float, allow_retarget: bool = true) -> void:
 
 
 func _build_visual_state_config() -> Dictionary:
-	var idle_scene := _load_visual_scene(SENTINEL_IDLE_SCENE_PATH)
-	var block_scene := _load_visual_scene(SENTINEL_BLOCK_SCENE_PATH)
-	var walk_block_scene := _load_visual_scene(SENTINEL_WALK_BLOCK_SCENE_PATH)
-	var walk_scene := _load_visual_scene(SENTINEL_RUN_SCENE_PATH)
-	var punch_scene := _load_visual_scene(SENTINEL_PUNCH_SCENE_PATH)
-	var stomp_scene := _load_visual_scene(SENTINEL_STOMP_SCENE_PATH)
-	var fall_scene := _load_visual_scene(SENTINEL_FALL_SCENE_PATH)
-	var stand_up_scene := _load_visual_scene(SENTINEL_STAND_UP_SCENE_PATH)
+	var idle_scene := SENTINEL_IDLE_SCENE
+	var block_scene := SENTINEL_BLOCK_SCENE
+	var walk_block_scene := SENTINEL_WALK_BLOCK_SCENE
+	var walk_scene := SENTINEL_RUN_SCENE
+	var punch_scene := SENTINEL_PUNCH_SCENE
+	var stomp_scene := SENTINEL_STOMP_SCENE
+	var fall_scene := SENTINEL_FALL_SCENE
+	var stand_up_scene := SENTINEL_STAND_UP_SCENE
 	if block_scene == null:
 		block_scene = idle_scene
 	if walk_block_scene == null:
@@ -574,11 +588,6 @@ func _build_visual_state_config() -> Dictionary:
 			"keywords": ["stand", "up", "rise"],
 		},
 	}
-
-
-func _load_visual_scene(path: String) -> PackedScene:
-	var resource := load(path)
-	return resource as PackedScene if resource is PackedScene else null
 
 
 func _create_telegraph_mesh(parent: Node3D) -> void:
@@ -659,7 +668,7 @@ func _build_guard_debug_mesh() -> ImmediateMesh:
 
 
 func _sync_guard_debug_visual(facing_dir: Vector2 = Vector2.ZERO) -> void:
-	if _guard_debug_mesh == null:
+	if not show_guard_debug_visual or _guard_debug_mesh == null:
 		return
 	var guard_active := is_directional_guard_active()
 	_guard_debug_mesh.visible = guard_active
@@ -683,12 +692,25 @@ func _update_attack_telegraph_visual(
 		return
 	if not active or attack_state == AttackState.NONE:
 		_telegraph_mesh.visible = false
+		_telegraph_cache_key = ""
 		return
 	_telegraph_mesh.visible = true
+	var progress_step := int(round(clampf(progress, 0.0, 1.0) * float(_TELEGRAPH_PROGRESS_STEPS)))
+	var cache_key := "%s:%s" % [attack_state, progress_step]
+	if attack_state == AttackState.PUNCH:
+		var dir := direction.normalized() if direction.length_squared() > 0.0001 else Vector2(0.0, -1.0)
+		_telegraph_mesh.global_position = Vector3(global_position.x, telegraph_ground_y, global_position.y)
+		_telegraph_mesh.rotation = Vector3(0.0, atan2(dir.x, dir.y), 0.0)
+	else:
+		_telegraph_mesh.global_position = Vector3(global_position.x, telegraph_ground_y, global_position.y)
+		_telegraph_mesh.rotation = Vector3.ZERO
+	if cache_key == _telegraph_cache_key:
+		return
+	_telegraph_cache_key = cache_key
 	var imm := ImmediateMesh.new()
 	if attack_state == AttackState.STOMP:
 		_fill_mat.albedo_color = Color(0.95, 0.55, 0.18, 0.68)
-		var radius := stomp_radius * clampf(progress, 0.0, 1.0)
+		var radius := stomp_radius * (float(progress_step) / float(_TELEGRAPH_PROGRESS_STEPS))
 		var outer_radius := maxf(stomp_radius, 0.1)
 		var segments := 24
 		imm.surface_begin(Mesh.PRIMITIVE_LINES, _outline_mat)
@@ -697,10 +719,10 @@ func _update_attack_telegraph_visual(
 			var t1 := float(segment_index + 1) / float(segments)
 			var a0 := lerpf(0.0, TAU, t0)
 			var a1 := lerpf(0.0, TAU, t1)
-			var p0 := global_position + Vector2.from_angle(a0) * outer_radius
-			var p1 := global_position + Vector2.from_angle(a1) * outer_radius
-			imm.surface_add_vertex(Vector3(p0.x, telegraph_ground_y, p0.y))
-			imm.surface_add_vertex(Vector3(p1.x, telegraph_ground_y, p1.y))
+			var p0 := Vector3(sin(a0) * outer_radius, 0.0, cos(a0) * outer_radius)
+			var p1 := Vector3(sin(a1) * outer_radius, 0.0, cos(a1) * outer_radius)
+			imm.surface_add_vertex(p0)
+			imm.surface_add_vertex(p1)
 		imm.surface_end()
 		imm.surface_begin(Mesh.PRIMITIVE_TRIANGLES, _fill_mat)
 		for segment_index in range(segments):
@@ -708,36 +730,31 @@ func _update_attack_telegraph_visual(
 			var t1 := float(segment_index + 1) / float(segments)
 			var a0 := lerpf(0.0, TAU, t0)
 			var a1 := lerpf(0.0, TAU, t1)
-			var p0 := global_position + Vector2.from_angle(a0) * radius
-			var p1 := global_position + Vector2.from_angle(a1) * radius
-			imm.surface_add_vertex(Vector3(global_position.x, telegraph_ground_y + 0.001, global_position.y))
-			imm.surface_add_vertex(Vector3(p0.x, telegraph_ground_y + 0.001, p0.y))
-			imm.surface_add_vertex(Vector3(p1.x, telegraph_ground_y + 0.001, p1.y))
+			var p0 := Vector3(sin(a0) * radius, 0.001, cos(a0) * radius)
+			var p1 := Vector3(sin(a1) * radius, 0.001, cos(a1) * radius)
+			imm.surface_add_vertex(Vector3(0.0, 0.001, 0.0))
+			imm.surface_add_vertex(p0)
+			imm.surface_add_vertex(p1)
 		imm.surface_end()
 	else:
 		_fill_mat.albedo_color = Color(0.95, 0.18, 0.18, 0.72)
-		var dir := direction.normalized() if direction.length_squared() > 0.0001 else Vector2(0.0, -1.0)
-		var right := Vector2(-dir.y, dir.x)
 		var half_width := punch_width * 0.5
-		var fill_depth := punch_reach * clampf(progress, 0.0, 1.0)
-		var l0 := global_position + right * half_width
-		var r0 := global_position - right * half_width
-		var l1 := l0 + dir * punch_reach
-		var r1 := r0 + dir * punch_reach
-		var lf := l0 + dir * fill_depth
-		var rf := r0 + dir * fill_depth
+		var fill_depth := punch_reach * (float(progress_step) / float(_TELEGRAPH_PROGRESS_STEPS))
+		var l0 := Vector3(half_width, 0.0, 0.0)
+		var r0 := Vector3(-half_width, 0.0, 0.0)
+		var l1 := Vector3(half_width, 0.0, punch_reach)
+		var r1 := Vector3(-half_width, 0.0, punch_reach)
+		var lf := Vector3(half_width, 0.001, fill_depth)
+		var rf := Vector3(-half_width, 0.001, fill_depth)
 		imm.surface_begin(Mesh.PRIMITIVE_LINES, _outline_mat)
 		for pair in [[l0, l1], [l1, r1], [r1, r0], [r0, l0]]:
-			var a := pair[0] as Vector2
-			var b := pair[1] as Vector2
-			imm.surface_add_vertex(Vector3(a.x, telegraph_ground_y, a.y))
-			imm.surface_add_vertex(Vector3(b.x, telegraph_ground_y, b.y))
+			imm.surface_add_vertex(pair[0] as Vector3)
+			imm.surface_add_vertex(pair[1] as Vector3)
 		imm.surface_end()
 		imm.surface_begin(Mesh.PRIMITIVE_TRIANGLES, _fill_mat)
 		for tri in [[l0, r0, rf], [l0, rf, lf]]:
 			for v in tri:
-				var point := v as Vector2
-				imm.surface_add_vertex(Vector3(point.x, telegraph_ground_y + 0.001, point.y))
+				imm.surface_add_vertex(v as Vector3)
 		imm.surface_end()
 	_telegraph_mesh.mesh = imm
 

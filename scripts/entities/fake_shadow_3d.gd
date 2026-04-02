@@ -14,6 +14,8 @@ class_name FakeShadow3D
 @export var floor_offset := 0.07
 @export var ray_start_height := 3.0
 @export_flags_3d_physics var ground_collision_mask := -1
+@export var mob_shadow_update_interval := 0.12
+@export var disable_for_mobs := true
 
 var _actor: Node2D
 var _visual_world: Node3D
@@ -21,16 +23,20 @@ var _anchor_3d: Node3D
 var _shadow_sprite: Sprite3D
 var _shadow_ray: RayCast3D
 var _disabled_actor_shadow_casting := false
+var _shadow_update_time_remaining := 0.0
 
 static var _shared_shadow_texture: Texture2D
 
 
 func _ready() -> void:
-	set_physics_process(true)
 	_actor = get_parent() as Node2D
 	_visual_world = _resolve_visual_world_3d()
 	if _actor == null:
 		return
+	if disable_for_mobs and _actor.is_in_group(&"mob"):
+		set_physics_process(false)
+		return
+	set_physics_process(true)
 	if _visual_world == null:
 		call_deferred("_late_init_shadow_nodes")
 		return
@@ -51,6 +57,11 @@ func _physics_process(_delta: float) -> void:
 		return
 	if _anchor_3d == null or not is_instance_valid(_anchor_3d):
 		return
+	if _actor.is_in_group(&"mob") and mob_shadow_update_interval > 0.0:
+		_shadow_update_time_remaining = maxf(0.0, _shadow_update_time_remaining - _delta)
+		if _shadow_update_time_remaining > 0.0:
+			return
+		_shadow_update_time_remaining = mob_shadow_update_interval
 	_try_disable_actor_visual_shadows()
 
 	var actor_pos := _actor.global_position

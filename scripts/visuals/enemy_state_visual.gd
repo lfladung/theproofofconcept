@@ -14,7 +14,11 @@ var _active_anim_player: AnimationPlayer
 var _active_clip_name: StringName = &""
 var _playback_speed_scale := 1.0
 var _playback_paused := false
+var _high_detail_enabled := true
 var _active_facing_yaw_offset_deg := 180.0
+var _active_clip_key := ""
+var _clip_roots_by_key: Dictionary = {}
+var _clip_anim_players_by_key: Dictionary = {}
 
 
 func _ready() -> void:
@@ -53,6 +57,11 @@ func set_playback_speed_scale(scale_value: float) -> void:
 
 func set_playback_paused(paused: bool) -> void:
 	_playback_paused = paused
+	_apply_active_anim_speed()
+
+
+func set_high_detail_enabled(enabled: bool) -> void:
+	_high_detail_enabled = enabled
 	_apply_active_anim_speed()
 
 
@@ -106,23 +115,48 @@ func _resolve_state_name(state: StringName) -> StringName:
 
 func _swap_active_clip(desired_scene: PackedScene) -> void:
 	if _active_clip_root != null and is_instance_valid(_active_clip_root):
-		_active_clip_root.queue_free()
+		_active_clip_root.visible = false
 	_active_clip_root = null
 	_active_anim_player = null
 	_active_clip_name = &""
+	_active_clip_key = ""
 	if desired_scene == null or _pivot == null:
 		return
-	var instance := desired_scene.instantiate()
-	if instance is not Node3D:
-		if instance is Node:
-			(instance as Node).queue_free()
-		return
-	_active_clip_root = instance as Node3D
-	_pivot.add_child(_active_clip_root)
+	var clip_key := desired_scene.resource_path
+	if clip_key.is_empty():
+		clip_key = str(desired_scene.get_instance_id())
+	var cached_root_v: Variant = _clip_roots_by_key.get(clip_key, null)
+	if cached_root_v is Node3D and is_instance_valid(cached_root_v):
+		_active_clip_root = cached_root_v as Node3D
+	else:
+		var instance := desired_scene.instantiate()
+		if instance is not Node3D:
+			if instance is Node:
+				(instance as Node).queue_free()
+			return
+		_active_clip_root = instance as Node3D
+		_disable_cast_shadows_recursive(_active_clip_root)
+		_active_clip_root.visible = false
+		_pivot.add_child(_active_clip_root)
+		_clip_roots_by_key[clip_key] = _active_clip_root
+		var anim_player := _find_animation_player(_active_clip_root)
+		if anim_player != null:
+			_clip_anim_players_by_key[clip_key] = anim_player
+	_active_clip_root.visible = true
+	_active_clip_key = clip_key
 
 
 func _play_current_animation(config: Dictionary, restart: bool) -> float:
-	_active_anim_player = _find_animation_player(_active_clip_root)
+	if not _active_clip_key.is_empty():
+		var cached_anim_v: Variant = _clip_anim_players_by_key.get(_active_clip_key, null)
+		if cached_anim_v is AnimationPlayer and is_instance_valid(cached_anim_v):
+			_active_anim_player = cached_anim_v as AnimationPlayer
+		else:
+			_active_anim_player = _find_animation_player(_active_clip_root)
+			if _active_anim_player != null:
+				_clip_anim_players_by_key[_active_clip_key] = _active_anim_player
+	else:
+		_active_anim_player = _find_animation_player(_active_clip_root)
 	if _active_anim_player == null:
 		return 0.0
 	_active_clip_name = _pick_animation_name(config)
@@ -202,6 +236,14 @@ func _ensure_pivot() -> void:
 	add_child(_pivot)
 
 
+func _exit_tree() -> void:
+	for root_v in _clip_roots_by_key.values():
+		if root_v is Node3D and is_instance_valid(root_v):
+			(root_v as Node3D).queue_free()
+	_clip_roots_by_key.clear()
+	_clip_anim_players_by_key.clear()
+
+
 func _find_animation_player(node: Node) -> AnimationPlayer:
 	if node == null:
 		return null
@@ -217,4 +259,13 @@ func _find_animation_player(node: Node) -> AnimationPlayer:
 func _apply_active_anim_speed() -> void:
 	if _active_anim_player == null:
 		return
-	_active_anim_player.speed_scale = 0.0 if _playback_paused else _playback_speed_scale
+	_active_anim_player.speed_scale = 0.0 if (_playback_paused or not _high_detail_enabled) else _playback_speed_scale
+
+
+func _disable_cast_shadows_recursive(node: Node) -> void:
+	if node == null:
+		return
+	if node is GeometryInstance3D:
+		(node as GeometryInstance3D).cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	for child in node.get_children():
+		_disable_cast_shadows_recursive(child)

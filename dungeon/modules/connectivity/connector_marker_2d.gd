@@ -9,6 +9,7 @@ var marker_kind := "entrance"
 var direction := "east"
 
 @export var marker_color := Color(0.62, 0.26, 0.86, 1.0)
+@export var show_marker_visual := false
 @export var connection_tag: StringName = &"standard"
 @export var connector_type: StringName = &"standard"
 @export_range(1, 8, 1) var width_tiles := 3
@@ -23,15 +24,28 @@ func _ready() -> void:
 		connector_type = connection_tag
 	else:
 		connection_tag = connector_type
-	if _visual:
-		_visual.color = marker_color
+	_sync_visual_state()
 	if Engine.is_editor_hint():
 		set_process(true)
 
 
 func _process(_delta: float) -> void:
-	if Engine.is_editor_hint() and _visual:
-		_visual.color = marker_color
+	if Engine.is_editor_hint():
+		_sync_visual_state()
+
+
+func _sync_visual_state() -> void:
+	if _visual == null:
+		return
+	_visual.color = marker_color
+	_visual.visible = _show_marker_visual_value()
+
+
+func _show_marker_visual_value() -> bool:
+	if typeof(show_marker_visual) == TYPE_BOOL:
+		return show_marker_visual
+	show_marker_visual = false
+	return false
 
 
 func marker_signature() -> Dictionary:

@@ -16,7 +16,15 @@ var _preview_aabb_by_scene_path: Dictionary = {}
 var _runtime_floor_material_cache: Dictionary = {}
 
 
-func rebuild_preview(root: Node3D, room: RoomBase, layout, catalog, visible_layer_filter: StringName = &"all") -> void:
+func rebuild_preview(
+	root: Node3D,
+	room: RoomBase,
+	layout,
+	catalog,
+	visible_layer_filter: StringName = &"all",
+	prefer_top_only_floors := false,
+	optimize_runtime_floor_batches := false
+) -> void:
 	if root == null:
 		return
 	for child in root.get_children():
@@ -25,27 +33,183 @@ func rebuild_preview(root: Node3D, room: RoomBase, layout, catalog, visible_laye
 		return
 	var has_floor := _layout_has_category(layout, catalog, &"floor", visible_layer_filter)
 	var has_wall := _layout_has_category(layout, catalog, &"wall", visible_layer_filter)
+	var consumed_floor_item_ids: Dictionary = {}
 	if _layer_visible(visible_layer_filter, &"ground") and not has_floor:
 		root.add_child(_build_floor_shell(room))
+	elif optimize_runtime_floor_batches:
+		var floor_batch := _build_runtime_floor_batch_preview(layout, catalog, room, visible_layer_filter)
+		var batched_nodes := floor_batch.get("nodes", []) as Array
+		for node_v in batched_nodes:
+			if node_v is Node3D:
+				root.add_child(node_v as Node3D)
+		consumed_floor_item_ids = floor_batch.get("consumed_item_ids", {}) as Dictionary
 	if _layer_visible(visible_layer_filter, &"overlay") and not has_wall:
 		root.add_child(_build_wall_shell(room))
 	for item in layout.items:
 		if item == null:
+			continue
+		if consumed_floor_item_ids.has(item.item_id):
 			continue
 		var piece = catalog.find_piece(item.piece_id)
 		if piece == null:
 			continue
 		if not _item_visible(item, piece, visible_layer_filter):
 			continue
-		var node := _build_piece_preview(item, piece, layout, room)
+		if not _should_render_piece_preview(piece):
+			continue
+		var node := _build_piece_preview(item, piece, layout, room, prefer_top_only_floors)
 		if node == null:
 			continue
 		root.add_child(node)
 
 
+func _build_runtime_floor_batch_preview(layout, catalog, room: RoomBase, visible_layer_filter: StringName) -> Dictionary:
+	var grouped_cells: Dictionary = {}
+	var piece_by_group: Dictionary = {}
+	var item_id_by_group_and_cell: Dictionary = {}
+	for item in layout.items:
+		if item == null:
+			continue
+		var piece = catalog.find_piece(item.piece_id)
+		if not _can_batch_runtime_floor_item(item, piece, visible_layer_filter):
+			continue
+		var theme_key := _runtime_floor_theme_for_piece(piece)
+		if theme_key.is_empty():
+			continue
+		var group_key := "%s|%s" % [theme_key, String(item.resolved_placement_layer(piece))]
+		var cells := grouped_cells.get(group_key, {}) as Dictionary
+		cells[item.grid_position] = true
+		grouped_cells[group_key] = cells
+		piece_by_group[group_key] = piece
+		var item_map := item_id_by_group_and_cell.get(group_key, {}) as Dictionary
+		item_map[item.grid_position] = item.item_id
+		item_id_by_group_and_cell[group_key] = item_map
+	var nodes: Array = []
+	var consumed_item_ids: Dictionary = {}
+	for group_key_v in grouped_cells.keys():
+		var group_key := String(group_key_v)
+		var piece = piece_by_group.get(group_key, null)
+		if piece == null:
+			continue
+		var cells := grouped_cells.get(group_key, {}) as Dictionary
+		var item_map := item_id_by_group_and_cell.get(group_key, {}) as Dictionary
+		for rect in _greedy_merge_grid_cells(cells):
+			var origin = rect.get("origin", Vector2i.ZERO) as Vector2i
+			var size = rect.get("size", Vector2i.ONE) as Vector2i
+			var merged := _build_runtime_floor_rect_preview(piece, origin, size, layout, room)
+			if merged != null:
+				nodes.append(merged)
+			for gx in range(origin.x, origin.x + size.x):
+				for gy in range(origin.y, origin.y + size.y):
+					var cell := Vector2i(gx, gy)
+					var item_id_v: Variant = item_map.get(cell, "")
+					var item_id := String(item_id_v)
+					if not item_id.is_empty():
+						consumed_item_ids[item_id] = true
+	return {
+		"nodes": nodes,
+		"consumed_item_ids": consumed_item_ids,
+	}
+
+
+func _can_batch_runtime_floor_item(item, piece, visible_layer_filter: StringName) -> bool:
+	if item == null or piece == null:
+		return false
+	if piece.category != &"floor":
+		return false
+	if not _item_visible(item, piece, visible_layer_filter):
+		return false
+	if piece.footprint != Vector2i.ONE:
+		return false
+	if item.normalized_rotation_steps() != 0:
+		return false
+	return _runtime_floor_material_for_piece(piece) != null
+
+
+func _greedy_merge_grid_cells(cells: Dictionary) -> Array[Dictionary]:
+	var remaining: Dictionary = cells.duplicate(true)
+	var merged: Array[Dictionary] = []
+	while not remaining.is_empty():
+		var start := _top_left_cell_in_keys(remaining.keys())
+		var width := 1
+		while remaining.has(Vector2i(start.x + width, start.y)):
+			width += 1
+		var height := 1
+		var can_extend := true
+		while can_extend:
+			for dx in range(width):
+				if not remaining.has(Vector2i(start.x + dx, start.y + height)):
+					can_extend = false
+					break
+			if can_extend:
+				height += 1
+		for dx in range(width):
+			for dy in range(height):
+				remaining.erase(Vector2i(start.x + dx, start.y + dy))
+		merged.append({
+			"origin": start,
+			"size": Vector2i(width, height),
+		})
+	return merged
+
+
+func _top_left_cell_in_keys(keys: Array) -> Vector2i:
+	var best := Vector2i.ZERO
+	var found := false
+	for key_v in keys:
+		if not key_v is Vector2i:
+			continue
+		var cell := key_v as Vector2i
+		if not found or cell.y < best.y or (cell.y == best.y and cell.x < best.x):
+			best = cell
+			found = true
+	return best
+
+
+func _build_runtime_floor_rect_preview(piece, origin: Vector2i, size: Vector2i, layout, room: RoomBase) -> Node3D:
+	if piece == null or room == null:
+		return null
+	var runtime_floor_material := _runtime_floor_material_for_piece(piece)
+	var root := Node3D.new()
+	root.name = "%s_%s_%s" % [String(piece.piece_id), origin.x, origin.y]
+	var mesh_instance := MeshInstance3D.new()
+	var plane := PlaneMesh.new()
+	var step := GridMath.grid_step(layout, room)
+	var world_size := Vector2(
+		step.x * float(maxi(size.x, 1)),
+		step.y * float(maxi(size.y, 1))
+	)
+	plane.size = world_size
+	mesh_instance.mesh = plane
+	mesh_instance.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	mesh_instance.material_override = _runtime_floor_material_with_tiling(runtime_floor_material, origin, size)
+	var min_corner := GridMath.grid_to_local(origin, layout, room) - step * 0.5
+	var center := min_corner + world_size * 0.5
+	mesh_instance.position = Vector3(center.x, 0.0, center.y)
+	root.add_child(mesh_instance)
+	return root
+
+
+func _runtime_floor_material_with_tiling(material: Material, origin: Vector2i, size: Vector2i) -> Material:
+	if material == null:
+		return _fallback_material(FLOOR_COLOR)
+	if material is BaseMaterial3D:
+		var dup := (material as BaseMaterial3D).duplicate() as BaseMaterial3D
+		dup.uv1_scale = Vector3(float(maxi(size.x, 1)), 1.0, float(maxi(size.y, 1)))
+		dup.uv1_offset = Vector3(float(origin.x), 0.0, float(origin.y))
+		return dup
+	return material.duplicate()
+
+
 func _build_piece_preview(
-	item, piece, layout, room: RoomBase
+	item, piece, layout, room: RoomBase, prefer_top_only_floors := false
 ) -> Node3D:
+	if prefer_top_only_floors and piece != null and piece.category == &"floor":
+		var top_only := _build_top_only_floor_preview(piece)
+		if top_only != null:
+			top_only.name = "%s_%s" % [String(piece.piece_id), item.item_id]
+			configure_piece_instance(top_only, item, piece, layout, room)
+			return top_only
 	var instance = piece.preview_scene.instantiate() as Node3D if piece.preview_scene != null else null
 	if instance == null:
 		instance = _build_fallback_preview(piece, layout, room, item)
@@ -54,6 +218,37 @@ func _build_piece_preview(
 	instance.name = "%s_%s" % [String(piece.piece_id), item.item_id]
 	configure_piece_instance(instance, item, piece, layout, room)
 	return instance
+
+
+func _should_render_piece_preview(piece) -> bool:
+	if piece == null:
+		return false
+	if piece.is_connection_marker():
+		return false
+	if not piece.is_zone_marker():
+		return true
+	return not _zone_marker_preview_hidden(piece.zone_type)
+
+
+func _zone_marker_preview_hidden(zone_type: String) -> bool:
+	return zone_type == "enemy_spawn" or zone_type == "spawn_player" or zone_type == "floor_exit"
+
+
+func _build_top_only_floor_preview(piece) -> Node3D:
+	if piece == null or piece.category != &"floor":
+		return null
+	var root := Node3D.new()
+	var mesh_instance := MeshInstance3D.new()
+	var plane := PlaneMesh.new()
+	plane.size = Vector2.ONE
+	mesh_instance.mesh = plane
+	var runtime_floor_material := _runtime_floor_material_for_piece(piece)
+	if runtime_floor_material != null:
+		mesh_instance.material_override = runtime_floor_material
+	else:
+		mesh_instance.material_override = _fallback_material(FLOOR_COLOR)
+	root.add_child(mesh_instance)
+	return root
 
 
 func configure_piece_instance(

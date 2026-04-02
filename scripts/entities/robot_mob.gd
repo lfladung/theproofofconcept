@@ -1,10 +1,11 @@
 extends EnemyBase
 class_name RobotMob
 
-const ARROW_PROJECTILE_SCENE := preload("res://scenes/entities/arrow_projectile.tscn")
+const ArrowProjectilePoolScript = preload("res://scripts/entities/arrow_projectile_pool.gd")
 const EnemyStateVisualScript = preload("res://scripts/visuals/enemy_state_visual.gd")
-const ROBOT_IDLE_SCENE_PATH := "res://art/characters/enemies/robot_mob_texture.glb"
-const ROBOT_WALK_SCENE_PATH := "res://art/characters/enemies/robot_Walking_withSkin.glb"
+const ROBOT_IDLE_SCENE := preload("res://art/characters/enemies/robot_mob_texture.glb")
+const ROBOT_WALK_SCENE := preload("res://art/characters/enemies/robot_Walking_withSkin.glb")
+const _TELEGRAPH_PROGRESS_STEPS := 12
 
 @export var move_speed := 7.0
 @export var attack_trigger_distance := 11.0
@@ -45,6 +46,7 @@ var _charge_fired := false
 var _cooldown_remaining := 0.0
 var _server_volley_event_sequence := 0
 var _last_applied_volley_event_sequence := -1
+var _telegraph_progress_step := -1
 
 @onready var _nav_agent: NavigationAgent2D = $NavigationAgent2D
 
@@ -241,13 +243,13 @@ func _spawn_robot_projectile(
 	var parent := get_parent()
 	if parent == null:
 		return
-	var projectile := ARROW_PROJECTILE_SCENE.instantiate() as ArrowProjectile
+	var projectile := ArrowProjectilePoolScript.acquire_projectile(parent)
 	if projectile == null:
 		return
 	projectile.speed = projectile_speed
 	projectile.max_distance = projectile_max_distance
 	projectile.damage = projectile_damage
-	projectile.mesh_scale *= projectile_visual_scale_multiplier
+	projectile.mesh_scale = Vector3(1.6, 1.6, 1.6) * projectile_visual_scale_multiplier
 	if projectile.has_method(&"set_authoritative_damage"):
 		projectile.call(&"set_authoritative_damage", authoritative_damage)
 	projectile.configure(
@@ -258,7 +260,6 @@ func _spawn_robot_projectile(
 		&"green",
 		projectile_event_id
 	)
-	parent.add_child(projectile)
 
 
 func _volley_direction_for(base_direction: Vector2, projectile_index: int) -> Vector2:
@@ -310,6 +311,7 @@ func _refresh_target_player(delta: float, allow_retarget: bool = true) -> void:
 func _sync_visual() -> void:
 	if _visual == null:
 		return
+	_visual.set_high_detail_enabled(_should_use_high_detail_visuals())
 	var state := &"idle"
 	if not _is_charging and velocity.length_squared() > 0.01:
 		state = &"walk"
@@ -322,6 +324,15 @@ func _sync_visual() -> void:
 		2.0
 	) if state == &"walk" else 1.0
 	_visual.set_playback_speed_scale(playback_scale)
+
+
+func _should_use_high_detail_visuals() -> bool:
+	if _is_charging:
+		return true
+	if _target_player != null and is_instance_valid(_target_player):
+		var detail_range := attack_trigger_distance + 6.0
+		return global_position.distance_squared_to(_target_player.global_position) <= detail_range * detail_range
+	return velocity.length_squared() > 0.04
 
 
 func _resolve_visual_facing_direction() -> Vector2:
@@ -361,50 +372,56 @@ func _update_charge_telegraph_visual(active: bool, direction: Vector2, progress:
 		return
 	if not active:
 		_telegraph_mesh.visible = false
+		_telegraph_progress_step = -1
 		return
 	_telegraph_mesh.visible = true
 	var dir := direction.normalized() if direction.length_squared() > 0.0001 else Vector2(0.0, -1.0)
+	_telegraph_mesh.global_position = Vector3(global_position.x, telegraph_ground_y, global_position.y)
+	_telegraph_mesh.rotation = Vector3(0.0, atan2(dir.x, dir.y), 0.0)
+	var progress_step := int(round(clampf(progress, 0.0, 1.0) * float(_TELEGRAPH_PROGRESS_STEPS)))
+	if progress_step == _telegraph_progress_step:
+		return
+	_telegraph_progress_step = progress_step
 	var half_angle := deg_to_rad(projectile_total_spread_degrees * 0.5)
-	var center_angle := dir.angle()
 	var radius := maxf(0.5, telegraph_range)
-	var fill_radius := radius * clampf(progress, 0.0, 1.0)
+	var fill_radius := radius * (float(progress_step) / float(_TELEGRAPH_PROGRESS_STEPS))
 	var segments := maxi(8, int(ceil(projectile_total_spread_degrees / 6.0)))
 	var imm := ImmediateMesh.new()
 	imm.surface_begin(Mesh.PRIMITIVE_LINES, _outline_mat)
-	var start_point := global_position + Vector2.from_angle(center_angle - half_angle) * radius
-	var end_point := global_position + Vector2.from_angle(center_angle + half_angle) * radius
-	imm.surface_add_vertex(Vector3(global_position.x, telegraph_ground_y, global_position.y))
-	imm.surface_add_vertex(Vector3(start_point.x, telegraph_ground_y, start_point.y))
-	imm.surface_add_vertex(Vector3(global_position.x, telegraph_ground_y, global_position.y))
-	imm.surface_add_vertex(Vector3(end_point.x, telegraph_ground_y, end_point.y))
+	var start_point := Vector3(sin(-half_angle) * radius, 0.0, cos(-half_angle) * radius)
+	var end_point := Vector3(sin(half_angle) * radius, 0.0, cos(half_angle) * radius)
+	imm.surface_add_vertex(Vector3.ZERO)
+	imm.surface_add_vertex(start_point)
+	imm.surface_add_vertex(Vector3.ZERO)
+	imm.surface_add_vertex(end_point)
 	for segment_index in range(segments):
 		var t0 := float(segment_index) / float(segments)
 		var t1 := float(segment_index + 1) / float(segments)
-		var a0 := lerpf(center_angle - half_angle, center_angle + half_angle, t0)
-		var a1 := lerpf(center_angle - half_angle, center_angle + half_angle, t1)
-		var p0 := global_position + Vector2.from_angle(a0) * radius
-		var p1 := global_position + Vector2.from_angle(a1) * radius
-		imm.surface_add_vertex(Vector3(p0.x, telegraph_ground_y, p0.y))
-		imm.surface_add_vertex(Vector3(p1.x, telegraph_ground_y, p1.y))
+		var a0 := lerpf(-half_angle, half_angle, t0)
+		var a1 := lerpf(-half_angle, half_angle, t1)
+		var p0 := Vector3(sin(a0) * radius, 0.0, cos(a0) * radius)
+		var p1 := Vector3(sin(a1) * radius, 0.0, cos(a1) * radius)
+		imm.surface_add_vertex(p0)
+		imm.surface_add_vertex(p1)
 	imm.surface_end()
 	imm.surface_begin(Mesh.PRIMITIVE_TRIANGLES, _fill_mat)
 	for segment_index in range(segments):
 		var t0 := float(segment_index) / float(segments)
 		var t1 := float(segment_index + 1) / float(segments)
-		var a0 := lerpf(center_angle - half_angle, center_angle + half_angle, t0)
-		var a1 := lerpf(center_angle - half_angle, center_angle + half_angle, t1)
-		var p0 := global_position + Vector2.from_angle(a0) * fill_radius
-		var p1 := global_position + Vector2.from_angle(a1) * fill_radius
-		imm.surface_add_vertex(Vector3(global_position.x, telegraph_ground_y + 0.001, global_position.y))
-		imm.surface_add_vertex(Vector3(p0.x, telegraph_ground_y + 0.001, p0.y))
-		imm.surface_add_vertex(Vector3(p1.x, telegraph_ground_y + 0.001, p1.y))
+		var a0 := lerpf(-half_angle, half_angle, t0)
+		var a1 := lerpf(-half_angle, half_angle, t1)
+		var p0 := Vector3(sin(a0) * fill_radius, 0.001, cos(a0) * fill_radius)
+		var p1 := Vector3(sin(a1) * fill_radius, 0.001, cos(a1) * fill_radius)
+		imm.surface_add_vertex(Vector3(0.0, 0.001, 0.0))
+		imm.surface_add_vertex(p0)
+		imm.surface_add_vertex(p1)
 	imm.surface_end()
 	_telegraph_mesh.mesh = imm
 
 
 func _build_visual_state_config() -> Dictionary:
-	var idle_scene := _load_visual_scene(ROBOT_IDLE_SCENE_PATH)
-	var walk_scene := _load_visual_scene(ROBOT_WALK_SCENE_PATH)
+	var idle_scene := ROBOT_IDLE_SCENE
+	var walk_scene := ROBOT_WALK_SCENE
 	if idle_scene == null:
 		idle_scene = walk_scene
 	if walk_scene == null:
@@ -421,11 +438,6 @@ func _build_visual_state_config() -> Dictionary:
 			"keywords": ["walk", "run", "moving"],
 		},
 	}
-
-
-func _load_visual_scene(path: String) -> PackedScene:
-	var resource := load(path)
-	return resource as PackedScene if resource is PackedScene else null
 
 
 func _pick_target_player() -> Node2D:

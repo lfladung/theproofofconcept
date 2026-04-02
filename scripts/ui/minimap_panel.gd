@@ -12,8 +12,11 @@ const PLAYER_MARKER_FILL := Color(0.98, 0.95, 0.88, 1.0)
 const PLAYER_MARKER_BORDER := Color(0.11, 0.09, 0.07, 1.0)
 const DEFAULT_ROOM_COLOR := Color(0.48, 0.46, 0.43, 0.84)
 const ROOM_COLORS := {
+	"spawn": Color(0.42, 0.62, 0.47, 0.9),
 	"safe": Color(0.42, 0.62, 0.47, 0.86),
 	"connector": Color(0.56, 0.53, 0.47, 0.84),
+	"combat": Color(0.72, 0.43, 0.28, 0.9),
+	"chokepoint": Color(0.67, 0.47, 0.23, 0.9),
 	"arena": Color(0.72, 0.43, 0.28, 0.88),
 	"puzzle": Color(0.33, 0.54, 0.67, 0.88),
 	"treasure": Color(0.83, 0.69, 0.27, 0.9),
@@ -76,6 +79,25 @@ func _draw() -> void:
 		player_world_pos = tracked_player.global_position
 
 	for room_entry in rooms:
+		var fill_color := room_entry.get("color", DEFAULT_ROOM_COLOR) as Color
+		if has_player and _room_entry_contains_world_point(room_entry, player_world_pos):
+			fill_color = fill_color.lerp(CURRENT_ROOM_TINT, 0.35)
+		var cells = room_entry.get("cells", []) as Array
+		if not cells.is_empty():
+			var tile_size := room_entry.get("tile_size", Vector2i(3, 3)) as Vector2i
+			for cell_value in cells:
+				if cell_value is not Vector2i:
+					continue
+				var world_rect := _world_cell_rect(cell_value as Vector2i, tile_size)
+				var draw_rect_local := _map_world_rect_to_draw_rect(
+					world_rect,
+					world_bounds,
+					draw_origin,
+					draw_scale
+				)
+				draw_rect(draw_rect_local, fill_color, true)
+				draw_rect(draw_rect_local, ROOM_OUTLINE_COLOR, false, ROOM_OUTLINE_WIDTH)
+			continue
 		var world_rect := room_entry.get("rect", Rect2()) as Rect2
 		var draw_rect_local := _map_world_rect_to_draw_rect(
 			world_rect,
@@ -83,9 +105,6 @@ func _draw() -> void:
 			draw_origin,
 			draw_scale
 		)
-		var fill_color := room_entry.get("color", DEFAULT_ROOM_COLOR) as Color
-		if has_player and world_rect.has_point(player_world_pos):
-			fill_color = fill_color.lerp(CURRENT_ROOM_TINT, 0.35)
 		draw_rect(draw_rect_local, fill_color, true)
 		draw_rect(draw_rect_local, ROOM_OUTLINE_COLOR, false, ROOM_OUTLINE_WIDTH)
 
@@ -118,13 +137,27 @@ func _collect_rooms() -> Array[Dictionary]:
 		if child is not RoomBase:
 			continue
 		var room := child as RoomBase
+		var authored_cells := _authored_cells(room)
+		var role := _room_role(room)
+		if not authored_cells.is_empty():
+			var tile_size := _room_tile_size(room)
+			rooms.append(
+				{
+					"name": String(room.name),
+					"cells": authored_cells,
+					"tile_size": tile_size,
+					"rect": _rect_from_cells(authored_cells, tile_size),
+					"color": _color_for_room_role(role, room.room_type),
+				}
+			)
+			continue
 		var local_rect := room.get_room_rect_world()
 		var world_rect := Rect2(room.global_position - local_rect.size * 0.5, local_rect.size)
 		rooms.append(
 			{
 				"name": String(room.name),
 				"rect": world_rect,
-				"color": _color_for_room_type(room.room_type),
+				"color": _color_for_room_role(role, room.room_type),
 			}
 		)
 	return rooms
@@ -158,11 +191,67 @@ func _map_world_rect_to_draw_rect(
 	var p0 := _map_world_point_to_draw_point(world_rect.position, world_bounds, draw_origin, draw_scale)
 	var p1 := _map_world_point_to_draw_point(world_rect.end, world_bounds, draw_origin, draw_scale)
 	var top_left := Vector2(minf(p0.x, p1.x), minf(p0.y, p1.y))
-	var size := Vector2(absf(p1.x - p0.x), absf(p1.y - p0.y))
-	return Rect2(top_left, size)
+	var draw_size := Vector2(absf(p1.x - p0.x), absf(p1.y - p0.y))
+	return Rect2(top_left, draw_size)
 
 
-func _color_for_room_type(room_type: String) -> Color:
+func _color_for_room_role(role: String, room_type: String) -> Color:
+	if ROOM_COLORS.has(role):
+		return ROOM_COLORS[role] as Color
 	if ROOM_COLORS.has(room_type):
 		return ROOM_COLORS[room_type] as Color
 	return DEFAULT_ROOM_COLOR
+
+
+func _room_role(room: RoomBase) -> String:
+	if room != null and room.has_meta(&"authored_room_role"):
+		return String(room.get_meta(&"authored_room_role"))
+	return String(room.room_type)
+
+
+func _authored_cells(room: RoomBase) -> Array[Vector2i]:
+	var cells: Array[Vector2i] = []
+	if room == null or not room.has_meta(&"authored_room_occupied_cells_world"):
+		return cells
+	var raw_cells = room.get_meta(&"authored_room_occupied_cells_world")
+	if raw_cells is Array:
+		for value in raw_cells:
+			if value is Vector2i:
+				cells.append(value as Vector2i)
+	return cells
+
+
+func _room_tile_size(room: RoomBase) -> Vector2i:
+	if room != null and room.has_meta(&"authored_room_tile_size"):
+		var meta_value = room.get_meta(&"authored_room_tile_size")
+		if meta_value is Vector2i:
+			return meta_value as Vector2i
+	return room.tile_size if room != null else Vector2i.ONE
+
+
+func _rect_from_cells(cells: Array[Vector2i], tile_size: Vector2i) -> Rect2:
+	if cells.is_empty():
+		return Rect2()
+	var bounds := _world_cell_rect(cells[0], tile_size)
+	for i in range(1, cells.size()):
+		bounds = bounds.merge(_world_cell_rect(cells[i], tile_size))
+	return bounds
+
+
+func _world_cell_rect(cell: Vector2i, tile_size: Vector2i) -> Rect2:
+	var center := Vector2(cell * tile_size)
+	return Rect2(center - Vector2(tile_size) * 0.5, Vector2(tile_size))
+
+
+func _room_entry_contains_world_point(room_entry: Dictionary, world_pos: Vector2) -> bool:
+	var cells = room_entry.get("cells", []) as Array
+	if not cells.is_empty():
+		var tile_size := room_entry.get("tile_size", Vector2i(3, 3)) as Vector2i
+		for cell_value in cells:
+			if cell_value is not Vector2i:
+				continue
+			if _world_cell_rect(cell_value as Vector2i, tile_size).has_point(world_pos):
+				return true
+		return false
+	var world_rect := room_entry.get("rect", Rect2()) as Rect2
+	return world_rect.has_point(world_pos)

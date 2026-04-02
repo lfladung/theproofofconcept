@@ -3,6 +3,7 @@ class_name ArrowProjectile
 
 signal projectile_finished(final_position: Vector2)
 
+const ArrowProjectilePoolScript = preload("res://scripts/entities/arrow_projectile_pool.gd")
 const ARROW_VISUAL_SCENE := preload("res://art/combat/projectiles/a_regular_wooden_arrow_texture.glb")
 const PLAYER_PROJECTILE_VISUAL_SCENE := preload("res://art/combat/projectiles/projectile_red_texture.glb")
 const PLAYER_PROJECTILE_BLUE_VISUAL_SCENE := preload("res://art/combat/projectiles/projectile_blue_texture.glb")
@@ -37,6 +38,11 @@ var _finished := false
 var _projectile_style_id: StringName = &"red"
 var _attack_instance_id := -1
 var _charge_size_mult := 1.0
+var _pooled_enabled := false
+var _base_world_radius := 0.4
+var _base_hitbox_radius := 0.4
+var _visuals_by_key: Dictionary = {}
+var _active_visual_key := ""
 
 
 func configure(
@@ -56,6 +62,10 @@ func configure(
 	_projectile_style_id = projectile_style_id
 	_attack_instance_id = attack_instance_id
 	_charge_size_mult = clampf(charge_size_mult, 1.0, 2.5)
+	_finished = false
+	_traveled = 0.0
+	if is_inside_tree():
+		_activate_runtime_state()
 
 
 func set_authoritative_damage(enabled: bool) -> void:
@@ -64,28 +74,63 @@ func set_authoritative_damage(enabled: bool) -> void:
 		_apply_hitbox_runtime()
 
 
+func set_pooled_enabled(enabled: bool) -> void:
+	_pooled_enabled = enabled
+
+
+func reactivate_from_pool() -> void:
+	if not is_inside_tree():
+		return
+	show()
+	set_physics_process(true)
+	_activate_runtime_state()
+
+
+func deactivate_for_pool() -> void:
+	hide()
+	set_physics_process(false)
+	monitoring = false
+	if _hitbox != null:
+		_hitbox.deactivate()
+	if _visual != null and is_instance_valid(_visual):
+		_visual.visible = false
+	if _debug_hitbox != null and is_instance_valid(_debug_hitbox):
+		_debug_hitbox.visible = false
+
+
 func _ready() -> void:
-	_apply_charge_scale_to_collision_shapes()
-	body_entered.connect(_on_world_body_entered)
+	if _world_shape != null and _world_shape.shape is CircleShape2D:
+		_base_world_radius = (_world_shape.shape as CircleShape2D).radius
+	if _shape != null and _shape.shape is CircleShape2D:
+		_base_hitbox_radius = (_shape.shape as CircleShape2D).radius
+	if not body_entered.is_connected(_on_world_body_entered):
+		body_entered.connect(_on_world_body_entered)
 	if _hitbox != null and not _hitbox.target_resolved.is_connected(_on_hitbox_target_resolved):
 		_hitbox.target_resolved.connect(_on_hitbox_target_resolved)
+	_activate_runtime_state()
+
+
+func _activate_runtime_state() -> void:
+	_apply_charge_scale_to_collision_shapes()
+	monitoring = true
 	_apply_hitbox_runtime()
-	call_deferred("_deferred_setup_visual")
+	_ensure_visual_for_current_style()
+	_sync_visual()
 
 
 func _apply_charge_scale_to_collision_shapes() -> void:
-	if _charge_size_mult <= 1.0001:
-		return
 	if _world_shape != null and _world_shape.shape is CircleShape2D:
-		var base_w: CircleShape2D = _world_shape.shape as CircleShape2D
-		var dup_w := base_w.duplicate() as CircleShape2D
-		dup_w.radius = base_w.radius * _charge_size_mult
+		var dup_w := (_world_shape.shape as CircleShape2D).duplicate() as CircleShape2D
+		dup_w.radius = _base_world_radius * _charge_size_mult
 		_world_shape.shape = dup_w
 	if _shape != null and _shape.shape is CircleShape2D:
-		var base_h: CircleShape2D = _shape.shape as CircleShape2D
-		var dup_h := base_h.duplicate() as CircleShape2D
-		dup_h.radius = base_h.radius * _charge_size_mult
+		var dup_h := (_shape.shape as CircleShape2D).duplicate() as CircleShape2D
+		dup_h.radius = _base_hitbox_radius * _charge_size_mult
 		_shape.shape = dup_h
+	if _debug_hitbox != null and is_instance_valid(_debug_hitbox) and _debug_hitbox.mesh is BoxMesh:
+		var box := _debug_hitbox.mesh as BoxMesh
+		box.size.x = _base_hitbox_radius * _charge_size_mult * 2.0
+		box.size.z = _base_hitbox_radius * _charge_size_mult * 2.0
 
 
 func _apply_hitbox_runtime() -> void:
@@ -115,32 +160,38 @@ func _apply_hitbox_runtime() -> void:
 	_hitbox.activate(packet)
 
 
-func _deferred_setup_visual() -> void:
+func _ensure_visual_for_current_style() -> void:
 	if _vw == null:
 		return
-	var vis_scene: PackedScene = ARROW_VISUAL_SCENE
-	if _fired_by_player:
-		vis_scene = (
-			PLAYER_PROJECTILE_BLUE_VISUAL_SCENE
-			if _projectile_style_id == &"blue"
-			else PLAYER_PROJECTILE_VISUAL_SCENE
-		)
-	elif _projectile_style_id == &"green":
-		vis_scene = HOSTILE_PROJECTILE_GREEN_VISUAL_SCENE
-	if vis_scene != null:
-		var vis := vis_scene.instantiate() as Node3D
-		if vis != null:
-			vis.scale = mesh_scale * (0.5 if _fired_by_player else 1.0) * _charge_size_mult
-			_vw.add_child(vis)
-			_visual = vis
-	if show_debug_hitbox:
+	var visual_key := _visual_cache_key()
+	if visual_key != _active_visual_key:
+		if _visual != null and is_instance_valid(_visual):
+			_visual.visible = false
+		_visual = null
+		_active_visual_key = visual_key
+		var cached_v: Variant = _visuals_by_key.get(visual_key, null)
+		if cached_v is Node3D and is_instance_valid(cached_v):
+			_visual = cached_v as Node3D
+		else:
+			var vis_scene := _visual_scene_for_current_style()
+			if vis_scene != null:
+				var vis := vis_scene.instantiate() as Node3D
+				if vis != null:
+					_disable_cast_shadows_recursive(vis)
+					_visuals_by_key[visual_key] = vis
+					_visual = vis
+		if _visual != null and _visual.get_parent() != _vw:
+			if _visual.get_parent() != null:
+				_visual.get_parent().remove_child(_visual)
+			_vw.add_child(_visual)
+	if _visual != null and is_instance_valid(_visual):
+		_visual.visible = true
+		_visual.scale = _current_visual_scale()
+	if show_debug_hitbox and _debug_hitbox == null:
 		_debug_hitbox = MeshInstance3D.new()
 		_debug_hitbox.name = &"ArrowDebugHitbox"
 		var box := BoxMesh.new()
-		var r := 0.4
-		if _shape != null and _shape.shape is CircleShape2D:
-			r = (_shape.shape as CircleShape2D).radius
-		box.size = Vector3(r * 2.0, debug_hitbox_height, r * 2.0)
+		box.size = Vector3(_base_hitbox_radius * 2.0, debug_hitbox_height, _base_hitbox_radius * 2.0)
 		var mat := StandardMaterial3D.new()
 		mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 		mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
@@ -156,10 +207,45 @@ func _deferred_setup_visual() -> void:
 		_debug_hitbox.mesh = box
 		_debug_hitbox.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		_vw.add_child(_debug_hitbox)
-	_sync_visual()
+	if _debug_hitbox != null and is_instance_valid(_debug_hitbox):
+		_debug_hitbox.visible = show_debug_hitbox
+
+
+func _visual_scene_for_current_style() -> PackedScene:
+	if _fired_by_player:
+		return (
+			PLAYER_PROJECTILE_BLUE_VISUAL_SCENE
+			if _projectile_style_id == &"blue"
+			else PLAYER_PROJECTILE_VISUAL_SCENE
+		)
+	if _projectile_style_id == &"green":
+		return HOSTILE_PROJECTILE_GREEN_VISUAL_SCENE
+	return ARROW_VISUAL_SCENE
+
+
+func _visual_cache_key() -> String:
+	var scene := _visual_scene_for_current_style()
+	if scene == null:
+		return ""
+	return "%s|%s|%s" % [scene.resource_path, String(_projectile_style_id), "p" if _fired_by_player else "e"]
+
+
+func _current_visual_scale() -> Vector3:
+	return mesh_scale * (0.5 if _fired_by_player else 1.0) * _charge_size_mult
+
+
+func _disable_cast_shadows_recursive(node: Node) -> void:
+	if node == null:
+		return
+	if node is GeometryInstance3D:
+		(node as GeometryInstance3D).cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	for child in node.get_children():
+		_disable_cast_shadows_recursive(child)
 
 
 func _physics_process(delta: float) -> void:
+	if _finished:
+		return
 	var step := _direction * speed * delta
 	global_position += step
 	_traveled = global_position.distance_to(_start_pos)
@@ -184,8 +270,12 @@ func _finish_projectile() -> void:
 	_finished = true
 	if _hitbox != null:
 		_hitbox.deactivate()
+	monitoring = false
 	projectile_finished.emit(global_position)
-	queue_free()
+	if _pooled_enabled:
+		ArrowProjectilePoolScript.release_projectile(self)
+	else:
+		queue_free()
 
 
 func _on_world_body_entered(body: Node2D) -> void:
@@ -207,7 +297,9 @@ func _on_hitbox_target_resolved(
 
 
 func _exit_tree() -> void:
-	if _visual != null and is_instance_valid(_visual):
-		_visual.queue_free()
+	for visual_v in _visuals_by_key.values():
+		if visual_v is Node3D and is_instance_valid(visual_v):
+			(visual_v as Node3D).queue_free()
+	_visuals_by_key.clear()
 	if _debug_hitbox != null and is_instance_valid(_debug_hitbox):
 		_debug_hitbox.queue_free()

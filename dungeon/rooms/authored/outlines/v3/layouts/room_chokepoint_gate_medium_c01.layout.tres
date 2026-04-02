@@ -1,4 +1,4 @@
-[gd_resource type="Resource" script_class="RoomLayoutData" format=3 uid="uid://befk0jc5ytw1t"]
+[gd_resource type="Resource" script_class="RoomLayoutData" format=3 uid="uid://dfpob6bf4r0do"]
 
 [ext_resource type="Script" uid="uid://bin4dksyxldc0" path="res://addons/dungeon_room_editor/resources/room_placed_item_data.gd" id="1_unkxm"]
 [ext_resource type="Script" uid="uid://dpj57sp322t4g" path="res://addons/dungeon_room_editor/resources/room_layout_data.gd" id="2_2ujm6"]
@@ -6256,7 +6256,7 @@ script = ExtResource("1_unkxm")
 item_id = "encounter_entry_marker_670"
 piece_id = &"encounter_entry_marker"
 category = &"marker"
-grid_position = Vector2i(-8, 0)
+grid_position = Vector2i(-15, -2)
 tags = PackedStringArray("marker", "encounter")
 placement_layer = &"overlay"
 
@@ -6282,7 +6282,7 @@ script = ExtResource("1_unkxm")
 item_id = "barrel_blocker_673"
 piece_id = &"barrel_blocker"
 category = &"prop"
-grid_position = Vector2i(-8, 8)
+grid_position = Vector2i(11, 8)
 tags = PackedStringArray("prop", "blocker")
 placement_layer = &"overlay"
 blocks_movement = true
@@ -6292,7 +6292,7 @@ script = ExtResource("1_unkxm")
 item_id = "barrel_blocker_674"
 piece_id = &"barrel_blocker"
 category = &"prop"
-grid_position = Vector2i(13, -5)
+grid_position = Vector2i(-12, -8)
 tags = PackedStringArray("prop", "blocker")
 placement_layer = &"overlay"
 blocks_movement = true
@@ -6302,7 +6302,7 @@ script = ExtResource("1_unkxm")
 item_id = "barrel_blocker_675"
 piece_id = &"barrel_blocker"
 category = &"prop"
-grid_position = Vector2i(13, -1)
+grid_position = Vector2i(-4, -3)
 tags = PackedStringArray("prop", "blocker")
 placement_layer = &"overlay"
 blocks_movement = true
@@ -6312,7 +6312,7 @@ script = ExtResource("1_unkxm")
 item_id = "spawn_robot_mob_marker_676"
 piece_id = &"spawn_robot_mob_marker"
 category = &"spawn"
-grid_position = Vector2i(4, -7)
+grid_position = Vector2i(0, -7)
 tags = PackedStringArray("spawn", "robot_mob")
 encounter_group_id = &"combat_main"
 placement_layer = &"overlay"
@@ -6322,7 +6322,7 @@ script = ExtResource("1_unkxm")
 item_id = "spawn_dasher_marker_677"
 piece_id = &"spawn_dasher_marker"
 category = &"spawn"
-grid_position = Vector2i(5, -3)
+grid_position = Vector2i(0, -8)
 tags = PackedStringArray("spawn", "dasher")
 encounter_group_id = &"combat_main"
 placement_layer = &"overlay"
@@ -6332,7 +6332,7 @@ script = ExtResource("1_unkxm")
 item_id = "spawn_arrow_tower_marker_678"
 piece_id = &"spawn_arrow_tower_marker"
 category = &"spawn"
-grid_position = Vector2i(0, -2)
+grid_position = Vector2i(0, 8)
 tags = PackedStringArray("spawn", "arrow_tower")
 encounter_group_id = &"combat_main"
 placement_layer = &"overlay"

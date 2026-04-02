@@ -31,7 +31,8 @@ func _ready() -> void:
 	monitoring = false
 	monitorable = false
 	set_physics_process(false)
-	queue_redraw()
+	if debug_draw_enabled:
+		queue_redraw()
 
 
 func activate(packet_template: DamagePacket, duration_sec: float = -1.0) -> int:
@@ -50,7 +51,8 @@ func activate(packet_template: DamagePacket, duration_sec: float = -1.0) -> int:
 	_present_targets.clear()
 	_last_resolved_count = 0
 	set_physics_process(true)
-	queue_redraw()
+	if debug_draw_enabled:
+		queue_redraw()
 	_log("activated %s" % [_packet_template.describe()])
 	hitbox_activated.emit(_packet_template, _packet_template.attack_instance_id)
 	_scan_hurtboxes()
@@ -66,7 +68,8 @@ func deactivate() -> void:
 	_present_targets.clear()
 	_last_resolved_count = 0
 	set_physics_process(false)
-	queue_redraw()
+	if debug_draw_enabled:
+		queue_redraw()
 	_log("deactivated")
 	hitbox_deactivated.emit()
 
@@ -106,7 +109,8 @@ func _physics_process(delta: float) -> void:
 	_scan_hurtboxes()
 	if _duration_remaining == 0.0:
 		deactivate()
-	queue_redraw()
+	elif debug_draw_enabled:
+		queue_redraw()
 
 
 func _scan_hurtboxes() -> void:

@@ -2,7 +2,8 @@ extends EnemyBase
 class_name ArrowTowerMob
 
 const TOWER_VISUAL_SCENE := preload("res://art/combat/towers/stylized_arrow_tower_texture.glb")
-const ARROW_PROJECTILE_SCENE := preload("res://scenes/entities/arrow_projectile.tscn")
+const ArrowProjectilePoolScript = preload("res://scripts/entities/arrow_projectile_pool.gd")
+const _TELEGRAPH_PROGRESS_STEPS := 12
 
 @export var range_tiles := 5.0
 @export var world_units_per_tile := 3.0
@@ -34,6 +35,7 @@ var _net_telegraph_progress := 0.0
 var _server_arrow_event_sequence := 0
 var _last_applied_arrow_event_sequence := -1
 var _remote_projectiles_by_event_id: Dictionary = {}
+var _telegraph_progress_step := -1
 
 
 func _ready() -> void:
@@ -45,6 +47,7 @@ func _ready() -> void:
 	if vw != null and TOWER_VISUAL_SCENE != null:
 		var vis := TOWER_VISUAL_SCENE.instantiate() as Node3D
 		if vis != null:
+			_disable_cast_shadows_recursive(vis)
 			vis.scale = mesh_scale
 			vw.add_child(vis)
 			_visual = vis
@@ -125,10 +128,7 @@ func _refresh_target_lock(range_world: float) -> void:
 	var tree := get_tree()
 	if tree != null:
 		var range_world_sq := range_world * range_world
-		for node in tree.get_nodes_in_group(&"player"):
-			if node is not Node2D:
-				continue
-			var candidate := node as Node2D
+		for candidate in _targetable_player_candidates():
 			if not _is_targetable_player(candidate):
 				continue
 			var candidate_d2 := global_position.distance_squared_to(candidate.global_position)
@@ -222,12 +222,13 @@ func _spawn_tower_arrow(
 		var existing_v: Variant = _remote_projectiles_by_event_id.get(projectile_event_id, null)
 		if existing_v is ArrowProjectile and is_instance_valid(existing_v):
 			return true
-	var arrow := ARROW_PROJECTILE_SCENE.instantiate() as ArrowProjectile
+	var arrow := ArrowProjectilePoolScript.acquire_projectile(parent)
 	if arrow == null:
 		return false
 	arrow.speed = arrow_speed
 	arrow.max_distance = arrow_max_tiles * world_units_per_tile
 	arrow.damage = arrow_damage
+	arrow.mesh_scale = Vector3(1.6, 1.6, 1.6)
 	if arrow.has_method(&"set_authoritative_damage"):
 		arrow.call(&"set_authoritative_damage", authoritative_damage)
 	arrow.configure(spawn_position, dir, _vw, false, &"red", projectile_event_id)
@@ -240,6 +241,15 @@ func _spawn_tower_arrow(
 	elif not authoritative_damage and projectile_event_id > 0:
 		_remote_projectiles_by_event_id[projectile_event_id] = arrow
 	return true
+
+
+func _disable_cast_shadows_recursive(node: Node) -> void:
+	if node == null:
+		return
+	if node is GeometryInstance3D:
+		(node as GeometryInstance3D).cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	for child in node.get_children():
+		_disable_cast_shadows_recursive(child)
 
 
 @rpc("any_peer", "call_remote", "reliable")
@@ -297,36 +307,45 @@ func _update_telegraph_visual(in_range: bool, dir: Vector2, progress: float) -> 
 		return
 	if not in_range:
 		_telegraph_mesh.visible = false
+		_telegraph_progress_step = -1
 		return
 	_telegraph_mesh.visible = true
-	var d := dir.normalized() if dir.length_squared() > 0.0001 else Vector2(0.0, -1.0)
-	var right := Vector2(-d.y, d.x)
-	var base := global_position
+	var facing := dir.normalized() if dir.length_squared() > 0.0001 else Vector2(0.0, -1.0)
+	_telegraph_mesh.global_position = Vector3(global_position.x, telegraph_ground_y, global_position.y)
+	_telegraph_mesh.rotation = Vector3(0.0, atan2(facing.x, facing.y), 0.0)
+	var progress_step := int(round(clampf(progress, 0.0, 1.0) * float(_TELEGRAPH_PROGRESS_STEPS)))
+	if progress_step == _telegraph_progress_step:
+		return
+	_telegraph_progress_step = progress_step
+	var fill_ratio := float(progress_step) / float(_TELEGRAPH_PROGRESS_STEPS)
 	var shaft_len := maxf(0.1, telegraph_arrow_length - telegraph_arrow_head_length)
-	var shaft_end := base + d * shaft_len
-	var tip := base + d * telegraph_arrow_length
-	var l0 := base + right * telegraph_arrow_half_width
-	var r0 := base - right * telegraph_arrow_half_width
-	var l1 := shaft_end + right * telegraph_arrow_half_width
-	var r1 := shaft_end - right * telegraph_arrow_half_width
-	var h1 := shaft_end + right * (telegraph_arrow_half_width * 1.8)
-	var h2 := shaft_end - right * (telegraph_arrow_half_width * 1.8)
-	var fill_tip := base + d * (telegraph_arrow_length * progress)
-
+	var shaft_end_z := shaft_len
+	var tip_z := telegraph_arrow_length
+	var half_width := telegraph_arrow_half_width
+	var head_half_width := telegraph_arrow_half_width * 1.8
+	var fill_tip_z := telegraph_arrow_length * fill_ratio
 	var imm := ImmediateMesh.new()
 	imm.surface_begin(Mesh.PRIMITIVE_LINES, _outline_mat)
-	for pair in [[l0, l1], [l1, h1], [h1, tip], [tip, h2], [h2, r1], [r1, r0], [r0, l0]]:
-		var a := pair[0] as Vector2
-		var b := pair[1] as Vector2
-		imm.surface_add_vertex(Vector3(a.x, telegraph_ground_y, a.y))
-		imm.surface_add_vertex(Vector3(b.x, telegraph_ground_y, b.y))
+	for pair in [
+		[Vector3(half_width, 0.0, 0.0), Vector3(half_width, 0.0, shaft_end_z)],
+		[Vector3(half_width, 0.0, shaft_end_z), Vector3(head_half_width, 0.0, shaft_end_z)],
+		[Vector3(head_half_width, 0.0, shaft_end_z), Vector3(0.0, 0.0, tip_z)],
+		[Vector3(0.0, 0.0, tip_z), Vector3(-head_half_width, 0.0, shaft_end_z)],
+		[Vector3(-head_half_width, 0.0, shaft_end_z), Vector3(-half_width, 0.0, shaft_end_z)],
+		[Vector3(-half_width, 0.0, shaft_end_z), Vector3(-half_width, 0.0, 0.0)],
+		[Vector3(-half_width, 0.0, 0.0), Vector3(half_width, 0.0, 0.0)],
+	]:
+		imm.surface_add_vertex(pair[0] as Vector3)
+		imm.surface_add_vertex(pair[1] as Vector3)
 	imm.surface_end()
 
 	imm.surface_begin(Mesh.PRIMITIVE_TRIANGLES, _fill_mat)
-	var tri_a := base + right * (telegraph_arrow_half_width * 0.55)
-	var tri_b := base - right * (telegraph_arrow_half_width * 0.55)
-	for v in [tri_a, tri_b, fill_tip]:
-		imm.surface_add_vertex(Vector3(v.x, telegraph_ground_y + 0.001, v.y))
+	for v in [
+		Vector3(half_width * 0.55, 0.001, 0.0),
+		Vector3(-half_width * 0.55, 0.001, 0.0),
+		Vector3(0.0, 0.001, fill_tip_z),
+	]:
+		imm.surface_add_vertex(v as Vector3)
 	imm.surface_end()
 	_telegraph_mesh.mesh = imm
 

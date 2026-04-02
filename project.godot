@@ -18,7 +18,6 @@ config/name="Squash The Creeps"
 config/description="In this game, your goal is to chase and kick out the creeps!"
 run/main_scene="res://scenes/ui/lobby_menu.tscn"
 config/features=PackedStringArray("4.6")
-run/max_fps=60
 config/icon="res://icon.webp"
 
 [autoload]

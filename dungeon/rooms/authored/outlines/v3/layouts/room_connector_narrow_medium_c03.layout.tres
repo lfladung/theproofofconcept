@@ -1,7 +1,7 @@
-[gd_resource type="Resource" script_class="RoomLayoutData" format=3 uid="uid://2ibm84svbt0m"]
+[gd_resource type="Resource" script_class="RoomLayoutData" format=3]
 
-[ext_resource type="Script" uid="uid://bin4dksyxldc0" path="res://addons/dungeon_room_editor/resources/room_placed_item_data.gd" id="1_npjt2"]
-[ext_resource type="Script" uid="uid://dpj57sp322t4g" path="res://addons/dungeon_room_editor/resources/room_layout_data.gd" id="2_liuve"]
+[ext_resource type="Script" path="res://addons/dungeon_room_editor/resources/room_placed_item_data.gd" id="1_npjt2"]
+[ext_resource type="Script" path="res://addons/dungeon_room_editor/resources/room_layout_data.gd" id="2_liuve"]
 
 [sub_resource type="Resource" id="Resource_y4nmc"]
 script = ExtResource("1_npjt2")
@@ -3872,7 +3872,7 @@ script = ExtResource("1_npjt2")
 item_id = "encounter_entry_marker_410"
 piece_id = &"encounter_entry_marker"
 category = &"marker"
-grid_position = Vector2i(-3, 0)
+grid_position = Vector2i(-8, 1)
 tags = PackedStringArray("marker", "encounter")
 placement_layer = &"overlay"
 
@@ -3898,7 +3898,7 @@ script = ExtResource("1_npjt2")
 item_id = "barrel_blocker_413"
 piece_id = &"barrel_blocker"
 category = &"prop"
-grid_position = Vector2i(-4, -7)
+grid_position = Vector2i(-5, -5)
 tags = PackedStringArray("prop", "blocker")
 placement_layer = &"overlay"
 blocks_movement = true
@@ -3908,7 +3908,7 @@ script = ExtResource("1_npjt2")
 item_id = "barrel_blocker_414"
 piece_id = &"barrel_blocker"
 category = &"prop"
-grid_position = Vector2i(0, 3)
+grid_position = Vector2i(-5, -9)
 tags = PackedStringArray("prop", "blocker")
 placement_layer = &"overlay"
 blocks_movement = true
@@ -3918,7 +3918,7 @@ script = ExtResource("1_npjt2")
 item_id = "spawn_melee_marker_415"
 piece_id = &"spawn_melee_marker"
 category = &"spawn"
-grid_position = Vector2i(0, -4)
+grid_position = Vector2i(4, -1)
 tags = PackedStringArray("spawn")
 encounter_group_id = &"combat_main"
 placement_layer = &"overlay"

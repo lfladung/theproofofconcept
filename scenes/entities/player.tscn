@@ -21,10 +21,10 @@ collision_layer = 1
 collision_mask = 6
 motion_mode = 1
 script = ExtResource("1")
-show_melee_hit_debug = true
+show_melee_hit_debug = false
 show_player_hitbox_debug = false
-show_mob_hitbox_debug = true
-show_shield_block_debug = true
+show_mob_hitbox_debug = false
+show_shield_block_debug = false
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="."]
 shape = SubResource("CircleShape2D_body")
