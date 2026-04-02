@@ -1353,22 +1353,3 @@ func _host_error_message(err: int, port: int) -> String:
 			) % [port]
 		_:
 			return "Failed to host lobby on port %s (error %s)." % [port, err]
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

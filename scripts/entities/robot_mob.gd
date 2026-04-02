@@ -33,6 +33,7 @@ var _vw: Node3D
 var _telegraph_mesh: MeshInstance3D
 var _outline_mat: StandardMaterial3D
 var _fill_mat: StandardMaterial3D
+var _telegraph_meshes: Array[Mesh] = []
 var _target_player: Node2D
 var _target_refresh_time_remaining := 0.0
 var _repath_time_remaining := 0.0
@@ -364,6 +365,9 @@ func _create_telegraph_mesh(parent: Node3D) -> void:
 	_fill_mat.cull_mode = BaseMaterial3D.CULL_DISABLED
 	_telegraph_mesh.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	_telegraph_mesh.visible = false
+	_telegraph_meshes.clear()
+	for step in range(_TELEGRAPH_PROGRESS_STEPS + 1):
+		_telegraph_meshes.append(_build_telegraph_mesh_for_step(step))
 	parent.add_child(_telegraph_mesh)
 
 
@@ -382,6 +386,11 @@ func _update_charge_telegraph_visual(active: bool, direction: Vector2, progress:
 	if progress_step == _telegraph_progress_step:
 		return
 	_telegraph_progress_step = progress_step
+	if progress_step >= 0 and progress_step < _telegraph_meshes.size():
+		_telegraph_mesh.mesh = _telegraph_meshes[progress_step]
+
+
+func _build_telegraph_mesh_for_step(progress_step: int) -> Mesh:
 	var half_angle := deg_to_rad(projectile_total_spread_degrees * 0.5)
 	var radius := maxf(0.5, telegraph_range)
 	var fill_radius := radius * (float(progress_step) / float(_TELEGRAPH_PROGRESS_STEPS))
@@ -416,7 +425,7 @@ func _update_charge_telegraph_visual(active: bool, direction: Vector2, progress:
 		imm.surface_add_vertex(p0)
 		imm.surface_add_vertex(p1)
 	imm.surface_end()
-	_telegraph_mesh.mesh = imm
+	return imm
 
 
 func _build_visual_state_config() -> Dictionary:

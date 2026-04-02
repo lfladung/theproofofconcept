@@ -199,8 +199,36 @@ const _EQUIPMENT_HANDGUN_BONE_KEYWORDS: Array[String] = ["righthand", "right_han
 const _EQUIPMENT_BOMB_BONE_KEYWORDS: Array[String] = ["spine", "chest", "torso", "back", "hips"]
 const _BASE_MODEL_HELMET_VISOR_MESH_NAME: StringName = &"Knight_HelmetVisor"
 const _BASE_MODEL_VISOR_FOLLOW_KEY: StringName = &"BaseModelVisor"
+const _ANIMTREE_UPPER_BODY_BONES: Array[StringName] = [
+	&"spine",
+	&"chest",
+	&"head",
+	&"upperarm.l",
+	&"lowerarm.l",
+	&"hand.l",
+	&"handslot.l",
+	&"upperarm.r",
+	&"lowerarm.r",
+	&"hand.r",
+	&"handslot.r",
+]
+const _ANIM_STATE_LOCOMOTION: StringName = &"Locomotion"
+const _ANIM_STATE_ATTACK_MELEE: StringName = &"AttackMelee"
+const _ANIM_STATE_ATTACK_RANGED: StringName = &"AttackRanged"
+const _ANIM_STATE_ATTACK_BOMB: StringName = &"AttackBomb"
+const _ANIM_STATE_DOWNED: StringName = &"Downed"
+const _ANIM_LOCOMOTION_STATE_NAMES: Array[StringName] = [
+	_ANIM_STATE_LOCOMOTION,
+	_ANIM_STATE_ATTACK_MELEE,
+	_ANIM_STATE_ATTACK_RANGED,
+	_ANIM_STATE_ATTACK_BOMB,
+]
+const _ANIM_XFADE_FAST := 0.08
+const _ANIM_XFADE_DOWNED := 0.03
 
 var _anim: AnimationPlayer
+var _anim_tree: AnimationTree
+var _anim_state_playback: AnimationNodeStateMachinePlayback
 var _attack_playing: bool = false
 var _attack_nonce := 0
 var _attack_profile_elapsed := 0.0
@@ -255,6 +283,8 @@ var _sword_equipped := true
 var _sword_active := true
 var _handgun_equipped := true
 var _handgun_active := false
+var _anim_tree_skeleton_track_prefix := "Rig_Medium/Skeleton3D"
+var _normalized_speed_ratio := 0.0
 
 
 func _effective_editor_t_pose_preview() -> bool:
@@ -312,6 +342,7 @@ func _ready() -> void:
 		_merge_anim_libraries_from_candidates(_DEFEND_GLB_CANDIDATES, &"base_defend")
 		_merge_anim_libraries_from_candidates(_DOWNED_GLB_CANDIDATES, &"base_downed")
 		_cache_role_clips()
+		_setup_animation_tree()
 		if not (Engine.is_editor_hint() and _effective_editor_t_pose_preview()):
 			_play_locomotion(false, 1.0)
 	_setup_modular_equipment()
@@ -353,7 +384,13 @@ func _process(_delta: float) -> void:
 		return
 	if _attack_playing:
 		_attack_profile_elapsed = min(_attack_profile_elapsed + _delta, _attack_profile_duration)
-	if _defending_hold_active and _anim != null and not _anim.is_playing() and _defend_clip != &"":
+	if (
+		_defending_hold_active
+		and _anim != null
+		and not _is_animation_tree_active()
+		and not _anim.is_playing()
+		and _defend_clip != &""
+	):
 		_anim.play(_defend_clip)
 		_anim.speed_scale = 1.0
 	if Engine.is_editor_hint() and editor_preview_apply:
@@ -2002,6 +2039,252 @@ func _cache_role_clips() -> void:
 		_bomb_clip = _melee_clip
 	if _run_clip == &"":
 		_run_clip = _idle_clip
+	_set_clip_looping(_idle_clip, true)
+	_set_clip_looping(_run_clip, true)
+	_set_clip_looping(_defend_clip, true)
+
+
+func _set_clip_looping(clip: StringName, should_loop: bool) -> void:
+	if _anim == null or clip == &"":
+		return
+	var anim_res := _anim.get_animation(clip)
+	if anim_res == null:
+		return
+	anim_res.loop_mode = Animation.LOOP_LINEAR if should_loop else Animation.LOOP_NONE
+
+
+func _setup_animation_tree() -> void:
+	if _anim == null:
+		return
+	if Engine.is_editor_hint() and _effective_editor_t_pose_preview():
+		return
+	_anim_tree_skeleton_track_prefix = _detect_animation_tree_skeleton_track_prefix()
+	var tree := _find_or_create_animation_tree()
+	if tree == null:
+		return
+	var state_machine := AnimationNodeStateMachine.new()
+	state_machine.add_node(
+		_ANIM_STATE_LOCOMOTION, _build_locomotion_state_tree(), Vector2(0.0, 0.0)
+	)
+	state_machine.add_node(
+		_ANIM_STATE_ATTACK_MELEE,
+		_build_attack_state_tree(_melee_clip, &"action_blend"),
+		Vector2(280.0, -120.0)
+	)
+	state_machine.add_node(
+		_ANIM_STATE_ATTACK_RANGED,
+		_build_attack_state_tree(_ranged_clip, &"action_blend"),
+		Vector2(280.0, 0.0)
+	)
+	state_machine.add_node(
+		_ANIM_STATE_ATTACK_BOMB,
+		_build_attack_state_tree(_bomb_clip, &"action_blend"),
+		Vector2(280.0, 120.0)
+	)
+	var downed_node := AnimationNodeAnimation.new()
+	downed_node.animation = _downed_clip
+	state_machine.add_node(_ANIM_STATE_DOWNED, downed_node, Vector2(560.0, 0.0))
+	_add_state_machine_transition(
+		state_machine, _ANIM_STATE_LOCOMOTION, _ANIM_STATE_ATTACK_MELEE, _ANIM_XFADE_FAST
+	)
+	_add_state_machine_transition(
+		state_machine, _ANIM_STATE_LOCOMOTION, _ANIM_STATE_ATTACK_RANGED, _ANIM_XFADE_FAST
+	)
+	_add_state_machine_transition(
+		state_machine, _ANIM_STATE_LOCOMOTION, _ANIM_STATE_ATTACK_BOMB, _ANIM_XFADE_FAST
+	)
+	_add_state_machine_transition(
+		state_machine, _ANIM_STATE_ATTACK_MELEE, _ANIM_STATE_LOCOMOTION, _ANIM_XFADE_FAST
+	)
+	_add_state_machine_transition(
+		state_machine, _ANIM_STATE_ATTACK_RANGED, _ANIM_STATE_LOCOMOTION, _ANIM_XFADE_FAST
+	)
+	_add_state_machine_transition(
+		state_machine, _ANIM_STATE_ATTACK_BOMB, _ANIM_STATE_LOCOMOTION, _ANIM_XFADE_FAST
+	)
+	for from_state in [
+		_ANIM_STATE_LOCOMOTION,
+		_ANIM_STATE_ATTACK_MELEE,
+		_ANIM_STATE_ATTACK_RANGED,
+		_ANIM_STATE_ATTACK_BOMB,
+	]:
+		_add_state_machine_transition(
+			state_machine, from_state, _ANIM_STATE_DOWNED, _ANIM_XFADE_DOWNED
+		)
+	_add_state_machine_transition(
+		state_machine, _ANIM_STATE_DOWNED, _ANIM_STATE_LOCOMOTION, _ANIM_XFADE_FAST
+	)
+	tree.anim_player = tree.get_path_to(_anim)
+	tree.tree_root = state_machine
+	tree.active = true
+	_anim_tree = tree
+	_anim_state_playback = tree.get("parameters/playback") as AnimationNodeStateMachinePlayback
+	if _anim_state_playback != null:
+		_anim_state_playback.start(_ANIM_STATE_LOCOMOTION, true)
+	_sync_animation_tree_parameters()
+
+
+func _find_or_create_animation_tree() -> AnimationTree:
+	var existing := get_node_or_null(^"AnimationTree") as AnimationTree
+	if existing != null and is_instance_valid(existing):
+		return existing
+	var created := AnimationTree.new()
+	created.name = &"AnimationTree"
+	add_child(created)
+	_mark_editor_owned(created)
+	return created
+
+
+func _build_locomotion_state_tree() -> AnimationNodeBlendTree:
+	var tree := AnimationNodeBlendTree.new()
+	var idle_node := AnimationNodeAnimation.new()
+	idle_node.animation = _idle_clip
+	var run_node := AnimationNodeAnimation.new()
+	run_node.animation = _run_clip
+	var defend_node := AnimationNodeAnimation.new()
+	defend_node.animation = _defend_clip
+	var speed_blend := AnimationNodeBlend2.new()
+	var defend_blend := AnimationNodeBlend2.new()
+	_apply_upper_body_filter(defend_blend)
+	tree.add_node(&"idle", idle_node, Vector2(-560.0, -120.0))
+	tree.add_node(&"run", run_node, Vector2(-560.0, 0.0))
+	tree.add_node(&"defend", defend_node, Vector2(-560.0, 120.0))
+	tree.add_node(&"speed_blend", speed_blend, Vector2(-280.0, -40.0))
+	tree.add_node(&"defend_blend", defend_blend, Vector2(0.0, -20.0))
+	tree.connect_node(&"speed_blend", 0, &"idle")
+	tree.connect_node(&"speed_blend", 1, &"run")
+	tree.connect_node(&"defend_blend", 0, &"speed_blend")
+	tree.connect_node(&"defend_blend", 1, &"defend")
+	tree.connect_node(&"output", 0, &"defend_blend")
+	return tree
+
+
+func _build_attack_state_tree(
+	action_clip: StringName, blend_node_name: StringName = &"action_blend"
+) -> AnimationNodeBlendTree:
+	var tree := AnimationNodeBlendTree.new()
+	var idle_node := AnimationNodeAnimation.new()
+	idle_node.animation = _idle_clip
+	var run_node := AnimationNodeAnimation.new()
+	run_node.animation = _run_clip
+	var action_node := AnimationNodeAnimation.new()
+	action_node.animation = action_clip
+	var speed_blend := AnimationNodeBlend2.new()
+	var action_blend := AnimationNodeBlend2.new()
+	_apply_upper_body_filter(action_blend)
+	tree.add_node(&"idle", idle_node, Vector2(-560.0, -120.0))
+	tree.add_node(&"run", run_node, Vector2(-560.0, 0.0))
+	tree.add_node(&"action", action_node, Vector2(-560.0, 120.0))
+	tree.add_node(&"speed_blend", speed_blend, Vector2(-280.0, -20.0))
+	tree.add_node(blend_node_name, action_blend, Vector2(0.0, 0.0))
+	tree.connect_node(&"speed_blend", 0, &"idle")
+	tree.connect_node(&"speed_blend", 1, &"run")
+	tree.connect_node(blend_node_name, 0, &"speed_blend")
+	tree.connect_node(blend_node_name, 1, &"action")
+	tree.connect_node(&"output", 0, blend_node_name)
+	return tree
+
+
+func _add_state_machine_transition(
+	state_machine: AnimationNodeStateMachine,
+	from_state: StringName,
+	to_state: StringName,
+	xfade_time: float
+) -> void:
+	var transition := AnimationNodeStateMachineTransition.new()
+	transition.xfade_time = xfade_time
+	transition.switch_mode = AnimationNodeStateMachineTransition.SWITCH_MODE_IMMEDIATE
+	transition.advance_mode = AnimationNodeStateMachineTransition.ADVANCE_MODE_DISABLED
+	transition.reset = true
+	state_machine.add_transition(from_state, to_state, transition)
+
+
+func _detect_animation_tree_skeleton_track_prefix() -> String:
+	for clip in [_defend_clip, _melee_clip, _ranged_clip, _bomb_clip, _run_clip, _idle_clip]:
+		var prefix := _animation_track_prefix_for_clip(clip)
+		if not prefix.is_empty():
+			return prefix
+	return "Rig_Medium/Skeleton3D"
+
+
+func _animation_track_prefix_for_clip(clip: StringName) -> String:
+	if _anim == null or clip == &"":
+		return ""
+	var anim_res := _anim.get_animation(clip)
+	if anim_res == null:
+		return ""
+	for i in range(anim_res.get_track_count()):
+		var path_text := String(anim_res.track_get_path(i))
+		var colon_idx := path_text.rfind(":")
+		if colon_idx > 0:
+			return path_text.substr(0, colon_idx)
+	return ""
+
+
+func _apply_upper_body_filter(node: AnimationNode) -> void:
+	if node == null:
+		return
+	node.set_filter_enabled(true)
+	var prefix := _anim_tree_skeleton_track_prefix
+	for bone_name in _ANIMTREE_UPPER_BODY_BONES:
+		node.set_filter_path(NodePath("%s:%s" % [prefix, String(bone_name)]), true)
+
+
+func _is_animation_tree_active() -> bool:
+	return _anim_tree != null and is_instance_valid(_anim_tree) and _anim_tree.active
+
+
+func _set_animation_tree_enabled(active: bool) -> void:
+	if _anim_tree == null or not is_instance_valid(_anim_tree):
+		return
+	_anim_tree.active = active
+
+
+func _set_animation_tree_parameter(path: String, value: Variant) -> void:
+	if not _is_animation_tree_active():
+		return
+	_anim_tree.set(path, value)
+
+
+func _travel_animation_state(state_name: StringName, reset: bool = true) -> void:
+	if _anim_state_playback == null:
+		return
+	_anim_state_playback.travel(state_name, reset)
+
+
+func _current_animation_state() -> StringName:
+	if _anim_state_playback == null:
+		return &""
+	return _anim_state_playback.get_current_node()
+
+
+func _sync_animation_tree_parameters() -> void:
+	if _anim_tree == null or not is_instance_valid(_anim_tree):
+		return
+	_set_animation_tree_enabled(not (Engine.is_editor_hint() and _effective_editor_t_pose_preview()))
+	if not _is_animation_tree_active():
+		return
+	for state_name in _ANIM_LOCOMOTION_STATE_NAMES:
+		_set_animation_tree_parameter(
+			"parameters/%s/speed_blend/blend_amount" % [String(state_name)],
+			_normalized_speed_ratio
+		)
+	_set_animation_tree_parameter(
+		"parameters/%s/defend_blend/blend_amount" % [String(_ANIM_STATE_LOCOMOTION)],
+		1.0 if _defending_hold_active else 0.0
+	)
+	_set_animation_tree_parameter(
+		"parameters/%s/action_blend/blend_amount" % [String(_ANIM_STATE_ATTACK_MELEE)],
+		1.0
+	)
+	_set_animation_tree_parameter(
+		"parameters/%s/action_blend/blend_amount" % [String(_ANIM_STATE_ATTACK_RANGED)],
+		1.0
+	)
+	_set_animation_tree_parameter(
+		"parameters/%s/action_blend/blend_amount" % [String(_ANIM_STATE_ATTACK_BOMB)],
+		1.0
+	)
 
 
 func _pick_locomotion_clip(running: bool) -> StringName:
@@ -2020,24 +2303,28 @@ func _pick_locomotion_clip(running: bool) -> StringName:
 
 
 func _play_locomotion(moving: bool, speed_scale: float) -> void:
+	_last_locomotion_moving = moving
+	_last_locomotion_speed_scale = speed_scale
+	_normalized_speed_ratio = clampf(speed_scale if _last_locomotion_moving else 0.0, 0.0, 1.0)
+	if _is_animation_tree_active():
+		_sync_animation_tree_parameters()
+		if not _attack_playing and not _downed_hold_active:
+			_travel_animation_state(_ANIM_STATE_LOCOMOTION, false)
+		return
 	if _anim == null or _attack_playing or _downed_hold_active or _defending_hold_active:
 		return
-	var clip := _pick_locomotion_clip(moving and speed_scale * 14.0 >= walk_speed_threshold)
+	var clip := _pick_locomotion_clip(moving)
 	if clip == &"":
 		return
-	_last_locomotion_moving = moving and speed_scale * 14.0 >= walk_speed_threshold
-	_last_locomotion_speed_scale = speed_scale
 	if _anim.current_animation != String(clip) or not _anim.is_playing():
 		_anim.play(clip)
-	_anim.speed_scale = speed_scale if _last_locomotion_moving else 1.0
+	_anim.speed_scale = 1.0
 
 
 func set_locomotion_from_planar_speed(planar_speed: float, max_speed: float) -> void:
-	if _attack_playing or _downed_hold_active or _defending_hold_active:
-		return
 	var moving := planar_speed > 0.05
-	var t := clampf(planar_speed / max(max_speed, 0.001), 0.0, 2.5)
-	_play_locomotion(moving, maxf(t, 0.35) if moving else 1.0)
+	var t := clampf(planar_speed / max(max_speed, 0.001), 0.0, 1.0)
+	_play_locomotion(moving, t if moving else 0.0)
 
 
 func _sync_charge_bar_world_pose() -> void:
@@ -2210,7 +2497,6 @@ func try_play_attack_for_mode(mode: StringName = &"melee") -> void:
 	_attack_nonce += 1
 	_attack_profile_elapsed = 0.0
 	var attack_nonce := _attack_nonce
-	_anim.play(clip)
 	var target_duration := get_attack_duration_seconds_for_mode(mode)
 	var anim_len := _clip_length_seconds(clip)
 	if anim_len <= 0.0:
@@ -2218,10 +2504,22 @@ func try_play_attack_for_mode(mode: StringName = &"melee") -> void:
 		_active_attack_mode = &""
 		_queued_attack_planar_direction = Vector2.ZERO
 		return
-	if anim_len > 0.0 and target_duration > 0.0:
-		_anim.speed_scale = anim_len / target_duration
+	target_duration = maxf(
+		target_duration if anim_len > 0.0 and target_duration > 0.0 else anim_len,
+		0.01
+	)
+	if _is_animation_tree_active():
+		_sync_animation_tree_parameters()
+		match String(normalized_mode):
+			"ranged", "gun":
+				_travel_animation_state(_ANIM_STATE_ATTACK_RANGED)
+			"bomb":
+				_travel_animation_state(_ANIM_STATE_ATTACK_BOMB)
+			_:
+				_travel_animation_state(_ANIM_STATE_ATTACK_MELEE)
 	else:
-		target_duration = maxf(anim_len, 0.01)
+		_anim.play(clip)
+		_anim.speed_scale = anim_len / target_duration if anim_len > 0.0 else 1.0
 	_attack_profile_duration = maxf(target_duration, 0.01)
 	await get_tree().create_timer(maxf(target_duration, 0.01)).timeout
 	if attack_nonce != _attack_nonce:
@@ -2229,6 +2527,8 @@ func try_play_attack_for_mode(mode: StringName = &"melee") -> void:
 	_attack_playing = false
 	_active_attack_mode = &""
 	_queued_attack_planar_direction = Vector2.ZERO
+	if _is_animation_tree_active() and not _downed_hold_active:
+		_travel_animation_state(_ANIM_STATE_LOCOMOTION)
 	_play_locomotion(_last_locomotion_moving, _last_locomotion_speed_scale)
 
 
@@ -2256,6 +2556,9 @@ func set_defending_state(active: bool) -> void:
 		if clip == &"":
 			_defending_hold_active = false
 			return
+		if _is_animation_tree_active():
+			_sync_animation_tree_parameters()
+			return
 		_anim.play(clip)
 		_anim.speed_scale = 1.0
 		return
@@ -2264,6 +2567,9 @@ func set_defending_state(active: bool) -> void:
 	_defending_hold_active = false
 	_active_attack_mode = &""
 	_queued_attack_planar_direction = Vector2.ZERO
+	if _is_animation_tree_active():
+		_sync_animation_tree_parameters()
+		return
 	_anim.speed_scale = 1.0
 	_play_locomotion(_last_locomotion_moving, _last_locomotion_speed_scale)
 
@@ -2280,6 +2586,10 @@ func set_downed_state(is_downed: bool) -> void:
 		_attack_playing = false
 		_active_attack_mode = &""
 		_queued_attack_planar_direction = Vector2.ZERO
+		if _is_animation_tree_active():
+			_sync_animation_tree_parameters()
+			_travel_animation_state(_ANIM_STATE_DOWNED)
+			return
 		_downed_play_nonce += 1
 		_play_downed_once_then_hold(_downed_play_nonce)
 		return
@@ -2291,6 +2601,10 @@ func set_downed_state(is_downed: bool) -> void:
 	_attack_playing = false
 	_active_attack_mode = &""
 	_queued_attack_planar_direction = Vector2.ZERO
+	if _is_animation_tree_active():
+		_sync_animation_tree_parameters()
+		_travel_animation_state(_ANIM_STATE_LOCOMOTION)
+		return
 	_anim.speed_scale = 1.0
 	_play_locomotion(_last_locomotion_moving, _last_locomotion_speed_scale)
 

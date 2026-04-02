@@ -52,7 +52,7 @@ zone_role = &"room_walkable"
 tags = PackedStringArray("marker", "nav")
 
 [node name="spawn_melee_marker_spawn_melee_marker_406" parent="Zones/GeneratedByRoomEditor" instance=ExtResource("4_zone")]
-position = Vector2(3.0, 0.0)
+position = Vector2(21.0, 3.0)
 zone_type = "enemy_spawn"
 zone_role = &"melee"
 tags = PackedStringArray("spawn")

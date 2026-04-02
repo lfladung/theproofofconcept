@@ -14,6 +14,7 @@ class_name FakeShadow3D
 @export var floor_offset := 0.07
 @export var ray_start_height := 3.0
 @export_flags_3d_physics var ground_collision_mask := -1
+@export var non_mob_shadow_update_interval := 0.06
 @export var mob_shadow_update_interval := 0.12
 @export var disable_for_mobs := true
 
@@ -24,6 +25,7 @@ var _shadow_sprite: Sprite3D
 var _shadow_ray: RayCast3D
 var _disabled_actor_shadow_casting := false
 var _shadow_update_time_remaining := 0.0
+var _last_sampled_actor_pos := Vector2.INF
 
 static var _shared_shadow_texture: Texture2D
 
@@ -57,14 +59,23 @@ func _physics_process(_delta: float) -> void:
 		return
 	if _anchor_3d == null or not is_instance_valid(_anchor_3d):
 		return
-	if _actor.is_in_group(&"mob") and mob_shadow_update_interval > 0.0:
+	var update_interval := non_mob_shadow_update_interval
+	if _actor.is_in_group(&"mob"):
+		update_interval = mob_shadow_update_interval
+	if update_interval > 0.0:
 		_shadow_update_time_remaining = maxf(0.0, _shadow_update_time_remaining - _delta)
-		if _shadow_update_time_remaining > 0.0:
+		var actor_pos_now := _actor.global_position
+		var moved_enough := (
+			_last_sampled_actor_pos == Vector2.INF
+			or actor_pos_now.distance_squared_to(_last_sampled_actor_pos) > 0.01
+		)
+		if _shadow_update_time_remaining > 0.0 and not moved_enough:
 			return
-		_shadow_update_time_remaining = mob_shadow_update_interval
+		_shadow_update_time_remaining = update_interval
 	_try_disable_actor_visual_shadows()
 
 	var actor_pos := _actor.global_position
+	_last_sampled_actor_pos = actor_pos
 	_anchor_3d.global_position = Vector3(actor_pos.x, ray_start_height, actor_pos.y)
 	_shadow_ray.target_position = Vector3(0.0, -(ray_start_height + max_shadow_distance), 0.0)
 	_shadow_ray.force_raycast_update()

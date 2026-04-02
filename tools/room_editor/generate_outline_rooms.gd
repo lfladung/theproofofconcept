@@ -803,7 +803,8 @@ func _generate_room(spec: Dictionary, rng: RandomNumberGenerator, report_errors:
 		floor_cells,
 		floor_lookup,
 		opening_cells,
-		hallway_all_cells
+		hallway_all_cells,
+		_room_rect(size)
 	)
 
 	# Randomize blockers/spawns positions after floor exists (optional per spec).
@@ -1291,6 +1292,10 @@ func _normalized_wall_item_for_neighbors(pos: Vector2i, structure_lookup: Dictio
 
 	var horizontal := int(has_left) + int(has_right)
 	var vertical := int(has_up) + int(has_down)
+	if bool(existing.get("_prefer_straight_outer_bend", false)):
+		item["piece_id"] = &"wall_straight"
+		item["rotation_steps"] = 1 if vertical >= horizontal else 0
+		return item
 	if neighbor_count == 2 and horizontal == 1 and vertical == 1:
 		item["piece_id"] = &"wall_corner"
 		item["rotation_steps"] = _corner_rotation_for_walls(has_left, has_right, has_up, has_down)
@@ -1302,9 +1307,6 @@ func _normalized_wall_item_for_neighbors(pos: Vector2i, structure_lookup: Dictio
 	if vertical > 0 and horizontal == 0:
 		item["piece_id"] = &"wall_straight"
 		item["rotation_steps"] = 1
-		return item
-	if existing.get("piece_id", &"") == &"wall_corner":
-		item["rotation_steps"] = _corner_rotation_for_walls(has_left, has_right, has_up, has_down)
 		return item
 	item["piece_id"] = &"wall_straight"
 	item["rotation_steps"] = 1 if vertical >= horizontal else 0
@@ -1361,7 +1363,8 @@ func _build_perimeter_wall_items_for_current_floor(
 	floor_cells: Array[Vector2i],
 	floor_lookup: Dictionary,
 	opening_cells: Dictionary,
-	excluded_cells: Dictionary = {}
+	excluded_cells: Dictionary = {},
+	room_rect: Rect2i = Rect2i()
 ) -> Array[Dictionary]:
 	var out: Array[Dictionary] = []
 	for cell in floor_cells:
@@ -1375,7 +1378,7 @@ func _build_perimeter_wall_items_for_current_floor(
 				break
 		if not should_wall:
 			continue
-		out.append(_wall_item_for_cell(c, floor_lookup, opening_cells))
+		out.append(_wall_item_for_cell(c, floor_lookup, opening_cells, room_rect))
 	out.sort_custom(func(a: Dictionary, b: Dictionary) -> bool:
 		var ap: Vector2i = a.get("position", Vector2i.ZERO) as Vector2i
 		var bp: Vector2i = b.get("position", Vector2i.ZERO) as Vector2i
@@ -1918,7 +1921,12 @@ func _flip_corner_rotation(rot: int) -> int:
 	return posmod(4 - rot, 4)
 
 
-func _wall_item_for_cell(cell: Vector2i, floor_lookup: Dictionary, opening_cells: Dictionary) -> Dictionary:
+func _wall_item_for_cell(
+	cell: Vector2i,
+	floor_lookup: Dictionary,
+	opening_cells: Dictionary,
+	room_rect: Rect2i = Rect2i()
+) -> Dictionary:
 	var has_left := _is_solid_floor_cell(floor_lookup, opening_cells, cell + Vector2i.LEFT)
 	var has_right := _is_solid_floor_cell(floor_lookup, opening_cells, cell + Vector2i.RIGHT)
 	var has_up := _is_solid_floor_cell(floor_lookup, opening_cells, cell + Vector2i.UP)
@@ -1942,6 +1950,19 @@ func _wall_item_for_cell(cell: Vector2i, floor_lookup: Dictionary, opening_cells
 	# 180 deg-> left  + below
 	# 270 deg-> left  + above
 	if missing_count == 2:
+		var prefer_straight_outer_bend := (
+			use_outer_corner
+			and room_rect.size != Vector2i.ZERO
+			and _border_distance(cell, room_rect) >= BORDER_CLEARANCE_TILES
+		)
+		if prefer_straight_outer_bend:
+			var straight_rotation := 1 if (missing_left or missing_right) else 0
+			return {
+				"piece_id": &"wall_straight",
+				"position": cell,
+				"rotation_steps": straight_rotation,
+				"_prefer_straight_outer_bend": true,
+			}
 		var rot := _corner_rotation_for_walls(has_left, has_right, has_up, has_down)
 		return {"piece_id": &"wall_corner", "position": cell, "rotation_steps": rot}
 

@@ -231,7 +231,12 @@ func _should_render_piece_preview(piece) -> bool:
 
 
 func _zone_marker_preview_hidden(zone_type: String) -> bool:
-	return zone_type == "enemy_spawn" or zone_type == "spawn_player" or zone_type == "floor_exit"
+	return (
+		zone_type == "enemy_spawn"
+		or zone_type == "spawn_player"
+		or zone_type == "spawn_exit"
+		or zone_type == "floor_exit"
+	)
 
 
 func _build_top_only_floor_preview(piece) -> Node3D:

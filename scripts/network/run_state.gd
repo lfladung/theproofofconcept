@@ -94,5 +94,3 @@ func _on_session_state_changed(_previous_state: int, current_state: int) -> void
 
 func _session() -> NetworkSessionService:
 	return get_node_or_null("/root/NetworkSession") as NetworkSessionService
-
-

@@ -95,6 +95,7 @@ const _ROOM_SIZE_SCALE := 1.5
 const _BACK_HALF_MIN_RATIO := 0.22
 const _AUTHORED_VISUAL_STREAM_MARGIN := 18.0
 const _AUTHORED_VISUAL_STREAM_UNLOAD_MARGIN := 36.0
+const _AUTHORED_VISUAL_STREAM_BUCKET_SIZE := 96.0
 const _ENEMY_PREWARM_POSITION := Vector2(1000000.0, 1000000.0)
 const _ELEVATOR_PLAYER_SIZE_MULT := 4.0
 const _ELEVATOR_VISUAL_CLEARANCE_Y := 0.12
@@ -204,6 +205,8 @@ var _authored_floor_generator
 var _room_editor_scene_sync
 var _room_preview_builder
 var _authored_room_visual_nodes: Dictionary = {}
+var _authored_room_stream_buckets: Dictionary = {}
+var _authored_room_stream_rooms_by_name: Dictionary = {}
 var _enemy_assets_prewarmed := false
 ## Accumulated LevelBackdropQuad position in Camera3D local XY (Z from BACKDROP_QUAD_DISTANCE).
 var _backdrop_offset_cam := Vector3.ZERO
@@ -215,6 +218,8 @@ var _prev_backdrop_camera_ref := Vector3.ZERO
 @export var fps_counter_update_interval := 0.25
 @export var authored_room_visual_streaming_enabled := true
 @export var authored_room_visual_stream_update_interval := 0.2
+@export var authoritative_maintenance_update_interval := 0.1
+@export var info_label_update_interval := 0.12
 @export var prespawn_encounter_mobs := false
 @export var encounter_spawn_queue_interval := 0.05
 @export var prewarm_enemy_assets := true
@@ -225,6 +230,9 @@ var _fps_counter_label: Label
 var _fps_counter_last_text := ""
 var _fps_counter_refresh_time_remaining := 0.0
 var _authored_room_visual_stream_time_remaining := 0.0
+var _authoritative_maintenance_time_remaining := 0.0
+var _info_label_refresh_time_remaining := 0.0
+var _info_label_last_room_name := ""
 var _encounter_spawn_queue_time_remaining := 0.0
 
 func _ready() -> void:
@@ -738,15 +746,12 @@ func _process(delta: float) -> void:
 	if _camera_follow != null:
 		_camera_follow.tick(delta)
 	_tick_authored_room_visual_streaming(delta)
-	_refresh_info_label_with_room_type()
+	_tick_info_label_refresh(delta)
 	_refresh_combat_debug_overlay(delta)
 	_refresh_fps_counter(delta)
 	if _is_authoritative_world():
 		_process_pending_enemy_spawns(delta)
-		_process_authoritative_revive_and_wipe()
-		_refresh_encounter_state()
-		_try_schedule_floor_advance_if_all_players_on_elevator()
-		_try_schedule_floor_advance_if_all_players_on_debug_elevator()
+		_tick_authoritative_maintenance(delta)
 	_update_backdrop_parallax()
 	_update_backdrop_quad_transform()
 
@@ -941,6 +946,9 @@ func _regenerate_level(randomize_layout: bool) -> void:
 	_party_wipe_pending = false
 	_puzzle_solved = false
 	_puzzle_gate_socket = Vector2.ZERO
+	_info_label_refresh_time_remaining = 0.0
+	_authoritative_maintenance_time_remaining = 0.0
+	_info_label_last_room_name = ""
 	_pending_enemy_spawn_requests.clear()
 	_encounter_spawn_queue_time_remaining = 0.0
 	_clear_floor_loot()
@@ -1501,6 +1509,10 @@ func _destroy_dynamic_rooms() -> void:
 	for c in kids:
 		if c is Node:
 			(c as Node).free()
+	_authored_room_stream_buckets.clear()
+	_authored_room_stream_rooms_by_name.clear()
+	if _room_queries != null:
+		_room_queries.invalidate_cache()
 
 
 func _spawn_rooms_from_layout(layout: Dictionary) -> void:
@@ -1532,6 +1544,8 @@ func _spawn_rooms_from_layout(layout: Dictionary) -> void:
 			room.min_difficulty_tier = 4
 			room.max_difficulty_tier = 8
 		_rooms_root.add_child(room)
+	if _room_queries != null:
+		_room_queries.invalidate_cache()
 
 
 func _spawn_authored_rooms_from_layout(layout: Dictionary) -> bool:
@@ -1577,6 +1591,9 @@ func _spawn_authored_rooms_from_layout(layout: Dictionary) -> bool:
 		room.set_meta(&"authored_connection_markers_world", spec.get("connection_markers", []))
 		room.set_meta(&"authored_zone_markers_world", spec.get("zone_markers", []))
 		spawned_count += 1
+	if _room_queries != null:
+		_room_queries.invalidate_cache()
+	_rebuild_authored_room_stream_buckets()
 	return spawned_count == specs.size() and spawned_count > 0
 
 
@@ -1887,6 +1904,22 @@ func _boss_floor_exit_world_position(exit_key: StringName, boss_room: RoomBase) 
 	return boss_room.global_position + offset
 
 
+func _spawn_exit_world_position(start_room_name: StringName, start_room: RoomBase) -> Vector2:
+	var authored_spawn_exit := _find_zone_marker_world_position(start_room_name, "spawn_exit")
+	if bool(authored_spawn_exit.get("found", false)):
+		return authored_spawn_exit.get("position", Vector2.ZERO)
+	if start_room == null:
+		return Vector2.ZERO
+	var forward := _critical_path_forward_dir_from_start()
+	var back := _opposite_direction(forward)
+	var half := _room_half_extents(start_room)
+	var outward := _direction_vector(back)
+	var inset_x := maxf(0.0, half.x - _BOSS_PORTAL_INSET)
+	var inset_y := maxf(0.0, half.y - _BOSS_PORTAL_INSET)
+	var offset := Vector2(outward.x * inset_x, outward.y * inset_y)
+	return start_room.global_position + offset
+
+
 func _grid_dir_from_delta(d: Vector2i) -> String:
 	if d == Vector2i(1, 0):
 		return "east"
@@ -1968,14 +2001,8 @@ func _position_debug_spawn_exit_portal() -> void:
 	var start_room := _room_by_name(_layout_room_name("start_room"))
 	if start_room == null:
 		return
-	var forward := _critical_path_forward_dir_from_start()
-	var back := _opposite_direction(forward)
-	var half := _room_half_extents(start_room)
-	var outward := _direction_vector(back)
-	var inset_x := maxf(0.0, half.x - _BOSS_PORTAL_INSET)
-	var inset_y := maxf(0.0, half.y - _BOSS_PORTAL_INSET)
-	var off := Vector2(outward.x * inset_x, outward.y * inset_y)
-	_debug_spawn_exit_portal.position = start_room.global_position + off
+	var start_room_name := _layout_room_name("start_room")
+	_debug_spawn_exit_portal.position = _spawn_exit_world_position(start_room_name, start_room)
 	if _debug_spawn_portal_marker != null:
 		_debug_spawn_portal_marker.visible = false
 	_ensure_debug_spawn_exit_elevator_visual()
@@ -2267,18 +2294,20 @@ func _refresh_authored_room_visual_streaming(force: bool) -> void:
 	var focus := _authored_visual_focus_position()
 	var load_rect := _authored_visual_stream_rect(focus, _AUTHORED_VISUAL_STREAM_MARGIN)
 	var unload_rect := _authored_visual_stream_rect(focus, _AUTHORED_VISUAL_STREAM_UNLOAD_MARGIN)
-	for room_node in _rooms_root.get_children():
-		if room_node is not RoomBase:
-			continue
-		var room := room_node as RoomBase
+	for room in _authored_rooms_intersecting_rect(load_rect):
 		var room_key := String(room.name)
 		var room_bounds := _room_queries.room_bounds_rect(room)
 		var should_load := force or load_rect.intersects(room_bounds)
 		if should_load:
 			_ensure_authored_room_visual_loaded(room)
+	for room_key in _authored_room_visual_nodes.keys():
+		var room := _authored_room_stream_rooms_by_name.get(room_key, null) as RoomBase
+		if room == null or not is_instance_valid(room):
+			_unload_authored_room_visual(String(room_key))
 			continue
-		if _authored_room_visual_nodes.has(room_key) and not unload_rect.intersects(room_bounds):
-			_unload_authored_room_visual(room_key)
+		var room_bounds := _room_queries.room_bounds_rect(room)
+		if not unload_rect.intersects(room_bounds):
+			_unload_authored_room_visual(String(room_key))
 
 
 func _ensure_authored_room_visual_loaded(room: RoomBase) -> void:
@@ -2343,6 +2372,71 @@ func _authored_visual_stream_rect(focus: Vector2, extra_margin: float) -> Rect2:
 		Vector2(focus.x - half_width, focus.y - half_height),
 		Vector2(half_width * 2.0, half_height * 2.0)
 	)
+
+
+func _rebuild_authored_room_stream_buckets() -> void:
+	_authored_room_stream_buckets.clear()
+	_authored_room_stream_rooms_by_name.clear()
+	if _rooms_root == null or _room_queries == null:
+		return
+	for room_node in _rooms_root.get_children():
+		if room_node is not RoomBase:
+			continue
+		var room := room_node as RoomBase
+		var room_key := String(room.name)
+		_authored_room_stream_rooms_by_name[room_key] = room
+		var bounds := _room_queries.room_bounds_rect(room)
+		for bucket in _bucket_coords_for_rect(bounds):
+			var bucket_key := _authored_room_stream_bucket_key(bucket)
+			var bucket_rooms: Array = _authored_room_stream_buckets.get(bucket_key, [])
+			bucket_rooms.append(room)
+			_authored_room_stream_buckets[bucket_key] = bucket_rooms
+
+
+func _authored_rooms_intersecting_rect(world_rect: Rect2) -> Array[RoomBase]:
+	var rooms: Array[RoomBase] = []
+	var seen: Dictionary = {}
+	if _authored_room_stream_buckets.is_empty():
+		_rebuild_authored_room_stream_buckets()
+	if _authored_room_stream_buckets.is_empty():
+		return rooms
+	for bucket in _bucket_coords_for_rect(world_rect):
+		var bucket_key := _authored_room_stream_bucket_key(bucket)
+		var bucket_rooms: Array = _authored_room_stream_buckets.get(bucket_key, [])
+		for room_value in bucket_rooms:
+			if room_value is not RoomBase:
+				continue
+			var room := room_value as RoomBase
+			if room == null or not is_instance_valid(room):
+				continue
+			var room_key := String(room.name)
+			if seen.has(room_key):
+				continue
+			seen[room_key] = true
+			rooms.append(room)
+	return rooms
+
+
+func _bucket_coords_for_rect(world_rect: Rect2) -> Array[Vector2i]:
+	var coords: Array[Vector2i] = []
+	if world_rect.size.x <= 0.0 or world_rect.size.y <= 0.0:
+		return coords
+	var min_bucket := Vector2i(
+		int(floor(world_rect.position.x / _AUTHORED_VISUAL_STREAM_BUCKET_SIZE)),
+		int(floor(world_rect.position.y / _AUTHORED_VISUAL_STREAM_BUCKET_SIZE))
+	)
+	var max_bucket := Vector2i(
+		int(floor((world_rect.end.x - 0.001) / _AUTHORED_VISUAL_STREAM_BUCKET_SIZE)),
+		int(floor((world_rect.end.y - 0.001) / _AUTHORED_VISUAL_STREAM_BUCKET_SIZE))
+	)
+	for y in range(min_bucket.y, max_bucket.y + 1):
+		for x in range(min_bucket.x, max_bucket.x + 1):
+			coords.append(Vector2i(x, y))
+	return coords
+
+
+func _authored_room_stream_bucket_key(bucket: Vector2i) -> String:
+	return "%s:%s" % [bucket.x, bucket.y]
 
 
 func _assign_combat_door_visual_refs() -> void:
@@ -4005,3 +4099,29 @@ func _set_info_base_text(text: String) -> void:
 func _refresh_info_label_with_room_type() -> void:
 	if _info_controller != null:
 		_info_controller.refresh()
+
+
+func _tick_info_label_refresh(delta: float) -> void:
+	if _info_controller == null:
+		return
+	_info_label_refresh_time_remaining = maxf(0.0, _info_label_refresh_time_remaining - delta)
+	var room_changed := _prev_room_name != _info_label_last_room_name
+	if _info_label_refresh_time_remaining > 0.0 and not room_changed:
+		return
+	_refresh_info_label_with_room_type()
+	_info_label_last_room_name = _prev_room_name
+	_info_label_refresh_time_remaining = maxf(0.01, info_label_update_interval)
+
+
+func _tick_authoritative_maintenance(delta: float) -> void:
+	_authoritative_maintenance_time_remaining = maxf(
+		0.0,
+		_authoritative_maintenance_time_remaining - delta
+	)
+	if _authoritative_maintenance_time_remaining > 0.0:
+		return
+	_process_authoritative_revive_and_wipe()
+	_refresh_encounter_state()
+	_try_schedule_floor_advance_if_all_players_on_elevator()
+	_try_schedule_floor_advance_if_all_players_on_debug_elevator()
+	_authoritative_maintenance_time_remaining = maxf(0.01, authoritative_maintenance_update_interval)

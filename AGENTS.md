@@ -164,6 +164,19 @@ Use this checklist whenever a task could affect runtime cost, load-time spikes, 
 - Performance-sensitive validations should use release-like settings when possible: debug visuals off, expected player count, expected enemy density, and at least one worst-case combat room.
 - If a task changes combat, AI, spawning, networking, dungeon generation, or visuals, the thread summary should briefly note the expected performance impact or explicitly say it was not measured yet.
 
+### Current Performance Watchouts
+
+- Treat `dungeon/game/components/room_query_service.gd` as a shared hot-path service. Do not reintroduce room-wide or cell-wide scans for every point query; prefer cache invalidation, last-hit reuse, or spatial indexing.
+- Treat `scripts/ui/minimap_panel.gd` as cached UI, not live geometry generation. Room geometry should be rebuilt only when the room layout changes; player-marker updates should be throttled rather than forcing a full redraw every frame.
+- Keep `dungeon/game/small_dungeon.gd` maintenance work on intervals or events. Encounter cleanup, revive/wipe checks, elevator boarding checks, info-label refreshes, and authored-room visual streaming should not quietly drift back into unconditional every-frame scans.
+- For authored-room visual streaming, prefer spatial bucketing or another nearby-room filter before iterating room visuals. As the authored room library grows, “scan every room and test bounds” stops scaling well.
+- In `scripts/entities/player.gd`, treat mouse-to-world projection and UI hover queries as per-frame cache candidates. Reuse results inside the same physics frame instead of asking the viewport repeatedly through helper chains.
+- Avoid rebuilding `ImmediateMesh` telegraphs during active combat in enemy scripts. Prefer prebuilt meshes, cached step variants, or simple decals/sprites that only update transform/visibility.
+- Be conservative with `FakeShadow3D`. New users of `scripts/entities/fake_shadow_3d.gd` should justify their update frequency, and low-value actors should stay shadow-free by default.
+- When adding combat visuals, ask whether the effect belongs in the live game at all distances. Enemy visuals, props, and telegraphs should support low-detail or streamed behavior before the project scales up to denser fights.
+- Prefer caches that invalidate explicitly when dungeon rooms regenerate, room trees change, or encounter rosters change. Hidden stale-cache bugs are bad, but hidden per-frame scans are usually worse.
+- If a future prompt asks for new UI, debug, AI, encounter, room, or visual behavior, include one sentence up front about where the likely hot path lives before editing.
+
 ## Local WIP Snapshot
 
 Snapshot taken 2026-03-27; update this section when it becomes stale:

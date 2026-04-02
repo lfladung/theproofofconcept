@@ -27,6 +27,7 @@ var _vw: Node3D
 var _telegraph_mesh: MeshInstance3D
 var _outline_mat: StandardMaterial3D
 var _fill_mat: StandardMaterial3D
+var _telegraph_meshes: Array[Mesh] = []
 var _aggro_enabled := true
 var _in_range_presence_by_instance_id: Dictionary = {}
 var _net_telegraph_in_range := false
@@ -66,6 +67,9 @@ func _ready() -> void:
 		_fill_mat.cull_mode = BaseMaterial3D.CULL_DISABLED
 		_telegraph_mesh.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		_telegraph_mesh.visible = false
+		_telegraph_meshes.clear()
+		for step in range(_TELEGRAPH_PROGRESS_STEPS + 1):
+			_telegraph_meshes.append(_build_telegraph_mesh_for_step(step))
 		vw.add_child(_telegraph_mesh)
 	_sync_visual()
 	_target_player = null
@@ -232,7 +236,6 @@ func _spawn_tower_arrow(
 	if arrow.has_method(&"set_authoritative_damage"):
 		arrow.call(&"set_authoritative_damage", authoritative_damage)
 	arrow.configure(spawn_position, dir, _vw, false, &"red", projectile_event_id)
-	parent.add_child(arrow)
 	if authoritative_damage and _is_server_peer() and projectile_event_id > 0 and arrow.has_signal(&"projectile_finished"):
 		arrow.projectile_finished.connect(
 			_on_server_authoritative_tower_projectile_finished.bind(projectile_event_id),
@@ -317,6 +320,11 @@ func _update_telegraph_visual(in_range: bool, dir: Vector2, progress: float) -> 
 	if progress_step == _telegraph_progress_step:
 		return
 	_telegraph_progress_step = progress_step
+	if progress_step >= 0 and progress_step < _telegraph_meshes.size():
+		_telegraph_mesh.mesh = _telegraph_meshes[progress_step]
+
+
+func _build_telegraph_mesh_for_step(progress_step: int) -> Mesh:
 	var fill_ratio := float(progress_step) / float(_TELEGRAPH_PROGRESS_STEPS)
 	var shaft_len := maxf(0.1, telegraph_arrow_length - telegraph_arrow_head_length)
 	var shaft_end_z := shaft_len
@@ -347,7 +355,7 @@ func _update_telegraph_visual(in_range: bool, dir: Vector2, progress: float) -> 
 	]:
 		imm.surface_add_vertex(v as Vector3)
 	imm.surface_end()
-	_telegraph_mesh.mesh = imm
+	return imm
 
 
 func _sync_visual() -> void:

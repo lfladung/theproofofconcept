@@ -204,6 +204,10 @@ var _loadout_owner_id: StringName = &""
 var _loadout_snapshot: Dictionary = {}
 var _loadout_room_type_provider: Callable = Callable()
 var _menu_input_blocked := false
+var _cached_mouse_world_physics_frame := -1
+var _cached_mouse_world := Vector2.ZERO
+var _cached_ui_hovered_physics_frame := -1
+var _cached_ui_blocks_attack := false
 var _local_loadout_request_sequence := 0
 var _server_last_loadout_request_sequence := -1
 var _base_speed := 0.0
@@ -780,7 +784,8 @@ func _update_remote_proxy_visual() -> void:
 	if _visual == null:
 		return
 	_visual.global_position = Vector3(global_position.x, height, global_position.y)
-	_visual.rotation.y = atan2(_facing_planar.x, _facing_planar.y)
+	var visual_facing := _resolve_visual_facing_planar()
+	_visual.rotation.y = atan2(visual_facing.x, visual_facing.y)
 	if _visual.has_method(&"set_locomotion_from_planar_speed"):
 		_visual.set_locomotion_from_planar_speed(_remote_planar_speed, speed)
 
@@ -789,7 +794,8 @@ func _update_visual_from_planar_speed(planar_speed: float) -> void:
 	if _visual == null:
 		return
 	_visual.global_position = Vector3(global_position.x, height, global_position.y)
-	_visual.rotation.y = atan2(_facing_planar.x, _facing_planar.y)
+	var visual_facing := _resolve_visual_facing_planar()
+	_visual.rotation.y = atan2(visual_facing.x, visual_facing.y)
 	if _visual.has_method(&"set_locomotion_from_planar_speed"):
 		_visual.set_locomotion_from_planar_speed(planar_speed, speed)
 
@@ -866,25 +872,43 @@ func _resolve_melee_facing_lock_duration() -> float:
 	return maxf(melee_facing_lock_fallback_duration, attack_hitbox_visual_duration)
 
 
+func _resolve_visual_facing_lock_duration(mode: StringName = &"melee") -> float:
+	if _visual != null and _visual.has_method(&"get_attack_duration_seconds_for_mode"):
+		var duration_v: Variant = _visual.call(&"get_attack_duration_seconds_for_mode", mode)
+		var duration := float(duration_v)
+		if duration > 0.0:
+			return duration
+	if String(mode).to_lower() == "melee":
+		return _resolve_melee_facing_lock_duration()
+	return melee_facing_lock_fallback_duration
+
+
 func _start_facing_lock(direction: Vector2, duration_seconds: float = -1.0) -> void:
-	# Attacks still snapshot their own facing for hit resolution, but we no longer freeze
-	# the live player facing after attack start. That keeps the character responsive to
-	# mouse movement while preserving deterministic attack direction.
-	var _ignored_duration := duration_seconds
+	# Keep the 3D presentation snapped to the attack direction without freezing the
+	# live gameplay-facing updates that movement/aim continue to use.
 	var lock_dir := _normalized_attack_facing(direction)
 	_facing_lock_planar = lock_dir
 	_facing_planar = lock_dir
-	_facing_lock_time_remaining = 0.0
+	_facing_lock_time_remaining = (
+		duration_seconds
+		if duration_seconds >= 0.0
+		else _resolve_melee_facing_lock_duration()
+	)
 	_sync_melee_hitbox_geometry()
 
 
 func _tick_facing_lock(delta: float) -> void:
-	var _ignored_delta := delta
-	_facing_lock_time_remaining = 0.0
+	_facing_lock_time_remaining = maxf(0.0, _facing_lock_time_remaining - delta)
 
 
 func _is_facing_locked() -> bool:
 	return false
+
+
+func _resolve_visual_facing_planar() -> Vector2:
+	if _facing_lock_time_remaining > 0.0 and _facing_lock_planar.length_squared() > 1e-6:
+		return _facing_lock_planar.normalized()
+	return _normalized_attack_facing(_facing_planar)
 
 
 func _max_stamina_value() -> float:
@@ -1319,6 +1343,7 @@ func _play_melee_attack_presentation() -> void:
 
 
 func _play_attack_animation_presentation(mode: StringName = &"melee") -> void:
+	_start_facing_lock(_facing_planar, _resolve_visual_facing_lock_duration(mode))
 	if _visual == null:
 		return
 	if _visual.has_method(&"try_play_attack_for_mode"):
@@ -1662,7 +1687,7 @@ func _handle_local_multiplayer_combat_input(delta: float) -> void:
 		_clear_pending_rmb_attack()
 		_face_toward_mouse_planar()
 		_submit_local_bomb_attack_request()
-	var ui_blocks_attack := get_viewport().gui_get_hovered_control() != null
+	var ui_blocks_attack := _ui_blocks_attack_this_physics_frame()
 	_process_local_melee_charge_input(delta, use_wasd, ui_blocks_attack, defend_down, true)
 
 
@@ -2440,24 +2465,35 @@ func _mouse_steering_active() -> bool:
 	if not Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT):
 		return false
 	# Don't steal movement when a Control is under the cursor (e.g. game-over overlay).
-	return get_viewport().gui_get_hovered_control() == null
+	return not _ui_blocks_attack_this_physics_frame()
 
 
 ## Screen mouse → GameWorld2D plane (same coords as global_position: x, y ↔ 3D x, z).
 func _mouse_planar_world() -> Vector2:
+	var physics_frame := Engine.get_physics_frames()
+	if _cached_mouse_world_physics_frame == physics_frame:
+		return _cached_mouse_world
 	var cam := get_viewport().get_camera_3d()
 	if cam == null:
-		return global_position
+		_cached_mouse_world = global_position
+		_cached_mouse_world_physics_frame = physics_frame
+		return _cached_mouse_world
 	var mouse := get_viewport().get_mouse_position()
 	var from := cam.project_ray_origin(mouse)
 	var dir := cam.project_ray_normal(mouse)
 	if absf(dir.y) < 1e-5:
-		return global_position
+		_cached_mouse_world = global_position
+		_cached_mouse_world_physics_frame = physics_frame
+		return _cached_mouse_world
 	var t := -from.y / dir.y
 	if t < 0.0:
-		return global_position
+		_cached_mouse_world = global_position
+		_cached_mouse_world_physics_frame = physics_frame
+		return _cached_mouse_world
 	var hit_pos := from + dir * t
-	return Vector2(hit_pos.x, hit_pos.z)
+	_cached_mouse_world = Vector2(hit_pos.x, hit_pos.z)
+	_cached_mouse_world_physics_frame = physics_frame
+	return _cached_mouse_world
 
 
 const _MOVE_STEER_HINT_DISTANCE := 512.0
@@ -2856,7 +2892,7 @@ func _physics_process(delta: float) -> void:
 	_set_defending_state(defend_down)
 	_tick_stamina_regen(delta)
 
-	var ui_blocks_attack := get_viewport().gui_get_hovered_control() != null
+	var ui_blocks_attack := _ui_blocks_attack_this_physics_frame()
 	_process_local_melee_charge_input(
 		delta, use_wasd_sp, ui_blocks_attack, defend_down, not _menu_input_blocked
 	)
@@ -2914,7 +2950,8 @@ func _physics_process(delta: float) -> void:
 
 	if _visual:
 		_visual.global_position = Vector3(global_position.x, height, global_position.y)
-		_visual.rotation.y = atan2(_facing_planar.x, _facing_planar.y)
+		var visual_facing := _resolve_visual_facing_planar()
+		_visual.rotation.y = atan2(visual_facing.x, visual_facing.y)
 		if _visual.has_method(&"set_locomotion_from_planar_speed"):
 			_visual.set_locomotion_from_planar_speed(planar_speed, speed)
 
@@ -2925,6 +2962,16 @@ func _physics_process(delta: float) -> void:
 		_invuln_time_remaining = _health_component.get_invulnerability_remaining()
 	if _invuln_time_remaining > 0.0:
 		_update_invulnerability_flash_visual()
+
+
+func _ui_blocks_attack_this_physics_frame() -> bool:
+	var physics_frame := Engine.get_physics_frames()
+	if _cached_ui_hovered_physics_frame == physics_frame:
+		return _cached_ui_blocks_attack
+	var viewport := get_viewport()
+	_cached_ui_blocks_attack = viewport != null and viewport.gui_get_hovered_control() != null
+	_cached_ui_hovered_physics_frame = physics_frame
+	return _cached_ui_blocks_attack
 
 
 func _exit_tree() -> void:
