@@ -124,16 +124,16 @@ static func format_stat_modifier_lines(stat_modifiers: Dictionary) -> PackedStri
 		var amount := float(value)
 		if is_zero_approx(amount):
 			continue
-		var sign := "+" if amount > 0.0 else ""
+		var sign_prefix := "+" if amount > 0.0 else ""
 		var stat_label := String(stat_key).replace("_", " ").capitalize()
 		if stat_key in PERCENT_STATS:
-			lines.append("%s%d%% %s" % [sign, int(roundf(amount * 100.0)), stat_label])
+			lines.append("%s%d%% %s" % [sign_prefix, int(roundf(amount * 100.0)), stat_label])
 		elif stat_key in MULTIPLIER_STATS:
-			lines.append("%sx%.2f %s" % [sign, amount, stat_label])
+			lines.append("%sx%.2f %s" % [sign_prefix, amount, stat_label])
 		elif stat_key == STAT_DEFEND_DAMAGE_MULTIPLIER:
-			lines.append("%s%.2f %s" % [sign, amount, stat_label])
+			lines.append("%s%.2f %s" % [sign_prefix, amount, stat_label])
 		elif absf(amount - roundf(amount)) <= 0.001:
-			lines.append("%s%d %s" % [sign, int(roundf(amount)), stat_label])
+			lines.append("%s%d %s" % [sign_prefix, int(roundf(amount)), stat_label])
 		else:
-			lines.append("%s%.2f %s" % [sign, amount, stat_label])
+			lines.append("%s%.2f %s" % [sign_prefix, amount, stat_label])
 	return lines

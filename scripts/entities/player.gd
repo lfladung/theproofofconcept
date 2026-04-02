@@ -11,7 +11,7 @@ signal loadout_request_failed(message: String)
 const ArrowProjectilePoolScript = preload("res://scripts/entities/arrow_projectile_pool.gd")
 const PLAYER_BOMB_SCENE := preload("res://scenes/entities/player_bomb.tscn")
 const PLAYER_VISUAL_SCENE := preload("res://scenes/visuals/player_visual.tscn")
-const LoadoutConstants = preload("res://scripts/loadout/loadout_constants.gd")
+const LoadoutConstantsRef = preload("res://scripts/loadout/loadout_constants.gd")
 const DamagePacketScript = preload("res://scripts/combat/damage_packet.gd")
 const _MULTIPLAYER_DEBUG_LOGGING := false
 const REVIVE_HEALTH := 50
@@ -649,19 +649,19 @@ func _has_equipped_item(slot_id: StringName) -> bool:
 
 
 func _has_equipped_sword() -> bool:
-	return _has_equipped_item(LoadoutConstants.SLOT_SWORD)
+	return _has_equipped_item(LoadoutConstantsRef.SLOT_SWORD)
 
 
 func _has_equipped_handgun() -> bool:
-	return _has_equipped_item(LoadoutConstants.SLOT_HANDGUN)
+	return _has_equipped_item(LoadoutConstantsRef.SLOT_HANDGUN)
 
 
 func _has_equipped_shield() -> bool:
-	return _has_equipped_item(LoadoutConstants.SLOT_SHIELD)
+	return _has_equipped_item(LoadoutConstantsRef.SLOT_SHIELD)
 
 
 func _has_equipped_bomb() -> bool:
-	return _has_equipped_item(LoadoutConstants.SLOT_BOMB)
+	return _has_equipped_item(LoadoutConstantsRef.SLOT_BOMB)
 
 
 func _can_defend_in_current_mode() -> bool:
@@ -677,25 +677,25 @@ func _can_defend_in_current_mode() -> bool:
 
 
 func _equipped_handgun_projectile_style() -> StringName:
-	var handgun_item_id := _loadout_slot_item_id(LoadoutConstants.SLOT_HANDGUN)
+	var handgun_item_id := _loadout_slot_item_id(LoadoutConstantsRef.SLOT_HANDGUN)
 	if handgun_item_id == &"":
-		return LoadoutConstants.PROJECTILE_STYLE_RED
+		return LoadoutConstantsRef.PROJECTILE_STYLE_RED
 	var definition := _loadout_item_definition(handgun_item_id)
 	var visual_v: Variant = definition.get("visual", {})
 	if visual_v is Dictionary:
 		return StringName(String((visual_v as Dictionary).get("projectile_style_id", "red")))
-	return LoadoutConstants.PROJECTILE_STYLE_RED
+	return LoadoutConstantsRef.PROJECTILE_STYLE_RED
 
 
 func _equipped_bomb_visual_style() -> StringName:
-	var bomb_item_id := _loadout_slot_item_id(LoadoutConstants.SLOT_BOMB)
+	var bomb_item_id := _loadout_slot_item_id(LoadoutConstantsRef.SLOT_BOMB)
 	if bomb_item_id == &"":
-		return LoadoutConstants.PROJECTILE_STYLE_RED
+		return LoadoutConstantsRef.PROJECTILE_STYLE_RED
 	var definition := _loadout_item_definition(bomb_item_id)
 	var visual_v: Variant = definition.get("visual", {})
 	if visual_v is Dictionary:
 		return StringName(String((visual_v as Dictionary).get("projectile_style_id", "red")))
-	return LoadoutConstants.PROJECTILE_STYLE_RED
+	return LoadoutConstantsRef.PROJECTILE_STYLE_RED
 
 
 func _available_main_weapon_modes() -> Array:
@@ -735,28 +735,28 @@ func _apply_loadout_stats(aggregated_stats: Dictionary) -> void:
 	for key in _runtime_stat_bonuses:
 		var current := float(totals.get(key, 0.0))
 		totals[key] = current + float(_runtime_stat_bonuses.get(key, 0.0))
-	speed = maxf(0.0, _base_speed + _loadout_stat_from_totals(totals, LoadoutConstants.STAT_SPEED))
+	speed = maxf(0.0, _base_speed + _loadout_stat_from_totals(totals, LoadoutConstantsRef.STAT_SPEED))
 	melee_attack_damage = maxi(
 		0,
-		int(roundf(_base_melee_attack_damage + _loadout_stat_from_totals(totals, LoadoutConstants.STAT_MELEE_DAMAGE)))
+		int(roundf(_base_melee_attack_damage + _loadout_stat_from_totals(totals, LoadoutConstantsRef.STAT_MELEE_DAMAGE)))
 	)
 	ranged_damage = maxi(
 		0,
-		int(roundf(_base_ranged_damage + _loadout_stat_from_totals(totals, LoadoutConstants.STAT_RANGED_DAMAGE)))
+		int(roundf(_base_ranged_damage + _loadout_stat_from_totals(totals, LoadoutConstantsRef.STAT_RANGED_DAMAGE)))
 	)
 	bomb_damage = maxi(
 		0,
-		int(roundf(_base_bomb_damage + _loadout_stat_from_totals(totals, LoadoutConstants.STAT_BOMB_DAMAGE)))
+		int(roundf(_base_bomb_damage + _loadout_stat_from_totals(totals, LoadoutConstantsRef.STAT_BOMB_DAMAGE)))
 	)
 	defend_damage_multiplier = clampf(
 		_base_defend_damage_multiplier
-			+ _loadout_stat_from_totals(totals, LoadoutConstants.STAT_DEFEND_DAMAGE_MULTIPLIER),
+			+ _loadout_stat_from_totals(totals, LoadoutConstantsRef.STAT_DEFEND_DAMAGE_MULTIPLIER),
 		0.1,
 		4.0
 	)
 	var next_max_health := maxi(
 		1,
-		int(roundf(_base_max_health + _loadout_stat_from_totals(totals, LoadoutConstants.STAT_MAX_HEALTH)))
+		int(roundf(_base_max_health + _loadout_stat_from_totals(totals, LoadoutConstantsRef.STAT_MAX_HEALTH)))
 	)
 	if max_health != next_max_health:
 		max_health = next_max_health
@@ -1378,7 +1378,7 @@ func _spawn_player_ranged_arrow(
 	authoritative_damage: bool,
 	apply_cooldown: bool,
 	projectile_event_id: int = -1,
-	projectile_style_id: StringName = LoadoutConstants.PROJECTILE_STYLE_RED,
+	projectile_style_id: StringName = LoadoutConstantsRef.PROJECTILE_STYLE_RED,
 	charge_size_mult: float = 1.0
 ) -> bool:
 	var parent := get_parent()
@@ -1425,7 +1425,7 @@ func _spawn_player_bomb(
 	facing: Vector2,
 	authoritative_damage: bool,
 	apply_cooldown: bool,
-	visual_style_id: StringName = LoadoutConstants.PROJECTILE_STYLE_RED,
+	visual_style_id: StringName = LoadoutConstantsRef.PROJECTILE_STYLE_RED,
 	attack_event_id: int = -1
 ) -> bool:
 	var parent := get_parent()

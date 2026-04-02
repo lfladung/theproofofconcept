@@ -1,7 +1,7 @@
 @tool
 extends Node3D
 
-const LoadoutConstants = preload("res://scripts/loadout/loadout_constants.gd")
+const LoadoutConstantsRef = preload("res://scripts/loadout/loadout_constants.gd")
 
 enum EditorPreviewMode {
 	RUNTIME_MATCH,
@@ -890,19 +890,19 @@ func _apply_sword_visibility_material_override(root: Node) -> void:
 func _build_sword_visible_material(source_mat: Material) -> Material:
 	if source_mat != null and source_mat is BaseMaterial3D:
 		var src: BaseMaterial3D = source_mat as BaseMaterial3D
-		var visible: StandardMaterial3D = StandardMaterial3D.new()
+		var visible_material: StandardMaterial3D = StandardMaterial3D.new()
 		# Keep original albedo texture so the sword uses real art, but force visibility-safe flags.
-		visible.albedo_texture = src.albedo_texture
-		visible.albedo_color = Color(1.0, 1.0, 1.0, 1.0)
-		visible.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-		visible.transparency = BaseMaterial3D.TRANSPARENCY_DISABLED
-		visible.cull_mode = BaseMaterial3D.CULL_DISABLED
-		visible.no_depth_test = false
-		visible.texture_filter = src.texture_filter
-		visible.texture_repeat = src.texture_repeat
-		visible.uv1_scale = src.uv1_scale
-		visible.uv1_offset = src.uv1_offset
-		return visible
+		visible_material.albedo_texture = src.albedo_texture
+		visible_material.albedo_color = Color(1.0, 1.0, 1.0, 1.0)
+		visible_material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		visible_material.transparency = BaseMaterial3D.TRANSPARENCY_DISABLED
+		visible_material.cull_mode = BaseMaterial3D.CULL_DISABLED
+		visible_material.no_depth_test = false
+		visible_material.texture_filter = src.texture_filter
+		visible_material.texture_repeat = src.texture_repeat
+		visible_material.uv1_scale = src.uv1_scale
+		visible_material.uv1_offset = src.uv1_offset
+		return visible_material
 
 	var fallback: StandardMaterial3D = StandardMaterial3D.new()
 	fallback.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
@@ -945,27 +945,27 @@ func _build_equipment_visible_material(source_mat: Material, slot_name: String) 
 		tint = Color(0.30, 0.33, 0.38, 1.0)
 	elif slot_name == "Bomb":
 		tint = Color(0.84, 0.24, 0.16, 1.0)
-	var visible: StandardMaterial3D = StandardMaterial3D.new()
-	visible.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	visible.transparency = BaseMaterial3D.TRANSPARENCY_DISABLED
-	visible.cull_mode = BaseMaterial3D.CULL_DISABLED
+	var visible_material: StandardMaterial3D = StandardMaterial3D.new()
+	visible_material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	visible_material.transparency = BaseMaterial3D.TRANSPARENCY_DISABLED
+	visible_material.cull_mode = BaseMaterial3D.CULL_DISABLED
 	if source_mat != null and source_mat is BaseMaterial3D:
 		var src: BaseMaterial3D = source_mat as BaseMaterial3D
 		tint = src.albedo_color
 		if src.albedo_texture != null:
-			visible.albedo_texture = src.albedo_texture
+			visible_material.albedo_texture = src.albedo_texture
 			tint = Color(1.0, 1.0, 1.0, 1.0)
-		visible.texture_filter = src.texture_filter
-		visible.texture_repeat = src.texture_repeat
-		visible.uv1_scale = src.uv1_scale
-		visible.uv1_offset = src.uv1_offset
-	visible.albedo_color = tint
-	visible.render_priority = 3
+		visible_material.texture_filter = src.texture_filter
+		visible_material.texture_repeat = src.texture_repeat
+		visible_material.uv1_scale = src.uv1_scale
+		visible_material.uv1_offset = src.uv1_offset
+	visible_material.albedo_color = tint
+	visible_material.render_priority = 3
 	if slot_name == "Helmet":
 		# Helmet should respect depth/culling to avoid rendering the front while facing away.
-		visible.cull_mode = BaseMaterial3D.CULL_BACK
-		visible.no_depth_test = false
-	return visible
+		visible_material.cull_mode = BaseMaterial3D.CULL_BACK
+		visible_material.no_depth_test = false
+	return visible_material
 
 
 func _create_debug_sword_proxy() -> MeshInstance3D:
@@ -1081,21 +1081,21 @@ func apply_loadout_visuals(snapshot: Dictionary) -> void:
 		return
 	var equipped_slots: Dictionary = equipped_slots_v as Dictionary
 	var definitions_by_id: Dictionary = definitions_v as Dictionary
-	var armor_item_id := StringName(String(equipped_slots.get(String(LoadoutConstants.SLOT_ARMOR), "")))
+	var armor_item_id := StringName(String(equipped_slots.get(String(LoadoutConstantsRef.SLOT_ARMOR), "")))
 	var sword_scene_path := _loadout_scene_path_for_slot(
-		equipped_slots, definitions_by_id, LoadoutConstants.SLOT_SWORD
+		equipped_slots, definitions_by_id, LoadoutConstantsRef.SLOT_SWORD
 	)
 	var armor_scene_path := _loadout_scene_path_for_slot(
-		equipped_slots, definitions_by_id, LoadoutConstants.SLOT_ARMOR
+		equipped_slots, definitions_by_id, LoadoutConstantsRef.SLOT_ARMOR
 	)
 	var helmet_scene_path := _loadout_scene_path_for_slot(
-		equipped_slots, definitions_by_id, LoadoutConstants.SLOT_HELMET
+		equipped_slots, definitions_by_id, LoadoutConstantsRef.SLOT_HELMET
 	)
 	var shield_scene_path := _loadout_scene_path_for_slot(
-		equipped_slots, definitions_by_id, LoadoutConstants.SLOT_SHIELD
+		equipped_slots, definitions_by_id, LoadoutConstantsRef.SLOT_SHIELD
 	)
 	var handgun_scene_path := _loadout_scene_path_for_slot(
-		equipped_slots, definitions_by_id, LoadoutConstants.SLOT_HANDGUN
+		equipped_slots, definitions_by_id, LoadoutConstantsRef.SLOT_HANDGUN
 	)
 	_apply_knight_texture_for_armor_item(armor_item_id)
 
@@ -1230,11 +1230,11 @@ func _ensure_dynamic_loadout_attachment(
 		return
 	var force_identity_follow := slot_name == "Handgun"
 	if not _equipment_follow_targets.has(slot_name):
-		var attachment_root: Node3D = _resolve_or_create_attachment_root(root_path, root_fallback_name)
-		var offset_root: Node3D = _resolve_or_create_offset_root(
-			attachment_root, offset_name, local_offset, local_rotation_deg, local_scale
+		var created_attachment_root: Node3D = _resolve_or_create_attachment_root(root_path, root_fallback_name)
+		var created_offset_root: Node3D = _resolve_or_create_offset_root(
+			created_attachment_root, offset_name, local_offset, local_rotation_deg, local_scale
 		)
-		if offset_root == null:
+		if created_offset_root == null:
 			return
 		var bone_idx := _resolve_equipment_bone_idx(skeleton, bone_name_override, bone_keywords)
 		if bone_idx < 0:
@@ -1245,7 +1245,7 @@ func _ensure_dynamic_loadout_attachment(
 			if explicit_rotation_idx >= 0:
 				rotation_bone_idx = explicit_rotation_idx
 		_equipment_follow_targets[slot_name] = {
-			"root": attachment_root,
+			"root": created_attachment_root,
 			"skeleton": skeleton,
 			"bone_idx": bone_idx,
 			"rotation_bone_idx": rotation_bone_idx,
@@ -1258,7 +1258,7 @@ func _ensure_dynamic_loadout_attachment(
 					bone_idx,
 					rotation_bone_idx,
 					false
-				).affine_inverse() * attachment_root.global_transform
+				).affine_inverse() * created_attachment_root.global_transform
 			),
 		}
 	elif force_identity_follow:
@@ -1346,10 +1346,10 @@ func _replace_attachment_child(
 		_apply_equipment_visibility_material_override(scene_instance, slot_name)
 
 
-func _apply_attachment_visibility(root: Node3D, visible: bool) -> void:
+func _apply_attachment_visibility(root: Node3D, is_visible: bool) -> void:
 	if root == null or not is_instance_valid(root):
 		return
-	root.visible = visible
+	root.visible = is_visible
 
 
 func _find_bone_idx_case_insensitive(skeleton: Skeleton3D, target_name: String) -> int:

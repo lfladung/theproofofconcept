@@ -119,7 +119,6 @@ func _scan_hurtboxes() -> void:
 	var now := _now_sec()
 	var seen_targets: Dictionary = {}
 	var resolved_count := 0
-	var stop_scanning := false
 	for hurtbox in _query_hurtboxes():
 		if hurtbox == null or not is_instance_valid(hurtbox):
 			continue
@@ -168,7 +167,6 @@ func _scan_hurtboxes() -> void:
 				state["next_allowed_time"] = INF
 			_target_states[target_uid] = state
 			if stop_after_first_consume_hit:
-				stop_scanning = true
 				break
 	for target_uid in _present_targets.keys():
 		if not seen_targets.has(target_uid):

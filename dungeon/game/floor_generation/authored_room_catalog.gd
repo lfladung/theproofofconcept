@@ -129,7 +129,7 @@ func _derive_role(scene_path: String, room: RoomBase) -> String:
 func _collect_piece_cells(
 	item,
 	piece,
-	room: RoomBase,
+	_room: RoomBase,
 	occupied_seen: Dictionary,
 	walkable_seen: Dictionary
 ) -> void:
@@ -151,8 +151,8 @@ func _collect_piece_cells(
 func _connection_marker_from_item(item, piece, room: RoomBase) -> Dictionary:
 	var footprint := GridMath.rotated_footprint(piece.footprint, item.normalized_rotation_steps())
 	var local_cell: Vector2i = item.grid_position + Vector2i(
-		int((footprint.x - 1) / 2),
-		int((footprint.y - 1) / 2)
+		(footprint.x - 1) / 2,
+		(footprint.y - 1) / 2
 	)
 	var local_position := Vector2(local_cell * room.tile_size)
 	var local_cells: Array[Vector2i] = []

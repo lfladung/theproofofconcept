@@ -643,7 +643,7 @@ func _registry_configure_for_player_host(port: int, wanted_max_players: int) -> 
 	_public_port = port
 	_instance_id = "host_%s_%s" % [host_peer_id, Time.get_unix_time_from_system()]
 	_registry_heartbeat_seconds = maxf(1.0, float(_cmdline_int_value("--registry_heartbeat_ms=", 5000)) / 1000.0)
-	_registry_started_unix = Time.get_unix_time_from_system()
+	_registry_started_unix = int(Time.get_unix_time_from_system())
 	max_players = max(1, wanted_max_players)
 	_ensure_registry_nodes()
 	_registry_timer.wait_time = _registry_heartbeat_seconds
@@ -873,7 +873,7 @@ func _registry_configure_for_dedicated(port: int, wanted_max_players: int) -> vo
 		1.0,
 		float(_cmdline_int_value("--registry_heartbeat_ms=", 5000)) / 1000.0
 	)
-	_registry_started_unix = Time.get_unix_time_from_system()
+	_registry_started_unix = int(Time.get_unix_time_from_system())
 	max_players = max(1, wanted_max_players)
 	_ensure_registry_nodes()
 	_registry_timer.wait_time = _registry_heartbeat_seconds

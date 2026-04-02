@@ -11,7 +11,7 @@ func get_player() -> Node:
 
 
 func _process_damage(
-	packet: DamagePacket, hurtbox: Area2D, health_component: HealthComponent
+	packet: DamagePacket, _hurtbox: Area2D, health_component: HealthComponent
 ) -> Dictionary:
 	var player := get_player()
 	if packet.blockable and player != null and is_instance_valid(player):

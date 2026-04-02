@@ -6,7 +6,7 @@ signal run_ended(previous_snapshot: Dictionary)
 signal snapshot_changed(snapshot: Dictionary)
 
 var run_id := ""
-var seed := 0
+var run_seed := 0
 var floor_index := 1
 var in_run := false
 var started_at_unix := 0
@@ -24,10 +24,10 @@ func begin_new_run(optional_seed: int = 0) -> void:
 	var chosen_seed := optional_seed
 	if chosen_seed == 0:
 		chosen_seed = int(Time.get_unix_time_from_system())
-	seed = chosen_seed
+	run_seed = chosen_seed
 	floor_index = 1
 	started_at_unix = int(Time.get_unix_time_from_system())
-	run_id = "run_%s_%s" % [started_at_unix, seed]
+	run_id = "run_%s_%s" % [started_at_unix, run_seed]
 	in_run = true
 	revision += 1
 	var snap := snapshot()
@@ -38,7 +38,7 @@ func begin_new_run(optional_seed: int = 0) -> void:
 func clear_run() -> void:
 	var prev := snapshot()
 	run_id = ""
-	seed = 0
+	run_seed = 0
 	floor_index = 1
 	in_run = false
 	started_at_unix = 0
@@ -62,7 +62,7 @@ func set_extra_value(key: StringName, value: Variant) -> void:
 
 func apply_snapshot(data: Dictionary) -> void:
 	run_id = String(data.get("run_id", ""))
-	seed = int(data.get("seed", 0))
+	run_seed = int(data.get("seed", 0))
 	floor_index = max(1, int(data.get("floor_index", 1)))
 	in_run = bool(data.get("in_run", false))
 	started_at_unix = int(data.get("started_at_unix", 0))
@@ -74,7 +74,7 @@ func apply_snapshot(data: Dictionary) -> void:
 func snapshot() -> Dictionary:
 	return {
 		"run_id": run_id,
-		"seed": seed,
+		"seed": run_seed,
 		"floor_index": floor_index,
 		"in_run": in_run,
 		"started_at_unix": started_at_unix,
@@ -86,7 +86,7 @@ func snapshot() -> Dictionary:
 func _on_session_state_changed(_previous_state: int, current_state: int) -> void:
 	if current_state == NetworkSession.SessionState.IN_RUN:
 		if not in_run:
-			begin_new_run(seed)
+			begin_new_run(run_seed)
 		return
 	if in_run:
 		clear_run()

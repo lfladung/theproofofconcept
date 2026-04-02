@@ -200,7 +200,7 @@ func _enemy_network_compact_state() -> Dictionary:
 func _enemy_network_apply_remote_state(state: Dictionary) -> void:
 	_aggro_enabled = bool(state.get("ag", _aggro_enabled))
 	_guard_advancing = bool(state.get("gv", false))
-	_attack_state = int(state.get("as", AttackState.NONE))
+	_attack_state = int(state.get("as", AttackState.NONE)) as AttackState
 	_attack_elapsed = maxf(0.0, float(state.get("ae", 0.0)))
 	_attack_total_duration = maxf(0.0, float(state.get("ad", 0.0)))
 	_attack_has_triggered = bool(state.get("ah", false))
@@ -214,7 +214,7 @@ func _enemy_network_apply_remote_state(state: Dictionary) -> void:
 		var next_facing_dir := facing_dir_v as Vector2
 		if next_facing_dir.length_squared() > 0.0001:
 			_facing_dir = next_facing_dir.normalized()
-	_recovery_state = int(state.get("rs", RecoveryState.NONE))
+	_recovery_state = int(state.get("rs", RecoveryState.NONE)) as RecoveryState
 	_recovery_elapsed = maxf(0.0, float(state.get("re", 0.0)))
 	_recovery_duration = maxf(0.0, float(state.get("rd", 0.0)))
 
@@ -258,7 +258,7 @@ func _update_guard_advance_velocity(delta: float) -> void:
 	velocity = desired * move_speed * guard_move_multiplier * _speed_multiplier
 
 
-func _start_attack(next_attack_state: int, direction: Vector2) -> void:
+func _start_attack(next_attack_state: AttackState, direction: Vector2) -> void:
 	_attack_state = next_attack_state
 	_attack_elapsed = 0.0
 	_attack_has_triggered = false
@@ -776,7 +776,7 @@ func get_directional_guard_facing() -> Vector2:
 	return _resolve_visual_facing_direction()
 
 
-func on_directional_guard_blocked_hit(packet: DamagePacket, _hurtbox: Area2D) -> void:
+func on_directional_guard_blocked_hit(packet: DamagePacket, _blocked_hurtbox: Area2D) -> void:
 	if _recovery_state != RecoveryState.NONE:
 		return
 	_guard_break_accumulated_damage += maxf(0.0, float(packet.amount))
