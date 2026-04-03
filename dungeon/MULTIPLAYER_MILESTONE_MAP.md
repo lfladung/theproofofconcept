@@ -3,6 +3,34 @@
 Date created: 2026-03-24
 Scope: Godot 4.6, co-op 2-4 players, authoritative server model, incremental refactor
 
+## Executive summary
+
+The core multiplayer refactor milestones **1–9** are complete: session and lobby, spawn and authority, movement with prediction and reconciliation, authoritative melee combat with de-duplication, server-driven enemies and aggro, encounter and door progression, non-duplicated loot and per-player score, death/revive/rejoin recovery, and hardening toward stable **2–4 player** runs.
+
+| Milestone | What it represents |
+|-----------|---------------------|
+| **1 – Networking foundation** | `NetworkSession`, `NetEventBus`, `RunState`; lobby host/join/disconnect; `peer_id` → player slot; lobby ↔ in-run flow. |
+| **2 – Spawn & authority** | Multiplayer roster in `small_dungeon`; networked spawn; explicit per-peer authority; HUD tied to the local authority player; no “first player node wins” assumptions. |
+| **3 – Movement** | Tick-stamped input to server; authoritative movement; prediction + reconciliation for the owner; interpolation for remotes. |
+| **4 – Authoritative combat (melee slice)** | Melee vertical slice: client request → server validation → replicated resolution; hit/attack IDs so duplicates do not double-apply damage; effects driven from authoritative events. |
+| **5 – Enemy AI & aggro sync** | Enemy logic server-side; targets from the player registry; transforms plus discrete state events (telegraph, dash, death, etc.) consistent for all peers. |
+| **6 – Encounters, doors, room flow** | Server-owned encounter lifecycle (enter → lock → wave → clear → unlock); doors, gates, and portals kept in sync; progression does not fork per client. |
+| **7 – Loot & score** | Server-owned spawn IDs; authoritative pickup and despawn; per-player coins/score replicated; chest bursts and dropped coins wired through the same ownership model. |
+| **8 – Death, revive, recovery** | Server-driven death, respawn, and revive; rejoin path (snapshot-style recovery, respawn, rebuild); mid-run disconnect without corrupting the run. |
+| **9 – Polish & scale** | Bandwidth and replication tuning; invalid RPC rejection and ownership checks on boundaries; validation toward stable four-player runs. |
+
+**Gameplay and content layers** documented elsewhere in the repo (not 1:1 with a single milestone):
+
+- **Sword blocking** — server-authoritative directional guard: frontal hostile hits can drain stamina instead of HP, with regen delay after use or break.
+- **Boss floor exits** — authored `floor_exit` zone markers and runtime lookup (for example via room query), with fallback when a room has no marker yet.
+- **Stat pillars** — world objects that apply runtime stat bonuses through the loadout stat merge; server processes hits in multiplayer.
+- **Loadout and visuals** — equipment data driving modular 3D attachments (sword, chest, legs, helmet, shield).
+- **Room Editor and authored rooms** — handcrafted `RoomBase` plus sidecar layouts; generated sockets, zones, and gameplay markers; enemy spawn markers with `enemy_id`; outline tooling for a reusable room library.
+
+**Dedicated server track:** DS milestones **1–3** are complete (dedicated boot, registry/session-code scaffold, client join by session code). **DS 4–5** (matchmaker/allocator, reconnect tokens and run snapshot handoff) remain open.
+
+**One-line status:** Co-op milestones 1–9 are treated as shipped end-to-end; dedicated join-by-code is in place while full external orchestration and reconnect-token handoff are still future work.
+
 ## Progress Snapshot
 
 - [x] Milestone 1 - Networking Foundation (session lifecycle + lobby flow)
@@ -16,11 +44,16 @@ Scope: Godot 4.6, co-op 2-4 players, authoritative server model, incremental ref
   - [x] Server authoritative movement state replication
   - [x] Client reconciliation path + remote interpolation scaffolding
   - [x] Host + client feel/smoothing tuning pass
-- [ ] Milestone 4 - Combat Vertical Slice (Authoritative) (in progress)
+- [x] Milestone 4 - Combat Vertical Slice (Authoritative)
   - [x] Option A selected: melee
   - [x] Owner-client melee request -> server validation path
   - [x] Server melee resolution + replicated attack event
   - [x] Server-validated hit event IDs in combat log / telemetry
+- [x] Milestone 5 - Enemy AI And Aggro Sync
+- [x] Milestone 6 - Encounter State, Doors, And Room Flow
+- [x] Milestone 7 - Loot, Pickups, And Score Ownership
+- [x] Milestone 8 - Death, Revive/Respawn, And Session Recovery
+- [x] Milestone 9 - Polish, Hardening, And Scale To 4 Players
 
 ## Milestone 0 - Baseline And Guardrails
 
@@ -118,7 +151,7 @@ Deliverables:
 - Deterministic target-selection rules against player registry.
 - Enemy state channels:
   - high-frequency transform stream
-  - low-frequency state events (telegraph, dash start/end, death)``
+  - low-frequency state events (telegraph, dash start/end, death)
 
 Done criteria:
 - Both enemy types behave consistently for all players.

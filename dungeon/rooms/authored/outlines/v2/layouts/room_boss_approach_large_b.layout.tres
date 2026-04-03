@@ -1,7 +1,7 @@
-[gd_resource type="Resource" script_class="RoomLayoutData" format=3]
+[gd_resource type="Resource" script_class="RoomLayoutData" format=3 uid="uid://cpkogkv3rgjg7"]
 
-[ext_resource type="Script" path="res://addons/dungeon_room_editor/resources/room_placed_item_data.gd" id="1_40y2p"]
-[ext_resource type="Script" path="res://addons/dungeon_room_editor/resources/room_layout_data.gd" id="2_gju65"]
+[ext_resource type="Script" uid="uid://bin4dksyxldc0" path="res://addons/dungeon_room_editor/resources/room_placed_item_data.gd" id="1_40y2p"]
+[ext_resource type="Script" uid="uid://dpj57sp322t4g" path="res://addons/dungeon_room_editor/resources/room_layout_data.gd" id="2_gju65"]
 
 [sub_resource type="Resource" id="Resource_scqdo"]
 script = ExtResource("1_40y2p")
@@ -1662,7 +1662,7 @@ script = ExtResource("1_40y2p")
 item_id = "floor_exit_marker_auto"
 piece_id = &"floor_exit_marker"
 category = &"marker"
-grid_position = Vector2i(11, 17)
+grid_position = Vector2i(10, 17)
 tags = PackedStringArray("marker", "boss", "floor_exit")
 placement_layer = &"overlay"
 

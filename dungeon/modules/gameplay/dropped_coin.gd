@@ -10,6 +10,8 @@ const START_HEIGHT := 0.88
 const COIN_REST_CENTER_Y := 1.05
 const PLANAR_KICK_MIN := 1.4
 const PLANAR_KICK_MAX := 3.1
+const ROOM_CLEAR_MAGNET_SPEED := 26.0
+const ROOM_CLEAR_MAGNET_COLLECT_DIST := 2.1
 
 @onready var _pickup_area: Area2D = $PickupArea
 @onready var _pickup_shape: CollisionShape2D = $PickupArea/CollisionShape2D
@@ -33,6 +35,8 @@ var _use_fixed_arc_end := false
 var _coin_network_id := -1
 var _coin_value := 1
 var _authoritative_pickup := true
+var _room_clear_magnet := false
+var _magnet_preferred_peer_id := 0
 
 
 ## VisualWorld3D is a sibling of GameWorld2D under the scene root — not a child of GameWorld2D.
@@ -86,6 +90,19 @@ func configure_network_coin(coin_network_id: int, coin_value: int = 1, authorita
 	_coin_network_id = coin_network_id
 	_coin_value = maxi(1, coin_value)
 	_authoritative_pickup = authoritative_pickup
+
+
+## All peers run this for visuals; only the authoritative coin applies score / pickup RPCs.
+func begin_room_clear_magnet(preferred_peer_id: int = 0) -> void:
+	if _collected or _room_clear_magnet:
+		return
+	_room_clear_magnet = true
+	_magnet_preferred_peer_id = preferred_peer_id
+	# Skip landing delay — room is cleared and we want immediate collection path on the server.
+	_landed = true
+	_jump_u = 1.0
+	if _visual:
+		_visual.global_position = Vector3(global_position.x, COIN_REST_CENTER_Y, global_position.y)
 
 
 ## Runs after the spawner sets our global_position (mob sets it after add_child).
@@ -146,6 +163,9 @@ func _deferred_setup_drop() -> void:
 func _physics_process(delta: float) -> void:
 	if not _setup_done:
 		return
+	if _room_clear_magnet:
+		_physics_process_room_clear_magnet(delta)
+		return
 	if not _landed:
 		_jump_u = minf(1.0, _jump_u + delta / JUMP_DURATION_SEC)
 		var u := _jump_u
@@ -200,6 +220,12 @@ func _on_pickup_body_entered(body: Node2D) -> void:
 		or not body.is_in_group(&"player")
 	):
 		return
+	_collect_from_player(body)
+
+
+func _collect_from_player(body: Node2D) -> void:
+	if _collected or not _authoritative_pickup or body == null or not body.is_in_group(&"player"):
+		return
 	_collected = true
 	var picker_peer_id := _resolve_picker_peer_id(body)
 	if pickup_requested.get_connections().is_empty():
@@ -211,6 +237,49 @@ func _on_pickup_body_entered(body: Node2D) -> void:
 		queue_free()
 		return
 	pickup_requested.emit(_coin_network_id, picker_peer_id, _coin_value)
+
+
+func _resolve_magnet_target_body(preferred_peer_id: int) -> CharacterBody2D:
+	var tree := get_tree()
+	if tree == null:
+		return null
+	var preferred: CharacterBody2D = null
+	var best: CharacterBody2D = null
+	var best_d := INF
+	for n in tree.get_nodes_in_group(&"player"):
+		var p := n as CharacterBody2D
+		if p == null or not is_instance_valid(p):
+			continue
+		var pid := int(p.get_meta(&"peer_id", 0))
+		if pid <= 0 and p.has_meta(&"network_owner_peer_id"):
+			pid = int(p.get_meta(&"network_owner_peer_id", 0))
+		var d := global_position.distance_squared_to(p.global_position)
+		if preferred_peer_id > 0 and pid == preferred_peer_id:
+			preferred = p
+		if d < best_d:
+			best_d = d
+			best = p
+	if preferred != null:
+		return preferred
+	return best
+
+
+func _physics_process_room_clear_magnet(delta: float) -> void:
+	var target := _resolve_magnet_target_body(_magnet_preferred_peer_id)
+	if target == null:
+		return
+	var to_target := target.global_position - global_position
+	var dist := to_target.length()
+	if _authoritative_pickup and dist <= ROOM_CLEAR_MAGNET_COLLECT_DIST:
+		_collect_from_player(target)
+		return
+	var step := ROOM_CLEAR_MAGNET_SPEED * delta
+	if dist > 0.001:
+		global_position += to_target * (minf(step, dist) / dist)
+	if _visual:
+		_spin += delta * 8.0
+		_visual.global_position = Vector3(global_position.x, COIN_REST_CENTER_Y, global_position.y)
+		_visual.rotation_degrees = Vector3(90.0, rad_to_deg(_spin), 0.0)
 
 
 func _resolve_picker_peer_id(body: Node2D) -> int:

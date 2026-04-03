@@ -1,9 +1,9 @@
-[gd_scene load_steps=3 format=3]
+[gd_scene format=3 uid="uid://drk6vtd7rrmm5"]
 
-[ext_resource type="Script" path="res://scripts/ui/lobby_menu.gd" id="1"]
+[ext_resource type="Script" uid="uid://bcgn24p85a316" path="res://scripts/ui/lobby_menu.gd" id="1"]
 [ext_resource type="PackedScene" path="res://scenes/ui/menu/menu_background_vfx.tscn" id="2"]
 
-[node name="LobbyMenu" type="Control"]
+[node name="LobbyMenu" type="Control" unique_id=364698754]
 layout_mode = 3
 anchors_preset = 15
 anchor_right = 1.0
@@ -12,185 +12,179 @@ grow_horizontal = 2
 grow_vertical = 2
 script = ExtResource("1")
 
-[node name="MenuBackgroundVfx" parent="." instance=ExtResource("2")]
+[node name="MenuBackgroundVfx" parent="." unique_id=1049607697 instance=ExtResource("2")]
 layout_mode = 1
-anchors_preset = 15
-anchor_right = 1.0
-anchor_bottom = 1.0
-grow_horizontal = 2
-grow_vertical = 2
 
-[node name="Center" type="CenterContainer" parent="."]
+[node name="Center" type="CenterContainer" parent="." unique_id=2041536579]
 layout_mode = 1
-anchors_preset = 15
+anchors_preset = -1
 anchor_top = 0.5
 anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
 
-[node name="Margin" type="MarginContainer" parent="Center"]
+[node name="Margin" type="MarginContainer" parent="Center" unique_id=1852807648]
 layout_mode = 2
 theme_override_constants/margin_left = 20
 theme_override_constants/margin_top = 20
 theme_override_constants/margin_right = 20
 theme_override_constants/margin_bottom = 20
 
-[node name="VBox" type="VBoxContainer" parent="Center/Margin"]
+[node name="VBox" type="VBoxContainer" parent="Center/Margin" unique_id=1019048711]
 layout_mode = 2
 size_flags_horizontal = 4
 size_flags_vertical = 4
 theme_override_constants/separation = 10
 
-[node name="MainMenuVBox" type="VBoxContainer" parent="Center/Margin/VBox"]
+[node name="MainMenuVBox" type="VBoxContainer" parent="Center/Margin/VBox" unique_id=307371004]
 layout_mode = 2
 theme_override_constants/separation = 10
 
-[node name="TitleLabel" type="Label" parent="Center/Margin/VBox/MainMenuVBox"]
+[node name="TitleLabel" type="Label" parent="Center/Margin/VBox/MainMenuVBox" unique_id=264230609]
 layout_mode = 2
 theme_override_font_sizes/font_size = 28
 text = "Dungeon Game"
 horizontal_alignment = 1
 
-[node name="SubtitleLabel" type="Label" parent="Center/Margin/VBox/MainMenuVBox"]
+[node name="SubtitleLabel" type="Label" parent="Center/Margin/VBox/MainMenuVBox" unique_id=1708829101]
 layout_mode = 2
 text = "Choose how you want to play"
 horizontal_alignment = 1
 
-[node name="SingleplayerButton" type="Button" parent="Center/Margin/VBox/MainMenuVBox"]
+[node name="SingleplayerButton" type="Button" parent="Center/Margin/VBox/MainMenuVBox" unique_id=572667606]
 layout_mode = 2
 text = "Singleplayer"
 
-[node name="MultiplayerButton" type="Button" parent="Center/Margin/VBox/MainMenuVBox"]
+[node name="MultiplayerButton" type="Button" parent="Center/Margin/VBox/MainMenuVBox" unique_id=1938280727]
 layout_mode = 2
 text = "Multiplayer"
 
-[node name="OptionsButton" type="Button" parent="Center/Margin/VBox/MainMenuVBox"]
+[node name="OptionsButton" type="Button" parent="Center/Margin/VBox/MainMenuVBox" unique_id=1147171306]
 layout_mode = 2
 text = "Options"
 
-[node name="ExitButton" type="Button" parent="Center/Margin/VBox/MainMenuVBox"]
+[node name="ExitButton" type="Button" parent="Center/Margin/VBox/MainMenuVBox" unique_id=109015117]
 layout_mode = 2
 text = "Exit Game"
 
-[node name="OptionsVBox" type="VBoxContainer" parent="Center/Margin/VBox"]
+[node name="OptionsVBox" type="VBoxContainer" parent="Center/Margin/VBox" unique_id=1262759931]
 visible = false
 layout_mode = 2
 theme_override_constants/separation = 10
 
-[node name="OptionsTitleLabel" type="Label" parent="Center/Margin/VBox/OptionsVBox"]
+[node name="OptionsTitleLabel" type="Label" parent="Center/Margin/VBox/OptionsVBox" unique_id=1652607761]
 layout_mode = 2
 theme_override_font_sizes/font_size = 28
 text = "Options"
 horizontal_alignment = 1
 
-[node name="TabContainer" type="TabContainer" parent="Center/Margin/VBox/OptionsVBox"]
-layout_mode = 2
+[node name="TabContainer" type="TabContainer" parent="Center/Margin/VBox/OptionsVBox" unique_id=1442551617]
 custom_minimum_size = Vector2(560, 260)
+layout_mode = 2
 current_tab = 0
 
-[node name="Controls" type="VBoxContainer" parent="Center/Margin/VBox/OptionsVBox/TabContainer"]
+[node name="Controls" type="VBoxContainer" parent="Center/Margin/VBox/OptionsVBox/TabContainer" unique_id=1236014373]
 layout_mode = 2
 theme_override_constants/separation = 8
+metadata/_tab_index = 0
 
-[node name="SchemeLabel" type="Label" parent="Center/Margin/VBox/OptionsVBox/TabContainer/Controls"]
+[node name="SchemeLabel" type="Label" parent="Center/Margin/VBox/OptionsVBox/TabContainer/Controls" unique_id=177455020]
 layout_mode = 2
 text = "Control scheme"
 
-[node name="ControlSchemeOption" type="OptionButton" parent="Center/Margin/VBox/OptionsVBox/TabContainer/Controls"]
+[node name="ControlSchemeOption" type="OptionButton" parent="Center/Margin/VBox/OptionsVBox/TabContainer/Controls" unique_id=1052253610]
 layout_mode = 2
 
-[node name="ControlSchemeHint" type="Label" parent="Center/Margin/VBox/OptionsVBox/TabContainer/Controls"]
+[node name="ControlSchemeHint" type="Label" parent="Center/Margin/VBox/OptionsVBox/TabContainer/Controls" unique_id=1254136973]
 layout_mode = 2
-text = ""
 autowrap_mode = 3
 
-[node name="General" type="VBoxContainer" parent="Center/Margin/VBox/OptionsVBox/TabContainer"]
+[node name="General" type="VBoxContainer" parent="Center/Margin/VBox/OptionsVBox/TabContainer" unique_id=1858758950]
+visible = false
 layout_mode = 2
+metadata/_tab_index = 1
 
-[node name="GeneralPlaceholder" type="Label" parent="Center/Margin/VBox/OptionsVBox/TabContainer/General"]
+[node name="GeneralPlaceholder" type="Label" parent="Center/Margin/VBox/OptionsVBox/TabContainer/General" unique_id=2045013191]
 layout_mode = 2
 text = "More settings can go here later."
 autowrap_mode = 3
 
-[node name="OptionsBackButton" type="Button" parent="Center/Margin/VBox/OptionsVBox"]
+[node name="OptionsBackButton" type="Button" parent="Center/Margin/VBox/OptionsVBox" unique_id=467040195]
 layout_mode = 2
 text = "Back"
 
-[node name="MultiplayerVBox" type="VBoxContainer" parent="Center/Margin/VBox"]
+[node name="MultiplayerVBox" type="VBoxContainer" parent="Center/Margin/VBox" unique_id=1103694302]
 visible = false
 layout_mode = 2
 theme_override_constants/separation = 10
 
-[node name="LobbyTitleLabel" type="Label" parent="Center/Margin/VBox/MultiplayerVBox"]
+[node name="LobbyTitleLabel" type="Label" parent="Center/Margin/VBox/MultiplayerVBox" unique_id=1487445661]
 layout_mode = 2
 theme_override_font_sizes/font_size = 28
 text = "Multiplayer Lobby"
 horizontal_alignment = 1
 
-[node name="LobbySubtitleLabel" type="Label" parent="Center/Margin/VBox/MultiplayerVBox"]
+[node name="LobbySubtitleLabel" type="Label" parent="Center/Margin/VBox/MultiplayerVBox" unique_id=866528611]
 layout_mode = 2
 text = "Create a lobby or join by session code"
 horizontal_alignment = 1
 
-[node name="LobbyCodeLabel" type="LineEdit" parent="Center/Margin/VBox/MultiplayerVBox"]
+[node name="LobbyCodeLabel" type="LineEdit" parent="Center/Margin/VBox/MultiplayerVBox" unique_id=913593785]
 layout_mode = 2
 editable = false
 select_all_on_focus = true
-text = ""
-horizontal_alignment = 1
 
-[node name="CodeRow" type="HBoxContainer" parent="Center/Margin/VBox/MultiplayerVBox"]
+[node name="CodeRow" type="HBoxContainer" parent="Center/Margin/VBox/MultiplayerVBox" unique_id=1769996709]
 layout_mode = 2
 theme_override_constants/separation = 8
 
-[node name="SessionCodeInput" type="LineEdit" parent="Center/Margin/VBox/MultiplayerVBox/CodeRow"]
+[node name="SessionCodeInput" type="LineEdit" parent="Center/Margin/VBox/MultiplayerVBox/CodeRow" unique_id=688267817]
 layout_mode = 2
 size_flags_horizontal = 3
 placeholder_text = "Session code (e.g. ABCD12)"
 
-[node name="JoinCodeButton" type="Button" parent="Center/Margin/VBox/MultiplayerVBox/CodeRow"]
+[node name="JoinCodeButton" type="Button" parent="Center/Margin/VBox/MultiplayerVBox/CodeRow" unique_id=1395055399]
 layout_mode = 2
 text = "Join Lobby"
 
-[node name="ButtonRow" type="HBoxContainer" parent="Center/Margin/VBox/MultiplayerVBox"]
+[node name="ButtonRow" type="HBoxContainer" parent="Center/Margin/VBox/MultiplayerVBox" unique_id=722136618]
 layout_mode = 2
 theme_override_constants/separation = 8
 
-[node name="HostButton" type="Button" parent="Center/Margin/VBox/MultiplayerVBox/ButtonRow"]
+[node name="HostButton" type="Button" parent="Center/Margin/VBox/MultiplayerVBox/ButtonRow" unique_id=813798672]
 layout_mode = 2
 text = "Create Lobby"
 
-[node name="StartRunButton" type="Button" parent="Center/Margin/VBox/MultiplayerVBox/ButtonRow"]
+[node name="StartRunButton" type="Button" parent="Center/Margin/VBox/MultiplayerVBox/ButtonRow" unique_id=1345784164]
 layout_mode = 2
 text = "Start Run"
 
-[node name="ReadyButton" type="Button" parent="Center/Margin/VBox/MultiplayerVBox/ButtonRow"]
+[node name="ReadyButton" type="Button" parent="Center/Margin/VBox/MultiplayerVBox/ButtonRow" unique_id=712315371]
 layout_mode = 2
 text = "Ready"
 
-[node name="DisconnectButton" type="Button" parent="Center/Margin/VBox/MultiplayerVBox/ButtonRow"]
+[node name="DisconnectButton" type="Button" parent="Center/Margin/VBox/MultiplayerVBox/ButtonRow" unique_id=1204816625]
 layout_mode = 2
 text = "Disconnect"
 
-[node name="StatusLabel" type="Label" parent="Center/Margin/VBox/MultiplayerVBox"]
+[node name="BackButton" type="Button" parent="Center/Margin/VBox/MultiplayerVBox/ButtonRow" unique_id=1361050160]
+layout_mode = 2
+text = "Back"
+
+[node name="StatusLabel" type="Label" parent="Center/Margin/VBox/MultiplayerVBox" unique_id=2005183917]
 layout_mode = 2
 text = "State: OFFLINE | Role: NONE"
 
-[node name="ErrorLabel" type="Label" parent="Center/Margin/VBox/MultiplayerVBox"]
+[node name="ErrorLabel" type="Label" parent="Center/Margin/VBox/MultiplayerVBox" unique_id=1463752247]
 layout_mode = 2
 theme_override_colors/font_color = Color(0.85, 0.2, 0.2, 1)
-text = ""
 autowrap_mode = 3
 
-[node name="PeersLabel" type="Label" parent="Center/Margin/VBox/MultiplayerVBox"]
+[node name="PeersLabel" type="Label" parent="Center/Margin/VBox/MultiplayerVBox" unique_id=692344530]
 layout_mode = 2
 text = "Lobby Peers"
 
-[node name="PeersList" type="ItemList" parent="Center/Margin/VBox/MultiplayerVBox"]
-layout_mode = 2
+[node name="PeersList" type="ItemList" parent="Center/Margin/VBox/MultiplayerVBox" unique_id=1052061688]
 custom_minimum_size = Vector2(620, 220)
-
-[node name="BackButton" type="Button" parent="Center/Margin/VBox/MultiplayerVBox"]
 layout_mode = 2
-text = "Back"

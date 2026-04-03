@@ -38,7 +38,7 @@ Useful current memory:
 - Main scene is `res://scenes/ui/lobby_menu.tscn`
 - Runtime world is `res://dungeon/game/small_dungeon.tscn`
 - Multiplayer is authoritative server model
-- Milestones 1-3 are done, milestone 4 combat is in progress
+- Milestones 1-9 are done (see `dungeon/MULTIPLAYER_MILESTONE_MAP.md`)
 ```
 
 ## Thread Handoff Template

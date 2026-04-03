@@ -195,6 +195,21 @@ func _add_manual_pieces(pieces: Array[Resource], used_piece_ids: Dictionary) -> 
 	)
 	_register_piece(pieces, used_piece_ids, treasure_piece)
 
+	var infusion_pillar_piece = _make_piece(
+		&"infusion_pillar_marker",
+		"Infusion Pillar Marker",
+		&"marker",
+		"res://assets/structure/walls/wall_pillar.gltf",
+		"res://dungeon/modules/gameplay/stat_pillar_2d.tscn",
+		&"runtime_scene",
+		true,
+		&"overlay",
+		false,
+		false,
+		PackedStringArray(["marker", "infusion", "pillar"])
+	)
+	_register_piece(pieces, used_piece_ids, infusion_pillar_piece)
+
 
 func _add_generated_visual_pieces(
 	pieces: Array[Resource],

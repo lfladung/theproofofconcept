@@ -30,10 +30,9 @@ Read the smallest relevant set before editing:
 
 ## Current Project Snapshot
 
-As of 2026-03-27:
+As of 2026-04-03:
 
-- Multiplayer milestones 1-3 are complete.
-- Milestone 4 authoritative combat is in progress.
+- Multiplayer milestones 1-9 are complete per `dungeon/MULTIPLAYER_MILESTONE_MAP.md`.
 - Melee already has owner-client request -> server validation -> replicated event flow.
 - Sword blocking now uses a server-authoritative directional stamina guard: front-blocked hostile hits drain stamina instead of HP, and stamina regen is delayed after use/break.
 - Lobby/session-code flow and peer-slot mapping are implemented.

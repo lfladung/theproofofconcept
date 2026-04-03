@@ -15,7 +15,7 @@ static func acquire_projectile(parent: Node) -> ArrowProjectile:
 	var projectile: ArrowProjectile = null
 	while projectile == null and not _available_projectiles.is_empty():
 		var candidate_v: Variant = _available_projectiles.pop_back()
-		if candidate_v is ArrowProjectile and is_instance_valid(candidate_v):
+		if is_instance_valid(candidate_v) and candidate_v is ArrowProjectile:
 			projectile = candidate_v as ArrowProjectile
 	if projectile == null:
 		var scene := _ensure_projectile_scene()
@@ -61,6 +61,6 @@ static func _prune_invalid_projectiles() -> void:
 		return
 	var kept: Array = []
 	for projectile_v in _available_projectiles:
-		if projectile_v is ArrowProjectile and is_instance_valid(projectile_v):
+		if is_instance_valid(projectile_v) and projectile_v is ArrowProjectile:
 			kept.append(projectile_v)
 	_available_projectiles = kept

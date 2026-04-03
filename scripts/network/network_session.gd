@@ -687,6 +687,10 @@ func _clear_intended_disconnect() -> void:
 func _queue_scene_change(scene_path: String) -> void:
 	if scene_path.is_empty():
 		return
+	if scene_path == RUN_SCENE_PATH:
+		var overlay := get_node_or_null("/root/LoadingOverlay")
+		if overlay != null and overlay.has_method("show_loading"):
+			overlay.call("show_loading")
 	_queued_scene_path = scene_path
 	call_deferred("_deferred_change_scene")
 

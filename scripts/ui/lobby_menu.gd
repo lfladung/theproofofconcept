@@ -15,7 +15,7 @@ class_name LobbyMenu
 @onready var _control_scheme_hint: Label = (
 	$Center/Margin/VBox/OptionsVBox/TabContainer/Controls/ControlSchemeHint
 )
-@onready var _back_button: Button = $Center/Margin/VBox/MultiplayerVBox/BackButton
+@onready var _back_button: Button = $Center/Margin/VBox/MultiplayerVBox/ButtonRow/BackButton
 @onready var _session_code_input: LineEdit = $Center/Margin/VBox/MultiplayerVBox/CodeRow/SessionCodeInput
 @onready var _join_code_button: Button = $Center/Margin/VBox/MultiplayerVBox/CodeRow/JoinCodeButton
 @onready var _host_button: Button = $Center/Margin/VBox/MultiplayerVBox/ButtonRow/HostButton

@@ -23,6 +23,7 @@ config/icon="res://icon.webp"
 [autoload]
 
 GameSettings="*res://scripts/settings/game_settings.gd"
+LoadingOverlay="*res://scripts/ui/loading_overlay.gd"
 NetworkSession="*res://scripts/network/network_session.gd"
 NetEventBus="*res://scripts/network/net_event_bus.gd"
 RunState="*res://scripts/network/run_state.gd"

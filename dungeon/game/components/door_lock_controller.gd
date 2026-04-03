@@ -27,11 +27,14 @@ func cache_room_locks(
 	var sockets: Array[Dictionary] = []
 	var visuals: Array[DungeonCellDoor3D] = []
 	var exclude_clamp := exclude_clamp_socket_world.length_squared() > 0.0001 and exclude_clamp_dir != ""
+	var room_rot := int(round(room.rotation_degrees))
 	for socket in room.get_all_sockets():
 		if socket.connector_type == &"inactive":
 			continue
-		var world_pos := room.global_position + socket.position
-		var dir := String(socket.direction)
+		# Use socket.global_position so room rotation is accounted for.
+		var world_pos := socket.global_position
+		# Rotate local socket direction to world space.
+		var dir := _rotate_direction(String(socket.direction), room_rot)
 		if exclude_clamp:
 			if dir == exclude_clamp_dir and world_pos.distance_squared_to(exclude_clamp_socket_world) < 0.49:
 				# Entry socket is intentionally left open; only exit/other encounter doors lock.
@@ -145,6 +148,15 @@ func _socket_pos_key(p: Vector2) -> String:
 	var qx := int(roundf(p.x * 100.0))
 	var qy := int(roundf(p.y * 100.0))
 	return "%s:%s" % [qx, qy]
+
+
+func _rotate_direction(direction: String, rotation_deg: int) -> String:
+	var dirs := ["north", "east", "south", "west"]
+	var idx := dirs.find(direction)
+	if idx < 0:
+		return direction
+	var steps := posmod(posmod(rotation_deg, 360) / 90, 4)
+	return dirs[(idx + steps) % 4]
 
 
 func _mob_matches_encounter(mob: CharacterBody2D, encounter_id: StringName) -> bool:

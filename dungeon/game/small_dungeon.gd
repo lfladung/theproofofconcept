@@ -277,6 +277,10 @@ func _ready() -> void:
 	_ensure_loadout_overlay()
 	_regenerate_level(true)
 	_bind_local_player_runtime_hooks()
+	if _is_authoritative_world():
+		await get_tree().process_frame
+		await get_tree().process_frame
+		LoadingOverlay.hide_loading()
 
 
 func _multiplayer_api_safe() -> MultiplayerAPI:
@@ -2895,6 +2899,59 @@ func _on_coin_tree_exited(coin_network_id: int, coin: DroppedCoin) -> void:
 		_coin_nodes_by_network_id.erase(coin_network_id)
 
 
+func _nearest_peer_id_to_world_pos(world_pos: Vector2) -> int:
+	var best_peer := 0
+	var best_d := INF
+	for peer_id in _peer_ids_sorted_by_slot(_peer_slots):
+		var node_v: Variant = _players_by_peer.get(peer_id, null)
+		if node_v is not CharacterBody2D:
+			continue
+		var p := node_v as CharacterBody2D
+		if not is_instance_valid(p):
+			continue
+		var d := world_pos.distance_squared_to(p.global_position)
+		if d < best_d:
+			best_d = d
+			best_peer = peer_id
+	if best_peer > 0:
+		return best_peer
+	return maxi(0, _local_peer_id())
+
+
+func _magnet_dropped_coins_for_encounter_room(encounter_id: StringName) -> void:
+	if not _is_authoritative_world():
+		return
+	var room_name := _room_name_for_encounter(encounter_id)
+	if room_name == &"" or _room_queries == null:
+		return
+	var room := _room_by_name(room_name)
+	if room == null:
+		return
+	var bounds := _room_queries.room_bounds_rect(room)
+	if not bounds.has_area():
+		return
+	bounds = bounds.grow(12.0)
+	var should_rpc := (
+		_networked_run
+		and _is_server_peer()
+		and _has_multiplayer_peer()
+		and _can_broadcast_world_replication()
+	)
+	for net_id_key in _coin_nodes_by_network_id.keys():
+		var coin_v: Variant = _coin_nodes_by_network_id.get(net_id_key, null)
+		if coin_v is not DroppedCoin:
+			continue
+		var coin := coin_v as DroppedCoin
+		if not is_instance_valid(coin):
+			continue
+		if not bounds.has_point(coin.global_position):
+			continue
+		var peer_pick := _nearest_peer_id_to_world_pos(coin.global_position)
+		coin.begin_room_clear_magnet(peer_pick)
+		if should_rpc:
+			_rpc_coin_begin_room_clear_magnet.rpc(int(net_id_key), peer_pick)
+
+
 func _despawn_coin_local(coin_network_id: int) -> void:
 	var coin_v: Variant = _coin_nodes_by_network_id.get(coin_network_id, null)
 	if coin_v is DroppedCoin and is_instance_valid(coin_v):
@@ -3627,6 +3684,9 @@ func _rpc_runtime_snapshot_complete() -> void:
 		return
 	if _network_session != null and _network_session.has_method("mark_runtime_scene_ready_local"):
 		_network_session.call("mark_runtime_scene_ready_local")
+	await get_tree().process_frame
+	await get_tree().process_frame
+	LoadingOverlay.hide_loading()
 
 
 @rpc("any_peer", "call_remote", "reliable")
@@ -3637,6 +3697,9 @@ func _rpc_receive_layout_snapshot(floor_index_value: int, layout_snapshot: Dicti
 		return
 	if layout_snapshot.is_empty():
 		return
+	if _has_generated_floor:
+		LoadingOverlay.show_loading()
+		await get_tree().process_frame
 	_floor_index = maxi(1, floor_index_value)
 	_map_layout = layout_snapshot.duplicate(true)
 	_awaiting_layout_snapshot = false
@@ -3681,6 +3744,17 @@ func _rpc_coin_collected(coin_network_id: int, picker_peer_id: int, picker_new_t
 
 
 @rpc("any_peer", "call_remote", "reliable")
+func _rpc_coin_begin_room_clear_magnet(coin_network_id: int, preferred_peer_id: int) -> void:
+	if _is_authoritative_world():
+		return
+	if multiplayer.get_remote_sender_id() != 1:
+		return
+	var coin_v: Variant = _coin_nodes_by_network_id.get(coin_network_id, null)
+	if coin_v is DroppedCoin and is_instance_valid(coin_v):
+		(coin_v as DroppedCoin).begin_room_clear_magnet(preferred_peer_id)
+
+
+@rpc("any_peer", "call_remote", "reliable")
 func _rpc_sync_coin_totals(raw_totals: Dictionary) -> void:
 	if _is_authoritative_world():
 		return
@@ -3715,6 +3789,19 @@ func _prespawn_encounter_mobs() -> void:
 func _cache_entry_socket_for_encounter(room: RoomBase, encounter_id: StringName) -> void:
 	if room == null:
 		return
+	var room_rot := int(round(room.rotation_degrees))
+	# Prefer the explicit entrance marker. Proximity to start_room can pick the wrong socket when
+	# rooms are placed at non-zero rotation (e.g. 180° swaps entrance and exit positions in world space).
+	for socket in room.get_all_sockets():
+		if socket.connector_type == &"inactive":
+			continue
+		if socket.marker_kind == "entrance":
+			_entry_socket_by_encounter[encounter_id] = socket.global_position
+			_entry_socket_dir_by_encounter[encounter_id] = RoomTransformUtils.rotate_direction(
+				String(socket.direction), room_rot
+			)
+			return
+	# Fallback: room has no entrance marker — use closest socket to start room.
 	var start_center := _room_center_2d(_layout_room_name("start_room"))
 	var best_socket := room.global_position
 	var best_dist := 1.0e12
@@ -3727,7 +3814,7 @@ func _cache_entry_socket_for_encounter(room: RoomBase, encounter_id: StringName)
 		if d < best_dist:
 			best_dist = d
 			best_socket = world_pos
-			best_dir = String(socket.direction)
+			best_dir = RoomTransformUtils.rotate_direction(String(socket.direction), room_rot)
 	_entry_socket_by_encounter[encounter_id] = best_socket
 	_entry_socket_dir_by_encounter[encounter_id] = best_dir
 
@@ -3870,6 +3957,7 @@ func _complete_encounter(encounter_id: StringName) -> void:
 					_set_info_base_text("Combat room cleared. Doors unlocked.")
 				else:
 					_set_info_base_text("Arena room cleared.")
+	_magnet_dropped_coins_for_encounter_room(encounter_id)
 
 
 func _set_boss_exit_active(active: bool, replicate: bool = true) -> void:
@@ -4010,6 +4098,8 @@ func _deferred_advance_floor_after_portal() -> void:
 	if not _floor_transition_pending:
 		return
 	_floor_transition_pending = false
+	LoadingOverlay.show_loading()
+	await get_tree().process_frame
 	for peer_id in _players_by_peer.keys():
 		var node: Variant = _players_by_peer[peer_id]
 		if node is CharacterBody2D and is_instance_valid(node):
@@ -4020,6 +4110,9 @@ func _deferred_advance_floor_after_portal() -> void:
 				player.call(&"heal_to_full")
 	_floor_index += 1
 	_regenerate_level(true)
+	await get_tree().process_frame
+	await get_tree().process_frame
+	LoadingOverlay.hide_loading()
 
 
 func _on_player_hit() -> void:

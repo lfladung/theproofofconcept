@@ -25,7 +25,7 @@ enum WeaponMode { SWORD, GUN, BOMB }
 ## Max planar center distance for a kill; filters spurious Area2D body_entered at large separation.
 @export var mob_kill_max_planar_dist := 6.5
 @export var max_health := 100
-@export var mob_hit_damage := 25
+@export var mob_hit_damage := 999
 @export var hit_invulnerability_duration := 0.4
 ## Extra transparency during flash (0 = opaque, 1 = invisible). Alternates with fully opaque.
 @export var hit_flash_transparency := 0.42
@@ -38,7 +38,7 @@ enum WeaponMode { SWORD, GUN, BOMB }
 @export var attack_hitbox_visual_duration := 0.2
 @export var melee_facing_lock_fallback_duration := 0.25
 @export var melee_attack_cooldown := 0.5
-@export var melee_attack_damage := 25
+@export var melee_attack_damage := 999
 @export var melee_knockback_strength := 11.0
 @export var melee_charge_commit_delay := 0.25
 @export var melee_charge_max_time := 0.72

@@ -11,7 +11,6 @@ const SENTINEL_FALL_SCENE := preload("res://art/characters/enemies/Iron_Sentinel
 const SENTINEL_STAND_UP_SCENE := preload("res://art/characters/enemies/Iron_Sentinel/Iron_Sentinel_Stand_Up.glb")
 const SentinelDamagePacketScript = preload("res://scripts/combat/damage_packet.gd")
 const EnemyStateVisualScript = preload("res://scripts/visuals/enemy_state_visual.gd")
-const _TELEGRAPH_PROGRESS_STEPS := 12
 
 enum AttackState {
 	NONE,
@@ -87,7 +86,6 @@ var _recovery_elapsed := 0.0
 var _recovery_duration := 0.0
 var _recovery_playback_speed_scale := 1.0
 var _guard_break_accumulated_damage := 0.0
-var _telegraph_cache_key := ""
 
 @onready var _nav_agent: NavigationAgent2D = $NavigationAgent2D
 @onready var _punch_hitbox: Hitbox2D = $PunchHitbox
@@ -692,11 +690,9 @@ func _update_attack_telegraph_visual(
 		return
 	if not active or attack_state == AttackState.NONE:
 		_telegraph_mesh.visible = false
-		_telegraph_cache_key = ""
 		return
 	_telegraph_mesh.visible = true
-	var progress_step := int(round(clampf(progress, 0.0, 1.0) * float(_TELEGRAPH_PROGRESS_STEPS)))
-	var cache_key := "%s:%s" % [attack_state, progress_step]
+	var p := clampf(progress, 0.0, 1.0)
 	if attack_state == AttackState.PUNCH:
 		var dir := direction.normalized() if direction.length_squared() > 0.0001 else Vector2(0.0, -1.0)
 		_telegraph_mesh.global_position = Vector3(global_position.x, telegraph_ground_y, global_position.y)
@@ -704,13 +700,10 @@ func _update_attack_telegraph_visual(
 	else:
 		_telegraph_mesh.global_position = Vector3(global_position.x, telegraph_ground_y, global_position.y)
 		_telegraph_mesh.rotation = Vector3.ZERO
-	if cache_key == _telegraph_cache_key:
-		return
-	_telegraph_cache_key = cache_key
 	var imm := ImmediateMesh.new()
 	if attack_state == AttackState.STOMP:
 		_fill_mat.albedo_color = Color(0.95, 0.55, 0.18, 0.68)
-		var radius := stomp_radius * (float(progress_step) / float(_TELEGRAPH_PROGRESS_STEPS))
+		var radius := stomp_radius * p
 		var outer_radius := maxf(stomp_radius, 0.1)
 		var segments := 24
 		imm.surface_begin(Mesh.PRIMITIVE_LINES, _outline_mat)
@@ -739,7 +732,7 @@ func _update_attack_telegraph_visual(
 	else:
 		_fill_mat.albedo_color = Color(0.95, 0.18, 0.18, 0.72)
 		var half_width := punch_width * 0.5
-		var fill_depth := punch_reach * (float(progress_step) / float(_TELEGRAPH_PROGRESS_STEPS))
+		var fill_depth := punch_reach * p
 		var l0 := Vector3(half_width, 0.0, 0.0)
 		var r0 := Vector3(-half_width, 0.0, 0.0)
 		var l1 := Vector3(half_width, 0.0, punch_reach)
