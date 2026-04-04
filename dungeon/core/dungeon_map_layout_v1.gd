@@ -11,9 +11,12 @@ static func generate(rng: RandomNumberGenerator, config: Dictionary = {}) -> Dic
 	var critical_min := int(config.get("critical_path_min", 5))
 	var critical_max := int(config.get("critical_path_max", 8))
 	var max_attempts := int(config.get("max_attempts", 32))
+	var linear_spine_only := bool(config.get("linear_spine_only", false))
 
 	for _attempt in range(max_attempts):
-		var stage1 := _stage1_generate_graph(rng, total_min, total_max, critical_min, critical_max)
+		var stage1 := _stage1_generate_graph(
+			rng, total_min, total_max, critical_min, critical_max, linear_spine_only
+		)
 		if not bool(stage1.get("ok", false)):
 			continue
 		var stage2 := _stage2_validate_graph(stage1, total_min, total_max, critical_min, critical_max)
@@ -53,8 +56,33 @@ static func _stage1_generate_graph(
 	total_min: int,
 	total_max: int,
 	critical_min: int,
-	critical_max: int
+	critical_max: int,
+	linear_spine_only: bool = false
 ) -> Dictionary:
+	if linear_spine_only:
+		var room_count := rng.randi_range(total_min, total_max)
+		if room_count < 2:
+			return {"ok": false}
+		var nodes: Array[String] = []
+		var critical_path: Array[String] = []
+		for i in range(room_count):
+			var id := "CP_%02d" % i
+			nodes.append(id)
+			critical_path.append(id)
+		var edges: Array[Dictionary] = []
+		for i in range(room_count - 1):
+			edges.append({"a": critical_path[i], "b": critical_path[i + 1]})
+		return {
+			"ok": true,
+			"nodes": nodes,
+			"edges": edges,
+			"start_room": critical_path[0],
+			"exit_room": critical_path[room_count - 1],
+			"critical_path": critical_path,
+			"side_branches": [],
+			"has_treasure_branch": false,
+		}
+
 	# Keep side branches rare: generate a single optional branch room (treasure dead-end).
 	var cp_low := maxi(critical_min, total_min - 1)
 	var cp_high := mini(critical_max, total_max - 1)
@@ -94,6 +122,7 @@ static func _stage1_generate_graph(
 		"exit_room": critical_path[cp_len - 1],
 		"critical_path": critical_path,
 		"side_branches": side_branches,
+		"has_treasure_branch": true,
 	}
 
 
@@ -151,7 +180,7 @@ static func _stage2_validate_graph(
 			side_count += 1
 			if deg != 1:
 				return {"ok": false, "error": "Side room must be a dead-end (degree 1)."}
-	if side_count < 1:
+	if bool(stage1.get("has_treasure_branch", true)) and side_count < 1:
 		return {"ok": false, "error": "At least one side dead-end branch is required."}
 	return {
 		"ok": true,

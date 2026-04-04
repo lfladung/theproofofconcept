@@ -31,6 +31,7 @@ var _facing := Vector2(0.0, -1.0)
 var _authoritative_damage := true
 var _visual_style_id: StringName = STYLE_RED
 var _attack_instance_id := -1
+var _size_mult: float = 1.0
 
 
 func configure(
@@ -45,14 +46,16 @@ func configure(
 	knockback: float,
 	authoritative_damage: bool = true,
 	visual_style_id: StringName = STYLE_RED,
-	attack_instance_id: int = -1
+	attack_instance_id: int = -1,
+	size_mult: float = 1.0
 ) -> void:
 	_start_2d = spawn_planar
 	_facing = direction.normalized() if direction.length_squared() > 1e-6 else Vector2(0.0, -1.0)
 	_end_2d = spawn_planar + _facing * landing_distance
 	_vw = owner_visual_world
 	_damage = damage_amount
-	_aoe_radius = aoe_radius
+	_size_mult = maxf(1.0, size_mult)
+	_aoe_radius = aoe_radius * _size_mult
 	_flight_time = maxf(0.05, flight_duration)
 	_arc_start_y = arc_start_height
 	_knockback_strength = knockback
@@ -90,7 +93,7 @@ func _deferred_setup_visual() -> void:
 			n.remove_child(c)
 			vis.add_child(c)
 		n.queue_free()
-	vis.scale = mesh_scale
+	vis.scale = mesh_scale * _size_mult
 	_vw.add_child(vis)
 	_visual = vis
 	_apply_visual_style(_visual)

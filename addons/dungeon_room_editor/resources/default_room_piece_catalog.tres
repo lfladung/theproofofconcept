@@ -10,8 +10,8 @@
 [ext_resource type="PackedScene" uid="uid://blq1yfdhyrtvy" path="res://assets/structure/floors/floor_tile_big_spikes.gltf" id="7_5hg0s"]
 [ext_resource type="PackedScene" path="res://dungeon/modules/gameplay/trap_tile_2d.tscn" id="8_7qnbw"]
 [ext_resource type="PackedScene" uid="uid://bpdwh15b4ecdw" path="res://assets/props/chest.gltf" id="9_4rv86"]
+[ext_resource type="PackedScene" path="res://dungeon/modules/gameplay/infusion_pillar_2d.tscn" id="10c_infpill"]
 [ext_resource type="PackedScene" path="res://dungeon/modules/gameplay/treasure_chest_2d.tscn" id="10_cqpkk"]
-[ext_resource type="PackedScene" uid="uid://stat_pillar_2d" path="res://dungeon/modules/gameplay/stat_pillar_2d.tscn" id="10b_infpm"]
 [ext_resource type="PackedScene" uid="uid://wa0rxfm7hrq5" path="res://assets/structure/floors/floor_dirt_large.gltf" id="11_ldvyi"]
 [ext_resource type="PackedScene" uid="uid://csfxrpodra3f5" path="res://assets/structure/floors/floor_dirt_large_rocky.gltf" id="12_hhpar"]
 [ext_resource type="PackedScene" uid="uid://d3o67fhurfy45" path="res://assets/structure/floors/floor_dirt_small_B.gltf" id="13_3tms3"]
@@ -2255,11 +2255,11 @@ piece_id = &"infusion_pillar_marker"
 display_name = "Infusion Pillar Marker"
 category = &"marker"
 preview_scene = ExtResource("65_1wel7")
-runtime_scene = ExtResource("10b_infpm")
+runtime_scene = ExtResource("10c_infpill")
 mapping_kind = &"runtime_scene"
 allow_cell_overlap = true
 placement_layer = &"overlay"
-default_tags = PackedStringArray("marker", "infusion", "pillar")
+default_tags = PackedStringArray("marker", "infusion", "pillar", "boss")
 
 [resource]
 script = ExtResource("192_87dko")

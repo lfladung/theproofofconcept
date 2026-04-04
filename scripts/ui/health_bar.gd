@@ -1,7 +1,10 @@
 extends Control
 
-## Two stacked framed bars: blue stamina above green health.
+## Infusion dots (one per pickup), then blue stamina, then green health.
 
+const IC := preload("res://scripts/infusion/infusion_constants.gd")
+
+@onready var _infusion_row: HBoxContainer = $Bars/InfusionRow
 @onready var _stamina_inner: Control = $Bars/StaminaFrame/Inner
 @onready var _stamina_fill: ColorRect = $Bars/StaminaFrame/Inner/StaminaFill
 @onready var _health_inner: Control = $Bars/HealthFrame/Inner
@@ -11,6 +14,7 @@ var _health_ratio := 1.0
 var _stamina_ratio := 1.0
 var _bound_player: Node
 var _bound_player_is_downed := false
+var _bound_infusion_manager: InfusionManager = null
 
 
 func _ready() -> void:
@@ -47,11 +51,38 @@ func _disconnect_bound_player_signals() -> void:
 		and _bound_player.downed_state_changed.is_connected(_on_player_downed_state_changed)
 	):
 		_bound_player.downed_state_changed.disconnect(_on_player_downed_state_changed)
+	_disconnect_infusion_manager_signals()
+
+
+func _disconnect_infusion_manager_signals() -> void:
+	if _bound_infusion_manager != null and is_instance_valid(_bound_infusion_manager):
+		if _bound_infusion_manager.infusion_added.is_connected(_on_infusion_manager_ui_refresh_added):
+			_bound_infusion_manager.infusion_added.disconnect(_on_infusion_manager_ui_refresh_added)
+		if _bound_infusion_manager.infusion_removed.is_connected(_on_infusion_manager_ui_refresh_removed):
+			_bound_infusion_manager.infusion_removed.disconnect(_on_infusion_manager_ui_refresh_removed)
+	_bound_infusion_manager = null
+
+
+func _on_infusion_manager_ui_refresh_added(
+	_instance_id: int, _pillar_id: StringName, _stack: float, _source_kind: int
+) -> void:
+	## Defer so layout runs outside combat/damage stack (avoids stale HBox children from `queue_free`).
+	call_deferred(&"_refresh_infusion_display")
+
+
+func _on_infusion_manager_ui_refresh_removed(
+	_instance_id: int, _pillar_id: StringName, _stack: float
+) -> void:
+	call_deferred(&"_refresh_infusion_display")
 
 
 func _try_bind_local_player() -> void:
 	var p := _find_local_player()
 	if p == null:
+		if _bound_player != null:
+			_disconnect_bound_player_signals()
+			_bound_player = null
+			_refresh_infusion_display()
 		return
 	if _bound_player == p and is_instance_valid(_bound_player):
 		_refresh_from_bound_player()
@@ -70,6 +101,7 @@ func _try_bind_local_player() -> void:
 		_on_player_downed_state_changed
 	):
 		_bound_player.downed_state_changed.connect(_on_player_downed_state_changed)
+	_bind_infusion_manager_signals()
 	_refresh_from_bound_player()
 
 
@@ -87,6 +119,68 @@ func _refresh_from_bound_player() -> void:
 		_bound_player_is_downed = bool(_bound_player.call(&"is_downed"))
 	_on_player_health_changed(health_cur_i, health_max_i)
 	_on_player_stamina_changed(stamina_cur_f, stamina_max_f)
+	_refresh_infusion_display()
+
+
+func _bind_infusion_manager_signals() -> void:
+	_disconnect_infusion_manager_signals()
+	if _bound_player == null:
+		return
+	var im := _bound_player.get_node_or_null(^"InfusionManager") as InfusionManager
+	if im == null:
+		_refresh_infusion_display()
+		return
+	_bound_infusion_manager = im
+	im.infusion_added.connect(_on_infusion_manager_ui_refresh_added)
+	im.infusion_removed.connect(_on_infusion_manager_ui_refresh_removed)
+
+
+func _color_for_infusion_pillar(pillar_id: Variant) -> Color:
+	return IC.ui_pillar_dot_color(IC.coerce_pillar_id(pillar_id))
+
+
+func _make_infusion_dot(pillar_id: Variant) -> Control:
+	var p := Panel.new()
+	p.custom_minimum_size = Vector2(14, 14)
+	p.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var sb := StyleBoxFlat.new()
+	sb.bg_color = _color_for_infusion_pillar(pillar_id)
+	sb.corner_radius_top_left = 32
+	sb.corner_radius_top_right = 32
+	sb.corner_radius_bottom_right = 32
+	sb.corner_radius_bottom_left = 32
+	sb.set_content_margin_all(0)
+	sb.set_border_width_all(1)
+	sb.border_color = Color(1.0, 1.0, 1.0, 0.4)
+	p.add_theme_stylebox_override(&"panel", sb)
+	return p
+
+
+func _refresh_infusion_display() -> void:
+	if _infusion_row == null:
+		return
+	for c in _infusion_row.get_children():
+		_infusion_row.remove_child(c)
+		c.queue_free()
+	if _bound_player == null or not is_instance_valid(_bound_player):
+		_infusion_row.visible = false
+		_infusion_row.custom_minimum_size = Vector2(0, 0)
+		return
+	var im := _bound_player.get_node_or_null(^"InfusionManager") as InfusionManager
+	if im == null:
+		_infusion_row.visible = false
+		_infusion_row.custom_minimum_size = Vector2(0, 0)
+		return
+	var entries: Array[Dictionary] = im.list_infusions_for_ui()
+	if entries.is_empty():
+		_infusion_row.visible = false
+		_infusion_row.custom_minimum_size = Vector2(0, 0)
+		return
+	_infusion_row.visible = true
+	_infusion_row.custom_minimum_size = Vector2(0, 18)
+	for e in entries:
+		if e is Dictionary:
+			_infusion_row.add_child(_make_infusion_dot((e as Dictionary).get("pillar_id", &"")))
 
 
 func _find_local_player() -> Node:

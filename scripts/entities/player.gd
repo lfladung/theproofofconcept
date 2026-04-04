@@ -12,6 +12,8 @@ const ArrowProjectilePoolScript = preload("res://scripts/entities/arrow_projecti
 const PLAYER_BOMB_SCENE := preload("res://scenes/entities/player_bomb.tscn")
 const PLAYER_VISUAL_SCENE := preload("res://scenes/visuals/player_visual.tscn")
 const LoadoutConstantsRef = preload("res://scripts/loadout/loadout_constants.gd")
+const InfusionConstantsRef = preload("res://scripts/infusion/infusion_constants.gd")
+const InfusionFlowPhaseRef = preload("res://scripts/infusion/infusion_flow_phase.gd")
 const DamagePacketScript = preload("res://scripts/combat/damage_packet.gd")
 const _MULTIPLAYER_DEBUG_LOGGING := false
 const REVIVE_HEALTH := 50
@@ -42,6 +44,8 @@ enum WeaponMode { SWORD, GUN, BOMB }
 @export var melee_knockback_strength := 11.0
 @export var melee_charge_commit_delay := 0.25
 @export var melee_charge_max_time := 0.72
+## Extra charge cap at Flow expression (combo window).
+@export var flow_expression_combo_charge_bonus := 0.18
 @export var melee_charge_min_ratio := 0.08
 @export var melee_charge_damage_min_mult := 0.55
 @export var melee_charge_damage_max_mult := 1.4
@@ -98,6 +102,8 @@ enum WeaponMode { SWORD, GUN, BOMB }
 @onready var _player_hurtbox: Hurtbox2D = $PlayerHurtbox
 @onready var _melee_hitbox: Hitbox2D = $PlayerMeleeHitbox
 @onready var _melee_hitbox_shape: CollisionShape2D = $PlayerMeleeHitbox/CollisionShape2D
+## Infusion V1: debug F9/F10/F11 (debug builds). Future: `receive_infusion_*` + `_rpc_*` like `receive_pillar_bonus`.
+@onready var infusion_manager = $InfusionManager
 
 var health: int = 100
 var stamina := 100.0
@@ -218,6 +224,8 @@ var _base_bomb_damage := 0
 var _base_defend_damage_multiplier := 1.0
 ## Accumulated stat bonuses granted by in-world pillars during the current run.
 var _runtime_stat_bonuses: Dictionary = {}
+## When non-empty, handgun shots use this style (latest infusion pickup); cleared when no infusions remain.
+var _handgun_infusion_projectile_style: StringName = &""
 
 
 func _ready() -> void:
@@ -285,6 +293,33 @@ func _ready() -> void:
 	_rebuild_visual_mesh_instance_cache()
 	_sync_player_hurtbox_runtime()
 	_sync_melee_hitbox_geometry()
+	if infusion_manager != null:
+		if not infusion_manager.infusion_added.is_connected(_on_infusion_added_handgun_visual):
+			infusion_manager.infusion_added.connect(_on_infusion_added_handgun_visual)
+		if not infusion_manager.infusion_removed.is_connected(_on_infusion_removed_handgun_visual):
+			infusion_manager.infusion_removed.connect(_on_infusion_removed_handgun_visual)
+
+
+func _on_infusion_added_handgun_visual(
+	_instance_id: int, pillar_id: StringName, _stack: float, _source_kind: int
+) -> void:
+	_handgun_infusion_projectile_style = InfusionConstantsRef.handgun_projectile_style_id(pillar_id)
+
+
+func _on_infusion_removed_handgun_visual(
+	_instance_id: int, _pillar_id: StringName, _stack: float
+) -> void:
+	if infusion_manager == null or not infusion_manager.has_method(&"list_infusions_for_ui"):
+		_handgun_infusion_projectile_style = &""
+		return
+	var lst: Array = infusion_manager.call(&"list_infusions_for_ui")
+	if lst.is_empty():
+		_handgun_infusion_projectile_style = &""
+		return
+	var last: Dictionary = lst[lst.size() - 1]
+	_handgun_infusion_projectile_style = InfusionConstantsRef.handgun_projectile_style_id(
+		StringName(String(last.get("pillar_id", &"")))
+	)
 
 
 func _configure_health_runtime() -> void:
@@ -360,9 +395,10 @@ func _sync_melee_hitbox_geometry() -> void:
 	if _melee_hitbox == null or _melee_hitbox_shape == null or _melee_hitbox_shape.shape is not RectangleShape2D:
 		return
 	var rect := _melee_hitbox_shape.shape as RectangleShape2D
-	rect.size = Vector2(melee_width, melee_depth)
+	var sz := _melee_hit_effective_width_depth()
+	rect.size = sz
 	var facing := _resolve_melee_hit_facing()
-	var center_offset := facing * (_melee_range_start() + melee_depth * 0.5)
+	var center_offset := facing * (_melee_range_start() + sz.y * 0.5)
 	_melee_hitbox.position = center_offset
 	_melee_hitbox.rotation = facing.angle() + PI * 0.5
 
@@ -487,6 +523,32 @@ func _rpc_receive_pillar_bonus(stat_key: StringName, amount: float) -> void:
 	if _multiplayer_active() and multiplayer.get_remote_sender_id() != 1:
 		return
 	_apply_runtime_stat_bonus(stat_key, amount)
+
+
+## Server: InfusionPillar2D. Owning client mirrors like `receive_pillar_bonus`.
+func receive_infusion_pickup(pillar_id: StringName, stack_contribution: float, source_kind: int) -> void:
+	if infusion_manager == null or not infusion_manager.has_method(&"add_infusion"):
+		return
+	var new_id: Variant = infusion_manager.call(
+		&"add_infusion", pillar_id, stack_contribution, source_kind, false
+	)
+	if int(new_id) < 0:
+		return
+	if _multiplayer_active() and _is_server_peer() and network_owner_peer_id != _local_peer_id():
+		_rpc_receive_infusion_pickup.rpc_id(
+			network_owner_peer_id, pillar_id, stack_contribution, source_kind
+		)
+
+
+@rpc("any_peer", "call_remote", "reliable")
+func _rpc_receive_infusion_pickup(
+	pillar_id: StringName, stack_contribution: float, source_kind: int
+) -> void:
+	if _multiplayer_active() and multiplayer.get_remote_sender_id() != 1:
+		return
+	if infusion_manager == null or not infusion_manager.has_method(&"add_infusion"):
+		return
+	infusion_manager.call(&"add_infusion", pillar_id, stack_contribution, source_kind, true)
 
 
 func _apply_runtime_stat_bonus(stat_key: StringName, amount: float) -> void:
@@ -677,6 +739,8 @@ func _can_defend_in_current_mode() -> bool:
 
 
 func _equipped_handgun_projectile_style() -> StringName:
+	if _handgun_infusion_projectile_style != &"":
+		return _handgun_infusion_projectile_style
 	var handgun_item_id := _loadout_slot_item_id(LoadoutConstantsRef.SLOT_HANDGUN)
 	if handgun_item_id == &"":
 		return LoadoutConstantsRef.PROJECTILE_STYLE_RED
@@ -1379,7 +1443,8 @@ func _spawn_player_ranged_arrow(
 	apply_cooldown: bool,
 	projectile_event_id: int = -1,
 	projectile_style_id: StringName = LoadoutConstantsRef.PROJECTILE_STYLE_RED,
-	charge_size_mult: float = 1.0
+	charge_size_mult: float = 1.0,
+	infusion_geometry_scale: float = 0.0
 ) -> bool:
 	var parent := get_parent()
 	if parent == null:
@@ -1392,11 +1457,16 @@ func _spawn_player_ranged_arrow(
 	var arrow := ArrowProjectilePoolScript.acquire_projectile(parent)
 	if arrow == null:
 		return false
-	arrow.damage = ranged_damage
+	arrow.damage = maxi(1, int(roundf(float(ranged_damage) * _phase_outgoing_damage_multiplier())))
 	arrow.speed = ranged_speed
 	arrow.max_distance = ranged_max_tiles * world_units_per_tile
 	arrow.knockback_strength = ranged_knockback
-	arrow.mesh_scale = Vector3(1.6, 1.6, 1.6)
+	var expr_m := (
+		infusion_geometry_scale
+		if infusion_geometry_scale > 0.001
+		else _infusion_edge_expression_geometry_mult()
+	)
+	arrow.mesh_scale = Vector3(1.6, 1.6, 1.6) * expr_m
 	if arrow.has_method(&"set_authoritative_damage"):
 		arrow.call(&"set_authoritative_damage", authoritative_damage)
 	arrow.configure(
@@ -1406,7 +1476,7 @@ func _spawn_player_ranged_arrow(
 		true,
 		projectile_style_id,
 		projectile_event_id,
-		charge_size_mult
+		charge_size_mult * expr_m
 	)
 	if authoritative_damage and _is_server_peer() and projectile_event_id > 0 and arrow.has_signal(&"projectile_finished"):
 		arrow.projectile_finished.connect(
@@ -1416,7 +1486,7 @@ func _spawn_player_ranged_arrow(
 	elif not authoritative_damage and projectile_event_id > 0:
 		_remote_ranged_projectiles_by_event_id[projectile_event_id] = arrow
 	if apply_cooldown:
-		_ranged_cooldown_remaining = ranged_cooldown
+		_ranged_cooldown_remaining = _flow_effective_ranged_cooldown()
 	return true
 
 
@@ -1426,7 +1496,8 @@ func _spawn_player_bomb(
 	authoritative_damage: bool,
 	apply_cooldown: bool,
 	visual_style_id: StringName = LoadoutConstantsRef.PROJECTILE_STYLE_RED,
-	attack_event_id: int = -1
+	attack_event_id: int = -1,
+	expression_size_mult: float = 0.0
 ) -> bool:
 	var parent := get_parent()
 	if parent == null:
@@ -1435,11 +1506,17 @@ func _spawn_player_bomb(
 	var bomb := PLAYER_BOMB_SCENE.instantiate() as PlayerBomb
 	if bomb == null:
 		return false
+	var geom := (
+		expression_size_mult
+		if expression_size_mult > 0.001
+		else _infusion_edge_expression_geometry_mult()
+	)
+	var bomb_dmg := maxi(1, int(roundf(float(bomb_damage) * _phase_outgoing_damage_multiplier())))
 	bomb.configure(
 		spawn_position,
 		facing,
 		vw,
-		bomb_damage,
+		bomb_dmg,
 		bomb_aoe_radius,
 		bomb_landing_distance,
 		bomb_flight_time,
@@ -1447,11 +1524,12 @@ func _spawn_player_bomb(
 		bomb_knockback_strength,
 		authoritative_damage,
 		visual_style_id,
-		attack_event_id
+		attack_event_id,
+		geom
 	)
 	parent.add_child(bomb)
 	if apply_cooldown:
-		_bomb_cooldown_remaining = bomb_cooldown
+		_bomb_cooldown_remaining = _flow_effective_bomb_cooldown()
 	return true
 
 
@@ -1477,7 +1555,7 @@ func _try_execute_server_melee_attack(
 	_server_melee_hit_event_sequence += 1
 	var hit_event_id := _server_melee_hit_event_sequence
 	var hit_count := _squash_mobs_in_melee_hit(hit_event_id, cr, apply_charge_scaling)
-	_melee_attack_cooldown_remaining = melee_attack_cooldown
+	_melee_attack_cooldown_remaining = _flow_effective_melee_cooldown()
 	_server_melee_event_sequence += 1
 	var event_sequence := _server_melee_event_sequence
 	_last_applied_melee_event_sequence = max(_last_applied_melee_event_sequence, event_sequence)
@@ -1538,7 +1616,8 @@ func _try_execute_server_ranged_attack(
 			_facing_planar,
 			String(projectile_style_id),
 			cr,
-			apply_charge_scaling
+			apply_charge_scaling,
+			_infusion_edge_expression_geometry_mult()
 		)
 	if OS.is_debug_build():
 		print(
@@ -1582,7 +1661,8 @@ func _try_execute_server_bomb_attack(requested_facing: Vector2) -> bool:
 			event_sequence,
 			global_position,
 			_facing_planar,
-			String(bomb_visual_style_id)
+			String(bomb_visual_style_id),
+			_infusion_edge_expression_geometry_mult()
 		)
 	if OS.is_debug_build():
 		print(
@@ -1617,7 +1697,7 @@ func _submit_local_melee_attack_request(
 		1, _local_melee_request_sequence, _facing_planar, cr, apply_charge_scaling
 	)
 	# Client-side throttle while awaiting authoritative result.
-	_melee_attack_cooldown_remaining = melee_attack_cooldown
+	_melee_attack_cooldown_remaining = _flow_effective_melee_cooldown()
 
 
 func _submit_local_ranged_attack_request(
@@ -1641,7 +1721,7 @@ func _submit_local_ranged_attack_request(
 	_rpc_request_ranged_attack.rpc_id(
 		1, _local_ranged_request_sequence, _facing_planar, cr, apply_charge_scaling
 	)
-	_ranged_cooldown_remaining = ranged_cooldown
+	_ranged_cooldown_remaining = _flow_effective_ranged_cooldown()
 
 
 func _submit_local_bomb_attack_request() -> void:
@@ -1653,7 +1733,7 @@ func _submit_local_bomb_attack_request() -> void:
 	_local_bomb_request_sequence += 1
 	_start_facing_lock(_facing_planar)
 	_rpc_request_bomb_attack.rpc_id(1, _local_bomb_request_sequence, _facing_planar)
-	_bomb_cooldown_remaining = bomb_cooldown
+	_bomb_cooldown_remaining = _flow_effective_bomb_cooldown()
 
 
 func _submit_local_weapon_switch_request() -> void:
@@ -1800,7 +1880,9 @@ func _rpc_receive_melee_attack_event(
 		_facing_planar = facing_planar.normalized()
 	_start_facing_lock(_facing_planar)
 	_play_melee_attack_presentation()
-	_melee_attack_cooldown_remaining = maxf(_melee_attack_cooldown_remaining, melee_attack_cooldown)
+	_melee_attack_cooldown_remaining = maxf(
+		_melee_attack_cooldown_remaining, _flow_effective_melee_cooldown()
+	)
 	if OS.is_debug_build():
 		print(
 			"[M4][Melee][Remote] peer=%s attack_event=%s hits=%s" % [
@@ -1818,7 +1900,8 @@ func _rpc_receive_ranged_attack_event(
 	facing_planar: Vector2,
 	projectile_style_id: String,
 	charge_ratio: float = 1.0,
-	apply_charge_scaling: bool = false
+	apply_charge_scaling: bool = false,
+	infusion_expr_mult: float = 1.0
 ) -> void:
 	if _is_server_peer():
 		return
@@ -1832,7 +1915,8 @@ func _rpc_receive_ranged_attack_event(
 	_start_facing_lock(_facing_planar)
 	_play_attack_animation_presentation(&"ranged")
 	var cr := clampf(charge_ratio, 0.0, 1.0)
-	var sz := _ranged_projectile_charge_size_mult(cr, apply_charge_scaling)
+	var sz_charge := _ranged_projectile_charge_size_mult(cr, apply_charge_scaling)
+	var expr_m := maxf(1.0, infusion_expr_mult)
 	_spawn_player_ranged_arrow(
 		spawn_position,
 		dir,
@@ -1840,9 +1924,12 @@ func _rpc_receive_ranged_attack_event(
 		false,
 		event_sequence,
 		StringName(projectile_style_id),
-		sz
+		sz_charge,
+		expr_m
 	)
-	_ranged_cooldown_remaining = maxf(_ranged_cooldown_remaining, ranged_cooldown)
+	_ranged_cooldown_remaining = maxf(
+		_ranged_cooldown_remaining, _flow_effective_ranged_cooldown()
+	)
 	if OS.is_debug_build():
 		print(
 			"[M4][Ranged][Remote] peer=%s attack_event=%s spawn=%s" % [
@@ -1858,7 +1945,8 @@ func _rpc_receive_bomb_attack_event(
 	event_sequence: int,
 	spawn_position: Vector2,
 	facing_planar: Vector2,
-	bomb_visual_style: String = "red"
+	bomb_visual_style: String = "red",
+	infusion_expr_mult: float = 1.0
 ) -> void:
 	if _is_server_peer():
 		return
@@ -1872,8 +1960,16 @@ func _rpc_receive_bomb_attack_event(
 	_facing_planar = dir
 	_start_facing_lock(_facing_planar)
 	_play_attack_animation_presentation(&"bomb")
-	_spawn_player_bomb(spawn_position, dir, false, false, bomb_visual_style_id, event_sequence)
-	_bomb_cooldown_remaining = maxf(_bomb_cooldown_remaining, bomb_cooldown)
+	_spawn_player_bomb(
+		spawn_position,
+		dir,
+		false,
+		false,
+		bomb_visual_style_id,
+		event_sequence,
+		maxf(1.0, infusion_expr_mult)
+	)
+	_bomb_cooldown_remaining = maxf(_bomb_cooldown_remaining, _flow_effective_bomb_cooldown())
 	if OS.is_debug_build():
 		print(
 			"[M4][Bomb][Remote] peer=%s attack_event=%s origin=%s" % [
@@ -2213,7 +2309,10 @@ func _process_local_melee_charge_input(
 
 			if _melee_charge_past_commit_delay:
 				_melee_charge_time += delta
-				var r := minf(1.0, _melee_charge_time / maxf(0.05, melee_charge_max_time))
+				var r := minf(
+					1.0,
+					_melee_charge_time / maxf(0.05, _flow_effective_melee_charge_max_time())
+				)
 				_update_melee_charge_bar_visual(r)
 				if r >= 1.0:
 					_commit_melee_strike(1.0, true, false)
@@ -2326,7 +2425,7 @@ func _execute_local_melee_strike(charge_ratio: float, apply_charge_scaling: bool
 	_start_facing_lock(_facing_planar)
 	_play_melee_attack_presentation()
 	_squash_mobs_in_melee_hit(-1, charge_ratio, apply_charge_scaling)
-	_melee_attack_cooldown_remaining = melee_attack_cooldown
+	_melee_attack_cooldown_remaining = _flow_effective_melee_cooldown()
 
 
 func _commit_ranged_strike(
@@ -2361,7 +2460,7 @@ func _execute_local_ranged_strike(charge_ratio: float, apply_charge_scaling: boo
 		_equipped_handgun_projectile_style(),
 		sz
 	)
-	_ranged_cooldown_remaining = ranged_cooldown
+	_ranged_cooldown_remaining = _flow_effective_ranged_cooldown()
 
 
 func _queue_rmb_attack_after_facing_mouse() -> void:
@@ -2597,6 +2696,122 @@ func _melee_range_start() -> float:
 	return _get_player_body_radius() + melee_start_beyond_body
 
 
+func _unhandled_input(event: InputEvent) -> void:
+	if not OS.is_debug_build():
+		return
+	if infusion_manager == null:
+		return
+	if event is InputEventKey and event.pressed and not event.echo:
+		var k := event as InputEventKey
+		match k.keycode:
+			KEY_F9:
+				infusion_manager.call(
+					&"add_infusion",
+					InfusionConstantsRef.PILLAR_EDGE,
+					InfusionConstantsRef.STACK_NORMAL,
+					InfusionConstantsRef.SourceKind.NORMAL
+				)
+				get_viewport().set_input_as_handled()
+			KEY_F10:
+				infusion_manager.call(
+					&"add_infusion",
+					InfusionConstantsRef.PILLAR_FLOW,
+					InfusionConstantsRef.STACK_NORMAL,
+					InfusionConstantsRef.SourceKind.NORMAL
+				)
+				get_viewport().set_input_as_handled()
+			KEY_F11:
+				infusion_manager.call(&"clear_run_infusions")
+				get_viewport().set_input_as_handled()
+			KEY_F12:
+				infusion_manager.call(
+					&"add_infusion",
+					InfusionConstantsRef.PILLAR_PHASE,
+					InfusionConstantsRef.STACK_NORMAL,
+					InfusionConstantsRef.SourceKind.NORMAL
+				)
+				get_viewport().set_input_as_handled()
+
+
+func _infusion_edge_melee_damage_bonus() -> int:
+	if infusion_manager == null or not infusion_manager.has_method(&"get_pillar_threshold"):
+		return 0
+	var t: int = int(
+		infusion_manager.call(&"get_pillar_threshold", InfusionConstantsRef.PILLAR_EDGE)
+	)
+	var b := int(InfusionConstantsRef.InfusionThreshold.BASELINE)
+	var e := int(InfusionConstantsRef.InfusionThreshold.ESCALATED)
+	if t >= e:
+		return 20
+	if t >= b:
+		return 10
+	return 0
+
+
+func _infusion_edge_expression_geometry_mult() -> float:
+	if infusion_manager == null or not infusion_manager.has_method(&"get_pillar_threshold"):
+		return 1.0
+	var t: int = int(infusion_manager.call(&"get_pillar_threshold", InfusionConstantsRef.PILLAR_EDGE))
+	if t >= int(InfusionConstantsRef.InfusionThreshold.EXPRESSION):
+		return 1.5
+	return 1.0
+
+
+func _infusion_flow_threshold() -> int:
+	if infusion_manager == null or not infusion_manager.has_method(&"get_pillar_threshold"):
+		return int(InfusionConstantsRef.InfusionThreshold.INACTIVE)
+	return int(infusion_manager.call(&"get_pillar_threshold", InfusionConstantsRef.PILLAR_FLOW))
+
+
+func _infusion_phase_threshold() -> int:
+	if infusion_manager == null or not infusion_manager.has_method(&"get_pillar_threshold"):
+		return int(InfusionConstantsRef.InfusionThreshold.INACTIVE)
+	return int(infusion_manager.call(&"get_pillar_threshold", InfusionConstantsRef.PILLAR_PHASE))
+
+
+func _flow_effective_melee_cooldown() -> float:
+	var t := _infusion_flow_threshold()
+	var cd_m := InfusionFlowPhaseRef.flow_cooldown_multiplier(t)
+	var as_m := InfusionFlowPhaseRef.flow_attack_speed_multiplier(t)
+	return melee_attack_cooldown * cd_m / maxf(1e-3, as_m)
+
+
+func _flow_effective_ranged_cooldown() -> float:
+	var t := _infusion_flow_threshold()
+	var cd_m := InfusionFlowPhaseRef.flow_cooldown_multiplier(t)
+	var as_m := InfusionFlowPhaseRef.flow_attack_speed_multiplier(t)
+	return ranged_cooldown * cd_m / maxf(1e-3, as_m)
+
+
+func _flow_effective_bomb_cooldown() -> float:
+	var t := _infusion_flow_threshold()
+	var cd_m := InfusionFlowPhaseRef.flow_cooldown_multiplier(t)
+	var as_m := InfusionFlowPhaseRef.flow_attack_speed_multiplier(t)
+	return bomb_cooldown * cd_m / maxf(1e-3, as_m)
+
+
+func _flow_effective_melee_charge_max_time() -> float:
+	var cap := melee_charge_max_time
+	if InfusionFlowPhaseRef.flow_should_extend_combo_window(_infusion_flow_threshold()):
+		cap += flow_expression_combo_charge_bonus
+	return cap
+
+
+func _phase_outgoing_damage_multiplier() -> float:
+	var r := InfusionFlowPhaseRef.phase_armor_ignore_ratio(_infusion_phase_threshold())
+	return 1.0 + clampf(r, 0.0, 1.0)
+
+
+func _infusion_phase_depth_mult() -> float:
+	return InfusionFlowPhaseRef.phase_expression_depth_multiplier(_infusion_phase_threshold())
+
+
+func _melee_hit_effective_width_depth() -> Vector2:
+	var g_edge := _infusion_edge_expression_geometry_mult()
+	var phase_d := _infusion_phase_depth_mult()
+	return Vector2(melee_width * g_edge, melee_depth * g_edge * phase_d)
+
+
 func _planar_point_in_melee_hit(mob_pos: Vector2) -> bool:
 	var inner := _melee_range_start()
 	var f := _resolve_melee_hit_facing()
@@ -2604,21 +2819,23 @@ func _planar_point_in_melee_hit(mob_pos: Vector2) -> bool:
 	var v := mob_pos - global_position
 	var along := v.dot(f)
 	var lateral := v.dot(r)
-	var half_w := melee_width * 0.5
-	return along >= inner and along <= inner + melee_depth and absf(lateral) <= half_w
+	var sz := _melee_hit_effective_width_depth()
+	var half_w := sz.x * 0.5
+	return along >= inner and along <= inner + sz.y and absf(lateral) <= half_w
 
 
 func _melee_hit_polygon_world() -> PackedVector2Array:
 	var f := _resolve_melee_hit_facing()
 	var r := Vector2(-f.y, f.x)
-	var half_w := melee_width * 0.5
+	var sz := _melee_hit_effective_width_depth()
+	var half_w := sz.x * 0.5
 	var inner := _melee_range_start()
 	var p := global_position
 	var poly := PackedVector2Array()
 	poly.append(p + f * inner + r * (-half_w))
 	poly.append(p + f * inner + r * half_w)
-	poly.append(p + f * (inner + melee_depth) + r * half_w)
-	poly.append(p + f * (inner + melee_depth) + r * (-half_w))
+	poly.append(p + f * (inner + sz.y) + r * half_w)
+	poly.append(p + f * (inner + sz.y) + r * (-half_w))
 	return poly
 
 
@@ -2639,6 +2856,8 @@ func _squash_mobs_in_melee_hit(
 	if apply_charge_scaling:
 		dmg = _melee_damage_for_charge_ratio(cr)
 		kb = _melee_knockback_for_charge_ratio(cr)
+	dmg = maxi(1, dmg + _infusion_edge_melee_damage_bonus())
+	dmg = maxi(1, int(roundf(float(dmg) * _phase_outgoing_damage_multiplier())))
 	var attack_facing := _normalized_attack_facing(_facing_planar)
 	_active_melee_attack_facing = attack_facing
 	if _melee_hitbox != null:
@@ -2692,10 +2911,11 @@ func _rebuild_melee_debug_mesh() -> void:
 	var f3 := Vector3(f2.x, 0.0, f2.y)
 	var r3 := Vector3(-f3.z, 0.0, f3.x)
 	var origin3 := Vector3(p0.x, melee_debug_ground_y, p0.y)
-	var half_w := melee_width * 0.5
+	var sz2 := _melee_hit_effective_width_depth()
+	var half_w := sz2.x * 0.5
 	var inner := _melee_range_start()
 	var near_o := f3 * inner
-	var far_o := f3 * (inner + melee_depth)
+	var far_o := f3 * (inner + sz2.y)
 	var c0 := origin3 + near_o + r3 * (-half_w)
 	var c1 := origin3 + near_o + r3 * half_w
 	var c2 := origin3 + far_o + r3 * half_w

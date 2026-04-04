@@ -7,6 +7,11 @@ const ArrowProjectilePoolScript = preload("res://scripts/entities/arrow_projecti
 const ARROW_VISUAL_SCENE := preload("res://art/combat/projectiles/a_regular_wooden_arrow_texture.glb")
 const PLAYER_PROJECTILE_VISUAL_SCENE := preload("res://art/combat/projectiles/projectile_red_texture.glb")
 const PLAYER_PROJECTILE_BLUE_VISUAL_SCENE := preload("res://art/combat/projectiles/projectile_blue_texture.glb")
+const PLAYER_PROJECTILE_GREEN_VISUAL_SCENE := preload("res://art/combat/projectiles/projectile_green_texture.glb")
+const PLAYER_PROJECTILE_ORANGE_VISUAL_SCENE := preload("res://art/combat/projectiles/projectile_orange_texture.glb")
+const PLAYER_PROJECTILE_PURPLE_VISUAL_SCENE := preload("res://art/combat/projectiles/projectile_purple_texture.glb")
+const PLAYER_PROJECTILE_PINK_VISUAL_SCENE := preload("res://art/combat/projectiles/projectile_pink_texture.glb")
+const PLAYER_PROJECTILE_YELLOW_VISUAL_SCENE := preload("res://art/combat/projectiles/projectile_yellow_texture.glb")
 const HOSTILE_PROJECTILE_GREEN_VISUAL_SCENE := preload("res://art/combat/projectiles/projectile_green_texture.glb")
 const DamagePacketScript = preload("res://scripts/combat/damage_packet.gd")
 
@@ -160,6 +165,28 @@ func _apply_hitbox_runtime() -> void:
 	_hitbox.activate(packet)
 
 
+func _debug_hitbox_tint_for_style() -> Color:
+	if not _fired_by_player and _projectile_style_id == &"green":
+		return Color(0.15, 0.9, 0.3, 0.45)
+	if _fired_by_player:
+		match _projectile_style_id:
+			&"blue":
+				return Color(0.2, 0.45, 1.0, 0.45)
+			&"green":
+				return Color(0.15, 0.9, 0.3, 0.45)
+			&"orange":
+				return Color(1.0, 0.55, 0.12, 0.45)
+			&"purple":
+				return Color(0.62, 0.28, 0.92, 0.45)
+			&"pink":
+				return Color(0.95, 0.35, 0.72, 0.45)
+			&"yellow":
+				return Color(1.0, 0.92, 0.2, 0.45)
+			_:
+				return Color(1.0, 0.15, 0.15, 0.45)
+	return Color(1.0, 0.15, 0.15, 0.45)
+
+
 func _ensure_visual_for_current_style() -> void:
 	if _vw == null:
 		return
@@ -195,13 +222,7 @@ func _ensure_visual_for_current_style() -> void:
 		var mat := StandardMaterial3D.new()
 		mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 		mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-		mat.albedo_color = (
-			Color(0.2, 0.45, 1.0, 0.45)
-			if _fired_by_player and _projectile_style_id == &"blue"
-			else Color(0.15, 0.9, 0.3, 0.45)
-			if not _fired_by_player and _projectile_style_id == &"green"
-			else Color(1.0, 0.15, 0.15, 0.45)
-		)
+		mat.albedo_color = _debug_hitbox_tint_for_style()
 		mat.cull_mode = BaseMaterial3D.CULL_DISABLED
 		box.material = mat
 		_debug_hitbox.mesh = box
@@ -213,11 +234,21 @@ func _ensure_visual_for_current_style() -> void:
 
 func _visual_scene_for_current_style() -> PackedScene:
 	if _fired_by_player:
-		return (
-			PLAYER_PROJECTILE_BLUE_VISUAL_SCENE
-			if _projectile_style_id == &"blue"
-			else PLAYER_PROJECTILE_VISUAL_SCENE
-		)
+		match _projectile_style_id:
+			&"blue":
+				return PLAYER_PROJECTILE_BLUE_VISUAL_SCENE
+			&"green":
+				return PLAYER_PROJECTILE_GREEN_VISUAL_SCENE
+			&"orange":
+				return PLAYER_PROJECTILE_ORANGE_VISUAL_SCENE
+			&"purple":
+				return PLAYER_PROJECTILE_PURPLE_VISUAL_SCENE
+			&"pink":
+				return PLAYER_PROJECTILE_PINK_VISUAL_SCENE
+			&"yellow":
+				return PLAYER_PROJECTILE_YELLOW_VISUAL_SCENE
+			_:
+				return PLAYER_PROJECTILE_VISUAL_SCENE
 	if _projectile_style_id == &"green":
 		return HOSTILE_PROJECTILE_GREEN_VISUAL_SCENE
 	return ARROW_VISUAL_SCENE

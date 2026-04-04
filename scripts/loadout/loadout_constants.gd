@@ -77,6 +77,11 @@ const STAT_ORDER: Array[StringName] = [
 
 const PROJECTILE_STYLE_RED: StringName = &"red"
 const PROJECTILE_STYLE_BLUE: StringName = &"blue"
+const PROJECTILE_STYLE_GREEN: StringName = &"green"
+const PROJECTILE_STYLE_ORANGE: StringName = &"orange"
+const PROJECTILE_STYLE_PURPLE: StringName = &"purple"
+const PROJECTILE_STYLE_PINK: StringName = &"pink"
+const PROJECTILE_STYLE_YELLOW: StringName = &"yellow"
 
 
 static func create_empty_equipped_slots() -> Dictionary:

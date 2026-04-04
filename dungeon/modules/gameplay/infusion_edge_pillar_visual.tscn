@@ -1,0 +1,6 @@
+[gd_scene format=3 uid="uid://db0mfl35ivv4w"]
+
+[ext_resource type="Script" uid="uid://bqs4wet7qd2le" path="res://dungeon/modules/gameplay/infusion_edge_pillar_visual.gd" id="1"]
+
+[node name="InfusionEdgePillarVisual" type="Node3D" unique_id=972762378]
+script = ExtResource("1")

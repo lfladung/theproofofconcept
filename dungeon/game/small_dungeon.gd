@@ -45,6 +45,13 @@ const DROPPED_COIN_SCENE := preload("res://dungeon/modules/gameplay/dropped_coin
 const PUZZLE_FLOOR_BUTTON_SCENE := preload("res://dungeon/modules/gameplay/puzzle_floor_button_2d.tscn")
 const ROOM_BASE_SCENE := preload("res://dungeon/rooms/base/room_base.tscn")
 const TRAP_TILE_SCENE := preload("res://dungeon/modules/gameplay/trap_tile_2d.tscn")
+const INFUSION_PILLAR_SCENE := preload("res://dungeon/modules/gameplay/infusion_pillar_2d.tscn")
+const INFUSION_EDGE_PILLAR_VISUAL_SCENE := preload(
+	"res://dungeon/modules/gameplay/infusion_edge_pillar_visual.tscn"
+)
+const InfusionConstantsBossPool = preload("res://scripts/infusion/infusion_constants.gd")
+## Boss-room pillar rolls: full pillar set (matches `InfusionConstants.PILLAR_ORDER`).
+const _BOSS_RANDOM_INFUSION_IDS: Array[StringName] = InfusionConstantsBossPool.PILLAR_ORDER
 const DUNGEON_CELL_DOOR_SCENE := preload("res://dungeon/visuals/dungeon_cell_door_3d.tscn")
 const RoomEditorSceneSyncScript = preload("res://addons/dungeon_room_editor/core/scene_sync.gd")
 const RoomPreviewBuilderScript = preload("res://addons/dungeon_room_editor/preview/preview_builder.gd")
@@ -213,6 +220,8 @@ var _enemy_assets_prewarmed := false
 var _backdrop_offset_cam := Vector3.ZERO
 var _prev_backdrop_camera_ref := Vector3.ZERO
 @export_enum("legacy_grid", "authored_rooms") var floor_generation_mode := "authored_rooms"
+## When true, each floor uses exactly 3 rooms (authored generator + legacy layout). Default false keeps 7–9 / 8–10.
+@export var floor_generation_compact_three_rooms := true
 @export var show_combat_debug_overlay := false
 @export var show_fps_counter := true
 @export var combat_debug_update_interval := 0.25
@@ -999,7 +1008,7 @@ func _regenerate_level(randomize_layout: bool) -> void:
 			_map_layout = {}
 			var max_tries := 4 if randomize_layout else 1
 			for _attempt in range(max_tries):
-				var generated_legacy := DungeonMapLayoutV1.generate(_rng)
+				var generated_legacy := DungeonMapLayoutV1.generate(_rng, _floor_generation_legacy_layout_config())
 				if not bool(generated_legacy.get("ok", false)):
 					continue
 				var level_data := LevelDataV1.from_layout(
@@ -1721,15 +1730,34 @@ func _ensure_authored_floor_generator() -> void:
 		_room_preview_builder = RoomPreviewBuilderScript.new()
 
 
+func _floor_generation_legacy_layout_config() -> Dictionary:
+	if floor_generation_compact_three_rooms:
+		return {
+			"total_rooms_min": 3,
+			"total_rooms_max": 3,
+			"critical_path_min": 3,
+			"critical_path_max": 3,
+			"linear_spine_only": true,
+		}
+	return {}
+
+
+func _authored_floor_room_count_bounds() -> Dictionary:
+	if floor_generation_compact_three_rooms:
+		return {"min_rooms": 3, "max_rooms": 3}
+	return {"min_rooms": 7, "max_rooms": 9}
+
+
 func _generate_authored_floor_layout() -> Dictionary:
 	_ensure_authored_floor_generator()
 	_authored_room_catalog.build()
+	var room_bounds := _authored_floor_room_count_bounds()
 	return _authored_floor_generator.generate_floor(
 		_authored_room_catalog,
 		_rng,
 		{
-			"min_rooms": 7,
-			"max_rooms": 9,
+			"min_rooms": room_bounds["min_rooms"],
+			"max_rooms": room_bounds["max_rooms"],
 			"max_floor_attempts": 20,
 		}
 	)
@@ -2992,6 +3020,84 @@ func _spawn_trap_tile_at(world_pos: Vector2) -> void:
 	_piece_instances_root.add_child(trap)
 
 
+func _collect_infusion_pillars_under(node: Node, out: Array[InfusionPillar2D]) -> void:
+	if node == null:
+		return
+	for ch in node.get_children():
+		_collect_infusion_pillars_under(ch, out)
+		if ch is InfusionPillar2D:
+			out.append(ch as InfusionPillar2D)
+
+
+func _roster_any_player_under_infusion_cap(pillar_id: StringName) -> bool:
+	if _players_by_peer.is_empty():
+		return true
+	for peer_key in _players_by_peer.keys():
+		var p: Variant = _players_by_peer[peer_key]
+		if p is not CharacterBody2D or not is_instance_valid(p):
+			continue
+		var im := p.get_node_or_null(^"InfusionManager") as InfusionManager
+		if im != null and not im.is_at_pickup_cap_for_pillar(pillar_id):
+			return true
+	return false
+
+
+func _eligible_boss_infusion_pillar_ids_for_roster() -> Array[StringName]:
+	var elig: Array[StringName] = []
+	for pid in _BOSS_RANDOM_INFUSION_IDS:
+		if _roster_any_player_under_infusion_cap(pid):
+			elig.append(pid)
+	if elig.is_empty():
+		return _BOSS_RANDOM_INFUSION_IDS.duplicate()
+	return elig
+
+
+func _pick_random_boss_infusion_pillar_id() -> StringName:
+	var elig := _eligible_boss_infusion_pillar_ids_for_roster()
+	var idx := _rng.randi_range(0, elig.size() - 1)
+	return elig[idx]
+
+
+## Authored `infusion_pillar_marker` → `InfusionPillar2D` under the boss room keep their layout positions.
+## Locked until `_set_boss_exit_active(true)`. Procedural floors with no markers get one pillar at `boss_center`.
+func _setup_boss_infusion_pillars(boss_room: RoomBase, boss_center: Vector2) -> void:
+	if not _is_authoritative_world():
+		return
+	var in_room: Array[InfusionPillar2D] = []
+	if boss_room != null:
+		_collect_infusion_pillars_under(boss_room, in_room)
+	var i := 0
+	for pillar in in_room:
+		if not is_instance_valid(pillar):
+			continue
+		if pillar.pillar_visual_scene == null:
+			pillar.pillar_visual_scene = INFUSION_EDGE_PILLAR_VISUAL_SCENE
+		pillar.infusion_pillar_id = _pick_random_boss_infusion_pillar_id()
+		pillar.add_to_group(&"boss_floor_infusion_pillar")
+		pillar.set_pickup_locked(true)
+		i += 1
+	if i > 0:
+		return
+	var pillar_v := INFUSION_PILLAR_SCENE.instantiate()
+	if pillar_v is not InfusionPillar2D:
+		return
+	var fallback := pillar_v as InfusionPillar2D
+	fallback.name = "BossInfusionPillar"
+	fallback.position = boss_center
+	fallback.infusion_pillar_id = _pick_random_boss_infusion_pillar_id()
+	fallback.add_to_group(&"boss_floor_infusion_pillar")
+	_piece_instances_root.add_child(fallback)
+	fallback.set_pickup_locked(true)
+
+
+func _unlock_boss_infusion_pillar_pickup() -> void:
+	if not is_inside_tree():
+		return
+	for n in get_tree().get_nodes_in_group(&"boss_floor_infusion_pillar"):
+		if n is InfusionPillar2D and is_instance_valid(n):
+			(n as InfusionPillar2D).set_pickup_locked(false)
+
+
 func _spawn_entrance_exit_markers() -> void:
 	var entrance_pos := _room_center_2d(_layout_room_name("start_room"))
 	if _is_authored_floor_mode():
@@ -3107,6 +3213,7 @@ func _spawn_encounter_modules() -> void:
 		_spawn_enemy_spawn_point(boss_center + Vector2(bpx, bpy), &"boss")
 		var boss_vol_size := Vector2(maxf(16.0, boss_half.x * 0.4), maxf(12.0, boss_half.y * 0.35))
 		_spawn_enemy_spawn_volume(boss_center + Vector2(-bpx, bpy), boss_vol_size, &"boss")
+	_setup_boss_infusion_pillars(boss_room, boss_center)
 	if prespawn_encounter_mobs:
 		_prespawn_encounter_mobs()
 
@@ -3976,6 +4083,8 @@ func _set_boss_exit_active(active: bool, replicate: bool = true) -> void:
 		and _can_broadcast_world_replication()
 	):
 		_rpc_set_boss_exit_active.rpc(active)
+	if active:
+		_unlock_boss_infusion_pillar_pickup()
 
 
 func _required_floor_transition_peer_ids() -> Array[int]:

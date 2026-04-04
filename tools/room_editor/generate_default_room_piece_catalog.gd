@@ -200,7 +200,7 @@ func _add_manual_pieces(pieces: Array[Resource], used_piece_ids: Dictionary) -> 
 		"Infusion Pillar Marker",
 		&"marker",
 		"res://assets/structure/walls/wall_pillar.gltf",
-		"res://dungeon/modules/gameplay/stat_pillar_2d.tscn",
+		"res://dungeon/modules/gameplay/infusion_pillar_2d.tscn",
 		&"runtime_scene",
 		true,
 		&"overlay",
