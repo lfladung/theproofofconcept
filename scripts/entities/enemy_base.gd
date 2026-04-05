@@ -7,6 +7,7 @@ signal coin_drop_requested(spawn_position: Vector2, coin_value: int)
 const DROPPED_COIN_SCENE := preload("res://dungeon/modules/gameplay/dropped_coin.tscn")
 const DamagePacketScript = preload("res://scripts/combat/damage_packet.gd")
 const InfusionEdgeRef = preload("res://scripts/infusion/infusion_edge.gd")
+const InfusionMassRef = preload("res://scripts/infusion/infusion_mass.gd")
 const InfusionConstantsRef = preload("res://scripts/infusion/infusion_constants.gd")
 const DAMAGE_TEXT_STYLE_HP := &"hp"
 const DAMAGE_TEXT_STYLE_BLOCK := &"block"
@@ -81,6 +82,12 @@ var _edge_bleed_tick_damage: int = 0
 var _edge_bleed_timer: Timer
 var _edge_mark_glow_mi: MeshInstance3D
 var _edge_mark_glow_mat: StandardMaterial3D
+## Mass (Crush+): stagger → downed window, unstable launch tag, last melee source for wall/carrier procs.
+var _mass_stagger_accum: float = 0.0
+var _mass_downed_until_msec: int = 0
+var _mass_unstable_until_msec: int = 0
+var _mass_stun_mult_this_hit: float = 1.0
+var _mass_last_melee_source: Node = null
 
 
 func _ready() -> void:
@@ -286,6 +293,8 @@ func _receive_packet(packet: DamagePacket) -> void:
 		_edge_snap_hp_before_hit()
 		if not packet.suppress_edge_procs:
 			_edge_preprocess_incoming(packet)
+		if not packet.suppress_mass_procs:
+			_mass_preprocess_incoming(packet)
 	_damage_receiver.receive_damage(packet, _hurtbox)
 
 
@@ -328,10 +337,15 @@ func _on_receiver_damage_applied(packet: DamagePacket, hp_damage: int, _hurtbox_
 			hp_damage, DAMAGE_TEXT_STYLE_HP, packet.from_backstab, packet.is_critical, from_splash
 		)
 	if is_damage_authority():
+		_mass_stun_mult_this_hit = _mass_resolve_stun_mult_for_packet(packet)
+		_mass_note_last_melee_source(packet)
 		_edge_after_damage_applied(packet)
 		_edge_apply_sever_mark_after_crit(packet)
+		_mass_after_melee_damage_applied(packet, hp_damage)
 	if _health > 0:
 		_on_nonlethal_hit(packet.direction, packet.knockback)
+	if is_damage_authority():
+		_mass_stun_mult_this_hit = 1.0
 
 
 func _on_receiver_damage_rejected(
@@ -533,6 +547,90 @@ func _is_player_melee_packet(packet: DamagePacket) -> bool:
 		or packet.kind == &"player_attack"
 		or String(packet.debug_label) == "player_melee"
 	)
+
+
+func mass_infusion_knockback_size_factor() -> float:
+	return 1.0
+
+
+func mass_infusion_is_downed() -> bool:
+	return Time.get_ticks_msec() < _mass_downed_until_msec
+
+
+func mass_infusion_consume_unstable_burst_if_active() -> bool:
+	if Time.get_ticks_msec() >= _mass_unstable_until_msec:
+		return false
+	_mass_unstable_until_msec = 0
+	return true
+
+
+func mass_infusion_add_bonus_stun(_seconds: float) -> void:
+	pass
+
+
+func _mass_preprocess_incoming(packet: DamagePacket) -> void:
+	if packet == null or not mass_infusion_is_downed():
+		return
+	if not _is_player_melee_packet(packet):
+		return
+	var atk: Node = packet.source_node
+	if atk == null or not atk.has_method(&"_infusion_mass_threshold"):
+		return
+	var mt: int = int(atk.call(&"_infusion_mass_threshold"))
+	var mm := InfusionMassRef.downed_melee_damage_multiplier(mt)
+	if mm > 1.0001:
+		packet.amount = maxi(1, int(roundf(float(packet.amount) * mm)))
+
+
+func _mass_resolve_stun_mult_for_packet(packet: DamagePacket) -> float:
+	if packet == null or packet.suppress_mass_procs:
+		return 1.0
+	if not _is_player_melee_packet(packet):
+		return 1.0
+	var atk: Node = packet.source_node
+	if atk == null or not atk.has_method(&"_infusion_mass_threshold"):
+		return 1.0
+	var mt: int = int(atk.call(&"_infusion_mass_threshold"))
+	return InfusionMassRef.hit_stun_duration_multiplier(mt)
+
+
+func _mass_note_last_melee_source(packet: DamagePacket) -> void:
+	if packet == null or packet.suppress_mass_procs:
+		return
+	if not _is_player_melee_packet(packet):
+		return
+	_mass_last_melee_source = packet.source_node
+
+
+func _mass_after_melee_damage_applied(packet: DamagePacket, hp_damage: int) -> void:
+	if hp_damage <= 0 or packet == null or packet.suppress_mass_procs:
+		return
+	if not _is_player_melee_packet(packet):
+		return
+	var atk: Node = packet.source_node
+	if atk == null or not atk.has_method(&"_infusion_mass_threshold"):
+		return
+	var mt: int = int(atk.call(&"_infusion_mass_threshold"))
+	var build := InfusionMassRef.stagger_build_per_melee_hit(mt)
+	if build <= 0.0:
+		return
+	_mass_stagger_accum += build
+	if mt < int(InfusionConstantsRef.InfusionThreshold.ESCALATED):
+		return
+	var th := InfusionMassRef.stagger_downed_threshold()
+	if _mass_stagger_accum >= th:
+		_mass_stagger_accum = 0.0
+		var dur := InfusionMassRef.downed_duration_sec(mt)
+		if dur > 0.0:
+			var until := Time.get_ticks_msec() + int(dur * 1000.0)
+			_mass_downed_until_msec = maxi(_mass_downed_until_msec, until)
+			mass_infusion_add_bonus_stun(dur)
+	var ukt := InfusionMassRef.unstable_launch_knockback_threshold(mt)
+	if packet.knockback >= ukt:
+		var uw := InfusionMassRef.unstable_window_sec(mt)
+		if uw > 0.0:
+			var u_until := Time.get_ticks_msec() + int(uw * 1000.0)
+			_mass_unstable_until_msec = maxi(_mass_unstable_until_msec, u_until)
 
 
 func _edge_apply_sever_mark_after_crit(packet: DamagePacket) -> void:

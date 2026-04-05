@@ -247,6 +247,8 @@ var _flow_chain_remaining := 0.0
 var _flow_overdrive_remaining := 0.0
 var _flow_aggression_remaining := 0.0
 var _flow_last_action_kind := -1
+## Mass Expression — melee hits that consumed a target build toward a shockwave proc.
+var _mass_shockwave_hit_stacks := 0
 
 
 func _ready() -> void:
@@ -370,6 +372,8 @@ func _configure_health_runtime() -> void:
 	if _melee_hitbox != null:
 		_melee_hitbox.debug_draw_enabled = show_melee_hit_debug
 		_melee_hitbox.debug_logging = show_melee_hit_debug
+		if not _melee_hitbox.target_resolved.is_connected(_on_melee_hitbox_target_resolved):
+			_melee_hitbox.target_resolved.connect(_on_melee_hitbox_target_resolved)
 
 
 func _sync_health_component_state() -> void:
@@ -2887,15 +2891,41 @@ func _infusion_edge_threshold() -> int:
 	return int(infusion_manager.call(&"get_pillar_threshold", InfusionConstantsRef.PILLAR_EDGE))
 
 
+func _infusion_mass_threshold() -> int:
+	if infusion_manager == null or not infusion_manager.has_method(&"get_pillar_threshold"):
+		return int(InfusionConstantsRef.InfusionThreshold.INACTIVE)
+	return int(infusion_manager.call(&"get_pillar_threshold", InfusionConstantsRef.PILLAR_MASS))
+
+
+func _infusion_mass_melee_damage_bonus() -> int:
+	return InfusionMassRef.melee_damage_bonus(_infusion_mass_threshold())
+
+
 func _infusion_stub_melee_damage_bonus() -> int:
 	if infusion_manager == null:
 		return 0
 	var mgr: Node = infusion_manager
 	return (
-		InfusionMassRef.melee_bonus_from_manager(mgr)
-		+ InfusionEchoRef.melee_bonus_from_manager(mgr)
+		InfusionEchoRef.melee_bonus_from_manager(mgr)
 		+ InfusionAnchorRef.melee_bonus_from_manager(mgr)
 		+ InfusionSurgeRef.melee_bonus_from_manager(mgr)
+	)
+
+
+func _mass_loadout_knockback_mult() -> float:
+	var v := _loadout_stat_from_totals(_stat_totals_merged(), LoadoutConstantsRef.STAT_KNOCKBACK_MULTIPLIER)
+	if v <= 0.0001:
+		return 1.0
+	return maxf(0.25, v)
+
+
+func _mass_effective_melee_damage_estimate() -> int:
+	return maxi(
+		1,
+		melee_attack_damage
+			+ _infusion_edge_melee_damage_bonus()
+			+ _infusion_mass_melee_damage_bonus()
+			+ _infusion_stub_melee_damage_bonus()
 	)
 
 
@@ -3074,6 +3104,285 @@ func apply_backstab_bonus_to_melee_packet(packet: DamagePacket, hurtbox: Hurtbox
 	packet.amount = int(res.get("amount", packet.amount))
 	packet.from_backstab = bool(res.get("from_backstab", false))
 	packet.is_critical = bool(res.get("is_critical", false))
+
+
+func _mass_kb_dir_for_enemy(base_kb: float, base_dir: Vector2, enemy: EnemyBase) -> Dictionary:
+	var kb := base_kb
+	var dir := base_dir
+	var mt := _infusion_mass_threshold()
+	if not InfusionMassRef.is_mass_attuned(mt) or enemy == null:
+		return {"kb": kb, "dir": dir}
+	kb *= maxf(0.22, enemy.mass_infusion_knockback_size_factor())
+	var blend := InfusionMassRef.expression_inward_knockback_blend(mt)
+	if blend > 0.0001 and base_dir.length_squared() > 1e-8:
+		var to_tgt := enemy.global_position - global_position
+		if to_tgt.length_squared() > 1e-8:
+			to_tgt = to_tgt.normalized()
+			var out := base_dir.normalized()
+			dir = (out * (1.0 - blend) + to_tgt * blend).normalized()
+	return {"kb": kb, "dir": dir}
+
+
+func apply_mass_melee_packet_adjustments(packet: DamagePacket, hurtbox: Hurtbox2D) -> void:
+	if packet == null or hurtbox == null:
+		return
+	if packet.kind != &"melee" or packet.debug_label != &"player_melee":
+		return
+	if packet.suppress_mass_procs:
+		return
+	var target := hurtbox.get_target_node()
+	if target == null or not target is EnemyBase:
+		return
+	var res := _mass_kb_dir_for_enemy(packet.knockback, packet.direction, target as EnemyBase)
+	packet.knockback = float(res.get("kb", packet.knockback))
+	var d: Variant = res.get("dir", packet.direction)
+	if d is Vector2:
+		packet.direction = d as Vector2
+
+
+func _mass_try_impact_pulse_and_shockwave_from_hit(
+	dmg_amount: int, primary: EnemyBase, forward: Vector2
+) -> void:
+	if not is_damage_authority() or primary == null:
+		return
+	var mt := _infusion_mass_threshold()
+	if not InfusionMassRef.is_mass_attuned(mt):
+		return
+	var pulse_r := InfusionMassRef.impact_pulse_radius(mt)
+	var ratio := InfusionMassRef.impact_pulse_damage_ratio(mt)
+	if pulse_r <= 0.0 or ratio <= 0.0:
+		return
+	var origin := primary.global_position
+	var pool := maxi(1, int(roundf(float(dmg_amount) * ratio)))
+	var pk := InfusionMassRef.impact_pulse_knockback(mt) * _mass_loadout_knockback_mult()
+	var fwd := forward
+	if fwd.length_squared() < 1e-8:
+		fwd = _active_melee_attack_facing
+	fwd = fwd.normalized()
+	_mass_deal_impact_pulse(origin, pool, primary.get_instance_id(), fwd, pk)
+	_mass_maybe_advance_shockwave_build(dmg_amount)
+
+
+func _on_melee_hitbox_target_resolved(
+	packet: DamagePacket,
+	target_uid: int,
+	accepted: bool,
+	consume_hit: bool,
+	_reason: StringName
+) -> void:
+	if not is_damage_authority():
+		return
+	if not accepted or not consume_hit:
+		return
+	if packet == null or packet.suppress_mass_procs:
+		return
+	if packet.kind != &"melee" or packet.debug_label != &"player_melee":
+		return
+	var tree := get_tree()
+	if tree == null:
+		return
+	var primary: EnemyBase = null
+	for node in tree.get_nodes_in_group(&"mob"):
+		if not node is EnemyBase:
+			continue
+		var eb := node as EnemyBase
+		if eb.get_instance_id() == target_uid:
+			primary = eb
+			break
+	if primary == null:
+		return
+	var fwd := packet.direction
+	if fwd.length_squared() < 1e-8:
+		fwd = _active_melee_attack_facing
+	_mass_try_impact_pulse_and_shockwave_from_hit(packet.amount, primary, fwd)
+
+
+func _mass_deal_impact_pulse(
+	origin: Vector2, pool: int, primary_uid: int, forward: Vector2, pulse_kb: float
+) -> void:
+	var mt := _infusion_mass_threshold()
+	var r := InfusionMassRef.impact_pulse_radius(mt)
+	var candidates: Array[EnemyBase] = _edge_collect_enemies_in_radius(origin, r, primary_uid)
+	if candidates.is_empty():
+		return
+	var each := maxi(1, pool / candidates.size())
+	var pkt := DamagePacketScript.new() as DamagePacket
+	pkt.kind = &"melee"
+	pkt.source_node = self
+	pkt.source_uid = get_instance_id()
+	pkt.origin = origin
+	pkt.direction = forward
+	pkt.knockback = maxf(0.0, pulse_kb)
+	pkt.apply_iframes = false
+	pkt.suppress_edge_procs = true
+	pkt.suppress_mass_procs = true
+	pkt.debug_label = &"mass_impact_pulse"
+	for eb in candidates:
+		if eb == null or not is_instance_valid(eb):
+			continue
+		var p := pkt.duplicate_packet()
+		p.amount = each
+		eb.take_direct_damage_packet(p)
+
+
+func _mass_maybe_advance_shockwave_build(last_swing_damage: int) -> void:
+	var mt := _infusion_mass_threshold()
+	if mt < int(InfusionConstantsRef.InfusionThreshold.EXPRESSION):
+		return
+	_mass_shockwave_hit_stacks += 1
+	var need := InfusionMassRef.shockwave_buildup_hits(mt)
+	if _mass_shockwave_hit_stacks < need:
+		return
+	_mass_shockwave_hit_stacks = 0
+	_mass_trigger_shockwave(last_swing_damage)
+
+
+func _mass_trigger_shockwave(hit_damage: int) -> void:
+	var mt := _infusion_mass_threshold()
+	var origin := global_position
+	var base_r := InfusionMassRef.shockwave_radius(mt)
+	var candidates: Array[EnemyBase] = _edge_collect_enemies_in_radius(origin, base_r, -1)
+	var bonus := InfusionMassRef.shockwave_chain_radius_bonus_per_enemy(mt) * float(maxi(0, candidates.size() - 1))
+	var r_eff := base_r + bonus
+	if r_eff > base_r + 0.01:
+		candidates = _edge_collect_enemies_in_radius(origin, r_eff, -1)
+	if candidates.is_empty():
+		return
+	var total := maxi(
+		1, int(roundf(float(maxi(1, hit_damage)) * InfusionMassRef.shockwave_damage_ratio(mt)))
+	)
+	var each := maxi(1, total / candidates.size())
+	var kb := (
+		InfusionMassRef.shockwave_knockback(mt)
+		* _mass_loadout_knockback_mult()
+		* InfusionMassRef.melee_knockback_multiplier(mt)
+	)
+	var pkt := DamagePacketScript.new() as DamagePacket
+	pkt.kind = &"melee"
+	pkt.source_node = self
+	pkt.source_uid = get_instance_id()
+	pkt.origin = origin
+	pkt.apply_iframes = false
+	pkt.suppress_edge_procs = true
+	pkt.suppress_mass_procs = true
+	pkt.debug_label = &"mass_shockwave"
+	for eb in candidates:
+		if eb == null or not is_instance_valid(eb):
+			continue
+		var dir := eb.global_position - origin
+		if dir.length_squared() < 1e-8:
+			dir = Vector2(0.0, -1.0)
+		else:
+			dir = dir.normalized()
+		var p := pkt.duplicate_packet()
+		p.amount = each
+		p.direction = dir
+		p.knockback = kb
+		eb.take_direct_damage_packet(p)
+
+
+func mass_infusion_dispatch_wall_carrier_impact(
+	victim: EnemyBase, other: EnemyBase, is_wall: bool
+) -> void:
+	if not is_damage_authority() or victim == null:
+		return
+	var mt := _infusion_mass_threshold()
+	if mt < int(InfusionConstantsRef.InfusionThreshold.ESCALATED):
+		return
+	if victim.mass_infusion_consume_unstable_burst_if_active():
+		_mass_deal_unstable_burst(victim, mt)
+		return
+	if is_wall:
+		_mass_deal_wall_slam(victim, mt)
+	elif other != null:
+		_mass_deal_carrier_hit(victim, other, mt)
+
+
+func _mass_deal_wall_slam(victim: EnemyBase, mt: int) -> void:
+	var ratio := InfusionMassRef.wall_slam_damage_ratio(mt)
+	if ratio <= 0.0:
+		return
+	var dmg := maxi(1, int(roundf(float(_mass_effective_melee_damage_estimate()) * ratio)))
+	var p := DamagePacketScript.new() as DamagePacket
+	p.amount = dmg
+	p.kind = &"melee"
+	p.source_node = self
+	p.source_uid = get_instance_id()
+	p.origin = victim.global_position
+	p.direction = _active_melee_attack_facing
+	if p.direction.length_squared() < 1e-8:
+		p.direction = Vector2(0.0, -1.0)
+	else:
+		p.direction = p.direction.normalized()
+	p.knockback = 0.0
+	p.apply_iframes = false
+	p.suppress_edge_procs = true
+	p.suppress_mass_procs = true
+	p.debug_label = &"mass_wall_slam"
+	victim.take_direct_damage_packet(p)
+	var extra := InfusionMassRef.wall_slam_extra_stun_sec(mt)
+	if extra > 0.0:
+		victim.mass_infusion_add_bonus_stun(extra)
+
+
+func _mass_deal_carrier_hit(projectile_victim: EnemyBase, struck: EnemyBase, mt: int) -> void:
+	var dmg := InfusionMassRef.carrier_hit_damage(mt)
+	var kb := InfusionMassRef.carrier_hit_knockback(mt) * _mass_loadout_knockback_mult()
+	if dmg <= 0 and kb <= 0.0:
+		return
+	var dir := struck.global_position - projectile_victim.global_position
+	if dir.length_squared() < 1e-8:
+		dir = Vector2(0.0, -1.0)
+	else:
+		dir = dir.normalized()
+	var p := DamagePacketScript.new() as DamagePacket
+	p.amount = maxi(1, dmg)
+	p.kind = &"melee"
+	p.source_node = self
+	p.source_uid = get_instance_id()
+	p.origin = struck.global_position
+	p.direction = dir
+	p.knockback = kb
+	p.apply_iframes = false
+	p.suppress_edge_procs = true
+	p.suppress_mass_procs = true
+	p.debug_label = &"mass_carrier_hit"
+	struck.take_direct_damage_packet(p)
+
+
+func _mass_deal_unstable_burst(victim: EnemyBase, mt: int) -> void:
+	var origin := victim.global_position
+	var r := InfusionMassRef.unstable_burst_radius(mt)
+	var ratio := InfusionMassRef.unstable_burst_damage_ratio(mt)
+	if r <= 0.0 or ratio <= 0.0:
+		return
+	var total := maxi(1, int(roundf(float(_mass_effective_melee_damage_estimate()) * ratio)))
+	var candidates: Array[EnemyBase] = _edge_collect_enemies_in_radius(origin, r, -1)
+	if candidates.is_empty():
+		return
+	var each := maxi(1, total / candidates.size())
+	var pkt := DamagePacketScript.new() as DamagePacket
+	pkt.kind = &"melee"
+	pkt.source_node = self
+	pkt.source_uid = get_instance_id()
+	pkt.origin = origin
+	pkt.knockback = 5.0 * _mass_loadout_knockback_mult()
+	pkt.apply_iframes = false
+	pkt.suppress_edge_procs = true
+	pkt.suppress_mass_procs = true
+	pkt.debug_label = &"mass_unstable_burst"
+	for eb in candidates:
+		if eb == null or not is_instance_valid(eb):
+			continue
+		var dir := eb.global_position - origin
+		if dir.length_squared() < 1e-8:
+			dir = Vector2(0.0, -1.0)
+		else:
+			dir = dir.normalized()
+		var p := pkt.duplicate_packet()
+		p.amount = each
+		p.direction = dir
+		eb.take_direct_damage_packet(p)
 
 
 func _melee_is_backstab(enemy: EnemyBase, attacker: Node2D) -> bool:
@@ -3386,8 +3695,17 @@ func _squash_mobs_in_melee_hit(
 	if apply_charge_scaling:
 		dmg = _melee_damage_for_charge_ratio(cr)
 		kb = _melee_knockback_for_charge_ratio(cr)
-	dmg = maxi(1, dmg + _infusion_edge_melee_damage_bonus() + _infusion_stub_melee_damage_bonus())
+	dmg = maxi(
+		1,
+		dmg
+			+ _infusion_edge_melee_damage_bonus()
+			+ _infusion_mass_melee_damage_bonus()
+			+ _infusion_stub_melee_damage_bonus()
+	)
 	dmg = maxi(1, int(roundf(float(dmg) * _phase_outgoing_damage_multiplier())))
+	var mass_t := _infusion_mass_threshold()
+	if InfusionMassRef.is_mass_attuned(mass_t):
+		kb *= InfusionMassRef.melee_knockback_multiplier(mass_t) * _mass_loadout_knockback_mult()
 	var attack_facing := _normalized_attack_facing(_facing_planar)
 	_active_melee_attack_facing = attack_facing
 	if _melee_hitbox != null:
@@ -3422,23 +3740,37 @@ func _squash_mobs_in_melee_hit(
 				dmg_hit = int(res["amount"])
 				from_bs = bool(res.get("from_backstab", false))
 				is_crit = bool(res.get("is_critical", false))
+			var kb_hit := kb
+			var dir_hit := attack_facing
+			if mob is EnemyBase:
+				var kb_res := _mass_kb_dir_for_enemy(kb, attack_facing, mob as EnemyBase)
+				kb_hit = float(kb_res.get("kb", kb))
+				var dv: Variant = kb_res.get("dir", attack_facing)
+				if dv is Vector2:
+					dir_hit = dv as Vector2
 			if hit_event_id >= 0 and mob.has_method(&"apply_authoritative_hit_event"):
 				var applied := bool(
 					mob.call(
 						&"apply_authoritative_hit_event",
 						hit_event_id,
 						dmg_hit,
-						attack_facing,
-						kb,
+						dir_hit,
+						kb_hit,
 						from_bs,
 						is_crit
 					)
 				)
 				if applied:
 					hit_count += 1
+					if mob is EnemyBase:
+						_mass_try_impact_pulse_and_shockwave_from_hit(
+							dmg_hit, mob as EnemyBase, dir_hit
+						)
 			elif mob.has_method(&"take_hit"):
-				mob.call(&"take_hit", dmg_hit, attack_facing, kb, from_bs, is_crit)
+				mob.call(&"take_hit", dmg_hit, dir_hit, kb_hit, from_bs, is_crit)
 				hit_count += 1
+				if mob is EnemyBase:
+					_mass_try_impact_pulse_and_shockwave_from_hit(dmg_hit, mob as EnemyBase, dir_hit)
 	return hit_count
 
 

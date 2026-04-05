@@ -482,6 +482,10 @@ func _pick_target_player() -> Node2D:
 	return _pick_nearest_player_target()
 
 
+func mass_infusion_knockback_size_factor() -> float:
+	return 0.78
+
+
 func _on_nonlethal_hit(_knockback_dir: Vector2, _knockback_strength: float) -> void:
 	_cancel_charge()
 	velocity = Vector2.ZERO

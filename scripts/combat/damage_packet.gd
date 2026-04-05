@@ -19,6 +19,8 @@ var from_backstab := false
 var is_critical := false
 ## Secondary Edge procs (splash / overkill spill) must not recurse into full Edge pipelines.
 var suppress_edge_procs := false
+## Mass impact pulse / shockwave / wall follow-ups must not recurse Mass stagger / unstable hooks.
+var suppress_mass_procs := false
 
 
 func duplicate_packet() -> DamagePacket:
@@ -37,6 +39,7 @@ func duplicate_packet() -> DamagePacket:
 	copy.from_backstab = from_backstab
 	copy.is_critical = is_critical
 	copy.suppress_edge_procs = suppress_edge_procs
+	copy.suppress_mass_procs = suppress_mass_procs
 	return copy
 
 

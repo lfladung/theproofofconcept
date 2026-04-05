@@ -263,6 +263,8 @@ func _finalize_damage_packet_for_target(packet: DamagePacket, hurtbox: Hurtbox2D
 	var src: Node = packet.source_node
 	if src != null and is_instance_valid(src) and src.has_method(&"apply_backstab_bonus_to_melee_packet"):
 		src.call(&"apply_backstab_bonus_to_melee_packet", packet, hurtbox)
+	if src != null and is_instance_valid(src) and src.has_method(&"apply_mass_melee_packet_adjustments"):
+		src.call(&"apply_mass_melee_packet_adjustments", packet, hurtbox)
 
 
 func _log(message: String) -> void:

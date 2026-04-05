@@ -779,6 +779,10 @@ func get_combat_planar_facing() -> Vector2:
 	return _resolve_visual_facing_direction()
 
 
+func mass_infusion_knockback_size_factor() -> float:
+	return 0.52
+
+
 func on_directional_guard_blocked_hit(packet: DamagePacket, _blocked_hurtbox: Area2D) -> void:
 	if _recovery_state != RecoveryState.NONE:
 		return

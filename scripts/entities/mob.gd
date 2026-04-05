@@ -57,6 +57,7 @@ var _dash_hit_applied := false
 var _stun_time_remaining := 0.0
 var _knockback_time_remaining := 0.0
 var _knockback_velocity := Vector2.ZERO
+var _mass_wall_carrier_cooldown_until_msec: int = 0
 var _aggro_enabled := true
 var _telegraph_progress_step := -1
 var _planar_facing := Vector2(0.0, -1.0)
@@ -156,6 +157,7 @@ func _physics_process(delta: float) -> void:
 		return
 	_update_attack_state(delta)
 	move_and_slide()
+	_mass_server_post_slide()
 	_update_planar_facing(delta)
 	_enemy_network_server_broadcast(delta)
 	_sync_visual_from_body()
@@ -415,7 +417,7 @@ func _on_nonlethal_hit(knockback_dir: Vector2, knockback_strength: float) -> voi
 	var dir := knockback_dir.normalized() if knockback_dir.length_squared() > 0.0001 else Vector2.ZERO
 	_knockback_velocity = dir * maxf(0.0, knockback_strength) * 1.3
 	_knockback_time_remaining = hit_knockback_duration
-	_stun_time_remaining = hit_stun_duration
+	_stun_time_remaining = hit_stun_duration * _mass_stun_mult_this_hit
 	_sync_visual_anim_speed(0.0)
 
 
@@ -434,6 +436,51 @@ func _update_stun(delta: float) -> void:
 
 func can_contact_damage() -> bool:
 	return false
+
+
+func mass_infusion_add_bonus_stun(seconds: float) -> void:
+	if seconds <= 0.0:
+		return
+	_stun_time_remaining = maxf(_stun_time_remaining, seconds)
+
+
+func _mass_server_post_slide() -> void:
+	if not is_damage_authority():
+		return
+	if _knockback_time_remaining <= 0.0:
+		return
+	if _knockback_velocity.length_squared() < 9.0:
+		return
+	var now := Time.get_ticks_msec()
+	if now < _mass_wall_carrier_cooldown_until_msec:
+		return
+	var kb_n := _knockback_velocity.normalized()
+	for i in get_slide_collision_count():
+		var col := get_slide_collision(i)
+		var collider: Variant = col.get_collider()
+		if collider == null:
+			continue
+		var n := col.get_normal()
+		if kb_n.dot(n) > -0.12:
+			continue
+		if collider is CharacterBody2D and collider.is_in_group(&"mob") and collider is EnemyBase:
+			_mass_dispatch_wall_carrier_impact(collider as EnemyBase, false)
+			_mass_wall_carrier_cooldown_until_msec = now + 280
+			return
+		if collider is Area2D:
+			continue
+		_mass_dispatch_wall_carrier_impact(null, true)
+		_mass_wall_carrier_cooldown_until_msec = now + 280
+		return
+
+
+func _mass_dispatch_wall_carrier_impact(other: EnemyBase, is_wall: bool) -> void:
+	var src := _mass_last_melee_source
+	if src == null or not is_instance_valid(src):
+		return
+	if not src.has_method(&"mass_infusion_dispatch_wall_carrier_impact"):
+		return
+	src.call(&"mass_infusion_dispatch_wall_carrier_impact", self, other, is_wall)
 
 
 func _refresh_dash_contact_hitbox() -> void:

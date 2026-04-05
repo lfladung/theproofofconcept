@@ -65,15 +65,52 @@
 
 
 3. Mass (Impact / Control)
-What it does:
-Knockback
-Stagger
-AoE impact
 
-High Expression:
-Ground slams
-Shockwaves
-Enemies get launched or pinned
+**Runtime status (design-first):** `scripts/infusion/infusion_mass.gd` is still a **stub** (+flat melee per Mass pickup). Tiered Mass mechanics below are **not** implemented. Loadout already declares `knockback_multiplier` (`STAT_KNOCKBACK_MULTIPLIER`) for future wiring into melee / impact math. Infusion thresholds map **Baseline → tier 1**, **Escalated → tier 2**, **Expression → tier 3**.
+
+**What it does (design):** Every hit has **weight**—you shape enemy spacing and battlefield geometry instead of only deleting HP. Late tiers add terrain and collision payoffs, optional **downed** state, and expression-level **force direction** so rooms read as “compress → detonate” or “scatter → isolate.”
+
+### Tier 1 — Heft (Mass Baseline+)
+
+- **Knockback on all melee hits**; scales with enemy size (**small** enemies move a lot, **large** enemies budge).
+- **Stagger meter** builds faster; you **interrupt** more often, especially on elites.
+- **Impact AoE:** small **radial burst** around the primary target (secondary consequence, not full hitbox duplication—a true impact pulse).
+
+**Feel:** “Hit → enemies slide → line them up.” Light crowd control without hard commitment; combat is about **spacing into walls and clusters**.
+
+### Tier 2 — Crush (Mass Escalated+)
+
+- **Wall slam:** enemies knocked **into walls** take bonus impact damage + **heavy stagger**.
+- **Enemy collision:** knocked bodies **damage and stagger** other enemies they collide with.
+- **Downed state:** heavy hits or repeated stagger can knock enemies **prone**; downed targets take **bonus melee damage**.
+
+**Optional strong hook — Unstable:** tag enemies with a short **Unstable** window after being launched; the **next** impact (wall, enemy, ground) triggers an extra **burst**.
+
+**Feel:** “Launch → slam → bounce into pack → chain stagger.” Pinball / chain reactions without hand-authored combo scripts.
+
+### Tier 3 — Cataclysm (Mass Expression)
+
+- **Ground slam trigger:** after X hits, on a heavy attack, or on an ability—**slam** creates a large **shockwave ring**; launches enemies **outward** *or* **inward** (pick a clear directional identity per build or stance).
+- **Shockwave propagation:** shockwaves **chain through enemies**, extending effective range per hit.
+- **Pin / crush zones:** enemies forced into **terrain** or **dense clusters** can become **pinned** (brief immobilize) or **crushed** (burst damage when multiple forces overlap).
+
+**Signature — force direction control:** attacks **bias knockback direction**—e.g. **forward cone** (default) *or* slight **pull** then **outward burst** (vacuum + slam identity).
+
+**Feel:** “Vacuum → slam → shockwave chain → everything pins against walls.” Reads like a **gravity / force weapon**, not plain melee.
+
+### System fit (why it matches this project)
+
+- Respects the **existing hitbox model**: primary swing still hits its arc; Mass adds **force, stagger, terrain, and collision** as follow-through.
+- **Tiered complexity:** tier 1 is mostly passive feel; tier 2 is **positioning mastery**; tier 3 is **formation control**.
+- **Cross-pillar hooks:** Edge (wall-slam crit windows / overkill), Flow (more hits → more launches), Phase (reposition through formations), Anchor (you resist knockback while acting as a ram), Surge (shockwaves as burst moments), Echo (delayed / repeated impacts).
+
+### Guardrails
+
+- Knockback must not feel **annoying**: slight **inward bias** or **friction** so packs do not scatter into empty space; **“they slide, not fly.”**
+- **Large enemies** resist meaningfully but do not **ignore** Mass.
+- If **wall slam** is a multiplier, **walls** must stay **readable** and intentional in room design.
+
+**Not yet in runtime:** stagger meter tuning, wall/enemy collision damage, downed / pinned / unstable states, shockwave propagation, force-direction bias, and InfusionMass tier hooks beyond the current damage stub.
 
 4. Echo (Repetition / Multiplicity)
 What it does:
