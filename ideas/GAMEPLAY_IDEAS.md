@@ -28,16 +28,40 @@
 
 **Not yet in doc / future hooks:** Dedicated weak-point colliders (today, “precision” is **crit + rear crit** only). UI color pass for crit numbers optional.
 
-2. Flow (Speed / Tempo)
-What it does:
-Attack speed
-Cooldown reduction
-Movement speed (lightly)
+2. Flow (Speed / Tempo / Momentum)
 
-High Expression:
-Burst windows of extreme speed
-Animations blend together
-“Momentum” feeling
+**Runtime status (implemented):** Server-authoritative tempo state on `Player`; tuning and pure math in `scripts/infusion/infusion_flow.gd`. Tempo / chain / Overdrive replicate via combat event RPCs and periodic server snapshots (`_rpc_receive_server_state`). Infusion thresholds map **Baseline → tier 1 (Accelerate)**, **Escalated → tier 2 (Chain)**, **Expression → tier 3 (Overdrive)**.
+
+**Design loop:** open fight → build tempo → chain actions → hit Overdrive → sharp drop → rebuild. Rewards continuous engagement; avoids passive global CDR and permanent speed.
+
+### Tier 1 — Accelerate (Baseline tempo shift)
+
+- Small always-on attack-speed floor (`passive_attack_speed_floor`).
+- **Tempo stacks:** each weapon action (melee / gun / bomb) adds pressure on a **0..1 meter** that decays quickly; higher tempo increases effective attack speed (`tempo_attack_speed_multiplier`).
+- **Aggression recovery:** after a weapon action, a short **aggression window** speeds up **cooldown tick rate** on melee, gun, and bomb timers (not a shorter passive cap — conditional, decays with the window).
+- **Feel:** first swings normal; sustained combat ramps speed until you drop the pace and tempo falls off.
+
+### Tier 2 — Chain (Action linking)
+
+- **Flow chain window:** after any weapon action, a ~0.8–1.1s window (tiered) where the next action gets a **chain attack-speed bonus** and **extra tempo** when the window was active.
+- **Alternating tools:** changing action family (melee vs ranged vs bomb) **extends** the chain window (`CHAIN_ALTERNATE_EXTENSION_SEC`).
+- **Ability respect:** melee hits during an active chain **pulse** gun and bomb cooldowns by a small flat amount (`CHAIN_MELEE_ABILITY_CD_PULSE_SEC`) so primary fire meaningfully feeds abilities.
+- **Feel:** rhythm and sequencing matter; mixed loadouts chain harder than one-button spam.
+
+### Tier 3 — Overdrive (Expression tempo breakpoint)
+
+- **Enter Overdrive:** at Expression, when tempo reaches **full** after an action, consume that spike and enter a short **Overdrive** window (`OVERDRIVE_DURATION_SEC`).
+- **During Overdrive:** large attack-speed multiplier, much faster cooldown ticks, snappier move speed (`OVERDRIVE_MOVE_SPEED_MULT`), shorter visual facing-lock / animation window (`OVERDRIVE_ANIM_TIME_MULT`) for **soft animation compression** (presentation-only; hit timing stays authoritative).
+- **Exit cliff:** when Overdrive ends, tempo is **crushed** (`OVERDRIVE_EXIT_TEMPO_MULT`) and the chain window can clear so you must rebuild — avoids permanent blender state.
+- **Echo-lite (planned):** rare / small follow-up strike distinct from Echo — constants reserved in `infusion_flow.gd`; not yet attached to the damage pipeline.
+
+### Guardrails (multiplayer + hitboxes)
+
+- No pure passive CDR at Baseline (`cooldown_multiplier` stays 1.0 there); recovery spikes come from **aggression** and **Overdrive tick multipliers**.
+- No animation-cancel exploits on damage authority: only **visual** lock compression under Overdrive.
+- State advances **only on the server** in multiplayer; clients merge snapshots from RPCs so tempo stays consistent with decay run everywhere.
+
+**Not yet in runtime:** true hitbox-phase cancels; Echo-lite proc on `EnemyBase` / `DamagePacket`; UI tempo / Overdrive readout.
 
 
 3. Mass (Impact / Control)

@@ -241,6 +241,12 @@ var _handgun_infusion_projectile_style: StringName = &""
 ## Edge Sever — post-kill precision window (server).
 var _edge_sever_kill_window_until_sec: float = -1.0
 var _edge_sever_kill_window_stored_bonus: float = 0.0
+## Flow infusion — tempo / chain / Overdrive (decay on all peers; advances server-only in MP).
+var _flow_tempo := 0.0
+var _flow_chain_remaining := 0.0
+var _flow_overdrive_remaining := 0.0
+var _flow_aggression_remaining := 0.0
+var _flow_last_action_kind := -1
 
 
 func _ready() -> void:
@@ -934,6 +940,11 @@ func _set_downed_state(next_downed: bool, emit_hit_signal: bool = false) -> void
 		_rmb_down = false
 		_lmb_down = false
 		_clear_pending_rmb_attack()
+		_flow_tempo = 0.0
+		_flow_chain_remaining = 0.0
+		_flow_overdrive_remaining = 0.0
+		_flow_aggression_remaining = 0.0
+		_flow_last_action_kind = -1
 	else:
 		_invuln_time_remaining = 0.0
 	if _body_shape != null:
@@ -959,14 +970,21 @@ func _resolve_melee_facing_lock_duration() -> float:
 
 
 func _resolve_visual_facing_lock_duration(mode: StringName = &"melee") -> float:
+	var base_d := 0.0
 	if _visual != null and _visual.has_method(&"get_attack_duration_seconds_for_mode"):
 		var duration_v: Variant = _visual.call(&"get_attack_duration_seconds_for_mode", mode)
 		var duration := float(duration_v)
 		if duration > 0.0:
-			return duration
-	if String(mode).to_lower() == "melee":
-		return _resolve_melee_facing_lock_duration()
-	return melee_facing_lock_fallback_duration
+			base_d = duration
+	if base_d <= 0.0:
+		if String(mode).to_lower() == "melee":
+			base_d = _resolve_melee_facing_lock_duration()
+		else:
+			base_d = melee_facing_lock_fallback_duration
+	var anim_m := InfusionFlowRef.flow_animation_time_multiplier(
+		_flow_overdrive_remaining, _infusion_flow_threshold()
+	)
+	return maxf(0.02, base_d * anim_m)
 
 
 func _start_facing_lock(direction: Vector2, duration_seconds: float = -1.0) -> void:
@@ -1109,7 +1127,12 @@ func _broadcast_server_state(delta: float) -> void:
 		_ranged_cooldown_remaining,
 		_bomb_cooldown_remaining,
 		_server_last_input_sequence,
-		_is_defending
+		_is_defending,
+		_flow_tempo,
+		_flow_chain_remaining,
+		_flow_overdrive_remaining,
+		_flow_aggression_remaining,
+		_flow_last_action_kind
 	)
 
 
@@ -1155,7 +1178,12 @@ func _rpc_receive_server_state(
 	ranged_cooldown_remaining_value: float,
 	bomb_cooldown_remaining_value: float,
 	ack_input_sequence: int,
-	defending_state: bool
+	defending_state: bool,
+	flow_tempo: float = 0.0,
+	flow_chain_remaining: float = 0.0,
+	flow_overdrive_remaining: float = 0.0,
+	flow_aggression_remaining: float = 0.0,
+	flow_last_action_kind: int = -1
 ) -> void:
 	if _is_server_peer():
 		return
@@ -1163,6 +1191,13 @@ func _rpc_receive_server_state(
 		return
 	if facing_planar.length_squared() > 1e-6:
 		_facing_planar = facing_planar.normalized()
+	_flow_merge_state_from_network(
+		flow_tempo,
+		flow_chain_remaining,
+		flow_overdrive_remaining,
+		flow_aggression_remaining,
+		flow_last_action_kind
+	)
 	var normalized_health := clampi(health_value, 0, max_health)
 	if health != normalized_health:
 		health = normalized_health
@@ -1291,6 +1326,9 @@ func _apply_movement_step(
 		planar_speed = dodge_speed
 	elif direction != Vector2.ZERO:
 		var resolved_speed := speed
+		resolved_speed *= InfusionFlowRef.overdrive_move_speed_multiplier(
+			_flow_overdrive_remaining, _infusion_flow_threshold()
+		)
 		if _is_defending:
 			resolved_speed *= clampf(defend_move_speed_multiplier, 0.0, 1.0)
 		velocity = direction * resolved_speed
@@ -1390,9 +1428,13 @@ func _client_remote_step(delta: float) -> void:
 
 func _run_shared_cooldown_and_debug_tick(delta: float) -> void:
 	_tick_facing_lock(delta)
-	_melee_attack_cooldown_remaining = maxf(0.0, _melee_attack_cooldown_remaining - delta)
-	_ranged_cooldown_remaining = maxf(0.0, _ranged_cooldown_remaining - delta)
-	_bomb_cooldown_remaining = maxf(0.0, _bomb_cooldown_remaining - delta)
+	_flow_decay_step(delta)
+	var cd_tick_m := InfusionFlowRef.cooldown_tick_multiplier(
+		_flow_aggression_remaining, _flow_overdrive_remaining, _infusion_flow_threshold()
+	)
+	_melee_attack_cooldown_remaining = maxf(0.0, _melee_attack_cooldown_remaining - delta * cd_tick_m)
+	_ranged_cooldown_remaining = maxf(0.0, _ranged_cooldown_remaining - delta * cd_tick_m)
+	_bomb_cooldown_remaining = maxf(0.0, _bomb_cooldown_remaining - delta * cd_tick_m)
 	if _is_server_peer() or not _multiplayer_active():
 		_authoritative_weapon_mode_id = int(weapon_mode)
 		_authoritative_melee_cooldown_remaining = _melee_attack_cooldown_remaining
@@ -1577,12 +1619,23 @@ func _try_execute_server_melee_attack(
 	_server_melee_hit_event_sequence += 1
 	var hit_event_id := _server_melee_hit_event_sequence
 	var hit_count := _squash_mobs_in_melee_hit(hit_event_id, cr, apply_charge_scaling)
+	_flow_after_successful_weapon_action(InfusionFlowRef.ActionKind.MELEE)
+	_flow_pulse_ability_cooldowns_after_melee()
 	_melee_attack_cooldown_remaining = _flow_effective_melee_cooldown()
 	_server_melee_event_sequence += 1
 	var event_sequence := _server_melee_event_sequence
 	_last_applied_melee_event_sequence = max(_last_applied_melee_event_sequence, event_sequence)
 	if _can_broadcast_world_replication():
-		_rpc_receive_melee_attack_event.rpc(event_sequence, _facing_planar, hit_count)
+		_rpc_receive_melee_attack_event.rpc(
+			event_sequence,
+			_facing_planar,
+			hit_count,
+			_flow_tempo,
+			_flow_chain_remaining,
+			_flow_overdrive_remaining,
+			_flow_aggression_remaining,
+			_flow_last_action_kind
+		)
 	if OS.is_debug_build():
 		print(
 			"[M4][Melee] peer=%s attack_event=%s hit_event=%s hits=%s" % [
@@ -1630,6 +1683,7 @@ func _try_execute_server_ranged_attack(
 		spawn, _facing_planar, true, true, event_sequence, projectile_style_id, sz
 	):
 		return false
+	_flow_after_successful_weapon_action(InfusionFlowRef.ActionKind.RANGED)
 	_last_applied_ranged_event_sequence = max(_last_applied_ranged_event_sequence, event_sequence)
 	if _can_broadcast_world_replication():
 		_rpc_receive_ranged_attack_event.rpc(
@@ -1639,7 +1693,12 @@ func _try_execute_server_ranged_attack(
 			String(projectile_style_id),
 			cr,
 			apply_charge_scaling,
-			_infusion_edge_expression_geometry_mult()
+			_infusion_edge_expression_geometry_mult(),
+			_flow_tempo,
+			_flow_chain_remaining,
+			_flow_overdrive_remaining,
+			_flow_aggression_remaining,
+			_flow_last_action_kind
 		)
 	if OS.is_debug_build():
 		print(
@@ -1676,6 +1735,7 @@ func _try_execute_server_bomb_attack(requested_facing: Vector2) -> bool:
 		event_sequence
 	):
 		return false
+	_flow_after_successful_weapon_action(InfusionFlowRef.ActionKind.BOMB)
 	_server_bomb_event_sequence = event_sequence
 	_last_applied_bomb_event_sequence = max(_last_applied_bomb_event_sequence, event_sequence)
 	if _can_broadcast_world_replication():
@@ -1684,7 +1744,12 @@ func _try_execute_server_bomb_attack(requested_facing: Vector2) -> bool:
 			global_position,
 			_facing_planar,
 			String(bomb_visual_style_id),
-			_infusion_edge_expression_geometry_mult()
+			_infusion_edge_expression_geometry_mult(),
+			_flow_tempo,
+			_flow_chain_remaining,
+			_flow_overdrive_remaining,
+			_flow_aggression_remaining,
+			_flow_last_action_kind
 		)
 	if OS.is_debug_build():
 		print(
@@ -1889,7 +1954,14 @@ func _rpc_request_loadout_unequip(request_sequence: int, slot_id: StringName) ->
 
 @rpc("any_peer", "call_remote", "reliable")
 func _rpc_receive_melee_attack_event(
-	event_sequence: int, facing_planar: Vector2, hit_count: int
+	event_sequence: int,
+	facing_planar: Vector2,
+	hit_count: int,
+	flow_tempo: float = 0.0,
+	flow_chain_remaining: float = 0.0,
+	flow_overdrive_remaining: float = 0.0,
+	flow_aggression_remaining: float = 0.0,
+	flow_last_action_kind: int = -1
 ) -> void:
 	if _is_server_peer():
 		return
@@ -1900,6 +1972,13 @@ func _rpc_receive_melee_attack_event(
 	_last_applied_melee_event_sequence = event_sequence
 	if facing_planar.length_squared() > 1e-6:
 		_facing_planar = facing_planar.normalized()
+	_flow_merge_state_from_network(
+		flow_tempo,
+		flow_chain_remaining,
+		flow_overdrive_remaining,
+		flow_aggression_remaining,
+		flow_last_action_kind
+	)
 	_start_facing_lock(_facing_planar)
 	_play_melee_attack_presentation()
 	_melee_attack_cooldown_remaining = maxf(
@@ -1923,7 +2002,12 @@ func _rpc_receive_ranged_attack_event(
 	projectile_style_id: String,
 	charge_ratio: float = 1.0,
 	apply_charge_scaling: bool = false,
-	infusion_expr_mult: float = 1.0
+	infusion_expr_mult: float = 1.0,
+	flow_tempo: float = 0.0,
+	flow_chain_remaining: float = 0.0,
+	flow_overdrive_remaining: float = 0.0,
+	flow_aggression_remaining: float = 0.0,
+	flow_last_action_kind: int = -1
 ) -> void:
 	if _is_server_peer():
 		return
@@ -1932,6 +2016,13 @@ func _rpc_receive_ranged_attack_event(
 	if event_sequence <= _last_applied_ranged_event_sequence:
 		return
 	_last_applied_ranged_event_sequence = event_sequence
+	_flow_merge_state_from_network(
+		flow_tempo,
+		flow_chain_remaining,
+		flow_overdrive_remaining,
+		flow_aggression_remaining,
+		flow_last_action_kind
+	)
 	var dir := _normalized_attack_facing(facing_planar)
 	_facing_planar = dir
 	_start_facing_lock(_facing_planar)
@@ -1968,7 +2059,12 @@ func _rpc_receive_bomb_attack_event(
 	spawn_position: Vector2,
 	facing_planar: Vector2,
 	bomb_visual_style: String = "red",
-	infusion_expr_mult: float = 1.0
+	infusion_expr_mult: float = 1.0,
+	flow_tempo: float = 0.0,
+	flow_chain_remaining: float = 0.0,
+	flow_overdrive_remaining: float = 0.0,
+	flow_aggression_remaining: float = 0.0,
+	flow_last_action_kind: int = -1
 ) -> void:
 	if _is_server_peer():
 		return
@@ -1977,6 +2073,13 @@ func _rpc_receive_bomb_attack_event(
 	if event_sequence <= _last_applied_bomb_event_sequence:
 		return
 	_last_applied_bomb_event_sequence = event_sequence
+	_flow_merge_state_from_network(
+		flow_tempo,
+		flow_chain_remaining,
+		flow_overdrive_remaining,
+		flow_aggression_remaining,
+		flow_last_action_kind
+	)
 	var dir := _normalized_attack_facing(facing_planar)
 	var bomb_visual_style_id := StringName(bomb_visual_style)
 	_facing_planar = dir
@@ -2102,6 +2205,11 @@ func get_combat_debug_snapshot() -> Dictionary:
 		"multiplayer_authority": get_multiplayer_authority(),
 		"local_peer_id": _local_peer_id(),
 		"has_peer": _multiplayer_active(),
+		"flow_tempo": _flow_tempo,
+		"flow_chain_remaining": _flow_chain_remaining,
+		"flow_overdrive_remaining": _flow_overdrive_remaining,
+		"flow_aggression_remaining": _flow_aggression_remaining,
+		"flow_last_action_kind": _flow_last_action_kind,
 	}
 
 
@@ -2447,6 +2555,8 @@ func _execute_local_melee_strike(charge_ratio: float, apply_charge_scaling: bool
 	_start_facing_lock(_facing_planar)
 	_play_melee_attack_presentation()
 	_squash_mobs_in_melee_hit(-1, charge_ratio, apply_charge_scaling)
+	_flow_after_successful_weapon_action(InfusionFlowRef.ActionKind.MELEE)
+	_flow_pulse_ability_cooldowns_after_melee()
 	_melee_attack_cooldown_remaining = _flow_effective_melee_cooldown()
 
 
@@ -2473,7 +2583,7 @@ func _execute_local_ranged_strike(charge_ratio: float, apply_charge_scaling: boo
 	_play_attack_animation_presentation(&"ranged")
 	var spawn := _compute_ranged_spawn(_facing_planar)
 	var sz := _ranged_projectile_charge_size_mult(charge_ratio, apply_charge_scaling)
-	_spawn_player_ranged_arrow(
+	if not _spawn_player_ranged_arrow(
 		spawn,
 		_facing_planar,
 		true,
@@ -2481,7 +2591,9 @@ func _execute_local_ranged_strike(charge_ratio: float, apply_charge_scaling: boo
 		-1,
 		_equipped_handgun_projectile_style(),
 		sz
-	)
+	):
+		return
+	_flow_after_successful_weapon_action(InfusionFlowRef.ActionKind.RANGED)
 	_ranged_cooldown_remaining = _flow_effective_ranged_cooldown()
 
 
@@ -2514,7 +2626,10 @@ func _try_throw_bomb() -> bool:
 	var dir := _normalized_attack_facing(_facing_planar)
 	_facing_planar = dir
 	_start_facing_lock(_facing_planar)
-	return _spawn_player_bomb(global_position, dir, true, true, _equipped_bomb_visual_style())
+	if not _spawn_player_bomb(global_position, dir, true, true, _equipped_bomb_visual_style()):
+		return false
+	_flow_after_successful_weapon_action(InfusionFlowRef.ActionKind.BOMB)
+	return true
 
 
 func _try_fire_ranged_arrow() -> void:
@@ -2523,7 +2638,9 @@ func _try_fire_ranged_arrow() -> void:
 	var dir := _normalized_attack_facing(_facing_planar)
 	_facing_planar = dir
 	var spawn := _compute_ranged_spawn(dir)
-	_spawn_player_ranged_arrow(spawn, dir, true, true, -1, _equipped_handgun_projectile_style())
+	if not _spawn_player_ranged_arrow(spawn, dir, true, true, -1, _equipped_handgun_projectile_style()):
+		return
+	_flow_after_successful_weapon_action(InfusionFlowRef.ActionKind.RANGED)
 
 
 func take_damage(amount: int) -> void:
@@ -2795,6 +2912,59 @@ func _infusion_flow_threshold() -> int:
 	return int(infusion_manager.call(&"get_pillar_threshold", InfusionConstantsRef.PILLAR_FLOW))
 
 
+func _flow_pack_state() -> Dictionary:
+	return {
+		"tempo": _flow_tempo,
+		"chain_rem": _flow_chain_remaining,
+		"od_rem": _flow_overdrive_remaining,
+		"agg_rem": _flow_aggression_remaining,
+		"last_kind": _flow_last_action_kind,
+	}
+
+
+func _flow_apply_state(d: Dictionary) -> void:
+	_flow_tempo = clampf(float(d.get("tempo", 0.0)), 0.0, 1.0)
+	_flow_chain_remaining = maxf(0.0, float(d.get("chain_rem", 0.0)))
+	_flow_overdrive_remaining = maxf(0.0, float(d.get("od_rem", 0.0)))
+	_flow_aggression_remaining = maxf(0.0, float(d.get("agg_rem", 0.0)))
+	_flow_last_action_kind = int(d.get("last_kind", -1))
+
+
+func _flow_merge_state_from_network(
+	tempo: float, chain_rem: float, od_rem: float, agg_rem: float, last_kind: int
+) -> void:
+	_flow_tempo = clampf(tempo, 0.0, 1.0)
+	_flow_chain_remaining = maxf(0.0, chain_rem)
+	_flow_overdrive_remaining = maxf(0.0, od_rem)
+	_flow_aggression_remaining = maxf(0.0, agg_rem)
+	_flow_last_action_kind = last_kind
+
+
+func _flow_decay_step(delta: float) -> void:
+	var t := _infusion_flow_threshold()
+	var next := InfusionFlowRef.state_decay(delta, t, _flow_pack_state())
+	_flow_apply_state(next)
+
+
+func _flow_after_successful_weapon_action(kind: int) -> void:
+	if _multiplayer_active() and not _is_server_peer():
+		return
+	var t := _infusion_flow_threshold()
+	var next := InfusionFlowRef.weapon_action_advance(t, _flow_pack_state(), kind)
+	_flow_apply_state(next)
+
+
+func _flow_pulse_ability_cooldowns_after_melee() -> void:
+	var t := _infusion_flow_threshold()
+	if t < int(InfusionConstantsRef.InfusionThreshold.ESCALATED):
+		return
+	if _flow_chain_remaining <= 0.0:
+		return
+	var p := InfusionFlowRef.CHAIN_MELEE_ABILITY_CD_PULSE_SEC
+	_ranged_cooldown_remaining = maxf(0.0, _ranged_cooldown_remaining - p)
+	_bomb_cooldown_remaining = maxf(0.0, _bomb_cooldown_remaining - p)
+
+
 func _infusion_phase_threshold() -> int:
 	if infusion_manager == null or not infusion_manager.has_method(&"get_pillar_threshold"):
 		return int(InfusionConstantsRef.InfusionThreshold.INACTIVE)
@@ -2804,21 +2974,27 @@ func _infusion_phase_threshold() -> int:
 func _flow_effective_melee_cooldown() -> float:
 	var t := _infusion_flow_threshold()
 	var cd_m := InfusionFlowRef.cooldown_multiplier(t)
-	var as_m := InfusionFlowRef.attack_speed_multiplier(t)
+	var as_m := InfusionFlowRef.combined_attack_speed_multiplier(
+		_flow_tempo, _flow_chain_remaining, _flow_overdrive_remaining, t
+	)
 	return melee_attack_cooldown * cd_m / maxf(1e-3, as_m)
 
 
 func _flow_effective_ranged_cooldown() -> float:
 	var t := _infusion_flow_threshold()
 	var cd_m := InfusionFlowRef.cooldown_multiplier(t)
-	var as_m := InfusionFlowRef.attack_speed_multiplier(t)
+	var as_m := InfusionFlowRef.combined_attack_speed_multiplier(
+		_flow_tempo, _flow_chain_remaining, _flow_overdrive_remaining, t
+	)
 	return ranged_cooldown * cd_m / maxf(1e-3, as_m)
 
 
 func _flow_effective_bomb_cooldown() -> float:
 	var t := _infusion_flow_threshold()
 	var cd_m := InfusionFlowRef.cooldown_multiplier(t)
-	var as_m := InfusionFlowRef.attack_speed_multiplier(t)
+	var as_m := InfusionFlowRef.combined_attack_speed_multiplier(
+		_flow_tempo, _flow_chain_remaining, _flow_overdrive_remaining, t
+	)
 	return bomb_cooldown * cd_m / maxf(1e-3, as_m)
 
 
@@ -3450,9 +3626,13 @@ func _physics_process(delta: float) -> void:
 	if _is_dead:
 		return
 	_tick_facing_lock(delta)
-	_melee_attack_cooldown_remaining = maxf(0.0, _melee_attack_cooldown_remaining - delta)
-	_ranged_cooldown_remaining = maxf(0.0, _ranged_cooldown_remaining - delta)
-	_bomb_cooldown_remaining = maxf(0.0, _bomb_cooldown_remaining - delta)
+	_flow_decay_step(delta)
+	var cd_sp := InfusionFlowRef.cooldown_tick_multiplier(
+		_flow_aggression_remaining, _flow_overdrive_remaining, _infusion_flow_threshold()
+	)
+	_melee_attack_cooldown_remaining = maxf(0.0, _melee_attack_cooldown_remaining - delta * cd_sp)
+	_ranged_cooldown_remaining = maxf(0.0, _ranged_cooldown_remaining - delta * cd_sp)
+	_bomb_cooldown_remaining = maxf(0.0, _bomb_cooldown_remaining - delta * cd_sp)
 
 	var use_wasd_sp := _is_wasd_mouse_scheme_enabled()
 	if _menu_input_blocked:
@@ -3523,6 +3703,9 @@ func _physics_process(delta: float) -> void:
 		planar_speed = dodge_speed
 	elif direction != Vector2.ZERO:
 		var resolved_speed := speed
+		resolved_speed *= InfusionFlowRef.overdrive_move_speed_multiplier(
+			_flow_overdrive_remaining, _infusion_flow_threshold()
+		)
 		if _is_defending:
 			resolved_speed *= clampf(defend_move_speed_multiplier, 0.0, 1.0)
 		velocity = direction * resolved_speed
