@@ -21,6 +21,12 @@ var is_critical := false
 var suppress_edge_procs := false
 ## Mass impact pulse / shockwave / wall follow-ups must not recurse Mass stagger / unstable hooks.
 var suppress_mass_procs := false
+## Echo afterimages / twin projectiles / recursive echoes — must not recurse unbounded Echo procs.
+var suppress_echo_procs := false
+## True for Reverberate afterimages, twin bolts, and decayed recursive echoes (see `InfusionEcho`).
+var is_echo := false
+## 0 = primary swing; each Echo generation increments (Expression cap in `InfusionEcho`).
+var echo_generation := 0
 
 
 func duplicate_packet() -> DamagePacket:
@@ -40,6 +46,9 @@ func duplicate_packet() -> DamagePacket:
 	copy.is_critical = is_critical
 	copy.suppress_edge_procs = suppress_edge_procs
 	copy.suppress_mass_procs = suppress_mass_procs
+	copy.suppress_echo_procs = suppress_echo_procs
+	copy.is_echo = is_echo
+	copy.echo_generation = echo_generation
 	return copy
 
 

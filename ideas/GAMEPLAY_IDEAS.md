@@ -113,15 +113,32 @@
 **Not yet in runtime:** stagger meter tuning, wall/enemy collision damage, downed / pinned / unstable states, shockwave propagation, force-direction bias, and InfusionMass tier hooks beyond the current damage stub.
 
 4. Echo (Repetition / Multiplicity)
-What it does:
-Chance to repeat attacks
-Multi-hit effects
-Projectiles duplicate
 
-High Expression:
-Chain reactions
-Cascading hits
-Attacks “linger” in time
+**Runtime status (implemented):** Server-authoritative melee reverberation and handgun twin bolts in `scripts/infusion/infusion_echo.gd`; hooks in `scripts/entities/player.gd` (melee `Hitbox2D.target_resolved`, ranged RPC + spawn), `scripts/entities/enemy_base.gd` (Chorus **imprint** window, Edge proc guards for echo hits), and `scripts/combat/damage_packet.gd` (`is_echo`, `echo_generation`, `suppress_echo_procs`). Infusion thresholds map **Baseline → tier 1 (Reverberate)**, **Escalated → tier 2 (Chorus)**, **Expression → tier 3 (Resonance Cascade)**.
+
+**Design loop:** tier 1 is a **flat** proc chance band (not linear 20→40→60%); tier 2 adds **state** (imprint → guaranteed follow-up behavior); tier 3 adds **controlled recursion** (child echoes with generation cap).
+
+### Tier 1 — Reverberate (Echo Baseline+)
+
+- **Afterimage melee:** chance (~22%) to schedule a delayed follow-up hit (~0.10–0.20s) for reduced damage (~44–52% of the damage that just resolved on the target). Copies crit/backstab flags from the primary hit so Edge mark / prime **preprocess** still reads the hit as a crit; echo hits do **not** apply Sever bleed, new Sever marks, or Edge kill splash/overkill (`is_echo` guards).
+- **Projectile twin:** handgun shots can spawn a **parallel** bolt (lateral offset, ~52% damage, replicated to clients via extended ranged attack RPC).
+
+### Tier 2 — Chorus (Echo Escalated+)
+
+- **Echo imprint:** each successful primary melee hit refreshes a short imprint on the victim (~1.15–1.35s). If the **next** melee hit on that enemy arrives while the imprint is still active, the proc is **guaranteed** and expands into **2–3** spaced micro-hits (Chorus spacing) instead of one afterimage.
+- **Linked target:** after the last micro-hit of a reverberate wave, spill damage to the **nearest** other enemy in radius (soft chain-lightning tied to repetition).
+
+### Tier 3 — Resonance Cascade (Echo Expression)
+
+- **Recursive echo (controlled):** the **last** micro-hit of a wave may roll a **child** echo (decayed damage again, new delay). Hard cap via `max_echo_generation` (child echoes do not chain-link to spare explosion).
+- **Not yet in runtime:** echo fields (spatial memory zones), action replay, on-kill echo burst — reserved for later; tuning lives in `infusion_echo.gd` when added.
+
+### Guardrails
+
+- Echo packets are tagged `is_echo`; Edge **bleed / mark-from-crit / kill procs** ignore them to prevent recursive proc soup. Echo melee still flows through Mass stagger / impact pulse hooks where applicable.
+- `suppress_echo_procs` on a packet prevents scheduling further echo logic from that strike (future use).
+
+**Not yet in runtime:** ghost-swing / afterimage VFX, dedicated echo SFX layering, echo fields, action replay, kill burst.
 
 5. Anchor (Stability / Defense)
 What it does:

@@ -88,6 +88,23 @@ var _mass_downed_until_msec: int = 0
 var _mass_unstable_until_msec: int = 0
 var _mass_stun_mult_this_hit: float = 1.0
 var _mass_last_melee_source: Node = null
+## Echo Chorus: short window after a hit; next hit treats the enemy as “imprinted.”
+var _echo_imprint_until_msec: int = 0
+
+
+func get_combat_hurtbox() -> Hurtbox2D:
+	return _hurtbox
+
+
+func echo_infusion_imprint_active() -> bool:
+	return Time.get_ticks_msec() < _echo_imprint_until_msec
+
+
+func echo_infusion_refresh_imprint(duration_sec: float) -> void:
+	if duration_sec <= 0.0 or not is_damage_authority():
+		return
+	var until := Time.get_ticks_msec() + int(duration_sec * 1000.0)
+	_echo_imprint_until_msec = maxi(_echo_imprint_until_msec, until)
 
 
 func _ready() -> void:
@@ -535,6 +552,8 @@ func _edge_preprocess_incoming(packet: DamagePacket) -> void:
 func _edge_after_damage_applied(packet: DamagePacket) -> void:
 	if packet == null or packet.suppress_edge_procs:
 		return
+	if packet.is_echo:
+		return
 	if packet.kind == &"edge_bleed":
 		return
 	if packet.is_critical:
@@ -636,7 +655,7 @@ func _mass_after_melee_damage_applied(packet: DamagePacket, hp_damage: int) -> v
 func _edge_apply_sever_mark_after_crit(packet: DamagePacket) -> void:
 	if _health <= 0:
 		return
-	if packet == null or packet.suppress_edge_procs or not packet.is_critical:
+	if packet == null or packet.suppress_edge_procs or packet.is_echo or not packet.is_critical:
 		return
 	if not _is_player_melee_packet(packet):
 		return
@@ -696,7 +715,7 @@ func _on_edge_bleed_timer_tick() -> void:
 
 
 func _edge_on_lethal(packet: DamagePacket) -> void:
-	if packet == null or packet.suppress_edge_procs:
+	if packet == null or packet.suppress_edge_procs or packet.is_echo:
 		return
 	var atk := packet.source_node
 	if atk == null:

@@ -1512,7 +1512,8 @@ func _spawn_player_ranged_arrow(
 	projectile_event_id: int = -1,
 	projectile_style_id: StringName = LoadoutConstantsRef.PROJECTILE_STYLE_RED,
 	charge_size_mult: float = 1.0,
-	infusion_geometry_scale: float = 0.0
+	infusion_geometry_scale: float = 0.0,
+	damage_ratio: float = 1.0
 ) -> bool:
 	var parent := get_parent()
 	if parent == null:
@@ -1525,7 +1526,10 @@ func _spawn_player_ranged_arrow(
 	var arrow := ArrowProjectilePoolScript.acquire_projectile(parent)
 	if arrow == null:
 		return false
-	arrow.damage = maxi(1, int(roundf(float(ranged_damage) * _phase_outgoing_damage_multiplier())))
+	var dr := maxf(0.05, damage_ratio)
+	arrow.damage = maxi(
+		1, int(roundf(float(ranged_damage) * _phase_outgoing_damage_multiplier() * dr))
+	)
 	arrow.speed = ranged_speed
 	arrow.max_distance = ranged_max_tiles * world_units_per_tile
 	arrow.knockback_strength = ranged_knockback
@@ -1683,10 +1687,40 @@ func _try_execute_server_ranged_attack(
 	_server_ranged_event_sequence += 1
 	var event_sequence := _server_ranged_event_sequence
 	var projectile_style_id := _equipped_handgun_projectile_style()
+	var echo_th := _infusion_echo_threshold()
+	var twin_event_id := 0
+	var twin_spawn := Vector2.ZERO
+	var twin_ratio := 1.0
+	if InfusionEchoRef.is_echo_attuned(echo_th) and randf() < InfusionEchoRef.projectile_twin_chance(echo_th):
+		twin_event_id = event_sequence + 1000000000
+		var perp := Vector2(-_facing_planar.y, _facing_planar.x)
+		twin_spawn = spawn + perp * InfusionEchoRef.projectile_twin_lateral_offset(echo_th)
+		twin_ratio = InfusionEchoRef.projectile_twin_damage_ratio(echo_th)
 	if not _spawn_player_ranged_arrow(
-		spawn, _facing_planar, true, true, event_sequence, projectile_style_id, sz
+		spawn,
+		_facing_planar,
+		true,
+		true,
+		event_sequence,
+		projectile_style_id,
+		sz,
+		0.0,
+		1.0
 	):
 		return false
+	if twin_event_id != 0:
+		if _spawn_player_ranged_arrow(
+			twin_spawn,
+			_facing_planar,
+			true,
+			false,
+			twin_event_id,
+			projectile_style_id,
+			sz,
+			0.0,
+			twin_ratio
+		):
+			pass
 	_flow_after_successful_weapon_action(InfusionFlowRef.ActionKind.RANGED)
 	_last_applied_ranged_event_sequence = max(_last_applied_ranged_event_sequence, event_sequence)
 	if _can_broadcast_world_replication():
@@ -1702,7 +1736,10 @@ func _try_execute_server_ranged_attack(
 			_flow_chain_remaining,
 			_flow_overdrive_remaining,
 			_flow_aggression_remaining,
-			_flow_last_action_kind
+			_flow_last_action_kind,
+			twin_event_id,
+			twin_spawn,
+			twin_ratio
 		)
 	if OS.is_debug_build():
 		print(
@@ -2011,7 +2048,10 @@ func _rpc_receive_ranged_attack_event(
 	flow_chain_remaining: float = 0.0,
 	flow_overdrive_remaining: float = 0.0,
 	flow_aggression_remaining: float = 0.0,
-	flow_last_action_kind: int = -1
+	flow_last_action_kind: int = -1,
+	echo_twin_event_id: int = 0,
+	echo_twin_spawn: Vector2 = Vector2.ZERO,
+	echo_twin_damage_ratio: float = 1.0
 ) -> void:
 	if _is_server_peer():
 		return
@@ -2042,17 +2082,31 @@ func _rpc_receive_ranged_attack_event(
 		event_sequence,
 		StringName(projectile_style_id),
 		sz_charge,
-		expr_m
+		expr_m,
+		1.0
 	)
+	if echo_twin_event_id != 0:
+		_spawn_player_ranged_arrow(
+			echo_twin_spawn,
+			dir,
+			false,
+			false,
+			echo_twin_event_id,
+			StringName(projectile_style_id),
+			sz_charge,
+			expr_m,
+			maxf(0.05, echo_twin_damage_ratio)
+		)
 	_ranged_cooldown_remaining = maxf(
 		_ranged_cooldown_remaining, _flow_effective_ranged_cooldown()
 	)
 	if OS.is_debug_build():
 		print(
-			"[M4][Ranged][Remote] peer=%s attack_event=%s spawn=%s" % [
+			"[M4][Ranged][Remote] peer=%s attack_event=%s spawn=%s twin=%s" % [
 				network_owner_peer_id,
 				event_sequence,
 				spawn_position,
+				echo_twin_event_id,
 			]
 		)
 
@@ -2897,6 +2951,12 @@ func _infusion_mass_threshold() -> int:
 	return int(infusion_manager.call(&"get_pillar_threshold", InfusionConstantsRef.PILLAR_MASS))
 
 
+func _infusion_echo_threshold() -> int:
+	if infusion_manager == null or not infusion_manager.has_method(&"get_pillar_threshold"):
+		return int(InfusionConstantsRef.InfusionThreshold.INACTIVE)
+	return int(infusion_manager.call(&"get_pillar_threshold", InfusionConstantsRef.PILLAR_ECHO))
+
+
 func _infusion_mass_melee_damage_bonus() -> int:
 	return InfusionMassRef.melee_damage_bonus(_infusion_mass_threshold())
 
@@ -2906,8 +2966,7 @@ func _infusion_stub_melee_damage_bonus() -> int:
 		return 0
 	var mgr: Node = infusion_manager
 	return (
-		InfusionEchoRef.melee_bonus_from_manager(mgr)
-		+ InfusionAnchorRef.melee_bonus_from_manager(mgr)
+		InfusionAnchorRef.melee_bonus_from_manager(mgr)
 		+ InfusionSurgeRef.melee_bonus_from_manager(mgr)
 	)
 
@@ -3088,6 +3147,8 @@ func _melee_hit_overlaps_mob(mob: CharacterBody2D) -> bool:
 func apply_backstab_bonus_to_melee_packet(packet: DamagePacket, hurtbox: Hurtbox2D) -> void:
 	if packet == null or hurtbox == null:
 		return
+	if packet.is_echo:
+		return
 	if packet.kind != &"melee" or packet.debug_label != &"player_melee":
 		return
 	if packet.suppress_edge_procs:
@@ -3195,6 +3256,210 @@ func _on_melee_hitbox_target_resolved(
 	if fwd.length_squared() < 1e-8:
 		fwd = _active_melee_attack_facing
 	_mass_try_impact_pulse_and_shockwave_from_hit(packet.amount, primary, fwd)
+	_echo_maybe_schedule_melee_reverberate(packet, primary, target_uid, fwd)
+
+
+func _echo_find_enemy_by_uid(target_uid: int) -> EnemyBase:
+	var tree := get_tree()
+	if tree == null:
+		return null
+	for node in tree.get_nodes_in_group(&"mob"):
+		if not node is EnemyBase:
+			continue
+		var eb := node as EnemyBase
+		if eb.get_instance_id() == target_uid:
+			return eb
+	return null
+
+
+func _echo_deliver_linked_chain(
+	exclude_uid: int,
+	origin: Vector2,
+	amount: int,
+	forward: Vector2,
+	echo_gen: int,
+	echo_threshold: int
+) -> void:
+	if not is_damage_authority() or amount <= 0:
+		return
+	var r := InfusionEchoRef.linked_chain_radius(echo_threshold)
+	if r <= 0.0001:
+		return
+	var candidates := _edge_collect_enemies_in_radius(origin, r, exclude_uid)
+	if candidates.is_empty():
+		return
+	var best: EnemyBase = null
+	var best_d2 := INF
+	for eb in candidates:
+		var d2 := origin.distance_squared_to(eb.global_position)
+		if d2 < best_d2:
+			best_d2 = d2
+			best = eb
+	if best == null:
+		return
+	var p := DamagePacketScript.new() as DamagePacket
+	p.amount = maxi(1, amount)
+	p.kind = &"melee"
+	p.debug_label = &"player_melee"
+	p.source_node = self
+	p.source_uid = get_instance_id()
+	p.origin = global_position
+	p.direction = forward
+	if p.direction.length_squared() < 1e-8:
+		p.direction = Vector2(0.0, -1.0)
+	else:
+		p.direction = p.direction.normalized()
+	p.knockback = maxf(
+		0.0,
+		melee_knockback_strength * 0.32 * InfusionEchoRef.afterimage_damage_ratio(echo_threshold)
+	)
+	p.apply_iframes = false
+	p.is_echo = true
+	p.echo_generation = echo_gen
+	p.suppress_echo_procs = true
+	var hb := best.get_combat_hurtbox()
+	if hb != null:
+		apply_mass_melee_packet_adjustments(p, hb)
+	best.take_direct_damage_packet(p)
+	_mass_try_impact_pulse_and_shockwave_from_hit(p.amount, best, p.direction)
+
+
+func _echo_deliver_melee_micro(
+	victim_uid: int,
+	dmg: int,
+	is_critical: bool,
+	from_backstab: bool,
+	dir: Vector2,
+	knockback: float,
+	echo_gen: int,
+	echo_threshold: int,
+	is_last_micro: bool,
+	linked_dmg: int,
+	linked_exclude_uid: int
+) -> void:
+	if not is_damage_authority() or not is_instance_valid(self):
+		return
+	var eb := _echo_find_enemy_by_uid(victim_uid)
+	if eb == null or eb.is_queued_for_deletion():
+		return
+	var d := dir
+	if d.length_squared() < 1e-8:
+		d = _active_melee_attack_facing
+	d = d.normalized()
+	var p := DamagePacketScript.new() as DamagePacket
+	p.amount = maxi(1, dmg)
+	p.kind = &"melee"
+	p.debug_label = &"player_melee"
+	p.source_node = self
+	p.source_uid = get_instance_id()
+	p.origin = global_position
+	p.direction = d
+	p.knockback = knockback
+	p.apply_iframes = false
+	p.is_critical = is_critical
+	p.from_backstab = from_backstab
+	p.is_echo = true
+	p.echo_generation = echo_gen
+	p.suppress_echo_procs = true
+	var hb := eb.get_combat_hurtbox()
+	if hb != null:
+		apply_mass_melee_packet_adjustments(p, hb)
+	eb.take_direct_damage_packet(p)
+	_mass_try_impact_pulse_and_shockwave_from_hit(p.amount, eb, d)
+	if is_last_micro and linked_dmg > 0:
+		_echo_deliver_linked_chain(linked_exclude_uid, eb.global_position, linked_dmg, d, echo_gen, echo_threshold)
+	var max_g := InfusionEchoRef.max_echo_generation(echo_threshold)
+	if (
+		is_last_micro
+		and echo_threshold >= int(InfusionConstantsRef.InfusionThreshold.EXPRESSION)
+		and echo_gen < max_g
+		and randf() < InfusionEchoRef.child_echo_proc_chance(echo_threshold)
+	):
+		var cd := InfusionEchoRef.child_echo_damage_ratio(echo_threshold)
+		var next_amt := maxi(1, int(roundf(float(dmg) * cd)))
+		var delay := randf_range(
+			InfusionEchoRef.afterimage_delay_min_sec(echo_threshold),
+			InfusionEchoRef.afterimage_delay_max_sec(echo_threshold)
+		)
+		var tree := get_tree()
+		if tree != null:
+			tree.create_timer(delay).timeout.connect(
+				_echo_deliver_melee_micro.bind(
+					victim_uid,
+					next_amt,
+					is_critical,
+					from_backstab,
+					d,
+					knockback * 0.62,
+					echo_gen + 1,
+					echo_threshold,
+					true,
+					0,
+					linked_exclude_uid
+				),
+				CONNECT_ONE_SHOT
+			)
+
+
+func _echo_maybe_schedule_melee_reverberate(
+	packet: DamagePacket, primary: EnemyBase, target_uid: int, fwd: Vector2
+) -> void:
+	if packet == null or primary == null:
+		return
+	if packet.suppress_echo_procs or packet.is_echo:
+		return
+	var echo_th := _infusion_echo_threshold()
+	if not InfusionEchoRef.is_echo_attuned(echo_th):
+		return
+	var had_imprint := primary.echo_infusion_imprint_active()
+	if echo_th >= int(InfusionConstantsRef.InfusionThreshold.ESCALATED):
+		primary.echo_infusion_refresh_imprint(InfusionEchoRef.imprint_duration_sec(echo_th))
+	var chorus := had_imprint and echo_th >= int(InfusionConstantsRef.InfusionThreshold.ESCALATED)
+	var proc := chorus or randf() < InfusionEchoRef.reverberate_proc_chance(echo_th)
+	if not proc:
+		return
+	var micro := InfusionEchoRef.chorus_micro_hit_count(echo_th) if chorus else 1
+	var ratio := InfusionEchoRef.afterimage_damage_ratio(echo_th)
+	var total_echo_dmg := maxi(1, int(roundf(float(packet.amount) * ratio)))
+	var each := maxi(1, int(ceil(float(total_echo_dmg) / float(maxi(1, micro)))))
+	var base_d := randf_range(
+		InfusionEchoRef.afterimage_delay_min_sec(echo_th),
+		InfusionEchoRef.afterimage_delay_max_sec(echo_th)
+	)
+	var spacing := (
+		InfusionEchoRef.chorus_micro_hit_spacing_sec(echo_th)
+		if chorus
+		else 0.0
+	)
+	var link_ratio := InfusionEchoRef.linked_chain_damage_ratio(echo_th)
+	var linked_dmg := (
+		maxi(1, int(roundf(float(total_echo_dmg) * link_ratio)))
+		if InfusionEchoRef.linked_chain_radius(echo_th) > 0.0001
+		else 0
+	)
+	var echo_kb := packet.knockback * ratio
+	var tree := get_tree()
+	if tree == null:
+		return
+	for mi in range(micro):
+		var t_wait := base_d + float(mi) * spacing
+		var is_last := mi == micro - 1
+		tree.create_timer(t_wait).timeout.connect(
+			_echo_deliver_melee_micro.bind(
+				target_uid,
+				each,
+				packet.is_critical,
+				packet.from_backstab,
+				fwd,
+				echo_kb,
+				1,
+				echo_th,
+				is_last,
+				linked_dmg if is_last else 0,
+				target_uid
+			),
+			CONNECT_ONE_SHOT
+		)
 
 
 func _mass_deal_impact_pulse(
