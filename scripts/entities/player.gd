@@ -255,6 +255,17 @@ var _anchor_micro_shield := 0.0
 var _anchor_bastion_charge := 0.0
 var _anchor_rooted := false
 var _anchor_critical_bastion := false
+## Surge — charge-field debuffs, melee overcharge, overdrive (authoritative sim + mirrored field RPC).
+var _surge_energy: float = 0.0
+var _surge_melee_overcharge_time: float = 0.0
+var _surge_overdrive_active: bool = false
+var _surge_overdrive_energy_sink: float = 0.0
+var _surge_field_pulse_accum: float = 0.0
+var _surge_field_report_accum: float = 0.0
+var _surge_server_field_active: bool = false
+var _surge_server_field_charge_r: float = 0.0
+var _surge_server_field_over_n: float = 0.0
+var _surge_server_field_until_msec: int = 0
 
 
 func _ready() -> void:
@@ -956,6 +967,7 @@ func _set_downed_state(next_downed: bool, emit_hit_signal: bool = false) -> void
 		_flow_aggression_remaining = 0.0
 		_flow_last_action_kind = -1
 		_anchor_reset_pressure_state()
+		_surge_reset_combat_state()
 	else:
 		_invuln_time_remaining = 0.0
 	if _body_shape != null:
@@ -1358,6 +1370,8 @@ func _apply_movement_step(
 		resolved_speed *= InfusionFlowRef.overdrive_move_speed_multiplier(
 			_flow_overdrive_remaining, _infusion_flow_threshold()
 		)
+		if _surge_overdrive_active and InfusionSurgeRef.is_surge_attuned(_infusion_surge_threshold()):
+			resolved_speed *= InfusionSurgeRef.overdrive_player_move_speed_mult()
 		if _is_defending:
 			resolved_speed *= clampf(defend_move_speed_multiplier, 0.0, 1.0)
 		velocity = direction * resolved_speed
@@ -1487,6 +1501,7 @@ func _run_shared_cooldown_and_debug_tick(delta: float) -> void:
 	_attack_hitbox_visual_time_remaining = maxf(0.0, _attack_hitbox_visual_time_remaining - delta)
 	if (not _multiplayer_active() or _is_server_peer()) and is_damage_authority():
 		_anchor_decay_step(delta)
+		_surge_authoritative_tick(delta)
 	_refresh_debug_visuals(delta)
 	if _health_component != null:
 		_invuln_time_remaining = _health_component.get_invulnerability_remaining()
@@ -1635,7 +1650,10 @@ func _spawn_player_bomb(
 
 
 func _try_execute_server_melee_attack(
-	requested_facing: Vector2, charge_ratio: float = 1.0, apply_charge_scaling: bool = true
+	requested_facing: Vector2,
+	charge_ratio: float = 1.0,
+	apply_charge_scaling: bool = true,
+	surge_overcharge_norm: float = 0.0
 ) -> bool:
 	if not _is_server_peer() or _is_dead:
 		return false
@@ -1648,6 +1666,7 @@ func _try_execute_server_melee_attack(
 	var cr := clampf(charge_ratio, 0.0, 1.0)
 	if apply_charge_scaling and cr < melee_charge_min_ratio:
 		return false
+	var ovn := _surge_validate_server_overcharge_norm(surge_overcharge_norm)
 	var resolved_facing := requested_facing
 	if resolved_facing.length_squared() > 1e-6:
 		_facing_planar = resolved_facing.normalized()
@@ -1655,7 +1674,27 @@ func _try_execute_server_melee_attack(
 	_play_melee_attack_presentation()
 	_server_melee_hit_event_sequence += 1
 	var hit_event_id := _server_melee_hit_event_sequence
-	var hit_count := _squash_mobs_in_melee_hit(hit_event_id, cr, apply_charge_scaling)
+	var st_surge := _infusion_surge_threshold()
+	var od_full := _surge_overdrive_active and InfusionSurgeRef.is_surge_attuned(st_surge)
+	var hit_count := _squash_mobs_in_melee_hit(
+		hit_event_id, cr, apply_charge_scaling, ovn, od_full
+	)
+	var full_chg := (not apply_charge_scaling) or cr >= 0.999 or od_full
+	if InfusionSurgeRef.is_surge_attuned(st_surge):
+		var gain := InfusionSurgeRef.surge_energy_gain_from_melee(
+			st_surge, hit_count, cr, full_chg, ovn
+		)
+		_surge_energy = minf(
+			InfusionSurgeRef.surge_energy_max(), _surge_energy + maxf(0.0, gain)
+		)
+	if (
+		hit_count > 0
+		and InfusionSurgeRef.can_start_overdrive(st_surge, ovn, _surge_energy)
+		and not _surge_overdrive_active
+	):
+		_surge_energy = maxf(0.0, _surge_energy - InfusionSurgeRef.overdrive_entry_energy_cost())
+		_surge_overdrive_active = true
+		_surge_overdrive_energy_sink = 0.0
 	_flow_after_successful_weapon_action(InfusionFlowRef.ActionKind.MELEE)
 	_flow_pulse_ability_cooldowns_after_melee()
 	_melee_attack_cooldown_remaining = _flow_effective_melee_cooldown()
@@ -1835,7 +1874,9 @@ func _try_execute_server_bomb_attack(requested_facing: Vector2) -> bool:
 
 
 func _submit_local_melee_attack_request(
-	charge_ratio: float = 1.0, apply_charge_scaling: bool = true
+	charge_ratio: float = 1.0,
+	apply_charge_scaling: bool = true,
+	surge_overcharge_norm: float = 0.0
 ) -> void:
 	var cr := clampf(charge_ratio, 0.0, 1.0)
 	if apply_charge_scaling and cr < melee_charge_min_ratio:
@@ -1848,12 +1889,17 @@ func _submit_local_melee_attack_request(
 	):
 		return
 	if _is_server_peer():
-		_try_execute_server_melee_attack(_facing_planar, cr, apply_charge_scaling)
+		_try_execute_server_melee_attack(_facing_planar, cr, apply_charge_scaling, surge_overcharge_norm)
 		return
 	_local_melee_request_sequence += 1
 	_start_facing_lock(_facing_planar)
 	_rpc_request_melee_attack.rpc_id(
-		1, _local_melee_request_sequence, _facing_planar, cr, apply_charge_scaling
+		1,
+		_local_melee_request_sequence,
+		_facing_planar,
+		cr,
+		apply_charge_scaling,
+		surge_overcharge_norm
 	)
 	# Client-side throttle while awaiting authoritative result.
 	_melee_attack_cooldown_remaining = _flow_effective_melee_cooldown()
@@ -1948,7 +1994,8 @@ func _rpc_request_melee_attack(
 	request_sequence: int,
 	facing_planar: Vector2,
 	charge_ratio: float = 1.0,
-	apply_charge_scaling: bool = true
+	apply_charge_scaling: bool = true,
+	surge_overcharge_norm: float = 0.0
 ) -> void:
 	if not _is_server_peer():
 		return
@@ -1961,7 +2008,25 @@ func _rpc_request_melee_attack(
 	if apply_charge_scaling and cr < melee_charge_min_ratio:
 		return
 	_server_last_melee_request_sequence = request_sequence
-	_try_execute_server_melee_attack(facing_planar, cr, apply_charge_scaling)
+	var ovn := _surge_validate_server_overcharge_norm(surge_overcharge_norm)
+	_try_execute_server_melee_attack(facing_planar, cr, apply_charge_scaling, ovn)
+
+
+@rpc("any_peer", "call_remote", "unreliable")
+func _rpc_surge_charge_field_report(
+	charge_r: float, overcharge_norm: float, active: bool
+) -> void:
+	if not _is_server_peer():
+		return
+	if multiplayer.get_remote_sender_id() != network_owner_peer_id:
+		return
+	_surge_server_field_active = active
+	_surge_server_field_charge_r = clampf(charge_r, 0.0, 1.0)
+	_surge_server_field_over_n = clampf(overcharge_norm, 0.0, 2.0)
+	if active:
+		_surge_server_field_until_msec = Time.get_ticks_msec() + 320
+	else:
+		_surge_server_field_until_msec = Time.get_ticks_msec() + 40
 
 
 @rpc("any_peer", "call_remote", "reliable")
@@ -2425,6 +2490,7 @@ func _clear_melee_attack_hold_state() -> void:
 	_melee_charge_past_commit_delay = false
 	_melee_charge_time = 0.0
 	_melee_charge_input_source = _MELEE_CHARGE_SRC_NONE
+	_surge_melee_overcharge_time = 0.0
 	_update_melee_charge_bar_visual(-1.0)
 
 
@@ -2533,20 +2599,36 @@ func _process_local_melee_charge_input(
 
 			if _melee_charge_past_commit_delay:
 				_melee_charge_time += delta
-				var r := minf(
-					1.0,
-					_melee_charge_time / maxf(0.05, _flow_effective_melee_charge_max_time())
-				)
-				_update_melee_charge_bar_visual(r)
-				if r >= 1.0:
-					_commit_melee_strike(1.0, true, false)
-				elif _charge_hold_release_detected(
-					_melee_charge_input_source, use_wasd, lmb_was, rmb_was, lmb_cur, rmb_cur
-				):
-					if r >= melee_charge_min_ratio:
-						_commit_melee_strike(r, true, true)
+				var denom := maxf(0.05, _flow_effective_melee_charge_max_time())
+				var raw_t := _melee_charge_time / denom
+				var st_surge := _infusion_surge_threshold()
+				var allow_surge_over := InfusionSurgeRef.allows_melee_overcharge_hold(st_surge)
+				var r_bar := minf(1.0, raw_t)
+				if allow_surge_over and raw_t >= 1.0:
+					var max_over := InfusionSurgeRef.overcharge_max_hold_sec(st_surge)
+					if max_over > 0.0:
+						_surge_melee_overcharge_time = minf(_surge_melee_overcharge_time + delta, max_over)
 					else:
-						_cancel_melee_charge()
+						_surge_melee_overcharge_time = 0.0
+					_update_melee_charge_bar_visual(1.0)
+					if _charge_hold_release_detected(
+						_melee_charge_input_source, use_wasd, lmb_was, rmb_was, lmb_cur, rmb_cur
+					):
+						_commit_melee_strike(
+							1.0, true, true, _surge_current_melee_overcharge_norm()
+						)
+				else:
+					_surge_melee_overcharge_time = 0.0
+					_update_melee_charge_bar_visual(r_bar)
+					if r_bar >= 1.0:
+						_commit_melee_strike(1.0, true, false, 0.0)
+					elif _charge_hold_release_detected(
+						_melee_charge_input_source, use_wasd, lmb_was, rmb_was, lmb_cur, rmb_cur
+					):
+						if r_bar >= melee_charge_min_ratio:
+							_commit_melee_strike(r_bar, true, true, 0.0)
+						else:
+							_cancel_melee_charge()
 		else:
 			var want_start := Input.is_action_just_pressed(&"melee_attack")
 			if use_wasd:
@@ -2625,10 +2707,14 @@ func _process_local_melee_charge_input(
 
 	_lmb_down = lmb_cur
 	_rmb_down = rmb_cur
+	_surge_maybe_report_charge_field_to_server(delta)
 
 
 func _commit_melee_strike(
-	charge_ratio: float, apply_charge_scaling: bool, enforce_min_ratio: bool
+	charge_ratio: float,
+	apply_charge_scaling: bool,
+	enforce_min_ratio: bool,
+	surge_overcharge_norm: float = 0.0
 ) -> void:
 	if not _melee_charging:
 		return
@@ -2638,17 +2724,23 @@ func _commit_melee_strike(
 		return
 	if _multiplayer_active():
 		if _is_server_peer():
-			_try_execute_server_melee_attack(_facing_planar, cr, apply_charge_scaling)
+			_try_execute_server_melee_attack(
+				_facing_planar, cr, apply_charge_scaling, surge_overcharge_norm
+			)
 		else:
-			_submit_local_melee_attack_request(cr, apply_charge_scaling)
+			_submit_local_melee_attack_request(cr, apply_charge_scaling, surge_overcharge_norm)
 	else:
-		_execute_local_melee_strike(cr, apply_charge_scaling)
+		_execute_local_melee_strike(cr, apply_charge_scaling, surge_overcharge_norm)
 
 
-func _execute_local_melee_strike(charge_ratio: float, apply_charge_scaling: bool = true) -> void:
+func _execute_local_melee_strike(
+	charge_ratio: float, apply_charge_scaling: bool = true, surge_overcharge_norm: float = 0.0
+) -> void:
 	_start_facing_lock(_facing_planar)
 	_play_melee_attack_presentation()
-	var hit_count := _squash_mobs_in_melee_hit(-1, charge_ratio, apply_charge_scaling)
+	var hit_count := _squash_mobs_in_melee_hit(
+		-1, charge_ratio, apply_charge_scaling, surge_overcharge_norm
+	)
 	_flow_after_successful_weapon_action(InfusionFlowRef.ActionKind.MELEE)
 	_flow_pulse_ability_cooldowns_after_melee()
 	_melee_attack_cooldown_remaining = _flow_effective_melee_cooldown()
@@ -3207,11 +3299,201 @@ func _anchor_bastion_charge_tick(
 		_anchor_rooted = true
 
 
-func _infusion_stub_melee_damage_bonus() -> int:
-	if infusion_manager == null:
-		return 0
-	var mgr: Node = infusion_manager
-	return InfusionSurgeRef.melee_bonus_from_manager(mgr)
+func _infusion_surge_threshold() -> int:
+	if infusion_manager == null or not infusion_manager.has_method(&"get_pillar_threshold"):
+		return int(InfusionConstantsRef.InfusionThreshold.INACTIVE)
+	return int(infusion_manager.call(&"get_pillar_threshold", InfusionConstantsRef.PILLAR_SURGE))
+
+
+func _infusion_surge_melee_flat_bonus() -> int:
+	return InfusionSurgeRef.melee_flat_damage_bonus(_infusion_surge_threshold())
+
+
+func _surge_reset_combat_state() -> void:
+	_surge_energy = 0.0
+	_surge_melee_overcharge_time = 0.0
+	_surge_overdrive_active = false
+	_surge_overdrive_energy_sink = 0.0
+	_surge_field_pulse_accum = 0.0
+	_surge_field_report_accum = 0.0
+	_surge_server_field_active = false
+	_surge_server_field_charge_r = 0.0
+	_surge_server_field_over_n = 0.0
+	_surge_server_field_until_msec = 0
+
+
+func _surge_current_melee_overcharge_norm() -> float:
+	var st := _infusion_surge_threshold()
+	if not InfusionSurgeRef.allows_melee_overcharge_hold(st):
+		return 0.0
+	var max_o := InfusionSurgeRef.overcharge_max_hold_sec(st)
+	if max_o <= 0.0:
+		return 0.0
+	return clampf(_surge_melee_overcharge_time / maxf(0.05, max_o), 0.0, 1.0)
+
+
+func _surge_authoritative_tick(delta: float) -> void:
+	if not is_damage_authority():
+		return
+	var st := _infusion_surge_threshold()
+	if _is_server_peer() and not _is_local_owner_peer():
+		if Time.get_ticks_msec() > _surge_server_field_until_msec:
+			_surge_server_field_active = false
+	if InfusionSurgeRef.is_surge_attuned(st):
+		_surge_apply_charge_field_tick(delta, st)
+	if not InfusionSurgeRef.is_surge_attuned(st):
+		return
+	if _surge_overdrive_active:
+		var drain := InfusionSurgeRef.overdrive_energy_drain_per_sec() * maxf(0.0, delta)
+		_surge_overdrive_energy_sink += drain
+		_surge_energy = maxf(0.0, _surge_energy - drain)
+		if _surge_energy <= 0.001:
+			_surge_overdrive_active = false
+			_surge_trigger_overdrive_finale(st)
+
+
+func _surge_trigger_overdrive_finale(surge_threshold: int) -> void:
+	if surge_threshold < int(InfusionConstantsRef.InfusionThreshold.EXPRESSION):
+		_surge_overdrive_energy_sink = 0.0
+		return
+	var used := _surge_overdrive_energy_sink
+	_surge_overdrive_energy_sink = 0.0
+	if used <= 0.25:
+		return
+	var ratio := InfusionSurgeRef.finale_damage_ratio_for_energy_used(used)
+	var pool := maxi(1, int(roundf(float(_mass_effective_melee_damage_estimate()) * ratio)))
+	var fwd := _normalized_attack_facing(_facing_planar)
+	_surge_deal_secondary_burst(global_position, pool, -1, fwd, InfusionSurgeRef.finale_knockback(), 11.5, &"surge_finale")
+
+
+func _surge_apply_charge_field_tick(delta: float, surge_threshold: int) -> void:
+	if not _is_server_peer() and _multiplayer_active():
+		return
+	var in_od := _surge_overdrive_active
+	var ch_r := 0.0
+	var ov_n := 0.0
+	var active := false
+	if in_od:
+		active = true
+		ch_r = 1.0
+		ov_n = 1.0
+	elif _is_local_owner_peer():
+		if _melee_charging and _melee_charge_past_commit_delay:
+			var denom := maxf(0.05, _flow_effective_melee_charge_max_time())
+			ch_r = clampf(_melee_charge_time / denom, 0.0, 1.0)
+			if InfusionSurgeRef.allows_melee_overcharge_hold(surge_threshold):
+				var raw_t := _melee_charge_time / denom
+				if raw_t >= 1.0 - 1e-5:
+					ch_r = 1.0
+					ov_n = _surge_current_melee_overcharge_norm()
+			active = ch_r > 0.02
+		elif _ranged_charging and _ranged_charge_past_commit_delay:
+			ch_r = clampf(_ranged_charge_time / maxf(0.05, melee_charge_max_time), 0.0, 1.0)
+			active = ch_r > 0.02
+	else:
+		if _surge_server_field_active and Time.get_ticks_msec() <= _surge_server_field_until_msec:
+			ch_r = _surge_server_field_charge_r
+			ov_n = _surge_server_field_over_n
+			active = true
+	if not active:
+		_surge_field_pulse_accum = 0.0
+		return
+	var origin := global_position
+	var radius := InfusionSurgeRef.charge_field_radius(surge_threshold, ch_r, ov_n, in_od)
+	if radius <= 0.05:
+		return
+	var spd := InfusionSurgeRef.charge_field_enemy_speed_mult(surge_threshold, ch_r, ov_n, in_od)
+	var cd_m := InfusionSurgeRef.charge_field_enemy_cooldown_tick_mult(surge_threshold, ov_n, in_od)
+	var ttl := InfusionSurgeRef.field_refresh_ttl_msec()
+	var candidates: Array[EnemyBase] = _edge_collect_enemies_in_radius(origin, radius, -1)
+	for eb in candidates:
+		if eb == null or not is_instance_valid(eb):
+			continue
+		eb.surge_infusion_refresh_charge_field(spd, cd_m, ttl)
+	var pulse_iv := InfusionSurgeRef.field_pulse_interval_sec(surge_threshold, in_od)
+	var micro := InfusionSurgeRef.field_pulse_micro_interrupt_sec(surge_threshold, in_od)
+	if micro > 0.0001 and pulse_iv < 900.0:
+		_surge_field_pulse_accum -= delta
+		if _surge_field_pulse_accum <= 0.0:
+			_surge_field_pulse_accum = pulse_iv
+			for eb2 in candidates:
+				if eb2 == null or not is_instance_valid(eb2):
+					continue
+				eb2.surge_infusion_bump_action_delay(micro)
+
+
+func _surge_maybe_report_charge_field_to_server(delta: float) -> void:
+	if not _multiplayer_active() or _is_server_peer():
+		return
+	if not _is_local_owner_peer():
+		return
+	var st := _infusion_surge_threshold()
+	if not InfusionSurgeRef.is_surge_attuned(st):
+		return
+	var active := false
+	var ch_r := 0.0
+	var ov_n := 0.0
+	if _melee_charging and _melee_charge_past_commit_delay:
+		var denom := maxf(0.05, _flow_effective_melee_charge_max_time())
+		ch_r = clampf(_melee_charge_time / denom, 0.0, 1.0)
+		if InfusionSurgeRef.allows_melee_overcharge_hold(st):
+			var raw_t2 := _melee_charge_time / denom
+			if raw_t2 >= 1.0 - 1e-5:
+				ov_n = _surge_current_melee_overcharge_norm()
+		active = ch_r > 0.02
+	elif _ranged_charging and _ranged_charge_past_commit_delay:
+		ch_r = clampf(_ranged_charge_time / maxf(0.05, melee_charge_max_time), 0.0, 1.0)
+		active = ch_r > 0.02
+	_surge_field_report_accum += delta
+	if _surge_field_report_accum < 0.09 and active:
+		return
+	_surge_field_report_accum = 0.0
+	var max_o := InfusionSurgeRef.max_client_reported_overcharge_sec_fudge()
+	var over_cap := 1.0
+	if InfusionSurgeRef.allows_melee_overcharge_hold(st) and max_o > 0.0:
+		over_cap = clampf(max_o / maxf(0.05, InfusionSurgeRef.overcharge_max_hold_sec(st)), 1.0, 2.5)
+	_rpc_surge_charge_field_report.rpc_id(1, ch_r, clampf(ov_n, 0.0, over_cap), active)
+
+
+func _surge_validate_server_overcharge_norm(requested: float) -> float:
+	var st := _infusion_surge_threshold()
+	if not InfusionSurgeRef.allows_melee_overcharge_hold(st):
+		return 0.0
+	return clampf(requested, 0.0, 1.0)
+
+
+func _surge_deal_secondary_burst(
+	origin: Vector2,
+	pool: int,
+	primary_uid: int,
+	forward: Vector2,
+	pulse_kb: float,
+	radius: float,
+	debug_label: StringName
+) -> void:
+	if pool <= 0 or radius <= 0.05:
+		return
+	var candidates: Array[EnemyBase] = _edge_collect_enemies_in_radius(origin, radius, primary_uid)
+	if candidates.is_empty():
+		return
+	var each := maxi(1, pool / candidates.size())
+	var pkt := DamagePacketScript.new() as DamagePacket
+	pkt.kind = &"melee"
+	pkt.source_node = self
+	pkt.source_uid = get_instance_id()
+	pkt.origin = origin
+	pkt.direction = forward
+	pkt.knockback = maxf(0.0, pulse_kb)
+	pkt.apply_iframes = false
+	pkt.suppress_edge_procs = true
+	pkt.suppress_mass_procs = true
+	pkt.debug_label = debug_label
+	for eb in candidates:
+		if eb == null or not is_instance_valid(eb):
+			continue
+		var p := pkt.duplicate_packet()
+		p.amount = each
+		eb.take_direct_damage_packet(p)
 
 
 func _mass_loadout_knockback_mult() -> float:
@@ -3228,7 +3510,7 @@ func _mass_effective_melee_damage_estimate() -> int:
 			+ _infusion_edge_melee_damage_bonus()
 			+ _infusion_mass_melee_damage_bonus()
 			+ _infusion_anchor_melee_damage_bonus()
-			+ _infusion_stub_melee_damage_bonus()
+			+ _infusion_surge_melee_flat_bonus()
 	)
 
 
@@ -4195,24 +4477,63 @@ func _melee_resolve_precision(base: int, enemy: EnemyBase, attacker: Node2D) -> 
 	return out
 
 
+func _surge_try_melee_secondary_burst(
+	surge_threshold: int,
+	overcharge_norm: float,
+	damage_pool_base: int,
+	hit_count: int,
+	attack_facing: Vector2
+) -> void:
+	if hit_count <= 0:
+		return
+	if not InfusionSurgeRef.is_surge_attuned(surge_threshold):
+		return
+	var rad := InfusionSurgeRef.secondary_burst_radius(surge_threshold, overcharge_norm)
+	if rad <= 0.05:
+		return
+	var ratio := InfusionSurgeRef.secondary_burst_damage_ratio(surge_threshold, overcharge_norm)
+	var pool := maxi(1, int(roundf(float(damage_pool_base) * ratio)))
+	var fwd := _normalized_attack_facing(attack_facing)
+	_surge_deal_secondary_burst(global_position, pool, -1, fwd, 6.2, rad, &"surge_secondary")
+
+
 func _squash_mobs_in_melee_hit(
-	hit_event_id: int = -1, charge_ratio: float = 1.0, apply_charge_scaling: bool = true
+	hit_event_id: int = -1,
+	charge_ratio: float = 1.0,
+	apply_charge_scaling: bool = true,
+	surge_overcharge_norm: float = 0.0,
+	surge_overdrive_full_melee: bool = false
 ) -> int:
 	var cr := clampf(charge_ratio, 0.0, 1.0)
+	if surge_overdrive_full_melee and apply_charge_scaling:
+		cr = 1.0
+	var ovn := clampf(surge_overcharge_norm, 0.0, 1.0)
+	var st_s := _infusion_surge_threshold()
 	var dmg: int = melee_attack_damage
 	var kb: float = melee_knockback_strength
 	if apply_charge_scaling:
 		dmg = _melee_damage_for_charge_ratio(cr)
 		kb = _melee_knockback_for_charge_ratio(cr)
 		dmg = maxi(
-		1,
-		dmg
-			+ _infusion_edge_melee_damage_bonus()
-			+ _infusion_mass_melee_damage_bonus()
-			+ _infusion_anchor_melee_damage_bonus()
-			+ _infusion_stub_melee_damage_bonus()
-	)
+			1,
+			dmg
+				+ _infusion_edge_melee_damage_bonus()
+				+ _infusion_mass_melee_damage_bonus()
+				+ _infusion_anchor_melee_damage_bonus()
+				+ _infusion_surge_melee_flat_bonus()
+		)
 	dmg = maxi(1, int(roundf(float(dmg) * _phase_outgoing_damage_multiplier())))
+	if InfusionSurgeRef.is_surge_attuned(st_s):
+		dmg = maxi(
+			1,
+			int(
+				roundf(
+					float(dmg) * InfusionSurgeRef.overcharge_melee_damage_multiplier(st_s, ovn)
+				)
+			)
+		)
+		if apply_charge_scaling and cr >= 0.999 - 1e-5 and ovn < 0.02:
+			dmg += InfusionSurgeRef.primed_full_charge_flat_bonus(st_s)
 	var mass_t := _infusion_mass_threshold()
 	if InfusionMassRef.is_mass_attuned(mass_t):
 		kb *= InfusionMassRef.melee_knockback_multiplier(mass_t) * _mass_loadout_knockback_mult()
@@ -4235,7 +4556,9 @@ func _squash_mobs_in_melee_hit(
 		packet.blockable = false
 		packet.debug_label = &"player_melee"
 		_melee_hitbox.activate(packet, attack_hitbox_visual_duration)
-		return _melee_hitbox.get_last_resolved_count()
+		var hc := _melee_hitbox.get_last_resolved_count()
+		_surge_try_melee_secondary_burst(st_s, ovn, dmg, hc, attack_facing)
+		return hc
 	var hit_count := 0
 	for node in get_tree().get_nodes_in_group(&"mob"):
 		if not node is CharacterBody2D:
@@ -4281,6 +4604,7 @@ func _squash_mobs_in_melee_hit(
 				hit_count += 1
 				if mob is EnemyBase:
 					_mass_try_impact_pulse_and_shockwave_from_hit(dmg_hit, mob as EnemyBase, dir_hit)
+	_surge_try_melee_secondary_burst(st_s, ovn, dmg, hit_count, attack_facing)
 	return hit_count
 
 
@@ -4475,6 +4799,8 @@ func _physics_process(delta: float) -> void:
 	_melee_attack_cooldown_remaining = maxf(0.0, _melee_attack_cooldown_remaining - delta * cd_sp)
 	_ranged_cooldown_remaining = maxf(0.0, _ranged_cooldown_remaining - delta * cd_sp)
 	_bomb_cooldown_remaining = maxf(0.0, _bomb_cooldown_remaining - delta * cd_sp)
+	if is_damage_authority():
+		_surge_authoritative_tick(delta)
 
 	var use_wasd_sp := _is_wasd_mouse_scheme_enabled()
 	if _menu_input_blocked:
@@ -4548,6 +4874,8 @@ func _physics_process(delta: float) -> void:
 		resolved_speed *= InfusionFlowRef.overdrive_move_speed_multiplier(
 			_flow_overdrive_remaining, _infusion_flow_threshold()
 		)
+		if _surge_overdrive_active and InfusionSurgeRef.is_surge_attuned(_infusion_surge_threshold()):
+			resolved_speed *= InfusionSurgeRef.overdrive_player_move_speed_mult()
 		if _is_defending:
 			resolved_speed *= clampf(defend_move_speed_multiplier, 0.0, 1.0)
 		velocity = direction * resolved_speed

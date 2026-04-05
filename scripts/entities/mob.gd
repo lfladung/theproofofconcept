@@ -75,6 +75,10 @@ func apply_speed_multiplier(multiplier: float) -> void:
 	_speed_multiplier = maxf(0.01, multiplier)
 
 
+func surge_infusion_bump_action_delay(seconds: float) -> void:
+	mass_infusion_add_bonus_stun(seconds)
+
+
 func set_aggro_enabled(enabled: bool) -> void:
 	_aggro_enabled = enabled
 	if not _aggro_enabled:
@@ -155,6 +159,7 @@ func _physics_process(delta: float) -> void:
 		_sync_visual_from_body()
 		_update_telegraph_visual()
 		return
+	surge_infusion_tick_server_field_decay()
 	_update_attack_state(delta)
 	move_and_slide()
 	_mass_server_post_slide()
@@ -207,14 +212,17 @@ func _sync_visual_from_body() -> void:
 func _apply_spawn(start_position: Vector2, player_position: Vector2) -> void:
 	global_position = start_position
 	var random_speed := randf_range(min_speed, max_speed)
-	_move_speed = random_speed * speed_scale * _speed_multiplier
+	_move_speed = random_speed * speed_scale
 	var to_player := player_position - start_position
-	velocity = to_player.normalized() * _move_speed if to_player.length_squared() > 0.01 else Vector2.ZERO
+	var sp := (
+		_move_speed * _speed_multiplier * surge_infusion_field_move_speed_factor()
+	)
+	velocity = to_player.normalized() * sp if to_player.length_squared() > 0.01 else Vector2.ZERO
 	if velocity.length_squared() > 1e-6:
 		_planar_facing = velocity.normalized()
 	elif to_player.length_squared() > 1e-6:
 		_planar_facing = to_player.normalized()
-	_sync_visual_anim_speed(_move_speed)
+	_sync_visual_anim_speed(sp)
 
 
 func _update_attack_state(delta: float) -> void:
@@ -280,7 +288,12 @@ func _update_chase_velocity(delta: float) -> void:
 	if distance_to_player <= stop_distance:
 		velocity = Vector2.ZERO
 	else:
-		velocity = desired * _move_speed
+		velocity = (
+			desired
+			* _move_speed
+			* _speed_multiplier
+			* surge_infusion_field_move_speed_factor()
+		)
 	_sync_visual_anim_speed()
 
 

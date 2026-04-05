@@ -100,6 +100,12 @@ func apply_speed_multiplier(multiplier: float) -> void:
 	_speed_multiplier = maxf(0.01, multiplier)
 
 
+func surge_infusion_bump_action_delay(seconds: float) -> void:
+	if seconds <= 0.0 or not is_damage_authority():
+		return
+	_cooldown_remaining += seconds
+
+
 func set_aggro_enabled(enabled: bool) -> void:
 	_aggro_enabled = enabled
 	if not _aggro_enabled:
@@ -157,7 +163,9 @@ func _physics_process(delta: float) -> void:
 		)
 		_sync_visual()
 		return
-	_cooldown_remaining = maxf(0.0, _cooldown_remaining - delta)
+	surge_infusion_tick_server_field_decay()
+	var cd_tick := surge_infusion_field_cooldown_tick_factor()
+	_cooldown_remaining = maxf(0.0, _cooldown_remaining - delta * cd_tick)
 	if not _aggro_enabled:
 		velocity = Vector2.ZERO
 		_update_attack_telegraph_visual(false, AttackState.NONE, Vector2.ZERO, 0.0)
@@ -259,7 +267,13 @@ func _update_guard_advance_velocity(delta: float) -> void:
 	var to_target := _target_player.global_position - global_position
 	if desired.length_squared() <= 0.0001 and to_target.length_squared() > 0.001:
 		desired = to_target.normalized()
-	velocity = desired * move_speed * guard_move_multiplier * _speed_multiplier
+	velocity = (
+		desired
+		* move_speed
+		* guard_move_multiplier
+		* _speed_multiplier
+		* surge_infusion_field_move_speed_factor()
+	)
 
 
 func _start_attack(next_attack_state: AttackState, direction: Vector2) -> void:

@@ -90,6 +90,11 @@ var _mass_stun_mult_this_hit: float = 1.0
 var _mass_last_melee_source: Node = null
 ## Echo Chorus: short window after a hit; next hit treats the enemy as “imprinted.”
 var _echo_imprint_until_msec: int = 0
+## Surge charge field: refreshed by authoritative players; TTL so order vs physics tick stays stable.
+var _surge_field_speed_mult: float = 1.0
+var _surge_field_expire_msec: int = 0
+var _surge_field_cooldown_tick_mult: float = 1.0
+var _surge_field_cooldown_expire_msec: int = 0
 
 
 func get_combat_hurtbox() -> Hurtbox2D:
@@ -231,6 +236,43 @@ func configure_spawn(start_position: Vector2, _player_position: Vector2) -> void
 
 
 func apply_speed_multiplier(_multiplier: float) -> void:
+	pass
+
+
+func surge_infusion_tick_server_field_decay() -> void:
+	if not is_damage_authority():
+		return
+	var now := Time.get_ticks_msec()
+	if now > _surge_field_expire_msec:
+		_surge_field_speed_mult = 1.0
+	if now > _surge_field_cooldown_expire_msec:
+		_surge_field_cooldown_tick_mult = 1.0
+
+
+func surge_infusion_refresh_charge_field(
+	move_speed_mult: float, cooldown_tick_mult: float, ttl_msec: int
+) -> void:
+	if not is_damage_authority():
+		return
+	var now := Time.get_ticks_msec()
+	var until := now + maxi(1, ttl_msec)
+	_surge_field_speed_mult = minf(_surge_field_speed_mult, clampf(move_speed_mult, 0.1, 1.0))
+	_surge_field_expire_msec = maxi(_surge_field_expire_msec, until)
+	_surge_field_cooldown_tick_mult = minf(
+		_surge_field_cooldown_tick_mult, clampf(cooldown_tick_mult, 0.15, 1.0)
+	)
+	_surge_field_cooldown_expire_msec = maxi(_surge_field_cooldown_expire_msec, until)
+
+
+func surge_infusion_field_move_speed_factor() -> float:
+	return _surge_field_speed_mult
+
+
+func surge_infusion_field_cooldown_tick_factor() -> float:
+	return _surge_field_cooldown_tick_mult
+
+
+func surge_infusion_bump_action_delay(_seconds: float) -> void:
 	pass
 
 
