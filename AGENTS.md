@@ -4,7 +4,7 @@
 
 - Godot 4.6 project converting a prototype into a 2-4 player authoritative co-op dungeon crawler.
 - The active user flow starts in `res://scenes/ui/lobby_menu.tscn`, not the old singleplayer sample flow.
-- The main gameplay runtime is `res://dungeon/game/small_dungeon.tscn`.
+- The main gameplay runtime is `res://dungeon/game/dungeon_orchestrator.tscn`.
 - `project.godot` still contains starter-template metadata (`Squash The Creeps`), so code and docs are the real source of truth for project identity.
 
 ## Read First
@@ -20,9 +20,9 @@ Read the smallest relevant set before editing:
 
 - Main scene: `res://scenes/ui/lobby_menu.tscn`
 - Lobby controller: `res://scripts/ui/lobby_menu.gd`
-- Core world orchestration: `res://dungeon/game/small_dungeon.gd`
+- Core world orchestration: `res://dungeon/game/dungeon_orchestrator.gd` (extends `dungeon_orchestrator_internals.gd`)
 - Player gameplay and networking: `res://scripts/entities/player.gd`
-- Player 3D presentation and modular equipment: `res://scripts/visuals/player_visual.gd`
+- Player 3D presentation and modular equipment: `res://scripts/visuals/player_visual.gd` (extends `player_visual_internals.gd`)
 - Network autoloads in `project.godot`:
   - `NetworkSession = res://scripts/network/network_session.gd`
   - `NetEventBus = res://scripts/network/net_event_bus.gd`
@@ -36,7 +36,7 @@ As of 2026-04-03:
 - Melee already has owner-client request -> server validation -> replicated event flow.
 - Sword blocking now uses a server-authoritative directional stamina guard: front-blocked hostile hits drain stamina instead of HP, and stamina regen is delayed after use/break.
 - Lobby/session-code flow and peer-slot mapping are implemented.
-- `small_dungeon.gd` is session-aware and manages roster, encounter state, doors, coins, camera, and replication helpers.
+- `dungeon_orchestrator.gd` is session-aware and manages roster, encounter state, doors, coins, camera, and replication helpers.
 - A dedicated `Room Editor` main-screen plugin now exists for authoring handcrafted `RoomBase` scenes with sidecar layout resources, generated sockets/zones/gameplay markers, a live 3D preview, and a room playtest harness.
 
 ## Subsystem Notes
@@ -47,13 +47,13 @@ As of 2026-04-03:
 - `NetworkSession` owns session lifecycle, lobby state, registry/session-code lookups, peer slots, readiness, and host/client/dedicated-server roles.
 - `Player` owns authority assignment, prediction/reconciliation, weapon mode state, and combat request sequencing.
 - Guard-aware hostile damage should call `Player.take_attack_damage(...)`; direct environmental damage should stay on `take_damage(...)`.
-- If a change affects replication or player authority, inspect both `network_session.gd` and `player.gd`, then confirm how `small_dungeon.gd` consumes that behavior.
+- If a change affects replication or player authority, inspect both `network_session.gd` and `player.gd`, then confirm how `dungeon_orchestrator.gd` consumes that behavior.
 
 ### Dungeon And World
 
 - Follow `dungeon/README.md` as the room authoring and generator rulebook.
 - `res://dungeon/rooms/base/room_base.tscn` is the base room contract.
-- `small_dungeon.gd` currently mixes generation, encounter flow, room transitions, camera, doors, coins, and multiplayer glue, so seemingly local changes can have broad side effects.
+- `dungeon_orchestrator_internals.gd` currently mixes generation, encounter flow, room transitions, camera, doors, coins, and multiplayer glue, so seemingly local changes can have broad side effects.
 
 ### Room Editor / Map Authoring
 
@@ -78,7 +78,7 @@ As of 2026-04-03:
 
 ### Visuals And Equipment
 
-- `player_visual.gd` is the main visual controller for runtime and editor preview behavior.
+- `player_visual_internals.gd` holds most presentation logic; `player_visual.gd` adds the per-frame `_process` tick (editor preview, bone follow, smear).
 - The player visual already includes modular equipment attachment points for sword, chest, legs, helmet, and shield.
 - Asset scale anchors, intake prompts, and audit commands live under `tools/asset_pipeline/`.
 
@@ -151,13 +151,13 @@ Use this checklist whenever a task could affect runtime cost, load-time spikes, 
 - Start with a budget. Name the expected player count, enemy count, projectile count, replicated actor count, and the smallest useful verification for the change.
 - Treat `_process()` and `_physics_process()` code as hot paths. Before adding work there, ask whether it can be event-driven, throttled, cached, or limited to the authoritative peer only.
 - Be suspicious of scene-tree scans in hot paths. Avoid spreading patterns like `get_tree().get_nodes_in_group(...)` across per-frame AI, combat, trap, UI, or world logic when a maintained roster/cache would work.
-- Keep `small_dungeon.gd` lean during play. New roster checks, encounter checks, elevator checks, UI refreshes, or room queries should not quietly add more full scans every frame.
+- Keep `dungeon_orchestrator_internals.gd` lean during play. New roster checks, encounter checks, elevator checks, UI refreshes, or room queries should not quietly add more full scans every frame.
 - Keep debug cost out of shipping behavior. Debug overlays, hitbox meshes, combat logs, and FPS labels should stay easy to disable and should not be used when judging gameplay performance.
 - Budget replication deliberately. For new RPCs or replicated state, decide whether the data is reliable vs unreliable, event-driven vs periodic, authoritative-only vs all peers, and whether the payload can be reduced.
 - Avoid high-frequency replication of derived state. Replicate compact authoritative facts, then let clients derive visuals locally when possible.
 - Watch for allocation churn. Rebuilding meshes, allocating dictionaries/arrays, instantiating scenes, or formatting large debug strings inside hot loops should be treated as a performance smell.
 - Prefer simple math in AI/combat loops. Favor squared-distance checks, direct nearest-candidate tracking, and early-outs over repeated sorting or broad candidate rebuilding.
-- Separate steady-state cost from floor-build cost. `small_dungeon.gd` room generation and 3D visual assembly can tolerate some one-time work, but repeated `instantiate()` / `queue_free()` spikes should be watched as room detail grows.
+- Separate steady-state cost from floor-build cost. `dungeon_orchestrator_internals.gd` room generation and 3D visual assembly can tolerate some one-time work, but repeated `instantiate()` / `queue_free()` spikes should be watched as room detail grows.
 - Be careful when adding projectiles, traps, coins, or temporary combat helpers. Large counts can multiply both server simulation cost and replication cost faster than expected.
 - Profile dedicated server and client separately. A change can look smooth on one client while still making the authoritative server tick too expensive.
 - Performance-sensitive validations should use release-like settings when possible: debug visuals off, expected player count, expected enemy density, and at least one worst-case combat room.
@@ -167,7 +167,7 @@ Use this checklist whenever a task could affect runtime cost, load-time spikes, 
 
 - Treat `dungeon/game/components/room_query_service.gd` as a shared hot-path service. Do not reintroduce room-wide or cell-wide scans for every point query; prefer cache invalidation, last-hit reuse, or spatial indexing.
 - Treat `scripts/ui/minimap_panel.gd` as cached UI, not live geometry generation. Room geometry should be rebuilt only when the room layout changes; player-marker updates should be throttled rather than forcing a full redraw every frame.
-- Keep `dungeon/game/small_dungeon.gd` maintenance work on intervals or events. Encounter cleanup, revive/wipe checks, elevator boarding checks, info-label refreshes, and authored-room visual streaming should not quietly drift back into unconditional every-frame scans.
+- Keep `dungeon/game/dungeon_orchestrator_internals.gd` maintenance work on intervals or events. Encounter cleanup, revive/wipe checks, elevator boarding checks, info-label refreshes, and authored-room visual streaming should not quietly drift back into unconditional every-frame scans.
 - For authored-room visual streaming, prefer spatial bucketing or another nearby-room filter before iterating room visuals. As the authored room library grows, “scan every room and test bounds” stops scaling well.
 - In `scripts/entities/player.gd`, treat mouse-to-world projection and UI hover queries as per-frame cache candidates. Reuse results inside the same physics frame instead of asking the viewport repeatedly through helper chains.
 - Avoid rebuilding `ImmediateMesh` telegraphs during active combat in enemy scripts. Prefer prebuilt meshes, cached step variants, or simple decals/sprites that only update transform/visibility.
@@ -204,10 +204,10 @@ Use these file groups as shortcuts:
   - `dungeon/MULTIPLAYER_MILESTONE_MAP.md`
   - `scripts/network/network_session.gd`
   - `scripts/entities/player.gd`
-  - `dungeon/game/small_dungeon.gd`
+  - `dungeon/game/dungeon_orchestrator_internals.gd`
 - Dungeon generation or encounter tasks:
   - `dungeon/README.md`
-  - `dungeon/game/small_dungeon.gd`
+  - `dungeon/game/dungeon_orchestrator_internals.gd`
   - `dungeon/game/components/*.gd`
   - `dungeon/modules/**/*.gd`
 - Visual, animation, or equipment tasks:
@@ -228,7 +228,7 @@ Use or refresh this block after any substantial thread so the next thread has a 
 - Goal: Add a first-class authored `floor_exit` marker for boss rooms and wire the room editor/runtime to use it.
 - Why now: Floor generation is moving onto authored rooms, and boss rooms needed an explicit in-room floor-transition target instead of relying only on hardcoded portal placement.
 - Relevant subsystem: Room editor marker vocabulary, `RoomBase` validation, generated `ZoneMarker2D` metadata, boss-room runtime exit placement.
-- Files likely involved: `dungeon/metadata/zone_marker_2d.gd`, `addons/dungeon_room_editor/{plugin.gd,core/scene_sync.gd,resources/default_room_piece_catalog.tres}`, `dungeon/rooms/base/room_base.gd`, `dungeon/game/components/room_query_service.gd`, `dungeon/game/small_dungeon.gd`.
+- Files likely involved: `dungeon/metadata/zone_marker_2d.gd`, `addons/dungeon_room_editor/{plugin.gd,core/scene_sync.gd,resources/default_room_piece_catalog.tres}`, `dungeon/rooms/base/room_base.gd`, `dungeon/game/components/room_query_service.gd`, `dungeon/game/dungeon_orchestrator_internals.gd`.
 - Constraints / must-not-break: Keep connection markers boundary-only, keep the new floor exit as an interior gameplay marker, preserve existing room-editor sidecar workflow, and retain a runtime fallback if an authored boss room has no valid floor-exit marker yet.
 
 ### What Changed
@@ -240,7 +240,7 @@ Use or refresh this block after any substantial thread so the next thread has a 
   - `addons/dungeon_room_editor/plugin.gd` — boss rooms now auto-manage a dedicated `floor_exit_marker_auto` layout item based on the room’s single entrance marker, placing the 3x3 marker in the opposite corner and removing it when the room is no longer a valid boss-room target.
   - `dungeon/rooms/base/room_base.gd` — boss rooms now validate that exactly one `floor_exit` marker exists, that it stays inside room bounds, and that it lands in the expected opposite corner relative to the entrance marker.
   - `dungeon/game/components/room_query_service.gd` — added zone-marker lookup helpers.
-  - `dungeon/game/small_dungeon.gd` — boss exit portal placement now prefers an authored `floor_exit` zone marker and falls back to the old hardcoded opposite-side placement if one is missing.
+  - `dungeon/game/dungeon_orchestrator_internals.gd` — boss exit portal placement now prefers an authored `floor_exit` zone marker and falls back to the old hardcoded opposite-side placement if one is missing.
 - Behavior added or changed:
   - Boss rooms in the Room Editor automatically get a managed 3x3 `floor_exit` marker.
   - The corner is derived from both entrance direction and which half of the wall the entrance is on, so “opposite corner” works on both axes.
@@ -248,14 +248,14 @@ Use or refresh this block after any substantial thread so the next thread has a 
 - Architectural decisions:
   - `floor_exit` is a zone marker, not a connection marker, because it represents an interior elevator/portal area rather than a wall connector.
   - Auto-stamping happens during room-editor sync after connection markers are generated, which lets the feature read the real authored entrance marker without inventing a second source of truth.
-  - Runtime lookup is centralized in `RoomQueryService` so `small_dungeon.gd` does not need direct room-zone scans.
+  - Runtime lookup is centralized in `RoomQueryService` so `dungeon_orchestrator.gd` does not need direct room-zone scans.
 
 ### Risks And Follow-Ups
 
 - Known risks: The boss-room auto-stamp currently assumes exactly one entrance marker; rooms with multiple entrances intentionally warn and do not auto-place a floor exit. Manual duplicate `floor_exit` markers can still be created and will surface as validation warnings rather than being auto-merged.
 - Follow-up tasks:
   - Open a boss room in the Room Editor and visually confirm the auto-stamped 3x3 marker lands in the intended opposite corner for each entrance orientation.
-  - Once authored-room floor assembly is further along, replace the remaining hardcoded boss-exit fallback path in `small_dungeon.gd`.
+  - Once authored-room floor assembly is further along, replace the remaining hardcoded boss-exit fallback path in `dungeon_orchestrator.gd`.
   - Consider giving `floor_exit` a dedicated preview visual in the Room Editor so the 3x3 footprint reads more clearly than a generic zone marker.
 - Open questions: Whether the derived opposite corner should eventually use a stricter authored “room flow axis” instead of wall-half heuristics for asymmetrical boss rooms.
 
@@ -298,8 +298,8 @@ Use or refresh this block after any substantial thread so the next thread has a 
   - Task 2: Add `affix_type: StringName` field to `LoadoutItemDefinition` + `AFFIX_*` constants in `LoadoutConstants`.
   - Task 3: Create new item definitions per affix type in `loadout_repository.gd`.
   - Task 4: Wire `attack_speed_multiplier`, `cooldown_reduction`, `knockback_multiplier`, `aoe_radius_bonus`, `crit_chance_bonus`, `lifesteal_percent` into actual `player.gd` combat calculations.
-  - Place a `stat_pillar_2d.tscn` instance in `small_dungeon.tscn` or a room scene for in-game testing.
-  - Consider resetting `_runtime_stat_bonuses` between runs (likely in `small_dungeon.gd` when a new run starts or the player is re-initialized).
+  - Place a `stat_pillar_2d.tscn` instance in `dungeon_orchestrator.tscn` or a room scene for in-game testing.
+  - Consider resetting `_runtime_stat_bonuses` between runs (likely in `dungeon_orchestrator.gd` when a new run starts or the player is re-initialized).
 - Open questions: Should runtime bonuses reset between floors or persist for the whole run? Should the pillar emit a signal/particle effect on trigger for visual polish? Should multiple pillars of the same stat type stack or cap?
 
 ### Next Best Prompt
@@ -503,5 +503,5 @@ Use or refresh this block after any substantial thread so the next thread has a 
 ## Prompting Tips
 
 - Name the subsystem and expected verification when possible.
-- If a task spans player authority or combat replication, explicitly mention `player.gd`, `network_session.gd`, and `small_dungeon.gd`.
+- If a task spans player authority or combat replication, explicitly mention `player.gd`, `network_session.gd`, and `dungeon_orchestrator.gd`.
 - If a task is local, name the target file directly and say what should not change around it.

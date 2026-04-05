@@ -19,18 +19,18 @@ Godot 4.6 project: 2–4 player authoritative co-op dungeon crawler.
 ## Runtime Entrypoints
 
 - Main scene: `res://scenes/ui/lobby_menu.tscn`
-- Gameplay world: `res://dungeon/game/small_dungeon.tscn`
+- Gameplay world: `res://dungeon/game/dungeon_orchestrator.tscn`
 - Network autoloads: `NetworkSession`, `NetEventBus`, `RunState` (see `project.godot`)
 
 ## Key File Groups
 
-**Networking:** `scripts/network/network_session.gd`, `scripts/entities/player.gd`, `dungeon/game/small_dungeon.gd`
+**Networking:** `scripts/network/network_session.gd`, `scripts/entities/player.gd`, `dungeon/game/dungeon_orchestrator.gd` / `dungeon_orchestrator_internals.gd`
 
-**Dungeon/encounters:** `dungeon/game/small_dungeon.gd`, `dungeon/game/components/*.gd`, `dungeon/modules/**/*.gd`
+**Dungeon/encounters:** `dungeon/game/dungeon_orchestrator_internals.gd`, `dungeon/game/components/*.gd`, `dungeon/modules/**/*.gd`
 
 **Room editor/authoring:** `addons/dungeon_room_editor/`, `dungeon/rooms/base/room_base.gd`, `dungeon/metadata/zone_marker_2d.gd`
 
-**Visuals/equipment:** `scripts/visuals/player_visual.gd`, `scenes/visuals/player_visual.tscn`
+**Visuals/equipment:** `scripts/visuals/player_visual.gd` / `player_visual_internals.gd`, `scenes/visuals/player_visual.tscn`
 
 ## Authored Room System (summary — do not read the folder)
 
@@ -48,7 +48,7 @@ Godot 4.6 project: 2–4 player authoritative co-op dungeon crawler.
 - Authoritative server model — all combat, spawning, and state changes run on the server peer
 - 2D physics for all gameplay logic; 3D is presentation only
 - Coordinate mapping: `Vector2(x, y)` → `Vector3(x, height, y)` — never mix raw 2D/3D positions across the boundary
-- `small_dungeon.gd` has broad side effects — changes there ripple into networking, encounters, cameras, and doors
+- `dungeon_orchestrator_internals.gd` (and thin `dungeon_orchestrator.gd`) have broad side effects — changes there ripple into networking, encounters, cameras, and doors
 - `room_query_service.gd` is a shared hot-path — do not add per-frame scans to it
 
 ## Current Status (as of 2026-04-01)

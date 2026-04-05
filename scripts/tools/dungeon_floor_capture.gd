@@ -1,6 +1,6 @@
 extends Node
 
-const SMALL_DUNGEON_SCENE := preload("res://dungeon/game/small_dungeon.tscn")
+const DUNGEON_ORCHESTRATOR_SCENE := preload("res://dungeon/game/dungeon_orchestrator.tscn")
 const DEFAULT_WINDOW_SIZE := Vector2i(1600, 900)
 const DEFAULT_CAPTURE_ROOT := "res://logs/captures/floors"
 const DEFAULT_BOOT_TIMEOUT_SECONDS := 20.0
@@ -32,7 +32,7 @@ func _ready() -> void:
 	_capture_camera = _create_capture_camera()
 	var floor_ready := await _wait_for_floor_generated(_boot_timeout_seconds)
 	if not floor_ready:
-		_finish_with_error("Timed out waiting for small_dungeon floor generation.")
+		_finish_with_error("Timed out waiting for dungeon orchestrator floor generation.")
 		return
 	await _wait_seconds(_settle_seconds)
 	var rooms := _target_rooms()
@@ -45,7 +45,7 @@ func _ready() -> void:
 		if not capture.is_empty():
 			captures.append(capture)
 	var summary := {
-		"scene": "res://dungeon/game/small_dungeon.tscn",
+		"scene": "res://dungeon/game/dungeon_orchestrator.tscn",
 		"timestamp_unix": Time.get_unix_time_from_system(),
 		"window_size": {"x": _window_size.x, "y": _window_size.y},
 		"output_dir": ProjectSettings.globalize_path(_output_dir),
@@ -121,7 +121,7 @@ func _configure_window() -> void:
 
 
 func _spawn_dungeon() -> void:
-	_dungeon = SMALL_DUNGEON_SCENE.instantiate()
+	_dungeon = DUNGEON_ORCHESTRATOR_SCENE.instantiate()
 	if _dungeon == null:
 		return
 	_dungeon.set("show_fps_counter", false)

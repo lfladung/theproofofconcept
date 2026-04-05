@@ -30,17 +30,17 @@ This file tracks milestone goals for the dungeon architecture and procedural con
   - structure pieces: floor, wall, corner, pit, ramp
   - connectivity pieces: standard door, locked door, entrance marker, exit marker
   - reusable base piece contract and locked-door API
-  - wired into `small_dungeon` runtime assembly
+  - wired into `dungeon_orchestrator` runtime assembly
 
 - [x] Milestone 3: Encounter infrastructure MVP
   - encounter modules: enemy spawn point, spawn volume, room trigger, arena boundary
-  - `small_dungeon` upgraded from simulated clear timers to real spawn-clear flow
+  - `dungeon_orchestrator` upgraded from simulated clear timers to real spawn-clear flow
   - encounter boundaries lock/unlock from live enemy state
   - boss exit portal now unlocks after actual boss encounter clear
 
 - [x] Milestone 4: Gameplay object MVP
   - `TreasureChest2D` spews `DroppedCoin` pickups; `KeyPickup2D` + keyed `LockedDoorPiece2D` remain for other rooms
-  - `small_dungeon` treasure branch uses a normal door; chest drops 10 coins
+  - `dungeon_orchestrator` treasure branch uses a normal door; chest drops 10 coins
   - `TrapTile2D` damage-over-time while standing on tile (cooldown), placed in treasure room
 
 ## Next Milestone Goals

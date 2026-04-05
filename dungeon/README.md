@@ -233,7 +233,7 @@ Milestone 3 (encounter infrastructure MVP):
   - `enemy_spawn_volume_2d.tscn`
   - `room_encounter_trigger_2d.tscn`
   - `arena_boundary_piece_2d.tscn`
-- `small_dungeon` now uses real spawn-clear logic:
+- `dungeon_orchestrator` now uses real spawn-clear logic:
   - entering combat/boss room triggers an encounter wave
   - arena boundaries lock during active encounter
   - boundaries unlock only when all encounter mobs are cleared
@@ -243,7 +243,7 @@ Generation logic, room catalog loading, and fully data-driven runtime assembly c
 
 ## Dungeon Scenes
 
-- `res://dungeon/game/small_dungeon.tscn`
+- `res://dungeon/game/dungeon_orchestrator.tscn`
   - Multi-room dungeon scene that includes baseline room types:
 	- entrance room
 	- transition corridors between main rooms

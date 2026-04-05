@@ -36,7 +36,7 @@ Definition of done:
 
 Useful current memory:
 - Main scene is `res://scenes/ui/lobby_menu.tscn`
-- Runtime world is `res://dungeon/game/small_dungeon.tscn`
+- Runtime world is `res://dungeon/game/dungeon_orchestrator.tscn`
 - Multiplayer is authoritative server model
 - Milestones 1-9 are done (see `dungeon/MULTIPLAYER_MILESTONE_MAP.md`)
 ```

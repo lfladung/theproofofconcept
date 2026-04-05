@@ -28,7 +28,7 @@ const DEFAULT_MAX_PLAYERS := 4
 const LOBBY_CODE_LENGTH := 6
 const DEFAULT_REGISTRY_URL := "http://127.0.0.1:8787"
 const LOBBY_SCENE_PATH := "res://scenes/ui/lobby_menu.tscn"
-const RUN_SCENE_PATH := "res://dungeon/game/small_dungeon.tscn"
+const RUN_SCENE_PATH := "res://dungeon/game/dungeon_orchestrator.tscn"
 
 var session_state: int = SessionState.OFFLINE
 var session_role: int = SessionRole.NONE

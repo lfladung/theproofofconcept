@@ -10,7 +10,7 @@ The core multiplayer refactor milestones **1–9** are complete: session and lob
 | Milestone | What it represents |
 |-----------|---------------------|
 | **1 – Networking foundation** | `NetworkSession`, `NetEventBus`, `RunState`; lobby host/join/disconnect; `peer_id` → player slot; lobby ↔ in-run flow. |
-| **2 – Spawn & authority** | Multiplayer roster in `small_dungeon`; networked spawn; explicit per-peer authority; HUD tied to the local authority player; no “first player node wins” assumptions. |
+| **2 – Spawn & authority** | Multiplayer roster in `dungeon_orchestrator`; networked spawn; explicit per-peer authority; HUD tied to the local authority player; no “first player node wins” assumptions. |
 | **3 – Movement** | Tick-stamped input to server; authoritative movement; prediction + reconciliation for the owner; interpolation for remotes. |
 | **4 – Authoritative combat (melee slice)** | Melee vertical slice: client request → server validation → replicated resolution; hit/attack IDs so duplicates do not double-apply damage; effects driven from authoritative events. |
 | **5 – Enemy AI & aggro sync** | Enemy logic server-side; targets from the player registry; transforms plus discrete state events (telegraph, dash, death, etc.) consistent for all peers. |
@@ -35,7 +35,7 @@ The core multiplayer refactor milestones **1–9** are complete: session and lob
 
 - [x] Milestone 1 - Networking Foundation (session lifecycle + lobby flow)
 - [x] Milestone 2 - Player Spawn And Authority
-  - [x] Session slot-map driven player roster in `small_dungeon`
+  - [x] Session slot-map driven player roster in `dungeon_orchestrator`
   - [x] Per-peer authority assignment + authority debug logging
   - [x] Local HUD binding updated to local authority player
   - [x] Host + client live-play verification pass (movement + late-join behavior)
@@ -231,7 +231,7 @@ Done criteria:
 
 1. `project.godot` (autoload registration)
 2. Add `scripts/network/` foundation classes
-3. `dungeon/game/small_dungeon.gd` (session-aware orchestration)
+3. `dungeon/game/dungeon_orchestrator_internals.gd` (session-aware orchestration)
 4. `scripts/entities/player.gd` (controller split + authority)
 5. `scripts/entities/mob.gd`, `scripts/entities/arrow_tower.gd` (server AI ownership)
 6. `scripts/entities/arrow_projectile.gd`, `scripts/entities/player_bomb.gd` (authoritative damage events)
@@ -260,7 +260,7 @@ Progress:
 - [x] DS Milestone 1: Dedicated server boot mode in `NetworkSession`
   - CLI boot flags (`--dedicated_server`, `--port`, `--max_players`, `--start_in_run`)
   - host peer excluded from gameplay slot map for dedicated sessions
-  - dedicated placeholder player hardened in `small_dungeon`
+  - dedicated placeholder player hardened in `dungeon_orchestrator`
 - [x] DS Milestone 2: Session directory integration + registry service scaffold
   - optional instance registration/heartbeat/unregister from dedicated `NetworkSession`
   - new lightweight registry service in `tools/instance_registry/instance_registry_server.py`

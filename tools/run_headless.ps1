@@ -44,7 +44,7 @@ if ($VerboseOutput) {
 }
 if ($CheckOnly) {
 	if ([string]::IsNullOrWhiteSpace($Script)) {
-		Write-Error "When using -CheckOnly, provide -Script <res://...>. Example: -Script res://dungeon/game/small_dungeon.gd"
+		Write-Error "When using -CheckOnly, provide -Script <res://...>. Example: -Script res://dungeon/game/dungeon_orchestrator_internals.gd"
 		exit 2
 	}
 	$godotArgs += @("--check-only", "--script", $Script)

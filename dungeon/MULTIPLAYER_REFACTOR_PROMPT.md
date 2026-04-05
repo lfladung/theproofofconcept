@@ -5,7 +5,7 @@ Date saved: 2026-03-24
 I have an existing Godot 4.6 project (not a greenfield project) and I want to convert it from singleplayer to scalable online co-op multiplayer incrementally.
 
 Project context (already implemented):
-- Main playable scene: `res://dungeon/game/small_dungeon.tscn` with orchestration in `small_dungeon.gd`.
+- Main playable scene: `res://dungeon/game/dungeon_orchestrator.tscn` with orchestration in `dungeon_orchestrator.gd` / `dungeon_orchestrator_internals.gd`.
 - Architecture already split into:
   - `GameWorld2D` for gameplay simulation/collision
   - `VisualWorld3D` for 3D presentation
@@ -43,7 +43,7 @@ Please deliver:
 I need you to be concrete about THIS codebase:
 - Audit likely multiplayer conversion issues specifically from this current structure.
 - Propose how to refactor existing scripts/modules rather than replacing everything.
-- Call out which current scripts should change first (e.g., `small_dungeon.gd`, `player.gd`, enemy scripts, projectile/bomb scripts, trap/loot/encounter scripts).
+- Call out which current scripts should change first (e.g., `dungeon_orchestrator.gd`, `player.gd`, enemy scripts, projectile/bomb scripts, trap/loot/encounter scripts).
 - Define which systems should be:
   - server-authoritative
   - client-predicted (with reconciliation)

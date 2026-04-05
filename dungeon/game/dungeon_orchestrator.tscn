@@ -1,6 +1,6 @@
 [gd_scene format=3 uid="uid://dk3ryqsnd1kxj"]
 
-[ext_resource type="Script" uid="uid://b5tbqbpc6hk1r" path="res://dungeon/game/small_dungeon.gd" id="1_script"]
+[ext_resource type="Script" uid="uid://bu10dd41hv0la" path="res://dungeon/game/dungeon_orchestrator.gd" id="1_script"]
 [ext_resource type="PackedScene" path="res://scenes/ui/health_bar.tscn" id="5_health_bar"]
 [ext_resource type="Script" uid="uid://bq4lq2wbf1rkc" path="res://scripts/ui/score_label.gd" id="6_coin_counter"]
 [ext_resource type="Script" path="res://scripts/ui/minimap_panel.gd" id="7_minimap_panel"]
@@ -40,7 +40,7 @@ corner_radius_bottom_left = 12
 shadow_color = Color(0, 0, 0, 0.18)
 shadow_size = 4
 
-[node name="SmallDungeon" type="Node" unique_id=1819195424]
+[node name="DungeonOrchestrator" type="Node" unique_id=1819195424]
 script = ExtResource("1_script")
 
 [node name="GameWorld2D" type="Node2D" parent="." unique_id=1498394627]
@@ -234,7 +234,7 @@ offset_left = 10.0
 offset_top = 10.0
 offset_right = 700.0
 offset_bottom = 80.0
-text = "Small dungeon loaded."
+text = "Dungeon loaded."
 
 [node name="MinimapPanel" type="Panel" parent="CanvasLayer/UI"]
 layout_mode = 1

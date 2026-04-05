@@ -1,6 +1,6 @@
 extends SceneTree
 
-const SMALL_DUNGEON_SCENE := preload("res://dungeon/game/small_dungeon.tscn")
+const DUNGEON_ORCHESTRATOR_SCENE := preload("res://dungeon/game/dungeon_orchestrator.tscn")
 const OUTPUT_PATH := "res://logs/iron_sentinel_fight_profile_latest.json"
 const WINDOW_SIZE := Vector2i(1600, 900)
 const BOOT_TIMEOUT_SECONDS := 20.0
@@ -23,13 +23,13 @@ func _init() -> void:
 		window.mode = Window.MODE_WINDOWED
 		window.title = "Iron Sentinel Fight Profiler"
 
-	_dungeon = SMALL_DUNGEON_SCENE.instantiate()
+	_dungeon = DUNGEON_ORCHESTRATOR_SCENE.instantiate()
 	root.add_child(_dungeon)
-	print("[sentinel-profile] instantiated small_dungeon")
+	print("[sentinel-profile] instantiated dungeon_orchestrator")
 
 	var floor_ready := await _wait_for_floor_generated(BOOT_TIMEOUT_SECONDS)
 	if not floor_ready:
-		_finish_with_error("Timed out waiting for small_dungeon floor generation.")
+		_finish_with_error("Timed out waiting for dungeon orchestrator floor generation.")
 		return
 	print("[sentinel-profile] floor generated")
 
@@ -133,7 +133,7 @@ func _build_summary() -> Dictionary:
 		var sentinel_counts := _bucket_sentinel_counts.get(bucket_name, []) as Array[int]
 		buckets[bucket_name] = _bucket_stats(samples, enemy_counts, sentinel_counts)
 	return {
-		"scene": "res://dungeon/game/small_dungeon.tscn",
+		"scene": "res://dungeon/game/dungeon_orchestrator.tscn",
 		"window_size": {"x": WINDOW_SIZE.x, "y": WINDOW_SIZE.y},
 		"timestamp_unix": Time.get_unix_time_from_system(),
 		"buckets": buckets,
