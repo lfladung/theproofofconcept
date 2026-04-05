@@ -1,11 +1,32 @@
 1. Edge (Precision / Damage)
-What it does:
-Increases damage
-Improves crit chance / weak point damage
 
-High Expression Behavior:
-Overkill damage splashes
-Attacks feel snappy and lethal
+**Runtime status (implemented):** Server-authoritative melee on `EnemyBase` / `Player`. Tuning lives in `scripts/infusion/infusion_edge.gd`; combat hooks in `scripts/entities/player.gd`, `scripts/entities/enemy_base.gd`, and `scripts/combat/damage_packet.gd` (`is_critical`, `suppress_edge_procs` for secondary hits). Infusion thresholds map as **Baseline → tier 1**, **Escalated → tier 2**, **Expression → tier 3**.
+
+**What it does (design):** Reward aim and target choice; turn overkill and chains into tempo; late tier adds execution fantasy.
+
+### Tier 1 — Sharpen (Edge Baseline+)
+
+- Extra flat melee damage (existing `melee_damage_bonus` hook).
+- **Crits** deal significantly more damage (multiplier stacks with the player’s melee crit mult; loadout `crit_chance_bonus` + `melee_base_crit_chance` feed rolled crits).
+- **Rear “backstab”** is treated as a **guaranteed crit** (same crit multiplier path as rolled crits; no separate backstab damage stack).
+- **Kill splash:** on lethal hits, a fraction of absorbed damage is dealt in a small radius (split across nearby enemies).
+
+### Tier 2 — Sever (Edge Escalated+)
+
+- **Overkill spill:** excess damage vs. the victim’s HP before the hit spills into a **forward cone** (decaying damage over multiple hops).
+- **Bleed:** melee **crits** apply a short DoT (server tick; uses `suppress_edge_procs` so it does not recurse Edge procs).
+- **Mark:** after a damaging crit resolves, the target gains a window where **Edge-attuned** follow-up hits deal increased damage (mark applies **after** the crit hit so that hit is not self-amplified).
+- **Kill tempo:** killing an enemy grants a short **bonus crit chance** window (stacks with loadout crit bonus).
+
+### Tier 3 — Execution / Primed (Edge Expression) — reworked
+
+- **Execute:** if current HP% is at or below **~20%**, the hit is forced lethal (no stack-based threshold).
+- **Primed target:** melee **crits** from an Expression Edge attacker apply **prime** for **X seconds** (tuned in `execution_prime_duration_sec`). The Sever **mark** glow is **normal size** when the enemy is marked but **not** primed; **primed** uses the **same mesh at 2× scale** (mark can still be active alongside prime).
+- **While primed:** victims take **extra Edge damage** on incoming Edge hits (`execution_prime_edge_damage_multiplier`, after Sever mark if both apply).
+- **Primed death:** if they die with overkill while still primed and the **killer** has Expression Edge, spill uses the **full overkill amount** (no `sever_overkill_spill_ratio` shrink), **no per-hop pool decay**, chain **picks lowest current HP** in the cone (ties → nearer). Other kills still use tier-2 style spill (ratio + decay + nearest).
+- **Expression geometry:** existing wider melee arc (`expression_geometry_mult`) unchanged.
+
+**Not yet in doc / future hooks:** Dedicated weak-point colliders (today, “precision” is **crit + rear crit** only). UI color pass for crit numbers optional.
 
 2. Flow (Speed / Tempo)
 What it does:
@@ -95,3 +116,5 @@ Root / freeze mechanics
 
 4. Rupture (Damage Over Time / Explosive Effects)
 Bleed, burn, delayed explosions
+
+**Note:** Edge **Sever** (Escalated+) currently implements a **melee crit bleed** on enemies; other pillars may add DoTs later.

@@ -221,7 +221,7 @@ var _backdrop_offset_cam := Vector3.ZERO
 var _prev_backdrop_camera_ref := Vector3.ZERO
 @export_enum("legacy_grid", "authored_rooms") var floor_generation_mode := "authored_rooms"
 ## When true, each floor uses exactly 3 rooms (authored generator + legacy layout). Default false keeps 7–9 / 8–10.
-@export var floor_generation_compact_three_rooms := true
+@export var floor_generation_compact_three_rooms := false
 @export var show_combat_debug_overlay := false
 @export var show_fps_counter := true
 @export var combat_debug_update_interval := 0.25

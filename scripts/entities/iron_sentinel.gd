@@ -54,6 +54,8 @@ enum RecoveryState {
 @export var mesh_scale := Vector3(5.1, 5.1, 5.1)
 @export var facing_yaw_offset_deg := 0.0
 @export var telegraph_ground_y := 0.06
+## How fast the sentinel rotates to track the player while advancing (lower = easier to flank).
+@export var turn_toward_target_deg_per_sec := 100.0
 @export var show_guard_debug_visual := false
 @export var guard_debug_ground_y := 0.08
 @export var guard_debug_radius := 8.5
@@ -135,6 +137,7 @@ func _ready() -> void:
 
 
 func _exit_tree() -> void:
+	super._exit_tree()
 	if _visual != null and is_instance_valid(_visual):
 		_visual.queue_free()
 	if _telegraph_mesh != null and is_instance_valid(_telegraph_mesh):
@@ -226,7 +229,10 @@ func _update_behavior(delta: float) -> void:
 		return
 	var to_target := _target_player.global_position - global_position
 	if to_target.length_squared() > 0.0001:
-		_facing_dir = to_target.normalized()
+		var max_step := deg_to_rad(turn_toward_target_deg_per_sec) * delta
+		_facing_dir = EnemyBase.step_planar_facing_toward(
+			_facing_dir, to_target.normalized(), max_step
+		)
 	if to_target.length_squared() <= melee_range * melee_range and _cooldown_remaining <= 0.0:
 		_guard_break_accumulated_damage = 0.0
 		_start_attack(_choose_attack_state(), _facing_dir)
@@ -766,6 +772,10 @@ func is_directional_guard_active() -> bool:
 
 
 func get_directional_guard_facing() -> Vector2:
+	return _resolve_visual_facing_direction()
+
+
+func get_combat_planar_facing() -> Vector2:
 	return _resolve_visual_facing_direction()
 
 

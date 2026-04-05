@@ -27,6 +27,7 @@ const _TELEGRAPH_PROGRESS_STEPS := 12
 @export var facing_yaw_offset_deg := 180.0
 @export var telegraph_ground_y := 0.06
 @export var telegraph_range := 9.0
+@export var turn_toward_facing_deg_per_sec := 360.0
 
 var _visual
 var _vw: Node3D
@@ -48,6 +49,7 @@ var _cooldown_remaining := 0.0
 var _server_volley_event_sequence := 0
 var _last_applied_volley_event_sequence := -1
 var _telegraph_progress_step := -1
+var _planar_facing := Vector2(0.0, -1.0)
 
 @onready var _nav_agent: NavigationAgent2D = $NavigationAgent2D
 
@@ -88,6 +90,7 @@ func _ready() -> void:
 
 
 func _exit_tree() -> void:
+	super._exit_tree()
 	if _visual != null and is_instance_valid(_visual):
 		_visual.queue_free()
 	if _telegraph_mesh != null and is_instance_valid(_telegraph_mesh):
@@ -115,6 +118,7 @@ func _physics_process(delta: float) -> void:
 	else:
 		_update_behavior(delta)
 	move_and_slide()
+	_update_planar_facing(delta)
 	_enemy_network_server_broadcast(delta)
 	_sync_visual()
 
@@ -126,6 +130,7 @@ func _enemy_network_compact_state() -> Dictionary:
 		"ce": _charge_elapsed,
 		"cf": _charge_fire_time,
 		"dir": _charge_dir,
+		"pf": _planar_facing,
 	}
 
 
@@ -141,6 +146,11 @@ func _enemy_network_apply_remote_state(state: Dictionary) -> void:
 			_charge_dir = next_dir.normalized()
 	if not _is_charging:
 		_charge_elapsed = 0.0
+	var pf_v: Variant = state.get("pf", _planar_facing)
+	if pf_v is Vector2:
+		var pf := pf_v as Vector2
+		if pf.length_squared() > 0.0001:
+			_planar_facing = pf.normalized()
 
 
 func _update_behavior(delta: float) -> void:
@@ -336,7 +346,7 @@ func _should_use_high_detail_visuals() -> bool:
 	return velocity.length_squared() > 0.04
 
 
-func _resolve_visual_facing_direction() -> Vector2:
+func _desired_facing_for_orient() -> Vector2:
 	if _is_charging and _charge_dir.length_squared() > 0.0001:
 		return _charge_dir.normalized()
 	if velocity.length_squared() > 0.0001:
@@ -348,6 +358,25 @@ func _resolve_visual_facing_direction() -> Vector2:
 	if _charge_dir.length_squared() > 0.0001:
 		return _charge_dir.normalized()
 	return Vector2(0.0, -1.0)
+
+
+func _update_planar_facing(delta: float) -> void:
+	if _is_charging and _charge_dir.length_squared() > 0.0001:
+		_planar_facing = _charge_dir.normalized()
+		return
+	var desired := _desired_facing_for_orient()
+	var max_step := deg_to_rad(turn_toward_facing_deg_per_sec) * delta
+	_planar_facing = EnemyBase.step_planar_facing_toward(_planar_facing, desired, max_step)
+
+
+func _resolve_visual_facing_direction() -> Vector2:
+	if _planar_facing.length_squared() > 0.0001:
+		return _planar_facing.normalized()
+	return _desired_facing_for_orient()
+
+
+func get_combat_planar_facing() -> Vector2:
+	return _resolve_visual_facing_direction()
 
 
 func _create_telegraph_mesh(parent: Node3D) -> void:

@@ -29,6 +29,8 @@ const _TELEGRAPH_PROGRESS_STEPS := 12
 @export var target_refresh_interval := 0.3
 @export var mesh_ground_y := 0.24
 @export var mesh_scale := Vector3(2.0, 2.0, 2.0)
+## Max rotation rate when aligning to chase direction / player (lets players slip behind).
+@export var turn_toward_facing_deg_per_sec := 420.0
 
 var _squash_applied: bool = false
 var _visual
@@ -57,6 +59,7 @@ var _knockback_time_remaining := 0.0
 var _knockback_velocity := Vector2.ZERO
 var _aggro_enabled := true
 var _telegraph_progress_step := -1
+var _planar_facing := Vector2(0.0, -1.0)
 @onready var _nav_agent: NavigationAgent2D = $NavigationAgent2D
 @onready var _dash_contact_hitbox: Hitbox2D = $DashContactHitbox
 
@@ -80,6 +83,12 @@ func set_aggro_enabled(enabled: bool) -> void:
 		if _dash_contact_hitbox != null:
 			_dash_contact_hitbox.deactivate()
 		_sync_visual_anim_speed(0.0)
+
+
+func get_combat_planar_facing() -> Vector2:
+	if _planar_facing.length_squared() > 1e-6:
+		return _planar_facing.normalized()
+	return super.get_combat_planar_facing()
 
 
 func _ready() -> void:
@@ -132,6 +141,7 @@ func _ready() -> void:
 
 
 func _exit_tree() -> void:
+	super._exit_tree()
 	if _visual and is_instance_valid(_visual):
 		_visual.queue_free()
 	if _telegraph_mesh and is_instance_valid(_telegraph_mesh):
@@ -146,6 +156,7 @@ func _physics_process(delta: float) -> void:
 		return
 	_update_attack_state(delta)
 	move_and_slide()
+	_update_planar_facing(delta)
 	_enemy_network_server_broadcast(delta)
 	_sync_visual_from_body()
 	_update_telegraph_visual()
@@ -159,6 +170,7 @@ func _enemy_network_compact_state() -> Dictionary:
 		"td": telegraph_duration,
 		"dd": _dash_dir,
 		"ds": _is_dashing,
+		"pf": _planar_facing,
 	}
 
 
@@ -175,6 +187,11 @@ func _enemy_network_apply_remote_state(state: Dictionary) -> void:
 			_dash_dir = dash_dir.normalized()
 	if not _is_telegraphing:
 		_telegraph_time = 0.0
+	var pf_v: Variant = state.get("pf", _planar_facing)
+	if pf_v is Vector2:
+		var pf := pf_v as Vector2
+		if pf.length_squared() > 0.0001:
+			_planar_facing = pf.normalized()
 
 
 func _sync_visual_from_body() -> void:
@@ -191,6 +208,10 @@ func _apply_spawn(start_position: Vector2, player_position: Vector2) -> void:
 	_move_speed = random_speed * speed_scale * _speed_multiplier
 	var to_player := player_position - start_position
 	velocity = to_player.normalized() * _move_speed if to_player.length_squared() > 0.01 else Vector2.ZERO
+	if velocity.length_squared() > 1e-6:
+		_planar_facing = velocity.normalized()
+	elif to_player.length_squared() > 1e-6:
+		_planar_facing = to_player.normalized()
 	_sync_visual_anim_speed(_move_speed)
 
 
@@ -371,10 +392,16 @@ func _should_use_high_detail_visuals() -> bool:
 	return velocity.length_squared() > 0.04
 
 
-func take_hit(damage: int, knockback_dir: Vector2, knockback_strength: float) -> void:
+func take_hit(
+	damage: int,
+	knockback_dir: Vector2,
+	knockback_strength: float,
+	from_backstab: bool = false,
+	is_critical: bool = false
+) -> void:
 	if damage <= 0 or _squash_applied:
 		return
-	super.take_hit(damage, knockback_dir, knockback_strength)
+	super.take_hit(damage, knockback_dir, knockback_strength, from_backstab, is_critical)
 
 
 func _on_nonlethal_hit(knockback_dir: Vector2, knockback_strength: float) -> void:
@@ -479,7 +506,7 @@ func _resolve_visual_state_name() -> StringName:
 	return &"idle"
 
 
-func _resolve_visual_facing_direction() -> Vector2:
+func _desired_facing_for_orient() -> Vector2:
 	if (_is_telegraphing or _is_dashing) and _dash_dir.length_squared() > 0.0001:
 		return _dash_dir.normalized()
 	if velocity.length_squared() > 0.0001:
@@ -491,6 +518,21 @@ func _resolve_visual_facing_direction() -> Vector2:
 	if _dash_dir.length_squared() > 0.0001:
 		return _dash_dir.normalized()
 	return Vector2(0.0, -1.0)
+
+
+func _update_planar_facing(delta: float) -> void:
+	var desired := _desired_facing_for_orient()
+	if (_is_telegraphing or _is_dashing) and _dash_dir.length_squared() > 0.0001:
+		_planar_facing = _dash_dir.normalized()
+		return
+	var max_step := deg_to_rad(turn_toward_facing_deg_per_sec) * delta
+	_planar_facing = EnemyBase.step_planar_facing_toward(_planar_facing, desired, max_step)
+
+
+func _resolve_visual_facing_direction() -> Vector2:
+	if _planar_facing.length_squared() > 0.0001:
+		return _planar_facing.normalized()
+	return _desired_facing_for_orient()
 
 
 func _build_visual_state_config() -> Dictionary:

@@ -13,6 +13,12 @@ var knockback: float = 0.0
 var apply_iframes := true
 var blockable := false
 var debug_label: StringName = &""
+## Player melee backstab (rear arc); also forces a crit when precision rules apply.
+var from_backstab := false
+## Melee/ranged precision crit (backstab counts as a guaranteed crit).
+var is_critical := false
+## Secondary Edge procs (splash / overkill spill) must not recurse into full Edge pipelines.
+var suppress_edge_procs := false
 
 
 func duplicate_packet() -> DamagePacket:
@@ -28,6 +34,9 @@ func duplicate_packet() -> DamagePacket:
 	copy.apply_iframes = apply_iframes
 	copy.blockable = blockable
 	copy.debug_label = debug_label
+	copy.from_backstab = from_backstab
+	copy.is_critical = is_critical
+	copy.suppress_edge_procs = suppress_edge_procs
 	return copy
 
 

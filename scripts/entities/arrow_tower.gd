@@ -14,6 +14,7 @@ const _TELEGRAPH_PROGRESS_STEPS := 12
 @export var mesh_ground_y := 0.95
 @export var mesh_scale := Vector3(2.3, 2.3, 2.3)
 @export var facing_yaw_offset_deg := 90.0
+@export var tower_turn_deg_per_sec := 200.0
 ## Same visual language as dasher telegraph: hollow outline + red fill toward target.
 @export var telegraph_ground_y := 0.06
 @export var telegraph_arrow_length := 7.8
@@ -37,6 +38,7 @@ var _server_arrow_event_sequence := 0
 var _last_applied_arrow_event_sequence := -1
 var _remote_projectiles_by_event_id: Dictionary = {}
 var _telegraph_progress_step := -1
+var _tower_visual_facing := Vector2(0.0, -1.0)
 
 
 func _ready() -> void:
@@ -79,7 +81,7 @@ func _physics_process(delta: float) -> void:
 	if _multiplayer_active() and not _is_server_peer():
 		_enemy_network_client_interpolate(delta)
 		if _aggro_enabled and _net_telegraph_in_range:
-			_face_direction(_net_telegraph_dir)
+			_update_tower_visual_facing(_net_telegraph_dir, delta)
 		_update_telegraph_visual(_aggro_enabled and _net_telegraph_in_range, _net_telegraph_dir, _net_telegraph_progress)
 		_sync_visual()
 		return
@@ -105,7 +107,7 @@ func _physics_process(delta: float) -> void:
 	var in_range := to_player.length() <= range_world
 	var aim_dir := to_player.normalized() if to_player.length_squared() > 0.0001 else Vector2(0.0, -1.0)
 	if in_range:
-		_face_direction(aim_dir)
+		_update_tower_visual_facing(aim_dir, delta)
 		_cooldown_remaining = maxf(0.0, _cooldown_remaining - delta)
 		if _cooldown_remaining <= 0.0:
 			_fire_arrow(aim_dir)
@@ -194,12 +196,24 @@ func _enemy_network_apply_remote_state(state: Dictionary) -> void:
 	_net_telegraph_progress = clampf(float(state.get("cp", _net_telegraph_progress)), 0.0, 1.0)
 
 
-func _face_direction(dir: Vector2) -> void:
+func _update_tower_visual_facing(aim_dir: Vector2, delta: float) -> void:
 	if _visual == null:
 		return
-	if dir.length_squared() <= 0.0001:
+	if aim_dir.length_squared() <= 0.0001:
 		return
-	_visual.rotation.y = atan2(dir.x, dir.y) + deg_to_rad(facing_yaw_offset_deg)
+	var max_step := deg_to_rad(tower_turn_deg_per_sec) * delta
+	_tower_visual_facing = EnemyBase.step_planar_facing_toward(
+		_tower_visual_facing, aim_dir.normalized(), max_step
+	)
+	_visual.rotation.y = (
+		atan2(_tower_visual_facing.x, _tower_visual_facing.y) + deg_to_rad(facing_yaw_offset_deg)
+	)
+
+
+func get_combat_planar_facing() -> Vector2:
+	if _tower_visual_facing.length_squared() > 1e-6:
+		return _tower_visual_facing.normalized()
+	return super.get_combat_planar_facing()
 
 
 func _fire_arrow(dir: Vector2) -> void:
@@ -385,6 +399,7 @@ func set_aggro_enabled(enabled: bool) -> void:
 
 
 func _exit_tree() -> void:
+	super._exit_tree()
 	_remote_projectiles_by_event_id.clear()
 	if _visual != null and is_instance_valid(_visual):
 		_visual.queue_free()

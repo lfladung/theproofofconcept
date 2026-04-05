@@ -141,6 +141,7 @@ func _scan_hurtboxes() -> void:
 		var packet := _packet_template.duplicate_packet()
 		if repeat_mode == RepeatMode.INTERVAL and bool(state.get("resolved_once", false)):
 			packet.attack_instance_id = _consume_attack_instance_id()
+		_finalize_damage_packet_for_target(packet, hurtbox)
 		var receiver := hurtbox.get_receiver_component()
 		if receiver == null:
 			_log("rejected_missing_receiver target=%s" % [target_uid])
@@ -254,6 +255,14 @@ func _draw() -> void:
 
 func _now_sec() -> float:
 	return Time.get_ticks_msec() / 1000.0
+
+
+func _finalize_damage_packet_for_target(packet: DamagePacket, hurtbox: Hurtbox2D) -> void:
+	if packet == null or hurtbox == null:
+		return
+	var src: Node = packet.source_node
+	if src != null and is_instance_valid(src) and src.has_method(&"apply_backstab_bonus_to_melee_packet"):
+		src.call(&"apply_backstab_bonus_to_melee_packet", packet, hurtbox)
 
 
 func _log(message: String) -> void:

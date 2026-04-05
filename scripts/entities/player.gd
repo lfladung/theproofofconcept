@@ -13,7 +13,13 @@ const PLAYER_BOMB_SCENE := preload("res://scenes/entities/player_bomb.tscn")
 const PLAYER_VISUAL_SCENE := preload("res://scenes/visuals/player_visual.tscn")
 const LoadoutConstantsRef = preload("res://scripts/loadout/loadout_constants.gd")
 const InfusionConstantsRef = preload("res://scripts/infusion/infusion_constants.gd")
-const InfusionFlowPhaseRef = preload("res://scripts/infusion/infusion_flow_phase.gd")
+const InfusionEdgeRef = preload("res://scripts/infusion/infusion_edge.gd")
+const InfusionFlowRef = preload("res://scripts/infusion/infusion_flow.gd")
+const InfusionPhaseRef = preload("res://scripts/infusion/infusion_phase.gd")
+const InfusionMassRef = preload("res://scripts/infusion/infusion_mass.gd")
+const InfusionEchoRef = preload("res://scripts/infusion/infusion_echo.gd")
+const InfusionAnchorRef = preload("res://scripts/infusion/infusion_anchor.gd")
+const InfusionSurgeRef = preload("res://scripts/infusion/infusion_surge.gd")
 const DamagePacketScript = preload("res://scripts/combat/damage_packet.gd")
 const _MULTIPLAYER_DEBUG_LOGGING := false
 const REVIVE_HEALTH := 50
@@ -40,7 +46,7 @@ enum WeaponMode { SWORD, GUN, BOMB }
 @export var attack_hitbox_visual_duration := 0.2
 @export var melee_facing_lock_fallback_duration := 0.25
 @export var melee_attack_cooldown := 0.5
-@export var melee_attack_damage := 999
+@export var melee_attack_damage := 10
 @export var melee_knockback_strength := 11.0
 @export var melee_charge_commit_delay := 0.25
 @export var melee_charge_max_time := 0.72
@@ -51,6 +57,12 @@ enum WeaponMode { SWORD, GUN, BOMB }
 @export var melee_charge_damage_max_mult := 1.4
 @export var melee_charge_knockback_min_mult := 0.72
 @export var melee_charge_knockback_max_mult := 1.12
+## Crit damage multiplier for melee (rear “backstab” counts as a guaranteed crit and uses this too).
+@export var melee_backstab_damage_multiplier := 1.5
+## Backstab if dot(from_enemy_to_attacker, enemy combat facing) <= this (0 = rear 180°).
+@export var melee_backstab_facing_dot_threshold := 0.0
+## Rolled crit chance before loadout `crit_chance_bonus` and Edge Sever windows.
+@export var melee_base_crit_chance := 0.08
 ## Ground Y for debug mesh (XZ play plane ↔ 3D).
 @export var melee_debug_ground_y := 0.04
 @export var show_melee_hit_debug := false
@@ -226,6 +238,9 @@ var _base_defend_damage_multiplier := 1.0
 var _runtime_stat_bonuses: Dictionary = {}
 ## When non-empty, handgun shots use this style (latest infusion pickup); cleared when no infusions remain.
 var _handgun_infusion_projectile_style: StringName = &""
+## Edge Sever — post-kill precision window (server).
+var _edge_sever_kill_window_until_sec: float = -1.0
+var _edge_sever_kill_window_stored_bonus: float = 0.0
 
 
 func _ready() -> void:
@@ -842,6 +857,13 @@ func _loadout_stat_from_totals(totals: Dictionary, stat_key: StringName) -> floa
 		return float(totals.get(String(stat_key), 0.0))
 	return 0.0
 
+
+func _stat_totals_merged() -> Dictionary:
+	var totals := (_loadout_snapshot.get("aggregated_stats", {}) as Dictionary).duplicate(true)
+	for key in _runtime_stat_bonuses:
+		var add_v := float(_runtime_stat_bonuses.get(key, 0.0))
+		totals[key] = float(totals.get(key, 0.0)) + add_v
+	return totals
 
 
 func _update_remote_proxy_visual() -> void:
@@ -2739,22 +2761,32 @@ func _infusion_edge_melee_damage_bonus() -> int:
 	var t: int = int(
 		infusion_manager.call(&"get_pillar_threshold", InfusionConstantsRef.PILLAR_EDGE)
 	)
-	var b := int(InfusionConstantsRef.InfusionThreshold.BASELINE)
-	var e := int(InfusionConstantsRef.InfusionThreshold.ESCALATED)
-	if t >= e:
-		return 20
-	if t >= b:
-		return 10
-	return 0
+	return InfusionEdgeRef.melee_damage_bonus(t)
+
+
+func _infusion_edge_threshold() -> int:
+	if infusion_manager == null or not infusion_manager.has_method(&"get_pillar_threshold"):
+		return int(InfusionConstantsRef.InfusionThreshold.INACTIVE)
+	return int(infusion_manager.call(&"get_pillar_threshold", InfusionConstantsRef.PILLAR_EDGE))
+
+
+func _infusion_stub_melee_damage_bonus() -> int:
+	if infusion_manager == null:
+		return 0
+	var mgr: Node = infusion_manager
+	return (
+		InfusionMassRef.melee_bonus_from_manager(mgr)
+		+ InfusionEchoRef.melee_bonus_from_manager(mgr)
+		+ InfusionAnchorRef.melee_bonus_from_manager(mgr)
+		+ InfusionSurgeRef.melee_bonus_from_manager(mgr)
+	)
 
 
 func _infusion_edge_expression_geometry_mult() -> float:
 	if infusion_manager == null or not infusion_manager.has_method(&"get_pillar_threshold"):
 		return 1.0
 	var t: int = int(infusion_manager.call(&"get_pillar_threshold", InfusionConstantsRef.PILLAR_EDGE))
-	if t >= int(InfusionConstantsRef.InfusionThreshold.EXPRESSION):
-		return 1.5
-	return 1.0
+	return InfusionEdgeRef.expression_geometry_mult(t)
 
 
 func _infusion_flow_threshold() -> int:
@@ -2771,39 +2803,39 @@ func _infusion_phase_threshold() -> int:
 
 func _flow_effective_melee_cooldown() -> float:
 	var t := _infusion_flow_threshold()
-	var cd_m := InfusionFlowPhaseRef.flow_cooldown_multiplier(t)
-	var as_m := InfusionFlowPhaseRef.flow_attack_speed_multiplier(t)
+	var cd_m := InfusionFlowRef.cooldown_multiplier(t)
+	var as_m := InfusionFlowRef.attack_speed_multiplier(t)
 	return melee_attack_cooldown * cd_m / maxf(1e-3, as_m)
 
 
 func _flow_effective_ranged_cooldown() -> float:
 	var t := _infusion_flow_threshold()
-	var cd_m := InfusionFlowPhaseRef.flow_cooldown_multiplier(t)
-	var as_m := InfusionFlowPhaseRef.flow_attack_speed_multiplier(t)
+	var cd_m := InfusionFlowRef.cooldown_multiplier(t)
+	var as_m := InfusionFlowRef.attack_speed_multiplier(t)
 	return ranged_cooldown * cd_m / maxf(1e-3, as_m)
 
 
 func _flow_effective_bomb_cooldown() -> float:
 	var t := _infusion_flow_threshold()
-	var cd_m := InfusionFlowPhaseRef.flow_cooldown_multiplier(t)
-	var as_m := InfusionFlowPhaseRef.flow_attack_speed_multiplier(t)
+	var cd_m := InfusionFlowRef.cooldown_multiplier(t)
+	var as_m := InfusionFlowRef.attack_speed_multiplier(t)
 	return bomb_cooldown * cd_m / maxf(1e-3, as_m)
 
 
 func _flow_effective_melee_charge_max_time() -> float:
 	var cap := melee_charge_max_time
-	if InfusionFlowPhaseRef.flow_should_extend_combo_window(_infusion_flow_threshold()):
+	if InfusionFlowRef.should_extend_combo_window(_infusion_flow_threshold()):
 		cap += flow_expression_combo_charge_bonus
 	return cap
 
 
 func _phase_outgoing_damage_multiplier() -> float:
-	var r := InfusionFlowPhaseRef.phase_armor_ignore_ratio(_infusion_phase_threshold())
+	var r := InfusionPhaseRef.armor_ignore_ratio(_infusion_phase_threshold())
 	return 1.0 + clampf(r, 0.0, 1.0)
 
 
 func _infusion_phase_depth_mult() -> float:
-	return InfusionFlowPhaseRef.phase_expression_depth_multiplier(_infusion_phase_threshold())
+	return InfusionPhaseRef.expression_depth_multiplier(_infusion_phase_threshold())
 
 
 func _melee_hit_effective_width_depth() -> Vector2:
@@ -2847,6 +2879,328 @@ func _melee_hit_overlaps_mob(mob: CharacterBody2D) -> bool:
 	return _planar_point_in_melee_hit(mob.global_position)
 
 
+func apply_backstab_bonus_to_melee_packet(packet: DamagePacket, hurtbox: Hurtbox2D) -> void:
+	if packet == null or hurtbox == null:
+		return
+	if packet.kind != &"melee" or packet.debug_label != &"player_melee":
+		return
+	if packet.suppress_edge_procs:
+		return
+	if melee_backstab_damage_multiplier <= 1.000001:
+		return
+	var target := hurtbox.get_target_node()
+	if target == null or not target is EnemyBase:
+		return
+	var attacker := packet.source_node as Node2D
+	if attacker == null:
+		attacker = self
+	var res := _melee_resolve_precision(packet.amount, target as EnemyBase, attacker)
+	packet.amount = int(res.get("amount", packet.amount))
+	packet.from_backstab = bool(res.get("from_backstab", false))
+	packet.is_critical = bool(res.get("is_critical", false))
+
+
+func _melee_is_backstab(enemy: EnemyBase, attacker: Node2D) -> bool:
+	if melee_backstab_damage_multiplier <= 1.000001:
+		return false
+	var to_attacker := attacker.global_position - enemy.global_position
+	if to_attacker.length_squared() < 1e-8:
+		return false
+	to_attacker = to_attacker.normalized()
+	var ef := enemy.get_combat_planar_facing()
+	if ef.length_squared() < 1e-8:
+		return false
+	ef = ef.normalized()
+	return to_attacker.dot(ef) <= melee_backstab_facing_dot_threshold
+
+
+func _melee_crit_chance_for_next_hit() -> float:
+	var totals := _stat_totals_merged()
+	var bonus := _loadout_stat_from_totals(totals, LoadoutConstantsRef.STAT_CRIT_CHANCE_BONUS)
+	var win := _edge_sever_kill_window_crit_bonus()
+	return clampf(melee_base_crit_chance + bonus + win, 0.0, 0.92)
+
+
+func _edge_sever_kill_window_crit_bonus() -> float:
+	if _edge_sever_kill_window_until_sec < 0.0:
+		return 0.0
+	var now := float(Time.get_ticks_msec()) / 1000.0
+	if now >= _edge_sever_kill_window_until_sec:
+		return 0.0
+	return _edge_sever_kill_window_stored_bonus
+
+
+## Server: called from `EnemyBase` when Edge kills convert into splash / overkill / tempo buffs.
+func edge_infusion_dispatch_kill_procs(
+	victim: Node2D,
+	killing_packet: DamagePacket,
+	hp_before_absorb: int,
+	victim_was_primed: bool = false
+) -> void:
+	if not is_damage_authority() or victim == null or killing_packet == null:
+		return
+	var et := _infusion_edge_threshold()
+	if not InfusionEdgeRef.is_edge_attuned(et):
+		return
+	var origin := victim.global_position
+	var forward := killing_packet.direction
+	if forward.length_squared() < 1e-6:
+		forward = _active_melee_attack_facing
+	forward = forward.normalized()
+	var absorbed := mini(maxi(1, killing_packet.amount), maxi(1, hp_before_absorb))
+	var splash_r := InfusionEdgeRef.sharpen_kill_splash_radius(et)
+	var splash_ratio := InfusionEdgeRef.sharpen_kill_splash_damage_ratio(et)
+	if splash_r > 0.0 and splash_ratio > 0.0:
+		var splash_total := maxi(1, int(roundf(float(absorbed) * splash_ratio)))
+		_edge_deal_kill_splash_damage(origin, splash_total, victim.get_instance_id(), forward)
+	var kcrit := InfusionEdgeRef.sever_kill_window_crit_bonus(et)
+	if kcrit > 0.0:
+		var dur := InfusionEdgeRef.sever_kill_window_duration_sec(et)
+		var now := float(Time.get_ticks_msec()) / 1000.0
+		_edge_sever_kill_window_stored_bonus = kcrit
+		_edge_sever_kill_window_until_sec = now + dur
+	var spill_ratio := InfusionEdgeRef.sever_overkill_spill_ratio(et)
+	var overkill := maxi(0, killing_packet.amount - hp_before_absorb)
+	var expr := int(InfusionConstantsRef.InfusionThreshold.EXPRESSION)
+	var primed_burst := (
+		victim_was_primed
+		and et >= expr
+		and overkill > 0
+	)
+	if primed_burst:
+		var pool := maxi(1, overkill)
+		var max_hops := 1 + InfusionEdgeRef.execution_overkill_max_extra_hops(et)
+		_edge_overkill_spill_chain(
+			origin,
+			forward,
+			pool,
+			max_hops,
+			victim.get_instance_id(),
+			et,
+			false,
+			true,
+			&"edge_primed_overkill"
+		)
+	elif overkill > 0 and spill_ratio > 0.0:
+		var pool := maxi(1, int(roundf(float(overkill) * spill_ratio)))
+		var max_hops := 1 + InfusionEdgeRef.execution_overkill_max_extra_hops(et)
+		_edge_overkill_spill_chain(
+			origin,
+			forward,
+			pool,
+			max_hops,
+			victim.get_instance_id(),
+			et,
+			true,
+			false,
+			&"edge_overkill_spill"
+		)
+
+
+func _edge_deal_kill_splash_damage(
+	origin: Vector2, total_damage: int, exclude_uid: int, forward: Vector2
+) -> void:
+	var splash_r := InfusionEdgeRef.sharpen_kill_splash_radius(_infusion_edge_threshold())
+	if splash_r <= 0.0:
+		return
+	var candidates: Array[EnemyBase] = _edge_collect_enemies_in_radius(origin, splash_r, exclude_uid)
+	if candidates.is_empty():
+		return
+	var each := maxi(1, total_damage / candidates.size())
+	var pkt := DamagePacketScript.new() as DamagePacket
+	pkt.kind = &"melee"
+	pkt.source_node = self
+	pkt.source_uid = get_instance_id()
+	pkt.origin = origin
+	pkt.direction = forward
+	pkt.knockback = 0.0
+	pkt.apply_iframes = false
+	pkt.suppress_edge_procs = true
+	pkt.is_critical = false
+	pkt.from_backstab = false
+	pkt.debug_label = &"edge_kill_splash"
+	for eb in candidates:
+		if eb == null or not is_instance_valid(eb):
+			continue
+		var p := pkt.duplicate_packet()
+		p.amount = each
+		eb.take_direct_damage_packet(p)
+
+
+func _edge_collect_enemies_in_radius(
+	origin: Vector2, radius: float, exclude_uid: int
+) -> Array[EnemyBase]:
+	var out: Array[EnemyBase] = []
+	var r2 := radius * radius
+	var tree := get_tree()
+	if tree == null:
+		return out
+	for node in tree.get_nodes_in_group(&"mob"):
+		if not node is EnemyBase:
+			continue
+		var eb := node as EnemyBase
+		if eb.get_instance_id() == exclude_uid or eb.is_queued_for_deletion():
+			continue
+		if origin.distance_squared_to(eb.global_position) > r2:
+			continue
+		out.append(eb)
+	return out
+
+
+func _edge_overkill_spill_chain(
+	origin: Vector2,
+	forward: Vector2,
+	pool: int,
+	hops_remaining: int,
+	exclude_uid: int,
+	et: int,
+	decay_pool_each_hop: bool = true,
+	prioritize_lowest_hp: bool = false,
+	packet_label: StringName = &"edge_overkill_spill"
+) -> void:
+	if pool <= 0 or hops_remaining <= 0:
+		return
+	var range_m := InfusionEdgeRef.sever_overkill_range(et)
+	var half_rad := deg_to_rad(InfusionEdgeRef.sever_overkill_cone_degrees(et) * 0.5)
+	var excluded: Dictionary = {exclude_uid: true}
+	var dmg := pool
+	var hop_origin := origin
+	var hop_forward := forward
+	while hops_remaining > 0 and dmg > 0:
+		var next_eb: EnemyBase = null
+		if prioritize_lowest_hp:
+			next_eb = _edge_pick_cone_enemy_lowest_hp(
+				hop_origin, hop_forward, range_m, half_rad, excluded
+			)
+		else:
+			next_eb = _edge_pick_cone_enemy(hop_origin, hop_forward, range_m, half_rad, excluded)
+		if next_eb == null:
+			break
+		var pkt := DamagePacketScript.new() as DamagePacket
+		pkt.amount = dmg
+		pkt.kind = &"melee"
+		pkt.source_node = self
+		pkt.source_uid = get_instance_id()
+		pkt.origin = hop_origin
+		pkt.direction = hop_forward
+		pkt.knockback = 0.0
+		pkt.apply_iframes = false
+		pkt.suppress_edge_procs = true
+		pkt.debug_label = packet_label
+		next_eb.take_direct_damage_packet(pkt)
+		excluded[next_eb.get_instance_id()] = true
+		if decay_pool_each_hop:
+			dmg = maxi(1, int(roundf(float(dmg) * 0.52)))
+		hop_origin = next_eb.global_position
+		hops_remaining -= 1
+
+
+func _edge_pick_cone_enemy_lowest_hp(
+	origin: Vector2,
+	forward: Vector2,
+	range_m: float,
+	half_angle: float,
+	excluded: Dictionary
+) -> EnemyBase:
+	if forward.length_squared() < 1e-8:
+		return null
+	forward = forward.normalized()
+	var best: EnemyBase = null
+	var best_hp := 999999999
+	var best_d2 := INF
+	var tree := get_tree()
+	if tree == null:
+		return null
+	var range_m2 := range_m * range_m
+	for node in tree.get_nodes_in_group(&"mob"):
+		if not node is EnemyBase:
+			continue
+		var eb := node as EnemyBase
+		var uid := eb.get_instance_id()
+		if excluded.has(uid) or eb.is_queued_for_deletion():
+			continue
+		var off := eb.global_position - origin
+		var d2 := off.length_squared()
+		if d2 > range_m2 or d2 < 1e-8:
+			continue
+		var dir := off.normalized()
+		var ang := absf(forward.angle_to(dir))
+		if ang > half_angle:
+			continue
+		var hp := eb.edge_infusion_current_hp_for_chain()
+		if hp < best_hp or (hp == best_hp and d2 < best_d2):
+			best_hp = hp
+			best_d2 = d2
+			best = eb
+	return best
+
+
+func _edge_pick_cone_enemy(
+	origin: Vector2,
+	forward: Vector2,
+	range_m: float,
+	half_angle: float,
+	excluded: Dictionary
+) -> EnemyBase:
+	if forward.length_squared() < 1e-8:
+		return null
+	forward = forward.normalized()
+	var best: EnemyBase = null
+	var best_d2 := INF
+	var tree := get_tree()
+	if tree == null:
+		return null
+	var range_m2 := range_m * range_m
+	for node in tree.get_nodes_in_group(&"mob"):
+		if not node is EnemyBase:
+			continue
+		var eb := node as EnemyBase
+		var uid := eb.get_instance_id()
+		if excluded.has(uid) or eb.is_queued_for_deletion():
+			continue
+		var off := eb.global_position - origin
+		var d2 := off.length_squared()
+		if d2 > range_m2 or d2 < 1e-8:
+			continue
+		var dir := off.normalized()
+		var ang := absf(forward.angle_to(dir))
+		if ang > half_angle:
+			continue
+		if d2 < best_d2:
+			best_d2 = d2
+			best = eb
+	return best
+
+
+func _melee_resolve_backstab(base: int, enemy: EnemyBase, attacker: Node2D) -> Dictionary:
+	var out := {"amount": base, "from_backstab": false}
+	if base <= 0:
+		return out
+	out["from_backstab"] = _melee_is_backstab(enemy, attacker)
+	return out
+
+
+func _melee_resolve_precision(base: int, enemy: EnemyBase, attacker: Node2D) -> Dictionary:
+	var out := {
+		"amount": maxi(1, base),
+		"from_backstab": false,
+		"is_critical": false,
+	}
+	if base <= 0 or melee_backstab_damage_multiplier <= 1.000001:
+		return out
+	out["from_backstab"] = _melee_is_backstab(enemy, attacker)
+	var crit := bool(out["from_backstab"])
+	if not crit:
+		crit = randf() < _melee_crit_chance_for_next_hit()
+	out["is_critical"] = crit
+	var mult := 1.0
+	if crit:
+		var edge_t := _infusion_edge_threshold()
+		mult = melee_backstab_damage_multiplier * InfusionEdgeRef.sharpen_crit_damage_multiplier(edge_t)
+	out["amount"] = maxi(1, int(roundf(float(base) * mult)))
+	return out
+
+
 func _squash_mobs_in_melee_hit(
 	hit_event_id: int = -1, charge_ratio: float = 1.0, apply_charge_scaling: bool = true
 ) -> int:
@@ -2856,7 +3210,7 @@ func _squash_mobs_in_melee_hit(
 	if apply_charge_scaling:
 		dmg = _melee_damage_for_charge_ratio(cr)
 		kb = _melee_knockback_for_charge_ratio(cr)
-	dmg = maxi(1, dmg + _infusion_edge_melee_damage_bonus())
+	dmg = maxi(1, dmg + _infusion_edge_melee_damage_bonus() + _infusion_stub_melee_damage_bonus())
 	dmg = maxi(1, int(roundf(float(dmg) * _phase_outgoing_damage_multiplier())))
 	var attack_facing := _normalized_attack_facing(_facing_planar)
 	_active_melee_attack_facing = attack_facing
@@ -2884,20 +3238,30 @@ func _squash_mobs_in_melee_hit(
 			continue
 		var mob := node as CharacterBody2D
 		if _melee_hit_overlaps_mob(mob):
+			var dmg_hit := dmg
+			var from_bs := false
+			var is_crit := false
+			if mob is EnemyBase:
+				var res := _melee_resolve_precision(dmg, mob as EnemyBase, self)
+				dmg_hit = int(res["amount"])
+				from_bs = bool(res.get("from_backstab", false))
+				is_crit = bool(res.get("is_critical", false))
 			if hit_event_id >= 0 and mob.has_method(&"apply_authoritative_hit_event"):
 				var applied := bool(
 					mob.call(
 						&"apply_authoritative_hit_event",
 						hit_event_id,
-						dmg,
+						dmg_hit,
 						attack_facing,
-						kb
+						kb,
+						from_bs,
+						is_crit
 					)
 				)
 				if applied:
 					hit_count += 1
 			elif mob.has_method(&"take_hit"):
-				mob.call(&"take_hit", dmg, attack_facing, kb)
+				mob.call(&"take_hit", dmg_hit, attack_facing, kb, from_bs, is_crit)
 				hit_count += 1
 	return hit_count
 
