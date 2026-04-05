@@ -249,6 +249,12 @@ var _flow_aggression_remaining := 0.0
 var _flow_last_action_kind := -1
 ## Mass Expression — melee hits that consumed a target build toward a shockwave proc.
 var _mass_shockwave_hit_stacks := 0
+## Anchor infusion — delayed damage reserve, micro-shield, bastion rooted state (server / offline authority).
+var _anchor_pressure := 0.0
+var _anchor_micro_shield := 0.0
+var _anchor_bastion_charge := 0.0
+var _anchor_rooted := false
+var _anchor_critical_bastion := false
 
 
 func _ready() -> void:
@@ -949,6 +955,7 @@ func _set_downed_state(next_downed: bool, emit_hit_signal: bool = false) -> void
 		_flow_overdrive_remaining = 0.0
 		_flow_aggression_remaining = 0.0
 		_flow_last_action_kind = -1
+		_anchor_reset_pressure_state()
 	else:
 		_invuln_time_remaining = 0.0
 	if _body_shape != null:
@@ -1136,7 +1143,12 @@ func _broadcast_server_state(delta: float) -> void:
 		_flow_chain_remaining,
 		_flow_overdrive_remaining,
 		_flow_aggression_remaining,
-		_flow_last_action_kind
+		_flow_last_action_kind,
+		_anchor_pressure,
+		_anchor_micro_shield,
+		_anchor_bastion_charge,
+		1 if _anchor_rooted else 0,
+		1 if _anchor_critical_bastion else 0
 	)
 
 
@@ -1187,7 +1199,12 @@ func _rpc_receive_server_state(
 	flow_chain_remaining: float = 0.0,
 	flow_overdrive_remaining: float = 0.0,
 	flow_aggression_remaining: float = 0.0,
-	flow_last_action_kind: int = -1
+	flow_last_action_kind: int = -1,
+	anchor_pressure: float = 0.0,
+	anchor_micro_shield: float = 0.0,
+	anchor_bastion_charge: float = 0.0,
+	anchor_rooted_i: int = 0,
+	anchor_critical_i: int = 0
 ) -> void:
 	if _is_server_peer():
 		return
@@ -1202,6 +1219,11 @@ func _rpc_receive_server_state(
 		flow_aggression_remaining,
 		flow_last_action_kind
 	)
+	_anchor_pressure = maxf(0.0, anchor_pressure)
+	_anchor_micro_shield = maxf(0.0, anchor_micro_shield)
+	_anchor_bastion_charge = clampf(anchor_bastion_charge, 0.0, 1.0)
+	_anchor_rooted = anchor_rooted_i != 0
+	_anchor_critical_bastion = anchor_critical_i != 0
 	var normalized_health := clampi(health_value, 0, max_health)
 	if health != normalized_health:
 		health = normalized_health
@@ -1305,6 +1327,9 @@ func _apply_movement_step(
 	defend_down: bool,
 	aim_planar: Vector2 = Vector2.ZERO,
 ) -> float:
+	if (_is_server_peer() or not _multiplayer_active()) and is_damage_authority():
+		if _anchor_rooted and (move_active or dodge_pressed):
+			_anchor_release_bastion()
 	var direction := Vector2.ZERO
 	if move_active:
 		var to_target := target_world - global_position
@@ -1341,6 +1366,8 @@ func _apply_movement_step(
 		velocity = Vector2.ZERO
 	move_and_slide()
 	_update_visual_from_planar_speed(planar_speed)
+	if (_is_server_peer() or not _multiplayer_active()) and is_damage_authority():
+		_anchor_bastion_charge_tick(delta, move_active, dodge_pressed, wants_defending)
 	return planar_speed
 
 
@@ -1458,6 +1485,8 @@ func _run_shared_cooldown_and_debug_tick(delta: float) -> void:
 			0.0, _authoritative_bomb_cooldown_remaining - delta
 		)
 	_attack_hitbox_visual_time_remaining = maxf(0.0, _attack_hitbox_visual_time_remaining - delta)
+	if (not _multiplayer_active() or _is_server_peer()) and is_damage_authority():
+		_anchor_decay_step(delta)
 	_refresh_debug_visuals(delta)
 	if _health_component != null:
 		_invuln_time_remaining = _health_component.get_invulnerability_remaining()
@@ -1630,6 +1659,8 @@ func _try_execute_server_melee_attack(
 	_flow_after_successful_weapon_action(InfusionFlowRef.ActionKind.MELEE)
 	_flow_pulse_ability_cooldowns_after_melee()
 	_melee_attack_cooldown_remaining = _flow_effective_melee_cooldown()
+	if hit_count > 0:
+		_anchor_maybe_timing_purge(false)
 	_server_melee_event_sequence += 1
 	var event_sequence := _server_melee_event_sequence
 	_last_applied_melee_event_sequence = max(_last_applied_melee_event_sequence, event_sequence)
@@ -2268,6 +2299,11 @@ func get_combat_debug_snapshot() -> Dictionary:
 		"flow_overdrive_remaining": _flow_overdrive_remaining,
 		"flow_aggression_remaining": _flow_aggression_remaining,
 		"flow_last_action_kind": _flow_last_action_kind,
+		"anchor_pressure": _anchor_pressure,
+		"anchor_micro_shield": _anchor_micro_shield,
+		"anchor_bastion_charge": _anchor_bastion_charge,
+		"anchor_rooted": _anchor_rooted,
+		"anchor_critical_bastion": _anchor_critical_bastion,
 	}
 
 
@@ -2612,10 +2648,12 @@ func _commit_melee_strike(
 func _execute_local_melee_strike(charge_ratio: float, apply_charge_scaling: bool = true) -> void:
 	_start_facing_lock(_facing_planar)
 	_play_melee_attack_presentation()
-	_squash_mobs_in_melee_hit(-1, charge_ratio, apply_charge_scaling)
+	var hit_count := _squash_mobs_in_melee_hit(-1, charge_ratio, apply_charge_scaling)
 	_flow_after_successful_weapon_action(InfusionFlowRef.ActionKind.MELEE)
 	_flow_pulse_ability_cooldowns_after_melee()
 	_melee_attack_cooldown_remaining = _flow_effective_melee_cooldown()
+	if hit_count > 0:
+		_anchor_maybe_timing_purge(false)
 
 
 func _commit_ranged_strike(
@@ -2917,6 +2955,14 @@ func _unhandled_input(event: InputEvent) -> void:
 					InfusionConstantsRef.SourceKind.NORMAL
 				)
 				get_viewport().set_input_as_handled()
+			KEY_F8:
+				infusion_manager.call(
+					&"add_infusion",
+					InfusionConstantsRef.PILLAR_ANCHOR,
+					InfusionConstantsRef.STACK_NORMAL,
+					InfusionConstantsRef.SourceKind.NORMAL
+				)
+				get_viewport().set_input_as_handled()
 			KEY_F11:
 				infusion_manager.call(&"clear_run_infusions")
 				get_viewport().set_input_as_handled()
@@ -2961,14 +3007,211 @@ func _infusion_mass_melee_damage_bonus() -> int:
 	return InfusionMassRef.melee_damage_bonus(_infusion_mass_threshold())
 
 
+func _infusion_anchor_threshold() -> int:
+	if infusion_manager == null or not infusion_manager.has_method(&"get_pillar_threshold"):
+		return int(InfusionConstantsRef.InfusionThreshold.INACTIVE)
+	return int(infusion_manager.call(&"get_pillar_threshold", InfusionConstantsRef.PILLAR_ANCHOR))
+
+
+func _infusion_anchor_melee_damage_bonus() -> int:
+	return InfusionAnchorRef.outgoing_melee_bonus(
+		_infusion_anchor_threshold(), _anchor_pressure, _anchor_rooted, _anchor_critical_bastion
+	)
+
+
+func _anchor_reset_pressure_state() -> void:
+	_anchor_pressure = 0.0
+	_anchor_micro_shield = 0.0
+	_anchor_bastion_charge = 0.0
+	_anchor_rooted = false
+	_anchor_critical_bastion = false
+
+
+func anchor_preprocess_incoming_damage(packet: DamagePacket) -> DamagePacket:
+	var p := packet.duplicate_packet()
+	if p.amount <= 0:
+		return p
+	var at := _infusion_anchor_threshold()
+	if not InfusionAnchorRef.is_anchor_attuned(at):
+		_anchor_reset_pressure_state()
+		return p
+	if not is_damage_authority():
+		return p
+	var working := float(p.amount)
+	var press := _anchor_pressure
+	if at >= int(InfusionConstantsRef.InfusionThreshold.ESCALATED) and press > 0.001:
+		var spill_r := InfusionAnchorRef.brace_hit_spill_ratio(at)
+		var spill := press * spill_r
+		working += spill
+		press = maxf(0.0, press - spill)
+	var rooted_now := _anchor_rooted and at >= int(InfusionConstantsRef.InfusionThreshold.EXPRESSION)
+	if rooted_now:
+		var shift_r := InfusionAnchorRef.bastion_incoming_to_reserve_ratio(at)
+		var shift_amt := floorf(working * shift_r)
+		press += shift_amt
+		working -= shift_amt
+	elif at >= int(InfusionConstantsRef.InfusionThreshold.ESCALATED):
+		var rr := InfusionAnchorRef.brace_reserve_ratio(at)
+		var store := floorf(working * rr)
+		press += store
+		working -= store
+	press = minf(120.0, press)
+	var imm := int(floorf(working))
+	imm = maxi(0, imm - InfusionAnchorRef.fortify_flat_damage_reduction(at))
+	if rooted_now:
+		imm = maxi(0, imm - InfusionAnchorRef.bastion_extra_flat_reduction_while_rooted(at))
+	var cap := InfusionAnchorRef.fortify_micro_shield_cap(at)
+	if cap > 0.0 and _anchor_micro_shield > 0.0:
+		var use_sh := minf(_anchor_micro_shield, float(imm))
+		imm = maxi(0, imm - int(floorf(use_sh)))
+		_anchor_micro_shield = maxf(0.0, _anchor_micro_shield - use_sh)
+	if imm > 0 and cap > 0.0:
+		var gain := float(InfusionAnchorRef.fortify_micro_shield_gain_per_hit(at))
+		_anchor_micro_shield = minf(cap, _anchor_micro_shield + gain)
+	if InfusionAnchorRef.fortify_attack_commit_knockback_immunity(at) or rooted_now:
+		if (
+			rooted_now
+			or _attack_hitbox_visual_time_remaining > 0.0
+			or _melee_charging
+			or _ranged_charging
+		):
+			p.knockback = 0.0
+	if rooted_now and at >= int(InfusionConstantsRef.InfusionThreshold.EXPRESSION):
+		if press >= InfusionAnchorRef.bastion_critical_pressure_threshold(at):
+			_anchor_critical_bastion = true
+	p.amount = maxi(0, imm)
+	_anchor_pressure = press
+	return p
+
+
+func anchor_on_guard_block_success(_packet: DamagePacket) -> void:
+	if not is_damage_authority():
+		return
+	_anchor_maybe_timing_purge(true)
+
+
+func _anchor_decay_step(delta: float) -> void:
+	if not is_damage_authority():
+		return
+	var at := _infusion_anchor_threshold()
+	if not InfusionAnchorRef.is_anchor_attuned(at):
+		_anchor_reset_pressure_state()
+		return
+	var dps := InfusionAnchorRef.brace_pressure_decay_per_sec(at)
+	if dps > 0.0:
+		_anchor_pressure = maxf(0.0, _anchor_pressure - dps * maxf(0.0, delta))
+
+
+func _anchor_maybe_timing_purge(from_guard: bool) -> void:
+	if not is_damage_authority():
+		return
+	var at := _infusion_anchor_threshold()
+	if at < int(InfusionConstantsRef.InfusionThreshold.ESCALATED):
+		return
+	if _anchor_pressure <= 0.25:
+		return
+	var frac := InfusionAnchorRef.brace_purge_fraction(at)
+	var purged := _anchor_pressure * frac
+	_anchor_pressure = maxf(0.0, _anchor_pressure - purged)
+	if purged <= 0.25:
+		return
+	var ratio := InfusionAnchorRef.brace_purge_shockwave_damage_ratio(at)
+	var r := InfusionAnchorRef.brace_purge_shockwave_radius(at)
+	var pool := maxi(1, int(floorf(float(purged) * ratio)))
+	_anchor_emit_radial_shockwave(r, pool, &"anchor_purge_shockwave", from_guard)
+
+
+func _anchor_emit_radial_shockwave(
+	radius: float, total_damage: int, debug_label: StringName, _from_guard: bool
+) -> void:
+	if total_damage <= 0 or radius <= 0.0001 or not is_damage_authority():
+		return
+	var origin := global_position
+	var candidates: Array[EnemyBase] = _edge_collect_enemies_in_radius(origin, radius, -1)
+	if candidates.is_empty():
+		return
+	var each := maxi(1, total_damage / maxi(1, candidates.size()))
+	var pkt := DamagePacketScript.new() as DamagePacket
+	pkt.kind = &"melee"
+	pkt.source_node = self
+	pkt.source_uid = get_instance_id()
+	pkt.origin = origin
+	pkt.apply_iframes = false
+	pkt.suppress_edge_procs = true
+	pkt.suppress_mass_procs = true
+	pkt.suppress_echo_procs = true
+	pkt.debug_label = debug_label
+	for eb in candidates:
+		if eb == null or not is_instance_valid(eb):
+			continue
+		var dir := eb.global_position - origin
+		if dir.length_squared() < 1e-8:
+			dir = Vector2(0.0, -1.0)
+		else:
+			dir = dir.normalized()
+		var cp := pkt.duplicate_packet()
+		cp.amount = each
+		cp.direction = dir
+		cp.knockback = 4.5
+		eb.take_direct_damage_packet(cp)
+
+
+func _anchor_release_bastion() -> void:
+	if not _anchor_rooted:
+		return
+	_anchor_rooted = false
+	var at := _infusion_anchor_threshold()
+	if at < int(InfusionConstantsRef.InfusionThreshold.EXPRESSION):
+		_anchor_pressure = 0.0
+		_anchor_critical_bastion = false
+		return
+	var mult := 1.0
+	if _anchor_critical_bastion:
+		mult = InfusionAnchorRef.bastion_critical_release_multiplier(at)
+	_anchor_critical_bastion = false
+	var pool := int(
+		floorf(float(_anchor_pressure) * InfusionAnchorRef.bastion_release_damage_ratio(at) * mult)
+	)
+	_anchor_pressure = 0.0
+	_anchor_emit_radial_shockwave(
+		InfusionAnchorRef.bastion_release_radius(at),
+		maxi(1, pool),
+		&"anchor_bastion_release",
+		false
+	)
+
+
+func _anchor_bastion_charge_tick(
+	delta: float, move_active: bool, dodge_pressed: bool, defend_down: bool
+) -> void:
+	var at := _infusion_anchor_threshold()
+	if at < int(InfusionConstantsRef.InfusionThreshold.EXPRESSION):
+		return
+	if _anchor_rooted:
+		return
+	var still := not move_active and not dodge_pressed and _dodge_time_remaining <= 0.0
+	var stance := (
+		defend_down
+		or _attack_hitbox_visual_time_remaining > 0.0
+		or _melee_charging
+		or _ranged_charging
+	)
+	var rate := InfusionAnchorRef.bastion_charge_rate_per_sec(at)
+	var dec := InfusionAnchorRef.bastion_charge_decay_per_sec(at)
+	if still and stance:
+		_anchor_bastion_charge = minf(1.0, _anchor_bastion_charge + rate * maxf(0.0, delta))
+	else:
+		_anchor_bastion_charge = maxf(0.0, _anchor_bastion_charge - dec * maxf(0.0, delta))
+	if _anchor_bastion_charge >= 1.0:
+		_anchor_bastion_charge = 0.0
+		_anchor_rooted = true
+
+
 func _infusion_stub_melee_damage_bonus() -> int:
 	if infusion_manager == null:
 		return 0
 	var mgr: Node = infusion_manager
-	return (
-		InfusionAnchorRef.melee_bonus_from_manager(mgr)
-		+ InfusionSurgeRef.melee_bonus_from_manager(mgr)
-	)
+	return InfusionSurgeRef.melee_bonus_from_manager(mgr)
 
 
 func _mass_loadout_knockback_mult() -> float:
@@ -2984,6 +3227,7 @@ func _mass_effective_melee_damage_estimate() -> int:
 		melee_attack_damage
 			+ _infusion_edge_melee_damage_bonus()
 			+ _infusion_mass_melee_damage_bonus()
+			+ _infusion_anchor_melee_damage_bonus()
 			+ _infusion_stub_melee_damage_bonus()
 	)
 
@@ -3960,11 +4204,12 @@ func _squash_mobs_in_melee_hit(
 	if apply_charge_scaling:
 		dmg = _melee_damage_for_charge_ratio(cr)
 		kb = _melee_knockback_for_charge_ratio(cr)
-	dmg = maxi(
+		dmg = maxi(
 		1,
 		dmg
 			+ _infusion_edge_melee_damage_bonus()
 			+ _infusion_mass_melee_damage_bonus()
+			+ _infusion_anchor_melee_damage_bonus()
 			+ _infusion_stub_melee_damage_bonus()
 	)
 	dmg = maxi(1, int(roundf(float(dmg) * _phase_outgoing_damage_multiplier())))

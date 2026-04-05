@@ -20,5 +20,12 @@ func _process_damage(
 		):
 			if player.has_method(&"_apply_guard_stamina_damage"):
 				player.call(&"_apply_guard_stamina_damage", packet.amount)
+			if player.has_method(&"anchor_on_guard_block_success"):
+				player.call(&"anchor_on_guard_block_success", packet)
 			return _result(false, true, &"blocked_to_stamina", 0)
-	return health_component.apply_damage(packet)
+	var processed: DamagePacket = packet
+	if player != null and is_instance_valid(player) and player.has_method(&"anchor_preprocess_incoming_damage"):
+		var v: Variant = player.call(&"anchor_preprocess_incoming_damage", packet)
+		if v is DamagePacket:
+			processed = v as DamagePacket
+	return health_component.apply_damage(processed)
