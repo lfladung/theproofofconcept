@@ -11,6 +11,8 @@ signal invulnerability_ended()
 @export var max_health := 100
 @export var starting_health := 100
 @export var invulnerability_duration := 0.4
+## Subtracted from incoming damage after `mitigation_ignore_ratio` splits the hit (enemies with armor).
+@export var flat_damage_mitigation := 0
 @export var debug_logging := false
 @export var debug_label: StringName = &""
 
@@ -86,6 +88,7 @@ func is_depleted() -> bool:
 
 func apply_damage(packet: DamagePacket, amount_override: int = -1) -> Dictionary:
 	var amount := amount_override if amount_override >= 0 else packet.amount
+	amount = _apply_mitigation_to_amount(amount, packet)
 	if amount <= 0:
 		return _reject(packet, &"non_positive", false)
 	if current_health <= 0:
@@ -129,6 +132,21 @@ func _reject(packet: DamagePacket, reason: StringName, consume_hit: bool) -> Dic
 
 func _emit_health_changed() -> void:
 	health_changed.emit(current_health, max_health)
+
+
+func _apply_mitigation_to_amount(amount: int, packet: DamagePacket) -> int:
+	if amount <= 0:
+		return 0
+	var mit := maxi(0, flat_damage_mitigation)
+	if mit <= 0 or packet == null:
+		return amount
+	var ign := clampf(packet.mitigation_ignore_ratio, 0.0, 1.0)
+	if ign <= 0.0:
+		return maxi(0, amount - mit)
+	var bypass := int(roundf(float(amount) * ign))
+	var armored := amount - bypass
+	var reduced := maxi(0, armored - mit)
+	return maxi(0, bypass + reduced)
 
 
 func _log(message: String) -> void:

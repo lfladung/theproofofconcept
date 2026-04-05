@@ -102,7 +102,7 @@
 
 - Respects the **existing hitbox model**: primary swing still hits its arc; Mass adds **force, stagger, terrain, and collision** as follow-through.
 - **Tiered complexity:** tier 1 is mostly passive feel; tier 2 is **positioning mastery**; tier 3 is **formation control**.
-- **Cross-pillar hooks:** Edge (wall-slam crit windows / overkill), Flow (more hits → more launches), Phase (reposition through formations), Anchor (you resist knockback while acting as a ram), Surge (shockwaves as burst moments), Echo (delayed / repeated impacts).
+- **Cross-pillar hooks:** Edge (wall-slam crit windows / overkill), Flow (more hits → more launches), Phase (reposition through formations), Anchor (Brace/Bastion pressure and commit/rooted knockback immunity—see **section 5**), Surge (shockwaves as burst moments), Echo (delayed / repeated impacts).
 
 ### Guardrails
 
@@ -141,41 +141,116 @@
 **Not yet in runtime:** ghost-swing / afterimage VFX, dedicated echo SFX layering, echo fields, action replay, kill burst.
 
 5. Anchor (Stability / Defense)
-What it does:
 
-Damage reduction
-Poise / stagger resistance
-Shields / sustain
+**Runtime status (implemented):** Server / offline **damage authority** only for pressure, micro-shield, bastion charge, and incoming damage shaping. Tuning in `scripts/infusion/infusion_anchor.gd`. Incoming pipeline: `PlayerDamageReceiverComponent` calls `Player.anchor_preprocess_incoming_damage` before `HealthComponent.apply_damage`; successful **guard blocks** call `Player.anchor_on_guard_block_success` for Brace purges. State (`_anchor_pressure`, `_anchor_micro_shield`, `_anchor_bastion_charge`, rooted / critical-bastion flags) replicates on periodic `_rpc_receive_server_state` snapshots. Infusion thresholds map **Baseline → tier 1 (Fortify)**, **Escalated → tier 2 (Brace)**, **Expression → tier 3 (Bastion)**.
 
-High Expression:
-Damage converts to delayed damage
-Temporary invulnerability windows
-“Rooted power” feeling
+**Design loop:** chip hits are softened (DR + micro-shield + optional knockback immunity during commits); Escalated+ turns part of each hit into a **pressure meter** that decays if you stabilize, spills into the next hit if you don’t, and can be **purged** with a timed guard or a melee that actually connects; Expression adds **stand-your-ground** charge → **rooted bastion** → **move/dodge to detonate** stored pressure as an AoE, with a **critical bastion** spike if pressure crosses a threshold while rooted.
+
+### Tier 1 — Fortify (Anchor Baseline+)
+
+- **Flat damage reduction** on all pre-health incoming damage (`fortify_flat_damage_reduction`).
+- **Micro-shield:** absorbs from the next hit up to a **cap**; **taking HP damage** after mitigation adds a small stack back into the shield (`fortify_micro_shield_gain_per_hit` / `fortify_micro_shield_cap`).
+- **Commit knockback immunity:** while in an attack commit (melee or ranged **charging**, or active melee **hitbox visual window**), **incoming knockback on the damage packet is zeroed** (`fortify_attack_commit_knockback_immunity`). There is still no global “cancel swing on hit” rule in the codebase—**poise / interrupt** hooks remain a future follow-up when a real interrupt pipeline exists.
+
+**Feel:** lighter chip damage, slightly tankier trades, swings less likely to be thrown by knockback (when enemies apply it).
+
+### Tier 2 — Brace (Anchor Escalated+)
+
+- **Reserve:** a **fraction** of each hit’s damage is moved into **`_anchor_pressure`** instead of immediate HP (`brace_reserve_ratio`); pressure **decays per second** while you avoid new hits (`brace_pressure_decay_per_sec`).
+- **Hit spill:** if pressure was already > 0, a **fraction** of that reserve is **added to the current hit’s immediate damage** before DR/shield (`brace_hit_spill_ratio`)—second hit hurts more if you didn’t stabilize.
+- **Offense while pressured:** extra **flat melee damage** scales with pressure (capped) plus a tiered flat bonus while reserve is meaningful (`outgoing_melee_bonus` + `brace_while_reserve_melee_bonus`).
+- **Purge windows:**
+  - **Guard:** any successful **directional block** that converts damage to stamina can **purge** a chunk of pressure and emit a small **radial shockwave** (`brace_purge_fraction`, `brace_purge_shockwave_radius`, `brace_purge_shockwave_damage_ratio`).
+  - **Melee:** after a **server-authoritative** melee (or local single-player melee) that hits **at least one** enemy, the same purge + shockwave can fire—**whiffs do not** stabilize reserve.
+
+**Feel:** intentional tanking and timing; defense feeds short offensive spikes; shockwave is tagged `anchor_purge_shockwave` and suppresses Edge/Mass/Echo recursion on those packets.
+
+### Tier 3 — Bastion (Anchor Expression)
+
+- **Charge:** while **not moving** (no move intent, no dodge press, not in dodge time) and in a **stance** (defending, melee/ranged charging, or active melee swing window), **`_anchor_bastion_charge`** fills; it **decays** when you drift (`bastion_charge_rate_per_sec` / `bastion_charge_decay_per_sec`). At **full**, you enter **`_anchor_rooted`** and charge resets.
+- **While rooted:** most **new** incoming damage is shifted into **pressure** instead of immediate HP (`bastion_incoming_to_reserve_ratio`), with **extra flat DR** (`bastion_extra_flat_reduction_while_rooted`); **knockback** on packets is cleared. If pressure crosses **`bastion_critical_pressure_threshold`**, **`_anchor_critical_bastion`** arms for a stronger release (`bastion_critical_release_multiplier`).
+- **Release:** **move** or **dodge** (first frame of intent) calls **`_anchor_release_bastion`**: clears rooted + pressure, deals **AoE damage** around the player scaled by stored pressure (`bastion_release_radius`, `bastion_release_damage_ratio`), packet label `anchor_bastion_release`. Critical flag is consumed on release.
+
+**Feel:** “I stand, I absorb, I step and everything breaks.” Positioning and timing matter; no infinite AFK tank—power is tied to **release** and **purge** windows.
+
+### Guardrails (multiplayer + tuning)
+
+- **Pressure cap:** `_anchor_pressure` is clamped (currently **120**) so pathological stacking cannot run away.
+- **Authority:** preprocessing and bastion tick / release run only where `Player.is_damage_authority()` is true; snapshots mirror visuals/HUD-friendly state to non-server peers.
+- **Stub removed:** Anchor no longer uses linear **+melee per pickup**; melee bonuses are **conditional** (pressure / rooted / critical bastion) via `outgoing_melee_bonus`.
+
+**Not yet in runtime:** dedicated **pressure / rooted** HUD bar or audio heartbeat; **poise vs swing-cancel** when a global interrupt rule exists; cross-pillar synergies called out in design (Edge crit on release, Mass-scaled shockwaves, Flow-tightened purge windows, Echo duplicate shockwaves, Phase ghost interaction, Surge energy conversion)—constants and hooks can be added in `infusion_anchor.gd` / `player.gd` when those pillars expose stable APIs.
+
+**Debug:** debug builds can add Anchor stacks with **F8** on the player (see `player.gd` unhandled input alongside **F9 Edge** and **F10 Flow**).
 
 6. Phase (Weirdness / Rule-Breaking)
-What it does:
 
-Piercing attacks
-Ignore armor
-Pass through enemies/objects
+**Runtime status (implemented):** Server / offline **damage authority** only for spatial damage and body collision changes. Tuning in `scripts/infusion/infusion_phase.gd`; combat and scheduling in `scripts/entities/player.gd`. `DamagePacket` carries `mitigation_ignore_ratio`, `suppress_phase_procs`, and `ignore_directional_guard` (`scripts/combat/damage_packet.gd`). Enemy mitigation uses `HealthComponent.flat_damage_mitigation` + bypass split (`scripts/combat/health_component.gd`). Directional shields respect `ignore_directional_guard` in `scripts/combat/directional_guard_damage_receiver_component.gd`. Handgun **wall pierce** (Expression) in `scripts/entities/arrow_projectile.gd` (`configure(..., wall_pierce_hits_remaining)`). Readability VFX in `scripts/visuals/player_visual.gd` (`show_phase_spatial_cue`, `show_phase_dash_trail_cue`). Infusion thresholds map **Baseline → Slip**, **Escalated → Skew**, **Expression → Fracture**.
 
-High Expression:
-Teleporting strikes
-Hits from unexpected angles
-Geometry-breaking interactions
+**Design identity:** Phase is **spatial multiplication**—collision, origin of hits, and targeting assumptions break—not a pure damage pillar. Distinct from **Echo** (delayed hits tied to the **victim**): Phase **ghost** strikes replay the arc from a **past player position** after a delay.
+
+### Tier 1 — Slip (Phase Baseline+)
+
+- **Body-block bypass:** During each melee resolve, the player’s `CharacterBody2D` **collision_mask** temporarily drops the **mob body** bit (`collision_layer = 2` on enemies) for the melee visual/hit window plus a short extra (`slip_collision_window_extra_sec`). Hurtbox and attack layers unchanged; **not** invulnerability—incoming damage is unaffected.
+- **Mitigation bypass (data + fallback amp):** Outgoing melee / ranged / bomb damage still uses a **1 + armor_ignore_ratio** multiplier (15% Baseline, 30% Escalated+) for targets with no flat mitigation. `DamagePacket.mitigation_ignore_ratio` matches that ratio so that when `HealthComponent.flat_damage_mitigation` is set on an enemy, only the non-bypass fraction is reduced.
+- **Phantom reach:** Melee **forward depth** scales by tier—**~1.04×** at Baseline+, **~1.09×** at Expression (`combined_melee_depth_multiplier`). Primary swing still uses the normal `Hitbox2D` path (already hits **multiple** enemies per swing; no single-target melee cap).
+
+### Tier 2 — Skew (Phase Escalated+)
+
+- **Afterimage / ghost strike:** After a primary melee resolve, a **delayed** second sweep uses the **same** melee polygon from the **position and facing recorded at commit** (~40–48% primary damage, tiered delay ~0.11–0.21s). Follow-up packets use `suppress_phase_procs` + `suppress_echo_procs` so Phase/Echo do not recurse off each other.
+- **Angle warp:** Before the swing locks in, **server / local authority** can **rotate facing** up to a capped angle toward the nearest enemy in a forward **cone** (tuned in `infusion_phase.gd`).
+- **Phase dash trail:** On **dodge start**, a **cooldown-gated** radial burst (`phase_dash_trail`) deals partial estimated melee damage around a point along the dash; VFX cue on the player visual.
+- **Contact chip:** While the **Slip** body window is active, **Skew+** can apply small **cooldown-gated** chip damage to the **nearest** overlapping enemy (prevents per-frame melt).
+
+### Tier 3 — Fracture (Phase Expression)
+
+- **Multi-origin / flanks:** Two extra **polygon** melee resolutions at **± perpendicular** offsets from the player (fractional damage vs primary). Same suppression tags as ghost/aux hits.
+- **Inside-out vs directional guard:** Expression Phase tags primary melee (and aux packets) so **`ignore_directional_guard`** bypasses `DirectionalGuardDamageReceiverComponent` when present—not a global “ignore all defenses” flag.
+- **Geometry violation (handgun):** Player arrows can **ignore** a capped number of **wall** `body_entered` terminations (`ranged_wall_pierce_hits`, currently **2** at Expression). Does not unlimited tunnel through level geometry.
+
+### Multiplayer and readability
+
+- Ghost damage runs only on **authority**; remote peers get **approximate** ghost timing + position via extended melee RPC args and **blue** world-space cues (delayed sphere) so packs are not silent.
+- **Not yet in runtime (deferred by design):** **Blink strike** (validated short-range position snap + replication), **phase loop** (persistent locked coordinate / linger zone), **bomb** Phase parity (`ideas/EQUIPMENT_UPGRADES.md` still lists bomb ideas; implementation focused melee + movement + handgun pierce first).
+
+### Guardrails
+
+- No full intangibility: only **mob body** collision is cleared, and only for a **short** post-melee window tied to the attack.
+- Wall pierce is **count-limited**; flank/ghost use explicit packets so stacking with Echo remains rule-driven via flags.
 
 
 7. Surge (Energy / Burst Power)
-What it does:
-Charge mechanics
-Burst damage
-Energy buildup
 
-High Expression:
+**Runtime status (implemented):** Protection-oriented charge fantasy: **charging is not punished**—holding commit builds a **charge field** that slows and disrupts nearby enemies; full and overcharged releases add **burst damage** and a **secondary radial hit**; Expression adds **Surge energy**, **Overdrive**, and a **finale** when the battery empties. Tuning and pure math in `scripts/infusion/infusion_surge.gd`. Player combat, overcharge input, energy, overdrive drain, and field application in `scripts/entities/player.gd` (including extended `_rpc_request_melee_attack` for **normalized overcharge** and unreliable `_rpc_surge_charge_field_report` so **dedicated servers** still get hold-state for the aura). Enemy debuffs via `EnemyBase.surge_infusion_refresh_charge_field` + tick decay; movement and attack cadence wired in `scripts/entities/mob.gd`, `robot_mob.gd`, and `iron_sentinel.gd`. Infusion thresholds map **Baseline → tier 1 (Primed charge + light field)**, **Escalated → tier 2 (Overcharge hold + stronger field + pulses)**, **Expression → tier 3 (Surge energy + Overdrive + finale)**.
 
-Explosive releases
-Overcharge states
-Big “moment” attacks
+**Design identity:** **Zone control** and **momentum protection**—you earn space by committing to charge; payoff is **bigger releases** and, at high tier, a short **dominion** window where the field stays maxed and melees count as fully charged.
+
+### Tier 1 — Primed charge (Surge Baseline+)
+
+- **Flat melee** bonus (tiered) stacks with other infusion flats in the normal melee damage pipeline.
+- **Charge field (light):** While melee or ranged charging **after** the usual commit delay, enemies inside a radius (scales with **charge ratio** and tier) are **slowed**; debuff is **TTL-refreshed** each server tick so physics order stays stable.
+- **Primed full release:** At **full** melee charge **without** meaningful overcharge, extra **flat** damage; melee **secondary burst** (`surge_secondary` on `DamagePacket`) around the player if the swing **hit** at least one target—radius and damage ratio scale with tier and overcharge norm (overcharge 0 here).
+
+### Tier 2 — Overcharge (Surge Escalated+)
+
+- **Hold past full (melee only):** Game no longer **auto-releases** at 100% charge; you can hold up to a **max overcharge time**, then release. Normalized overcharge (0..1) scales **melee damage multiplier** and **secondary burst** size/damage.
+- **Charge field (active):** Larger radius, **stronger slow**, and **enemy attack cooldown** ticks slower (`robot_mob` / `iron_sentinel`; dasher-style mobs use stun micro-pulses instead of a cooldown scalar).
+- **Energy pressure pulses:** On an interval, enemies in the field take a **micro action delay** (tiny stun on `Mob`, extra cooldown / charge cancel on `RobotMob`)—**not** hard knockback.
+
+### Tier 3 — Overdrive (Surge Expression)
+
+- **Surge energy:** Built on **server-resolved** charged melee hits (more for **full charge**, **multi-target**, and **overcharge**); clamped to a max pool (`surge_energy_max`).
+- **Enter Overdrive:** On a **melee hit** (not whiff), if **overcharge** is high enough, **Expression** tier, and energy ≥ **entry cost**, pay the cost and enter **Overdrive**.
+- **During Overdrive:** Field uses **overdrive** tuning (wider, stronger slow, faster pulses, stronger cadence slow); your **melee damage** uses **full charge** scaling; **self move speed** is slightly reduced (`overdrive_player_move_speed_mult`).
+- **Exit — finale:** While Overdrive is up, energy **drains per second**; when it hits ~0, Overdrive ends and a **`surge_finale`** ring fires—damage scales with **energy consumed during the window** (`finale_damage_ratio_for_energy_used`), plus knockback from tuning.
+
+### Multiplayer and guardrails
+
+- **Authority:** Field slows and pulse interrupts run on **server** (or offline). Non-host clients **report** charge/overcharge **unreliably** to the server so hold-state exists without simulating local input on the dedicated host.
+- **Validation:** Server **clamps** reported overcharge to the design range; melee RPC carries **surge_overcharge_norm** (extra arg, default 0 for compatibility).
+- **Ranged:** Charge field applies while **gun** is charging; **overcharge hold** is **melee-only** (gun still auto-releases at full charge).
+
+**Not yet in runtime:** Projectile slow inside the field; replication of **Surge energy / Overdrive** to the owning client for HUD; explicit **run-boundary reset** of `_surge_energy` (currently cleared on **downed** with `_surge_reset_combat_state`; cross-run persistence is a follow-up if desired).
 
 Secondaries
 1. Bloom (Growth / Scaling Over Time)

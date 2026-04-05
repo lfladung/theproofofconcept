@@ -2627,3 +2627,52 @@ func _play_downed_once_then_hold(play_nonce: int) -> void:
 	_anim.seek(maxf(anim_len - 0.0001, 0.0), true)
 	_anim.pause()
 	_anim.speed_scale = 1.0
+
+
+## Phase infusion readability: translucent blue silhouette in world space (2D x,y → 3D x,z).
+func show_phase_spatial_cue(planar_xy: Vector2, delay_sec: float, duration_sec: float = 0.2) -> void:
+	var tree := get_tree()
+	if tree == null:
+		return
+	var self_ref := self
+	var cb := func () -> void:
+		if not is_instance_valid(self_ref):
+			return
+		self_ref._spawn_phase_cue_at_planar(planar_xy, maxf(0.05, duration_sec))
+	tree.create_timer(maxf(0.0, delay_sec)).timeout.connect(cb, CONNECT_ONE_SHOT)
+
+
+func show_phase_dash_trail_cue(planar_xy: Vector2, direction_xy: Vector2, duration_sec: float = 0.18) -> void:
+	var dir := direction_xy.normalized() if direction_xy.length_squared() > 1e-6 else Vector2(0.0, -1.0)
+	var mid := planar_xy + dir * 1.85
+	show_phase_spatial_cue(mid, 0.0, duration_sec)
+
+
+func _spawn_phase_cue_at_planar(planar_xy: Vector2, duration_sec: float) -> void:
+	var vw: Node3D = get_parent() as Node3D
+	if vw == null:
+		vw = self
+	var mi := MeshInstance3D.new()
+	mi.name = &"PhaseInfusionCue"
+	var sph := SphereMesh.new()
+	sph.radius = 0.42
+	sph.height = 0.84
+	var mat := StandardMaterial3D.new()
+	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	mat.albedo_color = Color(0.25, 0.55, 1.0, 0.42)
+	mat.cull_mode = BaseMaterial3D.CULL_DISABLED
+	sph.material = mat
+	mi.mesh = sph
+	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	vw.add_child(mi)
+	var h := 1.12
+	mi.global_position = Vector3(planar_xy.x, h, planar_xy.y)
+	var tree := get_tree()
+	if tree == null:
+		mi.queue_free()
+		return
+	var done := func () -> void:
+		if is_instance_valid(mi):
+			mi.queue_free()
+	tree.create_timer(duration_sec).timeout.connect(done, CONNECT_ONE_SHOT)

@@ -266,6 +266,14 @@ var _surge_server_field_active: bool = false
 var _surge_server_field_charge_r: float = 0.0
 var _surge_server_field_over_n: float = 0.0
 var _surge_server_field_until_msec: int = 0
+## Phase — slip body collision, skew ghost / dash / chip, fracture flank (server / offline authority).
+var _phase_saved_body_collision_mask := -1
+var _phase_slip_body_time_remaining := 0.0
+var _phase_dash_trail_cooldown_remaining := 0.0
+var _phase_contact_chip_cooldown_remaining := 0.0
+var _last_phase_melee_snapshot_damage := 0
+var _last_phase_melee_snapshot_knockback := 0.0
+var _phase_aux_attack_serial := 0
 
 
 func _ready() -> void:
@@ -1361,6 +1369,8 @@ func _apply_movement_step(
 			_dodge_direction = Vector2(0.0, -1.0)
 		_dodge_time_remaining = dodge_duration
 		_dodge_cooldown_remaining = dodge_cooldown
+		if is_damage_authority():
+			_phase_try_dash_trail_burst(global_position, _dodge_direction)
 	var planar_speed := 0.0
 	if _dodge_time_remaining > 0.0:
 		velocity = _dodge_direction * dodge_speed
@@ -1502,6 +1512,9 @@ func _run_shared_cooldown_and_debug_tick(delta: float) -> void:
 	if (not _multiplayer_active() or _is_server_peer()) and is_damage_authority():
 		_anchor_decay_step(delta)
 		_surge_authoritative_tick(delta)
+		_phase_dash_trail_cooldown_remaining = maxf(0.0, _phase_dash_trail_cooldown_remaining - delta)
+		_phase_contact_chip_cooldown_remaining = maxf(0.0, _phase_contact_chip_cooldown_remaining - delta)
+		_phase_slip_body_physics_tick(delta)
 	_refresh_debug_visuals(delta)
 	if _health_component != null:
 		_invuln_time_remaining = _health_component.get_invulnerability_remaining()
@@ -1592,7 +1605,8 @@ func _spawn_player_ranged_arrow(
 		true,
 		projectile_style_id,
 		projectile_event_id,
-		charge_size_mult * expr_m
+		charge_size_mult * expr_m,
+		InfusionPhaseRef.ranged_wall_pierce_hits(_infusion_phase_threshold())
 	)
 	if authoritative_damage and _is_server_peer() and projectile_event_id > 0 and arrow.has_signal(&"projectile_finished"):
 		arrow.projectile_finished.connect(
@@ -1670,6 +1684,7 @@ func _try_execute_server_melee_attack(
 	var resolved_facing := requested_facing
 	if resolved_facing.length_squared() > 1e-6:
 		_facing_planar = resolved_facing.normalized()
+	_phase_maybe_skew_melee_facing_warp()
 	_start_facing_lock(_facing_planar)
 	_play_melee_attack_presentation()
 	_server_melee_hit_event_sequence += 1
@@ -1703,6 +1718,17 @@ func _try_execute_server_melee_attack(
 	_server_melee_event_sequence += 1
 	var event_sequence := _server_melee_event_sequence
 	_last_applied_melee_event_sequence = max(_last_applied_melee_event_sequence, event_sequence)
+	var ph_t_melee_fx := _infusion_phase_threshold()
+	var phase_ghost_delay := 0.0
+	var phase_ghost_planar := Vector2.ZERO
+	if InfusionPhaseRef.is_skew_or_higher(ph_t_melee_fx):
+		phase_ghost_delay = (
+			InfusionPhaseRef.ghost_strike_delay_min_sec(ph_t_melee_fx)
+			+ InfusionPhaseRef.ghost_strike_delay_max_sec(ph_t_melee_fx)
+		) * 0.5
+		phase_ghost_planar = global_position
+	if phase_ghost_delay > 0.001 and _visual != null and _visual.has_method(&"show_phase_spatial_cue"):
+		_visual.call(&"show_phase_spatial_cue", phase_ghost_planar, phase_ghost_delay)
 	if _can_broadcast_world_replication():
 		_rpc_receive_melee_attack_event.rpc(
 			event_sequence,
@@ -1712,7 +1738,9 @@ func _try_execute_server_melee_attack(
 			_flow_chain_remaining,
 			_flow_overdrive_remaining,
 			_flow_aggression_remaining,
-			_flow_last_action_kind
+			_flow_last_action_kind,
+			phase_ghost_planar,
+			phase_ghost_delay
 		)
 	if OS.is_debug_build():
 		print(
@@ -2098,7 +2126,9 @@ func _rpc_receive_melee_attack_event(
 	flow_chain_remaining: float = 0.0,
 	flow_overdrive_remaining: float = 0.0,
 	flow_aggression_remaining: float = 0.0,
-	flow_last_action_kind: int = -1
+	flow_last_action_kind: int = -1,
+	phase_ghost_planar: Vector2 = Vector2.ZERO,
+	phase_ghost_delay: float = 0.0
 ) -> void:
 	if _is_server_peer():
 		return
@@ -2121,6 +2151,8 @@ func _rpc_receive_melee_attack_event(
 	_melee_attack_cooldown_remaining = maxf(
 		_melee_attack_cooldown_remaining, _flow_effective_melee_cooldown()
 	)
+	if phase_ghost_delay > 0.001 and _visual != null and _visual.has_method(&"show_phase_spatial_cue"):
+		_visual.call(&"show_phase_spatial_cue", phase_ghost_planar, phase_ghost_delay)
 	if OS.is_debug_build():
 		print(
 			"[M4][Melee][Remote] peer=%s attack_event=%s hits=%s" % [
@@ -2736,8 +2768,16 @@ func _commit_melee_strike(
 func _execute_local_melee_strike(
 	charge_ratio: float, apply_charge_scaling: bool = true, surge_overcharge_norm: float = 0.0
 ) -> void:
+	_phase_maybe_skew_melee_facing_warp()
 	_start_facing_lock(_facing_planar)
 	_play_melee_attack_presentation()
+	var ph_t_loc := _infusion_phase_threshold()
+	if InfusionPhaseRef.is_skew_or_higher(ph_t_loc) and _visual != null and _visual.has_method(&"show_phase_spatial_cue"):
+		var gdl := (
+			InfusionPhaseRef.ghost_strike_delay_min_sec(ph_t_loc)
+			+ InfusionPhaseRef.ghost_strike_delay_max_sec(ph_t_loc)
+		) * 0.5
+		_visual.call(&"show_phase_spatial_cue", global_position, gdl)
 	var hit_count := _squash_mobs_in_melee_hit(
 		-1, charge_ratio, apply_charge_scaling, surge_overcharge_norm
 	)
@@ -3626,7 +3666,333 @@ func _phase_outgoing_damage_multiplier() -> float:
 
 
 func _infusion_phase_depth_mult() -> float:
-	return InfusionPhaseRef.expression_depth_multiplier(_infusion_phase_threshold())
+	return InfusionPhaseRef.combined_melee_depth_multiplier(_infusion_phase_threshold())
+
+
+func _phase_tag_melee_packet(packet: DamagePacket) -> void:
+	if packet == null:
+		return
+	var t := _infusion_phase_threshold()
+	if not InfusionPhaseRef.is_phase_attuned(t):
+		return
+	packet.mitigation_ignore_ratio = InfusionPhaseRef.armor_ignore_ratio(t)
+	if InfusionPhaseRef.is_fracture(t):
+		packet.ignore_directional_guard = true
+
+
+func _phase_tag_aux_melee_packet(packet: DamagePacket) -> void:
+	if packet == null:
+		return
+	_phase_tag_melee_packet(packet)
+	packet.suppress_phase_procs = true
+	packet.suppress_echo_procs = true
+
+
+func _phase_begin_slip_body_window() -> void:
+	var t := _infusion_phase_threshold()
+	if not InfusionPhaseRef.is_phase_attuned(t):
+		return
+	if not is_damage_authority():
+		return
+	var dur := attack_hitbox_visual_duration + InfusionPhaseRef.slip_collision_window_extra_sec(t)
+	_phase_slip_body_time_remaining = maxf(_phase_slip_body_time_remaining, dur)
+	if _phase_saved_body_collision_mask < 0:
+		_phase_saved_body_collision_mask = collision_mask
+	collision_mask = collision_mask & ~InfusionPhase.MOB_BODY_PHYSICS_LAYER_BIT
+
+
+func _phase_end_slip_body_collision() -> void:
+	if _phase_saved_body_collision_mask >= 0:
+		collision_mask = _phase_saved_body_collision_mask
+		_phase_saved_body_collision_mask = -1
+
+
+func _phase_slip_body_physics_tick(delta: float) -> void:
+	if not is_damage_authority():
+		return
+	if _phase_slip_body_time_remaining <= 0.0:
+		return
+	_phase_slip_body_time_remaining = maxf(0.0, _phase_slip_body_time_remaining - delta)
+	_phase_maybe_contact_chip_tick()
+	if _phase_slip_body_time_remaining <= 0.0:
+		_phase_end_slip_body_collision()
+
+
+func _phase_maybe_skew_melee_facing_warp() -> void:
+	var t := _infusion_phase_threshold()
+	if not InfusionPhaseRef.is_skew_or_higher(t):
+		return
+	if not is_damage_authority():
+		return
+	var cone := deg_to_rad(InfusionPhaseRef.facing_warp_cone_degrees(t) * 0.5)
+	var max_turn := deg_to_rad(InfusionPhaseRef.facing_warp_max_degrees(t))
+	var fwd := _normalized_attack_facing(_facing_planar)
+	var best: EnemyBase = null
+	var best_ang := INF
+	for node in get_tree().get_nodes_in_group(&"mob"):
+		if not node is EnemyBase:
+			continue
+		var eb := node as EnemyBase
+		var to := eb.global_position - global_position
+		if to.length_squared() < 0.01:
+			continue
+		to = to.normalized()
+		if fwd.dot(to) < cos(cone):
+			continue
+		var cross := fwd.x * to.y - fwd.y * to.x
+		var ang := atan2(cross, fwd.dot(to))
+		var absa := absf(ang)
+		if absa < best_ang:
+			best_ang = absa
+			best = eb
+	if best == null:
+		return
+	var to_t := best.global_position - global_position
+	if to_t.length_squared() < 1e-6:
+		return
+	to_t = to_t.normalized()
+	var target_ang := atan2(fwd.x * to_t.y - fwd.y * to_t.x, fwd.dot(to_t))
+	var clamped := clampf(target_ang, -max_turn, max_turn)
+	var cs := cos(clamped)
+	var sn := sin(clamped)
+	_facing_planar = Vector2(fwd.x * cs - fwd.y * sn, fwd.x * sn + fwd.y * cs).normalized()
+
+
+func _phase_try_dash_trail_burst(start_planar: Vector2, dodge_dir: Vector2) -> void:
+	var t := _infusion_phase_threshold()
+	if not InfusionPhaseRef.is_skew_or_higher(t):
+		return
+	if not is_damage_authority():
+		return
+	if _phase_dash_trail_cooldown_remaining > 0.0:
+		return
+	var rad := InfusionPhaseRef.dash_trail_radius(t)
+	var ratio := InfusionPhaseRef.dash_trail_damage_ratio(t)
+	if rad <= 0.05 or ratio <= 0.0:
+		return
+	var est := _mass_effective_melee_damage_estimate()
+	var pool := maxi(1, int(roundf(float(est) * ratio * _phase_outgoing_damage_multiplier())))
+	var mid := start_planar + dodge_dir.normalized() * (dodge_speed * dodge_duration * 0.32)
+	_phase_dash_trail_cooldown_remaining = InfusionPhaseRef.dash_trail_cooldown_sec(t)
+	_phase_deal_tagged_radial_burst(
+		mid, pool, -1, dodge_dir.normalized(), melee_knockback_strength * 0.22, rad, &"phase_dash_trail"
+	)
+	if _visual != null and _visual.has_method(&"show_phase_dash_trail_cue"):
+		_visual.call(&"show_phase_dash_trail_cue", start_planar, dodge_dir)
+
+
+func _phase_deal_tagged_radial_burst(
+	origin: Vector2,
+	pool: int,
+	primary_uid: int,
+	forward: Vector2,
+	pulse_kb: float,
+	radius: float,
+	debug_label: StringName
+) -> void:
+	if pool <= 0 or radius <= 0.05 or not is_damage_authority():
+		return
+	var candidates: Array[EnemyBase] = _edge_collect_enemies_in_radius(origin, radius, primary_uid)
+	if candidates.is_empty():
+		return
+	var each := maxi(1, pool / candidates.size())
+	var pkt := DamagePacketScript.new() as DamagePacket
+	pkt.kind = &"melee"
+	pkt.source_node = self
+	pkt.source_uid = get_instance_id()
+	pkt.origin = origin
+	pkt.direction = forward
+	pkt.knockback = maxf(0.0, pulse_kb)
+	pkt.apply_iframes = false
+	pkt.suppress_edge_procs = true
+	pkt.suppress_mass_procs = true
+	pkt.suppress_echo_procs = true
+	pkt.suppress_edge_procs = true
+	pkt.suppress_phase_procs = true
+	pkt.debug_label = debug_label
+	_phase_tag_aux_melee_packet(pkt)
+	for eb in candidates:
+		if eb == null or not is_instance_valid(eb):
+			continue
+		var p := pkt.duplicate_packet()
+		p.amount = each
+		eb.take_direct_damage_packet(p)
+
+
+func _phase_maybe_contact_chip_tick() -> void:
+	var t := _infusion_phase_threshold()
+	var chip := InfusionPhaseRef.contact_chip_damage(t)
+	if chip <= 0 or not InfusionPhaseRef.is_skew_or_higher(t):
+		return
+	if _phase_contact_chip_cooldown_remaining > 0.0:
+		return
+	var reach := _get_player_body_radius() + 0.95
+	var r2 := reach * reach
+	var best: EnemyBase = null
+	var best_d2 := INF
+	for node in get_tree().get_nodes_in_group(&"mob"):
+		if not node is EnemyBase:
+			continue
+		var eb := node as EnemyBase
+		var d2 := eb.global_position.distance_squared_to(global_position)
+		if d2 > r2 or d2 >= best_d2:
+			continue
+		best_d2 = d2
+		best = eb
+	if best == null:
+		return
+	var p := DamagePacketScript.new() as DamagePacket
+	p.amount = maxi(1, chip)
+	p.kind = &"melee"
+	p.source_node = self
+	p.source_uid = get_instance_id()
+	p.attack_instance_id = _server_melee_hit_event_sequence * 10000 + _phase_aux_attack_serial + 9000
+	_phase_aux_attack_serial = (_phase_aux_attack_serial + 1) % 800
+	p.origin = global_position
+	p.direction = (best.global_position - global_position).normalized()
+	p.knockback = melee_knockback_strength * 0.08
+	p.apply_iframes = false
+	p.debug_label = &"phase_contact_chip"
+	p.suppress_edge_procs = true
+	_phase_tag_aux_melee_packet(p)
+	best.take_direct_damage_packet(p)
+	_phase_contact_chip_cooldown_remaining = InfusionPhaseRef.contact_chip_cooldown_sec(t)
+
+
+func _phase_schedule_skew_ghost_strike(
+	snap_pos: Vector2,
+	snap_facing: Vector2,
+	base_damage: int,
+	base_knockback: float,
+	_server_hit_event_id: int
+) -> void:
+	var t := _infusion_phase_threshold()
+	if not InfusionPhaseRef.is_skew_or_higher(t):
+		return
+	if not is_damage_authority():
+		return
+	if base_damage <= 0:
+		return
+	var dmin := InfusionPhaseRef.ghost_strike_delay_min_sec(t)
+	var dmax := InfusionPhaseRef.ghost_strike_delay_max_sec(t)
+	if dmax <= 0.0:
+		return
+	var delay := randf_range(dmin, dmax)
+	var ratio := InfusionPhaseRef.ghost_strike_damage_ratio(t)
+	var gdam := maxi(1, int(roundf(float(base_damage) * ratio)))
+	var gkb := base_knockback * 0.82
+	_phase_aux_attack_serial += 1
+	var atk_id := 600_000 + _phase_aux_attack_serial + maxi(0, _server_hit_event_id) * 13
+	var tree := get_tree()
+	if tree == null:
+		return
+	var self_ref := self
+	var cb := func () -> void:
+		if is_instance_valid(self_ref):
+			self_ref._phase_deliver_ghost_melee(snap_pos, snap_facing, gdam, gkb, atk_id)
+	tree.create_timer(delay).timeout.connect(cb, CONNECT_ONE_SHOT)
+
+
+func _phase_deliver_ghost_melee(
+	pos: Vector2,
+	facing: Vector2,
+	damage: int,
+	knockback: float,
+	attack_instance_id: int
+) -> void:
+	if not is_damage_authority():
+		return
+	_deliver_melee_polygon_hits_at_pose(
+		pos, facing, damage, knockback, attack_instance_id, &"phase_ghost_melee"
+	)
+
+
+func _phase_deliver_fracture_flanks_if_eligible(center: Vector2, facing: Vector2, base_damage: int, base_kb: float, hit_event_id: int) -> void:
+	var t := _infusion_phase_threshold()
+	if not InfusionPhaseRef.is_fracture(t):
+		return
+	if not is_damage_authority():
+		return
+	var off := InfusionPhaseRef.multi_origin_flank_offset(t)
+	var ratio := InfusionPhaseRef.multi_origin_damage_ratio(t)
+	if off <= 0.0 or ratio <= 0.0:
+		return
+	var f := facing.normalized()
+	if f.length_squared() < 1e-6:
+		f = Vector2(0.0, -1.0)
+	var r := Vector2(-f.y, f.x)
+	var dmg := maxi(1, int(roundf(float(base_damage) * ratio)))
+	var kbb := base_kb * 0.78
+	_phase_aux_attack_serial += 1
+	var id0 := 700_000 + _phase_aux_attack_serial + maxi(0, hit_event_id) * 3
+	_phase_aux_attack_serial += 1
+	var id1 := 700_000 + _phase_aux_attack_serial + maxi(0, hit_event_id) * 3
+	_deliver_melee_polygon_hits_at_pose(
+		center + r * off, f, dmg, kbb, id0, &"phase_flank_melee"
+	)
+	_deliver_melee_polygon_hits_at_pose(
+		center - r * off, f, dmg, kbb, id1, &"phase_flank_melee"
+	)
+
+
+func _deliver_melee_polygon_hits_at_pose(
+	center: Vector2,
+	facing: Vector2,
+	damage: int,
+	knockback: float,
+	attack_instance_id: int,
+	debug_lbl: StringName
+) -> void:
+	var f := facing.normalized()
+	if f.length_squared() < 1e-6:
+		f = Vector2(0.0, -1.0)
+	for node in get_tree().get_nodes_in_group(&"mob"):
+		if not node is CharacterBody2D:
+			continue
+		var mob := node as CharacterBody2D
+		if not _melee_hit_overlaps_mob_at(center, f, mob):
+			continue
+		var dmg_hit := damage
+		var from_bs := false
+		var is_crit := false
+		if mob is EnemyBase:
+			var res := _melee_resolve_precision(damage, mob as EnemyBase, self)
+			dmg_hit = int(res["amount"])
+			from_bs = bool(res.get("from_backstab", false))
+			is_crit = bool(res.get("is_critical", false))
+		var kb_hit := knockback
+		var dir_hit := f
+		if mob is EnemyBase:
+			var kb_res := _mass_kb_dir_for_enemy(knockback, f, mob as EnemyBase)
+			kb_hit = float(kb_res.get("kb", knockback))
+			var dv: Variant = kb_res.get("dir", f)
+			if dv is Vector2:
+				dir_hit = dv as Vector2
+		if mob is EnemyBase:
+			var eb := mob as EnemyBase
+			var pkt := DamagePacketScript.new() as DamagePacket
+			pkt.amount = dmg_hit
+			pkt.kind = &"melee"
+			pkt.source_node = self
+			pkt.source_uid = get_instance_id()
+			pkt.attack_instance_id = attack_instance_id
+			pkt.origin = center
+			pkt.direction = dir_hit
+			pkt.knockback = kb_hit
+			pkt.apply_iframes = false
+			pkt.blockable = false
+			pkt.debug_label = debug_lbl
+			pkt.from_backstab = from_bs
+			pkt.is_critical = is_crit
+			pkt.suppress_edge_procs = true
+			_phase_tag_aux_melee_packet(pkt)
+			var hb := eb.get_combat_hurtbox()
+			if hb != null:
+				apply_mass_melee_packet_adjustments(pkt, hb)
+			eb.take_direct_damage_packet(pkt)
+			_mass_try_impact_pulse_and_shockwave_from_hit(dmg_hit, eb, dir_hit)
+		elif mob.has_method(&"take_hit"):
+			mob.call(&"take_hit", dmg_hit, dir_hit, kb_hit, from_bs, is_crit)
 
 
 func _melee_hit_effective_width_depth() -> Vector2:
@@ -3668,6 +4034,45 @@ func _melee_hit_overlaps_mob(mob: CharacterBody2D) -> bool:
 	if mob_poly.size() >= 3:
 		return HitboxOverlap2D.convex_polygons_overlap(melee_poly, mob_poly)
 	return _planar_point_in_melee_hit(mob.global_position)
+
+
+func _melee_hit_polygon_world_at(center: Vector2, facing: Vector2) -> PackedVector2Array:
+	var f := facing.normalized()
+	if f.length_squared() < 1e-6:
+		f = Vector2(0.0, -1.0)
+	var r := Vector2(-f.y, f.x)
+	var sz := _melee_hit_effective_width_depth()
+	var half_w := sz.x * 0.5
+	var inner := _melee_range_start()
+	var p := center
+	var poly := PackedVector2Array()
+	poly.append(p + f * inner + r * (-half_w))
+	poly.append(p + f * inner + r * half_w)
+	poly.append(p + f * (inner + sz.y) + r * half_w)
+	poly.append(p + f * (inner + sz.y) + r * (-half_w))
+	return poly
+
+
+func _planar_point_in_melee_hit_at(center: Vector2, facing: Vector2, mob_pos: Vector2) -> bool:
+	var inner := _melee_range_start()
+	var f := facing.normalized()
+	if f.length_squared() < 1e-6:
+		f = Vector2(0.0, -1.0)
+	var r := Vector2(-f.y, f.x)
+	var v := mob_pos - center
+	var along := v.dot(f)
+	var lateral := v.dot(r)
+	var sz := _melee_hit_effective_width_depth()
+	var half_w := sz.x * 0.5
+	return along >= inner and along <= inner + sz.y and absf(lateral) <= half_w
+
+
+func _melee_hit_overlaps_mob_at(center: Vector2, facing: Vector2, mob: CharacterBody2D) -> bool:
+	var melee_poly := _melee_hit_polygon_world_at(center, facing)
+	var mob_poly := HitboxOverlap2D.mob_collision_polygon_world(mob)
+	if mob_poly.size() >= 3:
+		return HitboxOverlap2D.convex_polygons_overlap(melee_poly, mob_poly)
+	return _planar_point_in_melee_hit_at(center, facing, mob.global_position)
 
 
 func apply_backstab_bonus_to_melee_packet(packet: DamagePacket, hurtbox: Hurtbox2D) -> void:
@@ -4539,6 +4944,9 @@ func _squash_mobs_in_melee_hit(
 		kb *= InfusionMassRef.melee_knockback_multiplier(mass_t) * _mass_loadout_knockback_mult()
 	var attack_facing := _normalized_attack_facing(_facing_planar)
 	_active_melee_attack_facing = attack_facing
+	_phase_begin_slip_body_window()
+	_last_phase_melee_snapshot_damage = dmg
+	_last_phase_melee_snapshot_knockback = kb
 	if _melee_hitbox != null:
 		_sync_melee_hitbox_geometry()
 		_melee_hitbox.repeat_mode = Hitbox2D.RepeatMode.NONE
@@ -4555,9 +4963,11 @@ func _squash_mobs_in_melee_hit(
 		packet.apply_iframes = false
 		packet.blockable = false
 		packet.debug_label = &"player_melee"
+		_phase_tag_melee_packet(packet)
 		_melee_hitbox.activate(packet, attack_hitbox_visual_duration)
 		var hc := _melee_hitbox.get_last_resolved_count()
 		_surge_try_melee_secondary_burst(st_s, ovn, dmg, hc, attack_facing)
+		_phase_post_melee_spatial_followup(hit_event_id, attack_facing, dmg, kb)
 		return hc
 	var hit_count := 0
 	for node in get_tree().get_nodes_in_group(&"mob"):
@@ -4605,7 +5015,17 @@ func _squash_mobs_in_melee_hit(
 				if mob is EnemyBase:
 					_mass_try_impact_pulse_and_shockwave_from_hit(dmg_hit, mob as EnemyBase, dir_hit)
 	_surge_try_melee_secondary_burst(st_s, ovn, dmg, hit_count, attack_facing)
+	_phase_post_melee_spatial_followup(hit_event_id, attack_facing, dmg, kb)
 	return hit_count
+
+
+func _phase_post_melee_spatial_followup(
+	hit_event_id: int, attack_facing: Vector2, dmg: int, kb: float
+) -> void:
+	if not is_damage_authority():
+		return
+	_phase_deliver_fracture_flanks_if_eligible(global_position, attack_facing, dmg, kb, hit_event_id)
+	_phase_schedule_skew_ghost_strike(global_position, attack_facing, dmg, kb, hit_event_id)
 
 
 func _rebuild_melee_debug_mesh() -> void:
@@ -4801,6 +5221,9 @@ func _physics_process(delta: float) -> void:
 	_bomb_cooldown_remaining = maxf(0.0, _bomb_cooldown_remaining - delta * cd_sp)
 	if is_damage_authority():
 		_surge_authoritative_tick(delta)
+		_phase_dash_trail_cooldown_remaining = maxf(0.0, _phase_dash_trail_cooldown_remaining - delta)
+		_phase_contact_chip_cooldown_remaining = maxf(0.0, _phase_contact_chip_cooldown_remaining - delta)
+		_phase_slip_body_physics_tick(delta)
 
 	var use_wasd_sp := _is_wasd_mouse_scheme_enabled()
 	if _menu_input_blocked:
@@ -4864,6 +5287,8 @@ func _physics_process(delta: float) -> void:
 			_dodge_direction = Vector2(0.0, -1.0)
 		_dodge_time_remaining = dodge_duration
 		_dodge_cooldown_remaining = dodge_cooldown
+		if is_damage_authority():
+			_phase_try_dash_trail_burst(global_position, _dodge_direction)
 
 	var planar_speed := 0.0
 	if _dodge_time_remaining > 0.0:

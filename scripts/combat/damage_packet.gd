@@ -23,10 +23,16 @@ var suppress_edge_procs := false
 var suppress_mass_procs := false
 ## Echo afterimages / twin projectiles / recursive echoes — must not recurse unbounded Echo procs.
 var suppress_echo_procs := false
+## Phase ghost strikes / multi-origin / dash trail — must not recurse Phase spatial procs.
+var suppress_phase_procs := false
 ## True for Reverberate afterimages, twin bolts, and decayed recursive echoes (see `InfusionEcho`).
 var is_echo := false
 ## 0 = primary swing; each Echo generation increments (Expression cap in `InfusionEcho`).
 var echo_generation := 0
+## 0–1: fraction of `amount` that ignores `HealthComponent.flat_damage_mitigation` (Phase / future armor).
+var mitigation_ignore_ratio := 0.0
+## When true, `DirectionalGuardDamageReceiverComponent` does not block this packet (Phase Fracture).
+var ignore_directional_guard := false
 
 
 func duplicate_packet() -> DamagePacket:
@@ -47,8 +53,11 @@ func duplicate_packet() -> DamagePacket:
 	copy.suppress_edge_procs = suppress_edge_procs
 	copy.suppress_mass_procs = suppress_mass_procs
 	copy.suppress_echo_procs = suppress_echo_procs
+	copy.suppress_phase_procs = suppress_phase_procs
 	copy.is_echo = is_echo
 	copy.echo_generation = echo_generation
+	copy.mitigation_ignore_ratio = mitigation_ignore_ratio
+	copy.ignore_directional_guard = ignore_directional_guard
 	return copy
 
 

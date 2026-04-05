@@ -28,6 +28,8 @@ func _process_damage(
 func _should_block_packet(guard_owner: Node, packet: DamagePacket) -> bool:
 	if packet == null or guard_owner == null or not is_instance_valid(guard_owner):
 		return false
+	if packet.ignore_directional_guard:
+		return false
 	if not guard_owner.has_method(guard_active_method):
 		return false
 	if not bool(guard_owner.call(guard_active_method)):

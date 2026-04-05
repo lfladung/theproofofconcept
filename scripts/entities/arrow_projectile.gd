@@ -48,6 +48,8 @@ var _base_world_radius := 0.4
 var _base_hitbox_radius := 0.4
 var _visuals_by_key: Dictionary = {}
 var _active_visual_key := ""
+## Phase Fracture: wall `body_entered` hits to ignore before the projectile terminates.
+var _wall_pierce_hits_remaining := 0
 
 
 func configure(
@@ -57,7 +59,8 @@ func configure(
 	fired_by_player: bool = false,
 	projectile_style_id: StringName = &"red",
 	attack_instance_id: int = -1,
-	charge_size_mult: float = 1.0
+	charge_size_mult: float = 1.0,
+	wall_pierce_hits_remaining: int = 0
 ) -> void:
 	global_position = spawn_position
 	_start_pos = spawn_position
@@ -67,6 +70,7 @@ func configure(
 	_projectile_style_id = projectile_style_id
 	_attack_instance_id = attack_instance_id
 	_charge_size_mult = clampf(charge_size_mult, 1.0, 2.5)
+	_wall_pierce_hits_remaining = maxi(0, wall_pierce_hits_remaining)
 	_finished = false
 	_traveled = 0.0
 	if is_inside_tree():
@@ -311,6 +315,9 @@ func _finish_projectile() -> void:
 
 func _on_world_body_entered(body: Node2D) -> void:
 	if body == null:
+		return
+	if _wall_pierce_hits_remaining > 0:
+		_wall_pierce_hits_remaining -= 1
 		return
 	_finish_projectile()
 
