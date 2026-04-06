@@ -76,6 +76,10 @@ enum EditorAnimationPreview {
 @export var melee_smear_projectile_lifetime: float = 0.22
 @export var melee_smear_projectile_travel_distance: float = 2.8
 @export var melee_smear_projectile_spawn_scale: float = 1.8
+@export var echo_melee_smear_scale_mult: float = 1.12
+@export var echo_melee_smear_lifetime_mult: float = 1.2
+@export var echo_melee_smear_travel_mult: float = 1.08
+@export_range(0.0, 1.0, 0.01) var echo_melee_smear_max_alpha_mult: float = 0.92
 @export var sword_force_visibility_material: bool = true
 @export var equipment_force_visibility_material: bool = true
 @export var sword_show_debug_proxy: bool = false
@@ -597,6 +601,70 @@ func _update_melee_smear_projectile_spawn() -> void:
 		projectile.global_transform = smear_transform
 	_melee_smear_spawned_attack_nonce = _attack_nonce
 	_queued_attack_planar_direction = Vector2.ZERO
+
+
+func spawn_echo_melee_smear(planar_direction: Vector2) -> void:
+	if not melee_smear_enabled:
+		return
+	var spawn_parent := get_parent()
+	if spawn_parent == null:
+		return
+	var dir2 := planar_direction
+	if dir2.length_squared() <= 1e-6:
+		dir2 = Vector2(_queued_attack_planar_direction.x, _queued_attack_planar_direction.y)
+	if dir2.length_squared() <= 1e-6:
+		dir2 = Vector2(global_transform.basis.z.x, global_transform.basis.z.z)
+	if dir2.length_squared() <= 1e-6:
+		dir2 = Vector2(0.0, -1.0)
+	dir2 = dir2.normalized()
+	var travel_direction := Vector3(dir2.x, 0.0, dir2.y)
+	var smear_scene := load(melee_smear_scene_path) as PackedScene
+	if smear_scene == null:
+		push_warning("[PlayerVisual] Could not load melee smear scene '%s'." % melee_smear_scene_path)
+		return
+	var projectile := smear_scene.instantiate() as Node3D
+	if projectile == null:
+		push_warning("[PlayerVisual] Melee smear scene '%s' is not a Node3D." % melee_smear_scene_path)
+		return
+	spawn_parent.add_child(projectile)
+	var spawn_height := melee_smear_local_offset.y
+	var smear_scale := (
+		melee_smear_base_scale * melee_smear_projectile_spawn_scale * echo_melee_smear_scale_mult
+	)
+	var smear_transform := Transform3D(
+		Basis.IDENTITY.scaled(smear_scale),
+		global_transform.origin + Vector3(0.0, spawn_height, 0.0)
+	)
+	var life := melee_smear_projectile_lifetime * echo_melee_smear_lifetime_mult
+	var dist := melee_smear_projectile_travel_distance * echo_melee_smear_travel_mult
+	var alpha := melee_smear_max_alpha * echo_melee_smear_max_alpha_mult
+	if projectile.has_method(&"configure"):
+		projectile.call(&"configure", smear_transform, travel_direction, life, dist, alpha)
+	else:
+		projectile.global_transform = smear_transform
+	_apply_echo_smear_palette(projectile)
+
+
+func _apply_echo_smear_palette(root: Node3D) -> void:
+	if root == null:
+		return
+	var outer := Color(0.5, 0.32, 0.98, 1.0)
+	var inner := Color(0.72, 0.58, 1.0, 1.0)
+	var stack: Array[Node] = [root]
+	while not stack.is_empty():
+		var node: Node = stack.pop_back()
+		if node is MeshInstance3D:
+			var mi := node as MeshInstance3D
+			var mat := mi.material_override
+			if mat is ShaderMaterial:
+				var sm := mat as ShaderMaterial
+				sm.set_shader_parameter(&"outer_color", outer)
+				sm.set_shader_parameter(&"inner_color", inner)
+				var am: Variant = sm.get_shader_parameter(&"alpha_multiplier")
+				if typeof(am) == TYPE_FLOAT or typeof(am) == TYPE_INT:
+					sm.set_shader_parameter(&"alpha_multiplier", float(am) * 1.12)
+		for c in node.get_children():
+			stack.append(c)
 
 
 func _capture_sword_base_offset_from_node() -> void:

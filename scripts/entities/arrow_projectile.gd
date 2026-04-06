@@ -50,6 +50,10 @@ var _visuals_by_key: Dictionary = {}
 var _active_visual_key := ""
 ## Phase Fracture: wall `body_entered` hits to ignore before the projectile terminates.
 var _wall_pierce_hits_remaining := 0
+## Player who fired this shot; used to gate baseline ranged knockback vs Mass infusion.
+var _knockback_attribution_owner: Node = null
+## Echo handgun twin: same mesh family as primary but tinted + cached under a distinct visual key.
+var _echo_twin_visual := false
 
 
 func configure(
@@ -60,24 +64,36 @@ func configure(
 	projectile_style_id: StringName = &"red",
 	attack_instance_id: int = -1,
 	charge_size_mult: float = 1.0,
-	wall_pierce_hits_remaining: int = 0
+	wall_pierce_hits_remaining: int = 0,
+	knockback_attribution_owner: Node = null,
+	echo_twin_visual: bool = false
 ) -> void:
 	global_position = spawn_position
 	_start_pos = spawn_position
 	_direction = direction.normalized() if direction.length_squared() > 0.0001 else Vector2.RIGHT
 	_vw = owner_visual_world
 	_fired_by_player = fired_by_player
+	_knockback_attribution_owner = knockback_attribution_owner if fired_by_player else null
 	_projectile_style_id = projectile_style_id
 	_attack_instance_id = attack_instance_id
 	_charge_size_mult = clampf(charge_size_mult, 1.0, 2.5)
 	_wall_pierce_hits_remaining = maxi(0, wall_pierce_hits_remaining)
+	_echo_twin_visual = echo_twin_visual
 	_finished = false
 	_traveled = 0.0
 	if is_inside_tree():
 		_activate_runtime_state()
 
 
+func get_knockback_attribution_owner() -> Node:
+	if _knockback_attribution_owner != null and is_instance_valid(_knockback_attribution_owner):
+		return _knockback_attribution_owner
+	return null
+
+
 func set_authoritative_damage(enabled: bool) -> void:
+	if _authoritative_damage == enabled:
+		return
 	_authoritative_damage = enabled
 	if is_inside_tree():
 		_apply_hitbox_runtime()
@@ -92,7 +108,10 @@ func reactivate_from_pool() -> void:
 		return
 	show()
 	set_physics_process(true)
-	_activate_runtime_state()
+	# Damage hitbox is configured in configure() after spawn fields (damage, event id,
+	# authoritative flag) are set. Activating here caused multiple Hitbox2D.activate() calls
+	# per shot, clearing per-target state and minting new attack_instance_ids — same overlap
+	# could damage twice.
 
 
 func deactivate_for_pool() -> void:
@@ -116,7 +135,6 @@ func _ready() -> void:
 		body_entered.connect(_on_world_body_entered)
 	if _hitbox != null and not _hitbox.target_resolved.is_connected(_on_hitbox_target_resolved):
 		_hitbox.target_resolved.connect(_on_hitbox_target_resolved)
-	_activate_runtime_state()
 
 
 func _activate_runtime_state() -> void:
@@ -209,6 +227,8 @@ func _ensure_visual_for_current_style() -> void:
 				var vis := vis_scene.instantiate() as Node3D
 				if vis != null:
 					_disable_cast_shadows_recursive(vis)
+					if _fired_by_player and _echo_twin_visual:
+						_apply_echo_twin_material_tint(vis)
 					_visuals_by_key[visual_key] = vis
 					_visual = vis
 		if _visual != null and _visual.get_parent() != _vw:
@@ -262,7 +282,39 @@ func _visual_cache_key() -> String:
 	var scene := _visual_scene_for_current_style()
 	if scene == null:
 		return ""
-	return "%s|%s|%s" % [scene.resource_path, String(_projectile_style_id), "p" if _fired_by_player else "e"]
+	var echo_tag := "echo" if (_fired_by_player and _echo_twin_visual) else "main"
+	return "%s|%s|%s|%s" % [scene.resource_path, String(_projectile_style_id), "p" if _fired_by_player else "e", echo_tag]
+
+
+func _apply_echo_twin_material_tint(root: Node) -> void:
+	if root == null:
+		return
+	for child in root.get_children():
+		_apply_echo_twin_material_tint(child)
+	if not root is MeshInstance3D:
+		return
+	var mi := root as MeshInstance3D
+	var mesh_ref := mi.mesh
+	if mesh_ref == null:
+		return
+	var n := mesh_ref.get_surface_count()
+	for si in range(n):
+		var base: Material = mi.get_active_material(si)
+		if base == null:
+			continue
+		var dup := base.duplicate(true) as Material
+		if dup is StandardMaterial3D:
+			var std := dup as StandardMaterial3D
+			std.emission_enabled = true
+			std.emission = Color(0.42, 0.82, 1.0)
+			std.emission_energy_multiplier = maxf(std.emission_energy_multiplier, 2.1)
+			std.albedo_color = std.albedo_color.lerp(Color(0.72, 0.48, 1.0), 0.55)
+		elif dup is ShaderMaterial:
+			var sh := dup as ShaderMaterial
+			var ac: Variant = sh.get_shader_parameter(&"albedo_color")
+			if ac is Color:
+				sh.set_shader_parameter(&"albedo_color", (ac as Color).lerp(Color(0.72, 0.48, 1.0), 0.5))
+		mi.set_surface_override_material(si, dup)
 
 
 func _current_visual_scale() -> Vector3:

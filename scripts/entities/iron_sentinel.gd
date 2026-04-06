@@ -174,7 +174,10 @@ func _physics_process(delta: float) -> void:
 		return
 	if _recovery_state != RecoveryState.NONE:
 		_update_recovery(delta)
+		apply_hit_knockback_to_body_velocity()
 		move_and_slide()
+		mass_server_post_slide()
+		tick_hit_knockback_timer(delta)
 		_enemy_network_server_broadcast(delta)
 		_sync_visual()
 		return
@@ -185,7 +188,10 @@ func _physics_process(delta: float) -> void:
 		_update_attack(delta)
 	else:
 		_update_behavior(delta)
+	apply_hit_knockback_to_body_velocity()
 	move_and_slide()
+	mass_server_post_slide()
+	tick_hit_knockback_timer(delta)
 	_enemy_network_server_broadcast(delta)
 	_sync_visual()
 
@@ -460,8 +466,17 @@ func _refresh_attack_hitboxes() -> void:
 		_stomp_hitbox.position = Vector2.ZERO
 
 
+func _attack_windup_duration_for_progress() -> float:
+	# Clients never run _start_attack; _attack_hit_time stays stale. Replicated
+	# _attack_total_duration + attack state match server windup: duration * hit_fraction.
+	if _attack_state == AttackState.NONE:
+		return maxf(0.01, _attack_hit_time)
+	return maxf(0.01, _attack_total_duration * _attack_hit_fraction(_attack_state))
+
+
 func _attack_progress() -> float:
-	return clampf(_attack_elapsed / maxf(0.01, _attack_hit_time), 0.0, 1.0)
+	var denom := _attack_windup_duration_for_progress()
+	return clampf(_attack_elapsed / denom, 0.0, 1.0)
 
 
 func _choose_attack_state() -> int:
@@ -794,7 +809,7 @@ func get_combat_planar_facing() -> Vector2:
 
 
 func mass_infusion_knockback_size_factor() -> float:
-	return 0.52
+	return 0.48
 
 
 func on_directional_guard_blocked_hit(packet: DamagePacket, _blocked_hurtbox: Area2D) -> void:
@@ -807,7 +822,8 @@ func on_directional_guard_blocked_hit(packet: DamagePacket, _blocked_hurtbox: Ar
 	_cooldown_remaining = maxf(_cooldown_remaining, 0.2)
 
 
-func _on_nonlethal_hit(_knockback_dir: Vector2, _knockback_strength: float) -> void:
+func _on_nonlethal_hit(knockback_dir: Vector2, knockback_strength: float) -> void:
+	super._on_nonlethal_hit(knockback_dir, knockback_strength)
 	if _recovery_state != RecoveryState.NONE:
 		return
 	# HP damage during punch/stomp should not cancel the attack; that restarts the
@@ -817,7 +833,6 @@ func _on_nonlethal_hit(_knockback_dir: Vector2, _knockback_strength: float) -> v
 	_cancel_attack()
 	_guard_advancing = false
 	_guard_break_accumulated_damage = 0.0
-	velocity = Vector2.ZERO
 
 
 func can_contact_damage() -> bool:

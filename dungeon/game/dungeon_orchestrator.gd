@@ -2,6 +2,16 @@ extends "res://dungeon/game/dungeon_orchestrator_internals.gd"
 
 ## Camera tick, debug overlays, FPS label, combat debug HUD, physics clamps.
 
+func _unhandled_input(event: InputEvent) -> void:
+	if event.is_action_pressed(&"infusion_guide_toggle"):
+		_ensure_infusion_guide_overlay()
+		if _infusion_guide_overlay == null:
+			return
+		if _infusion_guide_overlay.has_method(&"request_toggle_from_world"):
+			_infusion_guide_overlay.call(&"request_toggle_from_world")
+		get_viewport().set_input_as_handled()
+
+
 func _process(delta: float) -> void:
 	if _camera_follow != null:
 		_camera_follow.tick(delta)

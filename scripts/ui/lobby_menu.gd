@@ -65,6 +65,20 @@ func _ready() -> void:
 	_sync_control_scheme_option()
 
 
+func _unhandled_input(event: InputEvent) -> void:
+	if not event is InputEventKey:
+		return
+	var k := event as InputEventKey
+	if not k.pressed or k.echo or k.keycode != KEY_ESCAPE:
+		return
+	if _showing_options:
+		_on_options_back_pressed()
+		get_viewport().set_input_as_handled()
+	elif _showing_multiplayer_menu:
+		_on_back_pressed()
+		get_viewport().set_input_as_handled()
+
+
 func _refresh_root_menu_visibility() -> void:
 	_options_vbox.visible = _showing_options
 	_multiplayer_vbox.visible = _showing_multiplayer_menu and not _showing_options

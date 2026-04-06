@@ -20,7 +20,7 @@ Godot 4.6 project: 2–4 player authoritative co-op dungeon crawler.
 
 - Main scene: `res://scenes/ui/lobby_menu.tscn`
 - Gameplay world: `res://dungeon/game/dungeon_orchestrator.tscn`
-- Network autoloads: `NetworkSession`, `NetEventBus`, `RunState` (see `project.godot`)
+- Autoloads: `GameSettings`, `LoadingOverlay`, `NetworkSession`, `NetEventBus`, `RunState` (see `project.godot`)
 
 ## Key File Groups
 
@@ -51,10 +51,11 @@ Godot 4.6 project: 2–4 player authoritative co-op dungeon crawler.
 - `dungeon_orchestrator_internals.gd` (and thin `dungeon_orchestrator.gd`) have broad side effects — changes there ripple into networking, encounters, cameras, and doors
 - `room_query_service.gd` is a shared hot-path — do not add per-frame scans to it
 
-## Current Status (as of 2026-04-01)
+## Current Status (as of 2026-04-04)
 
-- Multiplayer milestones 1–9 complete (see `dungeon/MULTIPLAYER_MILESTONE_MAP.md`)
+- Multiplayer milestones 1–9 complete; dedicated join-by-session-code through DS milestones 1–3 (see `dungeon/MULTIPLAYER_MILESTONE_MAP.md`)
 - Melee: owner-client request → server validation → replicated event
 - Sword blocking: server-authoritative directional stamina guard
 - Boss rooms: auto-stamped `floor_exit` marker placed by Room Editor, consumed at runtime by `room_query_service.gd`
 - Stat pillar module added (`dungeon/modules/gameplay/stat_pillar_2d.gd`); new affix stats declared but not yet wired into combat calculations
+- Authored outline starter rooms: `dungeon/rooms/authored/outlines/` with `tools/room_editor/generate_outline_rooms.gd` / `validate_outline_rooms.gd`

@@ -17,6 +17,10 @@ var _category_expanded_by_slot: Dictionary = {}
 var _panel_open := false
 
 
+func is_loadout_panel_open() -> bool:
+	return _panel_open
+
+
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -63,6 +67,12 @@ func _process(_delta: float) -> void:
 
 
 func _unhandled_input(event: InputEvent) -> void:
+	if event is InputEventKey and event.pressed and not event.echo:
+		var k := event as InputEventKey
+		if k.keycode == KEY_ESCAPE and _panel_open:
+			_close_panel()
+			get_viewport().set_input_as_handled()
+			return
 	if event.is_action_pressed(&"loadout_toggle"):
 		if _panel_open or _can_open_loadout():
 			_toggle_panel()
@@ -235,7 +245,16 @@ func _sync_player_input_block_state() -> void:
 	if _player == null or not is_instance_valid(_player):
 		return
 	if _player.has_method(&"set_menu_input_blocked"):
-		_player.call(&"set_menu_input_blocked", _panel_open)
+		var blocked := _panel_open
+		if not blocked:
+			var p := get_parent()
+			if p != null:
+				var ig := p.get_node_or_null("InfusionGuideOverlay")
+				if ig != null and ig.has_method(&"is_infusion_guide_open") and bool(
+					ig.call(&"is_infusion_guide_open")
+				):
+					blocked = true
+		_player.call(&"set_menu_input_blocked", blocked)
 
 
 func _restore_scroll_position(scroll_value: int) -> void:

@@ -9,6 +9,7 @@ const DamagePacketScript = preload("res://scripts/combat/damage_packet.gd")
 const InfusionEdgeRef = preload("res://scripts/infusion/infusion_edge.gd")
 const InfusionMassRef = preload("res://scripts/infusion/infusion_mass.gd")
 const InfusionConstantsRef = preload("res://scripts/infusion/infusion_constants.gd")
+const MassCombatVfxScript = preload("res://scripts/vfx/mass_combat_vfx.gd")
 const DAMAGE_TEXT_STYLE_HP := &"hp"
 const DAMAGE_TEXT_STYLE_BLOCK := &"block"
 const DAMAGE_TEXT_HP_COLOR := Color(1.0, 0.15, 0.15, 1.0)
@@ -60,6 +61,9 @@ static func step_planar_facing_toward(
 @export var network_sync_interval := 0.05
 @export var remote_interpolation_lerp_rate := 14.0
 @export var remote_interpolation_snap_distance := 6.0
+## Planar knockback impulse = `knockback_strength * knockback_impulse_scale` while `hit_knockback_duration` elapses.
+@export var knockback_impulse_scale := 1.3
+@export var hit_knockback_duration := 0.22
 
 @onready var _health_component: HealthComponent = $HealthComponent
 @onready var _damage_receiver: DamageReceiverComponent = $DamageReceiver
@@ -95,6 +99,10 @@ var _surge_field_speed_mult: float = 1.0
 var _surge_field_expire_msec: int = 0
 var _surge_field_cooldown_tick_mult: float = 1.0
 var _surge_field_cooldown_expire_msec: int = 0
+## Shared hit knockback window (Dasher / Robot / Sentinel); turrets opt out via `mass_infusion_receives_knockback`.
+var _hit_knockback_vel := Vector2.ZERO
+var _hit_knockback_time_rem := 0.0
+var _mass_wall_carrier_cooldown_until_msec: int = 0
 
 
 func get_combat_hurtbox() -> Hurtbox2D:
@@ -354,7 +362,40 @@ func _receive_packet(packet: DamagePacket) -> void:
 			_edge_preprocess_incoming(packet)
 		if not packet.suppress_mass_procs:
 			_mass_preprocess_incoming(packet)
+		_apply_base_player_knockback_mass_gate(packet)
 	_damage_receiver.receive_damage(packet, _hurtbox)
+
+
+func _resolve_player_mass_knockback_source(packet: DamagePacket) -> Node:
+	if packet == null:
+		return null
+	var src: Node = packet.source_node
+	if src == null or not is_instance_valid(src):
+		return null
+	if src.has_method(&"_infusion_mass_threshold"):
+		return src
+	if src.has_method(&"get_knockback_attribution_owner"):
+		var o: Variant = src.call(&"get_knockback_attribution_owner")
+		if o is Node and is_instance_valid(o):
+			return o as Node
+	return null
+
+
+## Zero baseline player knockback until Mass is attuned; Dasher mobs still get displaced.
+func _apply_base_player_knockback_mass_gate(packet: DamagePacket) -> void:
+	if packet == null:
+		return
+	if packet.knockback <= 0.0001:
+		return
+	if self is DasherMob:
+		return
+	var attacker := _resolve_player_mass_knockback_source(packet)
+	if attacker == null or not attacker.has_method(&"_infusion_mass_threshold"):
+		return
+	var mt: int = int(attacker.call(&"_infusion_mass_threshold"))
+	if InfusionMassRef.is_mass_attuned(mt):
+		return
+	packet.knockback = 0.0
 
 
 func _build_damage_packet(
@@ -431,8 +472,118 @@ func _on_health_component_depleted(packet: DamagePacket) -> void:
 	squash()
 
 
-func _on_nonlethal_hit(_knockback_dir: Vector2, _knockback_strength: float) -> void:
-	pass
+func _on_nonlethal_hit(knockback_dir: Vector2, knockback_strength: float) -> void:
+	_apply_hit_knockback_impulse(knockback_dir, knockback_strength)
+
+
+func mass_infusion_receives_knockback() -> bool:
+	return true
+
+
+func is_hit_knockback_active() -> bool:
+	return _hit_knockback_time_rem > 0.0
+
+
+func get_hit_knockback_velocity() -> Vector2:
+	return _hit_knockback_vel
+
+
+func apply_hit_knockback_to_body_velocity() -> bool:
+	if _hit_knockback_time_rem <= 0.0:
+		return false
+	velocity = _hit_knockback_vel
+	return true
+
+
+func tick_hit_knockback_timer(delta: float) -> void:
+	if _hit_knockback_time_rem <= 0.0:
+		return
+	_hit_knockback_time_rem = maxf(0.0, _hit_knockback_time_rem - delta)
+	if _hit_knockback_time_rem <= 0.0:
+		_hit_knockback_vel = Vector2.ZERO
+
+
+func _apply_hit_knockback_impulse(knockback_dir: Vector2, knockback_strength: float) -> void:
+	if not mass_infusion_receives_knockback():
+		return
+	if knockback_strength <= 0.0001:
+		return
+	if knockback_dir.length_squared() <= 0.0001:
+		return
+	var dir := knockback_dir.normalized()
+	_hit_knockback_vel = dir * knockback_strength * knockback_impulse_scale
+	_hit_knockback_time_rem = hit_knockback_duration
+
+
+func mass_server_post_slide() -> void:
+	if not is_damage_authority():
+		return
+	if _hit_knockback_time_rem <= 0.0:
+		return
+	if _hit_knockback_vel.length_squared() < 9.0:
+		return
+	var now := Time.get_ticks_msec()
+	if now < _mass_wall_carrier_cooldown_until_msec:
+		return
+	var kb_n := _hit_knockback_vel.normalized()
+	for i in get_slide_collision_count():
+		var col := get_slide_collision(i)
+		var collider: Variant = col.get_collider()
+		if collider == null:
+			continue
+		var n := col.get_normal()
+		if kb_n.dot(n) > -0.12:
+			continue
+		if collider is CharacterBody2D and collider.is_in_group(&"mob") and collider is EnemyBase:
+			_mass_dispatch_wall_carrier_impact(collider as EnemyBase, false, col)
+			_mass_wall_carrier_cooldown_until_msec = now + 280
+			return
+		if collider is Area2D:
+			continue
+		_mass_dispatch_wall_carrier_impact(null, true, col)
+		_mass_wall_carrier_cooldown_until_msec = now + 280
+		return
+
+
+func _mass_dispatch_wall_carrier_impact(other: EnemyBase, is_wall: bool, col: KinematicCollision2D) -> void:
+	var src := _mass_last_melee_source
+	if src == null or not is_instance_valid(src):
+		return
+	if not src.has_method(&"mass_infusion_dispatch_wall_carrier_impact"):
+		return
+	var impact := global_position
+	var wn := Vector2.ZERO
+	if col != null and col is KinematicCollision2D:
+		var kc := col as KinematicCollision2D
+		impact = kc.get_position()
+		wn = kc.get_normal()
+	src.call(&"mass_infusion_dispatch_wall_carrier_impact", self, other, is_wall, impact, wn)
+
+
+func mass_broadcast_combat_vfx(kind: int, pos2: Vector2, dir2: Vector2, param: float = 0.0) -> void:
+	_mass_combat_vfx_play_local(kind, pos2, dir2, param)
+	if not _multiplayer_active() or not _is_server_peer():
+		return
+	if not _can_broadcast_world_replication():
+		return
+	_rpc_mass_combat_vfx.rpc(kind, pos2, dir2, param)
+
+
+func _mass_combat_vfx_play_local(kind: int, pos2: Vector2, dir2: Vector2, param: float) -> void:
+	if OS.has_feature("dedicated_server"):
+		return
+	var vw := _resolve_visual_world_3d()
+	MassCombatVfxScript.play_on_visual_world(vw, kind, pos2, dir2, param)
+
+
+@rpc("any_peer", "call_remote", "unreliable")
+func _rpc_mass_combat_vfx(kind: int, pos2: Vector2, dir2: Vector2, param: float) -> void:
+	if _is_server_peer():
+		return
+	var mp := _multiplayer_api_safe()
+	if mp == null or mp.get_remote_sender_id() != 1:
+		return
+	_mass_combat_vfx_play_local(kind, pos2, dir2, param)
 
 
 func edge_infusion_apply_sever_mark(edge_threshold: int) -> void:
@@ -610,6 +761,7 @@ func _is_player_melee_packet(packet: DamagePacket) -> bool:
 	)
 
 
+## When Mass infusion is active, outgoing melee knockback is multiplied by this (higher = lighter / more displacement).
 func mass_infusion_knockback_size_factor() -> float:
 	return 1.0
 

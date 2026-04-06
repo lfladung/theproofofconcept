@@ -96,9 +96,9 @@ static func projectile_twin_damage_ratio(threshold: int) -> float:
 	return 0.52
 
 
-## Perpendicular offset from main spawn (game units).
-static func projectile_twin_lateral_offset(threshold: int) -> float:
-	return 0.62 if threshold >= int(IC.InfusionThreshold.ESCALATED) else 0.52
+## Twin bolt spawn is this many game units **behind** the primary along facing (trailing read).
+static func projectile_twin_behind_distance(threshold: int) -> float:
+	return 1.22 if threshold >= int(IC.InfusionThreshold.ESCALATED) else 1.02
 
 
 # --- Queries ---

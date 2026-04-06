@@ -377,6 +377,10 @@ func _sync_visual() -> void:
 		_visual.global_position = Vector3(global_position.x, mesh_ground_y, global_position.y)
 
 
+func mass_infusion_receives_knockback() -> bool:
+	return false
+
+
 func _on_nonlethal_hit(_knockback_dir: Vector2, _knockback_strength: float) -> void:
 	pass
 

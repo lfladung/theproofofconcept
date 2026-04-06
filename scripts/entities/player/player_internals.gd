@@ -24,6 +24,7 @@ const InfusionEchoRef = preload("res://scripts/infusion/infusion_echo.gd")
 const InfusionAnchorRef = preload("res://scripts/infusion/infusion_anchor.gd")
 const InfusionSurgeRef = preload("res://scripts/infusion/infusion_surge.gd")
 const DamagePacketScript = preload("res://scripts/combat/damage_packet.gd")
+const MassCombatVfxRef = preload("res://scripts/vfx/mass_combat_vfx.gd")
 const _MULTIPLAYER_DEBUG_LOGGING := false
 const REVIVE_HEALTH := 50
 
@@ -1569,6 +1570,58 @@ func _compute_ranged_spawn(facing: Vector2) -> Vector2:
 	return global_position + facing * (_get_player_body_radius() + ranged_spawn_beyond_body)
 
 
+## Echo handgun twin: roll once before spawning the primary so server RPC matches simulation.
+func _echo_handgun_build_twin_plan(
+	primary_spawn: Vector2, facing: Vector2, primary_projectile_event_id: int
+) -> Dictionary:
+	var echo_th := _infusion_echo_threshold()
+	var plan := {
+		"active": false,
+		"twin_id": 0,
+		"twin_spawn": Vector2.ZERO,
+		"twin_ratio": 1.0,
+	}
+	if not InfusionEchoRef.is_echo_attuned(echo_th):
+		return plan
+	if randf() >= InfusionEchoRef.projectile_twin_chance(echo_th):
+		return plan
+	var fn := facing.normalized() if facing.length_squared() > 1e-6 else Vector2(0.0, -1.0)
+	var back := InfusionEchoRef.projectile_twin_behind_distance(echo_th)
+	plan["active"] = true
+	plan["twin_id"] = (
+		primary_projectile_event_id + 1000000000
+		if primary_projectile_event_id > 0
+		else -2
+	)
+	plan["twin_spawn"] = primary_spawn - fn * back
+	plan["twin_ratio"] = InfusionEchoRef.projectile_twin_damage_ratio(echo_th)
+	return plan
+
+
+func _echo_handgun_spawn_twin_from_plan(
+	plan: Dictionary,
+	facing: Vector2,
+	projectile_style_id: StringName,
+	charge_size_mult: float,
+	infusion_geometry_scale: float,
+	authoritative_damage: bool
+) -> void:
+	if not bool(plan.get("active", false)):
+		return
+	_spawn_player_ranged_arrow(
+		plan["twin_spawn"] as Vector2,
+		facing,
+		authoritative_damage,
+		false,
+		int(plan["twin_id"]),
+		projectile_style_id,
+		charge_size_mult,
+		infusion_geometry_scale,
+		float(plan["twin_ratio"]),
+		true
+	)
+
+
 func _spawn_player_ranged_arrow(
 	spawn_position: Vector2,
 	facing: Vector2,
@@ -1578,7 +1631,8 @@ func _spawn_player_ranged_arrow(
 	projectile_style_id: StringName = LoadoutConstantsRef.PROJECTILE_STYLE_RED,
 	charge_size_mult: float = 1.0,
 	infusion_geometry_scale: float = 0.0,
-	damage_ratio: float = 1.0
+	damage_ratio: float = 1.0,
+	echo_twin_visual: bool = false
 ) -> bool:
 	var parent := get_parent()
 	if parent == null:
@@ -1603,7 +1657,8 @@ func _spawn_player_ranged_arrow(
 		if infusion_geometry_scale > 0.001
 		else _infusion_edge_expression_geometry_mult()
 	)
-	arrow.mesh_scale = Vector3(1.6, 1.6, 1.6) * expr_m
+	var echo_vis := 0.82 if echo_twin_visual else 1.0
+	arrow.mesh_scale = Vector3(1.6, 1.6, 1.6) * expr_m * echo_vis
 	if arrow.has_method(&"set_authoritative_damage"):
 		arrow.call(&"set_authoritative_damage", authoritative_damage)
 	arrow.configure(
@@ -1614,7 +1669,9 @@ func _spawn_player_ranged_arrow(
 		projectile_style_id,
 		projectile_event_id,
 		charge_size_mult * expr_m,
-		InfusionPhaseRef.ranged_wall_pierce_hits(_infusion_phase_threshold())
+		InfusionPhaseRef.ranged_wall_pierce_hits(_infusion_phase_threshold()),
+		self,
+		echo_twin_visual
 	)
 	if authoritative_damage and _is_server_peer() and projectile_event_id > 0 and arrow.has_signal(&"projectile_finished"):
 		arrow.projectile_finished.connect(
@@ -1793,15 +1850,10 @@ func _try_execute_server_ranged_attack(
 	_server_ranged_event_sequence += 1
 	var event_sequence := _server_ranged_event_sequence
 	var projectile_style_id := _equipped_handgun_projectile_style()
-	var echo_th := _infusion_echo_threshold()
-	var twin_event_id := 0
-	var twin_spawn := Vector2.ZERO
-	var twin_ratio := 1.0
-	if InfusionEchoRef.is_echo_attuned(echo_th) and randf() < InfusionEchoRef.projectile_twin_chance(echo_th):
-		twin_event_id = event_sequence + 1000000000
-		var perp := Vector2(-_facing_planar.y, _facing_planar.x)
-		twin_spawn = spawn + perp * InfusionEchoRef.projectile_twin_lateral_offset(echo_th)
-		twin_ratio = InfusionEchoRef.projectile_twin_damage_ratio(echo_th)
+	var twin_plan := _echo_handgun_build_twin_plan(spawn, _facing_planar, event_sequence)
+	var twin_event_id: int = int(twin_plan["twin_id"]) if bool(twin_plan["active"]) else 0
+	var twin_spawn: Vector2 = twin_plan["twin_spawn"]
+	var twin_ratio: float = float(twin_plan["twin_ratio"])
 	if not _spawn_player_ranged_arrow(
 		spawn,
 		_facing_planar,
@@ -1814,19 +1866,9 @@ func _try_execute_server_ranged_attack(
 		1.0
 	):
 		return false
-	if twin_event_id != 0:
-		if _spawn_player_ranged_arrow(
-			twin_spawn,
-			_facing_planar,
-			true,
-			false,
-			twin_event_id,
-			projectile_style_id,
-			sz,
-			0.0,
-			twin_ratio
-		):
-			pass
+	_echo_handgun_spawn_twin_from_plan(
+		twin_plan, _facing_planar, projectile_style_id, sz, 0.0, true
+	)
 	_flow_after_successful_weapon_action(InfusionFlowRef.ActionKind.RANGED)
 	_last_applied_ranged_event_sequence = max(_last_applied_ranged_event_sequence, event_sequence)
 	if _can_broadcast_world_replication():
@@ -2172,6 +2214,16 @@ func _rpc_receive_melee_attack_event(
 
 
 @rpc("any_peer", "call_remote", "reliable")
+func _rpc_echo_melee_smear_vfx(planar_dir: Vector2) -> void:
+	if _is_server_peer():
+		return
+	if multiplayer.get_remote_sender_id() != 1:
+		return
+	if _visual != null and _visual.has_method(&"spawn_echo_melee_smear"):
+		_visual.call(&"spawn_echo_melee_smear", planar_dir)
+
+
+@rpc("any_peer", "call_remote", "reliable")
 func _rpc_receive_ranged_attack_event(
 	event_sequence: int,
 	spawn_position: Vector2,
@@ -2231,7 +2283,8 @@ func _rpc_receive_ranged_attack_event(
 			StringName(projectile_style_id),
 			sz_charge,
 			expr_m,
-			maxf(0.05, echo_twin_damage_ratio)
+			maxf(0.05, echo_twin_damage_ratio),
+			true
 		)
 	_ranged_cooldown_remaining = maxf(
 		_ranged_cooldown_remaining, _flow_effective_ranged_cooldown()
@@ -2824,16 +2877,19 @@ func _execute_local_ranged_strike(charge_ratio: float, apply_charge_scaling: boo
 	_play_attack_animation_presentation(&"ranged")
 	var spawn := _compute_ranged_spawn(_facing_planar)
 	var sz := _ranged_projectile_charge_size_mult(charge_ratio, apply_charge_scaling)
+	var style := _equipped_handgun_projectile_style()
+	var twin_plan := _echo_handgun_build_twin_plan(spawn, _facing_planar, -1)
 	if not _spawn_player_ranged_arrow(
 		spawn,
 		_facing_planar,
 		true,
 		true,
 		-1,
-		_equipped_handgun_projectile_style(),
+		style,
 		sz
 	):
 		return
+	_echo_handgun_spawn_twin_from_plan(twin_plan, _facing_planar, style, sz, 0.0, true)
 	_flow_after_successful_weapon_action(InfusionFlowRef.ActionKind.RANGED)
 	_ranged_cooldown_remaining = _flow_effective_ranged_cooldown()
 
@@ -2879,8 +2935,11 @@ func _try_fire_ranged_arrow() -> void:
 	var dir := _normalized_attack_facing(_facing_planar)
 	_facing_planar = dir
 	var spawn := _compute_ranged_spawn(dir)
-	if not _spawn_player_ranged_arrow(spawn, dir, true, true, -1, _equipped_handgun_projectile_style()):
+	var style := _equipped_handgun_projectile_style()
+	var twin_plan := _echo_handgun_build_twin_plan(spawn, dir, -1)
+	if not _spawn_player_ranged_arrow(spawn, dir, true, true, -1, style):
 		return
+	_echo_handgun_spawn_twin_from_plan(twin_plan, dir, style, 1.0, 0.0, true)
 	_flow_after_successful_weapon_action(InfusionFlowRef.ActionKind.RANGED)
 
 
@@ -4107,8 +4166,14 @@ func _mass_kb_dir_for_enemy(base_kb: float, base_dir: Vector2, enemy: EnemyBase)
 	var kb := base_kb
 	var dir := base_dir
 	var mt := _infusion_mass_threshold()
-	if not InfusionMassRef.is_mass_attuned(mt) or enemy == null:
+	if enemy == null:
 		return {"kb": kb, "dir": dir}
+	if not enemy.mass_infusion_receives_knockback():
+		return {"kb": 0.0, "dir": base_dir}
+	if not InfusionMassRef.is_mass_attuned(mt):
+		if enemy is DasherMob:
+			return {"kb": kb, "dir": dir}
+		return {"kb": 0.0, "dir": dir}
 	kb *= maxf(0.22, enemy.mass_infusion_knockback_size_factor())
 	var blend := InfusionMassRef.expression_inward_knockback_blend(mt)
 	if blend > 0.0001 and base_dir.length_squared() > 1e-8:
@@ -4260,6 +4325,19 @@ func _echo_deliver_linked_chain(
 	_mass_try_impact_pulse_and_shockwave_from_hit(p.amount, best, p.direction)
 
 
+func _echo_broadcast_melee_smear_vfx(planar_dir: Vector2) -> void:
+	var d := planar_dir
+	if d.length_squared() < 1e-8:
+		d = _active_melee_attack_facing
+	if d.length_squared() < 1e-8:
+		d = _facing_planar
+	d = d.normalized()
+	if _visual != null and _visual.has_method(&"spawn_echo_melee_smear"):
+		_visual.call(&"spawn_echo_melee_smear", d)
+	if _can_broadcast_world_replication():
+		_rpc_echo_melee_smear_vfx.rpc(d)
+
+
 func _echo_deliver_melee_micro(
 	victim_uid: int,
 	dmg: int,
@@ -4282,6 +4360,7 @@ func _echo_deliver_melee_micro(
 	if d.length_squared() < 1e-8:
 		d = _active_melee_attack_facing
 	d = d.normalized()
+	_echo_broadcast_melee_smear_vfx(d)
 	var p := DamagePacketScript.new() as DamagePacket
 	p.amount = maxi(1, dmg)
 	p.kind = &"melee"
@@ -4480,10 +4559,15 @@ func _mass_trigger_shockwave(hit_damage: int) -> void:
 		p.direction = dir
 		p.knockback = kb
 		eb.take_direct_damage_packet(p)
+	_mass_play_shockwave_visual(origin, r_eff)
 
 
 func mass_infusion_dispatch_wall_carrier_impact(
-	victim: EnemyBase, other: EnemyBase, is_wall: bool
+	victim: EnemyBase,
+	other: EnemyBase,
+	is_wall: bool,
+	impact_pos: Vector2 = Vector2.ZERO,
+	wall_normal: Vector2 = Vector2.ZERO
 ) -> void:
 	if not is_damage_authority() or victim == null:
 		return
@@ -4494,12 +4578,14 @@ func mass_infusion_dispatch_wall_carrier_impact(
 		_mass_deal_unstable_burst(victim, mt)
 		return
 	if is_wall:
-		_mass_deal_wall_slam(victim, mt)
+		_mass_deal_wall_slam(victim, mt, impact_pos, wall_normal)
 	elif other != null:
-		_mass_deal_carrier_hit(victim, other, mt)
+		_mass_deal_carrier_hit(victim, other, mt, impact_pos)
 
 
-func _mass_deal_wall_slam(victim: EnemyBase, mt: int) -> void:
+func _mass_deal_wall_slam(
+	victim: EnemyBase, mt: int, impact_pos: Vector2, wall_normal: Vector2
+) -> void:
 	var ratio := InfusionMassRef.wall_slam_damage_ratio(mt)
 	if ratio <= 0.0:
 		return
@@ -4524,9 +4610,25 @@ func _mass_deal_wall_slam(victim: EnemyBase, mt: int) -> void:
 	var extra := InfusionMassRef.wall_slam_extra_stun_sec(mt)
 	if extra > 0.0:
 		victim.mass_infusion_add_bonus_stun(extra)
+	var fx_pos := impact_pos
+	if impact_pos == Vector2.ZERO:
+		fx_pos = victim.global_position
+	var wn := wall_normal
+	if wn.length_squared() < 1e-8:
+		wn = -p.direction
+	if victim.has_method(&"mass_broadcast_combat_vfx"):
+		victim.call(
+			&"mass_broadcast_combat_vfx",
+			MassCombatVfxRef.Kind.WALL_SLAM,
+			fx_pos,
+			wn,
+			0.0
+		)
 
 
-func _mass_deal_carrier_hit(projectile_victim: EnemyBase, struck: EnemyBase, mt: int) -> void:
+func _mass_deal_carrier_hit(
+	projectile_victim: EnemyBase, struck: EnemyBase, mt: int, impact_pos: Vector2 = Vector2.ZERO
+) -> void:
 	var dmg := InfusionMassRef.carrier_hit_damage(mt)
 	var kb := InfusionMassRef.carrier_hit_knockback(mt) * _mass_loadout_knockback_mult()
 	if dmg <= 0 and kb <= 0.0:
@@ -4549,6 +4651,46 @@ func _mass_deal_carrier_hit(projectile_victim: EnemyBase, struck: EnemyBase, mt:
 	p.suppress_mass_procs = true
 	p.debug_label = &"mass_carrier_hit"
 	struck.take_direct_damage_packet(p)
+	var mid := impact_pos
+	if mid.length_squared() < 1e-6:
+		mid = projectile_victim.global_position.lerp(struck.global_position, 0.5)
+	var sep := projectile_victim.global_position.distance_to(struck.global_position)
+	if struck.has_method(&"mass_broadcast_combat_vfx"):
+		struck.call(
+			&"mass_broadcast_combat_vfx",
+			MassCombatVfxRef.Kind.CARRIER_CLASH,
+			mid,
+			dir,
+			sep
+		)
+
+
+func _mass_play_shockwave_visual(origin: Vector2, shock_radius: float) -> void:
+	if _multiplayer_active() and _is_server_peer():
+		if not OS.has_feature("dedicated_server"):
+			var vw := get_node_or_null("../../VisualWorld3D") as Node3D
+			MassCombatVfxRef.play_on_visual_world(
+				vw, MassCombatVfxRef.Kind.SHOCKWAVE, origin, Vector2.ZERO, shock_radius
+			)
+		_rpc_mass_shockwave_vfx.rpc(origin, shock_radius)
+		return
+	if not OS.has_feature("dedicated_server"):
+		var vw2 := get_node_or_null("../../VisualWorld3D") as Node3D
+		MassCombatVfxRef.play_on_visual_world(
+			vw2, MassCombatVfxRef.Kind.SHOCKWAVE, origin, Vector2.ZERO, shock_radius
+		)
+
+
+@rpc("any_peer", "call_remote", "unreliable")
+func _rpc_mass_shockwave_vfx(origin: Vector2, shock_radius: float) -> void:
+	if _is_server_peer():
+		return
+	if multiplayer.get_remote_sender_id() != 1:
+		return
+	var vw := get_node_or_null("../../VisualWorld3D") as Node3D
+	MassCombatVfxRef.play_on_visual_world(
+		vw, MassCombatVfxRef.Kind.SHOCKWAVE, origin, Vector2.ZERO, shock_radius
+	)
 
 
 func _mass_deal_unstable_burst(victim: EnemyBase, mt: int) -> void:

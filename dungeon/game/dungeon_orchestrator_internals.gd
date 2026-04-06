@@ -64,6 +64,7 @@ const AuthoredRoomCatalogScript = preload("res://dungeon/game/floor_generation/a
 const AuthoredFloorGeneratorScript = preload("res://dungeon/game/floor_generation/authored_floor_generator.gd")
 const PLAYER_SCENE := preload("res://scenes/entities/player.tscn")
 const LOADOUT_OVERLAY_SCENE := preload("res://scenes/ui/loadout/loadout_overlay.tscn")
+const INFUSION_GUIDE_OVERLAY_SCENE := preload("res://scenes/ui/infusion_guide_overlay.tscn")
 const LoadoutRepositoryScript = preload("res://scripts/loadout/loadout_repository.gd")
 const IRON_SENTINEL_SCRIPT = preload("res://scripts/entities/iron_sentinel.gd")
 const ROBOT_MOB_SCRIPT = preload("res://scripts/entities/robot_mob.gd")
@@ -204,6 +205,7 @@ var _players_by_peer: Dictionary = {}
 var _peer_slots: Dictionary = {}
 var _loadout_repository: Node
 var _loadout_overlay: Control
+var _infusion_guide_overlay: Control
 var _network_session: Node
 var _networked_run := false
 var _bound_hit_player: CharacterBody2D
@@ -293,6 +295,7 @@ func _ready() -> void:
 	_ensure_combat_debug_overlay()
 	_ensure_fps_counter()
 	_ensure_loadout_overlay()
+	_ensure_infusion_guide_overlay()
 	_regenerate_level(true)
 	_bind_local_player_runtime_hooks()
 	if _is_authoritative_world():
@@ -638,6 +641,26 @@ func _ensure_loadout_overlay() -> void:
 		_loadout_overlay.call(&"bind_player", _player, Callable(self, "_room_type_at"))
 
 
+func _ensure_infusion_guide_overlay() -> void:
+	var ui_root := get_node_or_null("CanvasLayer/UI") as Control
+	if ui_root == null:
+		return
+	if _infusion_guide_overlay != null and is_instance_valid(_infusion_guide_overlay):
+		return
+	var existing := ui_root.get_node_or_null("InfusionGuideOverlay") as Control
+	if existing != null:
+		_infusion_guide_overlay = existing
+	else:
+		var overlay := INFUSION_GUIDE_OVERLAY_SCENE.instantiate() as Control
+		if overlay == null:
+			return
+		overlay.name = "InfusionGuideOverlay"
+		ui_root.add_child(overlay)
+		_infusion_guide_overlay = overlay
+	if _infusion_guide_overlay != null and _infusion_guide_overlay.has_method(&"bind_player"):
+		_infusion_guide_overlay.call(&"bind_player", _player)
+
+
 func _loadout_owner_id_for_peer(peer_id: int) -> StringName:
 	return StringName("peer_%s" % [maxi(1, peer_id)])
 
@@ -750,6 +773,8 @@ func _bind_local_player_runtime_hooks() -> void:
 		_info_controller.player = _player
 	if _loadout_overlay != null and _loadout_overlay.has_method(&"bind_player"):
 		_loadout_overlay.call(&"bind_player", _player, Callable(self, "_room_type_at"))
+	if _infusion_guide_overlay != null and _infusion_guide_overlay.has_method(&"bind_player"):
+		_infusion_guide_overlay.call(&"bind_player", _player)
 	_refresh_combat_debug_overlay(0.0, true)
 
 
@@ -2239,6 +2264,10 @@ func _clear_authored_room_visuals() -> void:
 
 
 func _authored_visual_focus_position() -> Vector2:
+	# Per-peer camera follows the local roster player; streaming must use that
+	# position, not _reference_player_position() (lowest slot / often the host).
+	if _player != null and is_instance_valid(_player):
+		return _player.global_position
 	return _reference_player_position()
 
 

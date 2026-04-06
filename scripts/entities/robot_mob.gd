@@ -127,7 +127,10 @@ func _physics_process(delta: float) -> void:
 		_update_charge(delta)
 	else:
 		_update_behavior(delta)
+	apply_hit_knockback_to_body_velocity()
 	move_and_slide()
+	mass_server_post_slide()
+	tick_hit_knockback_timer(delta)
 	_update_planar_facing(delta)
 	_enemy_network_server_broadcast(delta)
 	_sync_visual()
@@ -498,12 +501,12 @@ func _pick_target_player() -> Node2D:
 
 
 func mass_infusion_knockback_size_factor() -> float:
-	return 0.78
+	return 0.92
 
 
-func _on_nonlethal_hit(_knockback_dir: Vector2, _knockback_strength: float) -> void:
+func _on_nonlethal_hit(knockback_dir: Vector2, knockback_strength: float) -> void:
 	_cancel_charge()
-	velocity = Vector2.ZERO
+	super._on_nonlethal_hit(knockback_dir, knockback_strength)
 
 
 func can_contact_damage() -> bool:
