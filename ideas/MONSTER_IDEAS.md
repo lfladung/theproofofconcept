@@ -55,7 +55,7 @@ elongated, blurred — the silhouette looks like speed, with ghost-trails of its
 
 ---
 
-### Surgeform *(Deep)*
+### Flowform *(Deep)*
 
 **Concept addition:** gains consequence — it leaves the room worse than it found it
 
@@ -111,7 +111,7 @@ increases, the creature looks more like it was designed to fire rather than a cr
 
 ---
 
-### RobotMob *(Mid)* `[exists: scripts/entities/robot_mob.gd]`
+### Volley *(Mid)*
 
 **Concept addition:** learns to aim, learns to spread
 
@@ -241,20 +241,15 @@ heavy even when standing still.
 > Near the surface: it makes copies without knowing why. Deeper: it has become the act of repetition itself.
 
 **Lore:** Echo creatures didn't evolve — they iterated. Something in them discovered the loop: that a
-thing done once could be done again, and again. Near the surface this is mechanical and blind: a sac
-that pulses and splits, without purpose or direction. Deeper, the Echo family begins to understand what
-it's copying. The Echoform learns from the player specifically. The Triad is three versions of the same
-idea that won't collapse into one — or can't.
+thing done once could be done again, and again. Near the surface this is mechanical and blind: a sac (Spawner) that pulses and splits, without purpose or direction. Deeper, the Echo family begins to understand what it's copying. The Splitter learns from the player specifically. The Triad is three versions of the same idea that won't collapse into one — or can't.
 
-**Visual identity:** All Echo enemies look layered or doubled. The Spawner Sac pulses like something
-under pressure, with visible buds on its surface — each bud is a future Scrambler, half-formed. The
-Echoform looks slightly mirrored: its surface is reflective, and when it copies the player's style its
-geometry shifts. The Triad's three bodies share a visual "base texture" but each is run through a
-different filter — they look like the same sketch redrawn by three different hands.
+**Visual identity:** All Echo enemies look layered or doubled. The Spawner Sac pulses like something under pressure, with visible buds on its surface — each bud is a future Scrambler, half-formed. 
+
+The Splitter looks slightly mirrored: its surface is reflective, and when it copies the player's style its geometry shifts. The Triad's three bodies share a visual "base texture" but each is run through a different filter — they look like the same sketch redrawn by three different hands.
 
 ---
 
-### Spawner Sac *(Surface)*
+### Splitter *(Surface)*
 
 **Concept addition over baseline:** multiplies instead of attacking
 
@@ -263,15 +258,12 @@ different filter — they look like the same sketch redrawn by three different h
 - No direct attack. High HP for its depth tier.
 - When all Splinters are killed, it accelerates spawning briefly (one immediate spawn).
 - **Stats:** 60 HP · Speed: 1 · Spawn interval: 6s · Max minions: 5 · Drops: 3 Resonances + 1 per Splinter
-- **Counterplay:** Kill it first. The longer it lives the more crowded the room. AoE attacks are
-  particularly efficient — they can hit the Sac and clear Splinters simultaneously. In multiplayer,
-  one player can pressure the Sac while the other manages Splinters.
-- **Spawn guidance:** Often positioned in the back of a room, or behind another enemy. Removing
-  it is straightforward but requires ignoring other threats temporarily — that's the tension.
+- **Counterplay:** Kill it first. The longer it lives the more crowded the room. AoE attacks are particularly efficient — they can hit the Sac and clear Splinters simultaneously. In multiplayer, one player can pressure the Sac while the other manages Splinters.
+- **Spawn guidance:** Often positioned in the back of a room, or behind another enemy. Removing it is straightforward but requires ignoring other threats temporarily — that's the tension.
 
 ---
 
-### Echoform *(Mid)*
+### Spawner *(Mid)*
 
 **Concept addition:** learns from the player specifically — becomes a threat shaped by you
 

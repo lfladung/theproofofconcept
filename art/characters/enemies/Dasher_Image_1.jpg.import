@@ -1,0 +1,44 @@
+[remap]
+
+importer="texture"
+type="CompressedTexture2D"
+uid="uid://ckoj1nt6bjaxd"
+path.s3tc="res://.godot/imported/Dasher_Image_1.jpg-14fb1b02f319903d4cc44d8cf3ee5e09.s3tc.ctex"
+metadata={
+"imported_formats": ["s3tc_bptc"],
+"vram_texture": true
+}
+generator_parameters={
+"md5": "a82afc3bd6fa43c27dbdf43ea28e2473"
+}
+
+[deps]
+
+source_file="res://art/characters/enemies/Dasher_Image_1.jpg"
+dest_files=["res://.godot/imported/Dasher_Image_1.jpg-14fb1b02f319903d4cc44d8cf3ee5e09.s3tc.ctex"]
+
+[params]
+
+compress/mode=2
+compress/high_quality=false
+compress/lossy_quality=0.7
+compress/uastc_level=0
+compress/rdo_quality_loss=0.0
+compress/hdr_compression=1
+compress/normal_map=0
+compress/channel_pack=0
+mipmaps/generate=true
+mipmaps/limit=-1
+roughness/mode=0
+roughness/src_normal=""
+process/channel_remap/red=0
+process/channel_remap/green=1
+process/channel_remap/blue=2
+process/channel_remap/alpha=3
+process/fix_alpha_border=true
+process/premult_alpha=false
+process/normal_map_invert_y=false
+process/hdr_as_srgb=false
+process/hdr_clamp_exposure=false
+process/size_limit=0
+detect_3d/compress_to=0
