@@ -409,6 +409,85 @@ irrelevant compared to the web it builds.
 
 ---
 
+## Family: EDGE / PRECISION
+*The concept of lethality — intent reduced to a single, perfect point*
+
+> Near the surface: it doesn't quite know where to aim. Deeper: it cannot miss.
+
+**Lore:** Edge creatures are born from the idea that something should end. Not rage, not force — just the
+certainty that a line can be drawn between "alive" and "not." At the surface, that idea is incomplete:
+they strike, but without true direction. By mid-depth they understand alignment — that the body, the
+weapon, and the intention must all point the same way. In the deep, there is no longer a creature making
+the cut. There is only the cut itself, appearing exactly where it needs to be.
+
+**Visual identity:** All Edge enemies have a clear leading point — a tip, blade, or line that defines their
+danger. Surface: asymmetrical, the "edge" is present but misaligned with the body. Mid: clean, symmetrical,
+body and weapon fully aligned. Deep: abstract — composed of planes and lines, sometimes lacking a body entirely.
+The silhouette always communicates direction.
+
+---
+
+### Skewer *(Surface)*
+
+**Concept addition over baseline:** has a "point" — but doesn't yet understand alignment
+
+- Moves toward the player in a mostly straight line. Weak pathing — slight course correction, but often drifts off-angle.
+- Performs a linear stab: short wind-up (~0.8s), then lunges forward ~3 units.
+- The stab direction is locked at the start of the wind-up — poor tracking if the player moves.
+- Hitbox is narrow and front-loaded — damage is highest at the tip, low on the sides.
+- After the lunge: long recovery (~0.9s), briefly immobile.
+- **Stats:** 30 HP · Speed: 7 · Lunge damage: 18 (tip), 8 (body) · Drops: 1 Resonance
+- **Counterplay:** Step slightly to the side — it will miss completely. Punish during recovery. The danger is standing directly in front of it or getting clipped by multiple at once.
+- **Spawn guidance:** 3–5 in open rooms. Works as a "lane denial" enemy — encourages lateral movement early.
+
+---
+
+### Glaiver *(Mid)*
+
+**Concept addition:** gains alignment — direction becomes intentional and readable
+
+- Navigates cleanly around obstacles. Maintains medium distance (~5 units).
+- **Line strike:** telegraph (~0.7s): a thin glowing line appears on the ground, extending from the Glaiver forward.
+- After telegraph: performs a fast dash slash along that line (~6–8 units).
+- Line locks at telegraph start — does not track after committing.
+- Can chain into a second angled slash (30° offset) if the first misses.
+- Brief recovery (~0.3s), then repositions.
+- Interruptible during telegraph — cancels the attack and stuns (~0.6s).
+- **Stats:** 65 HP · Speed: 9 · Slash damage: 28 · Drops: 3 Resonances
+- **Counterplay:** Read the line, move perpendicular. Aggressive players can interrupt during telegraph for high reward. Getting caught in both chained slashes is lethal.
+- **Spawn guidance:** 1–3. Strong in rooms with obstacles — forces the player to respect angles and positioning.
+
+---
+
+### Razorform *(Deep)*
+
+**Concept addition:** becomes inevitability — the attack is no longer tied to movement
+
+- Does not "approach" traditionally. Repositions instantly or near-instantly within ~6–10 units.
+- **Cut manifestation:** telegraph (~0.4s): a thin, bright line appears anywhere in the room (not necessarily from the creature).
+- After telegraph: the line executes instantly, dealing high damage along its full length.
+- Can queue multiple cuts (up to 2–3 active telegraphs at once).
+- Cuts can originate at different angles, forcing layered dodging.
+- No traditional recovery — instead has a short global cooldown (~1.2s) between cut sequences.
+- **On death:** emits a final radial burst of short-range cuts (star pattern).
+- **Stats:** 110 HP · Cut damage: 40 · Telegraph: 0.4s · Active cuts: up to 3 · Drops: 6 Resonances
+- **Counterplay:** Watch the floor — not the enemy. Movement must be deliberate; panic dodging often moves you into another cut. Pre-positioning and reading patterns is key.
+- **Spawn guidance:** Always 1. Pairs well with movement-restricting enemies (Binder, Shieldwall). Avoid multiple Razorforms — overlapping cuts become unreadable.
+
+**Family mechanics (Edge):**
+
+- **Directional damage:** All Edge enemies deal maximum damage at the leading point/line; side/back hits are significantly weaker → reinforces positioning as the core skill.
+- **Commitment:** Attacks are fully committed once telegraphed — no mid-attack correction → creates clear punish windows.
+- **Telegraph compression:** Surface: long, forgiving; Mid: readable but fast; Deep: minimal, pattern-based → same language, increased execution requirement.
+
+**Encounter compositions (Edge):**
+- Lane denial: 4–5 Skewers, open room — teaches stepping off the stab line
+- Obstacle puzzle: 2 Glaiver + light cover — read lines and use geometry
+- Control nightmare: 1 Razorform + 1 Binder — roots and cuts punish panic movement
+- Front lock: 1 Razorform + 1 Shieldwall — limited flanks while floor telegraphs demand space
+
+---
+
 ## Family: SURGE
 *The concept of accumulation — building toward a single moment*
 
@@ -511,6 +590,9 @@ These combinations are particularly interesting because the families interact me
 | **Lurker + Barrage** | Lurkers demand floor attention; Barrage demands sky attention simultaneously |
 | **Triad + Fizzler** | Fizzlers add urgency to the 3s burst window — can't take time to position |
 | **Detonator + DasherMob** | DasherMob forces movement while Detonator spawns Fizzlers; clearing Fizzlers safely becomes impossible |
+| **Razorform + Binder** | Binder roots or pulls positioning; layered cuts punish panic dodges |
+| **Razorform + Shieldwall** | Shieldwall shrinks safe angles while Razorform telegraphs demand lateral space |
+| **Glaiver + Shieldwall** | Player must flank under time pressure while reading committed slash lines |
 
 ---
 
@@ -522,7 +604,8 @@ These combinations are particularly interesting because the families interact me
 - **Depth as escalation, not replacement** — surface enemies remain useful at any depth when combined
   with deep enemies. A Warden + pack of Scramblers is dangerous differently than a Warden alone.
 - **Counterplay diversity** — each family rewards different player builds: Surge rewards AoE, Phase
-  rewards mobility, Weight rewards patience and positioning, Echo rewards burst damage.
+  rewards mobility, Weight rewards patience and positioning, Echo rewards burst damage, Edge rewards
+  lateral positioning and reading committed ground lines.
 
 ### Multiplayer-specific notes
 - **Leecher:** trivial with a teammate, genuine threat solo. Scales naturally with group size.
