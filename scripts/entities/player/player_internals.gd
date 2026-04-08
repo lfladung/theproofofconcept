@@ -228,8 +228,6 @@ var _loadout_room_type_provider: Callable = Callable()
 var _menu_input_blocked := false
 var _cached_mouse_world_physics_frame := -1
 var _cached_mouse_world := Vector2.ZERO
-var _cached_ui_hovered_physics_frame := -1
-var _cached_ui_blocks_attack := false
 var _local_loadout_request_sequence := 0
 var _server_last_loadout_request_sequence := -1
 var _base_speed := 0.0
@@ -3326,7 +3324,9 @@ func _anchor_emit_radial_shockwave(
 	var candidates: Array[EnemyBase] = _edge_collect_enemies_in_radius(origin, radius, -1)
 	if candidates.is_empty():
 		return
-	var each := maxi(1, total_damage / maxi(1, candidates.size()))
+	var each := maxi(
+		1, int(floorf(float(total_damage) / float(maxi(1, candidates.size()))))
+	)
 	var pkt := DamagePacketScript.new() as DamagePacket
 	pkt.kind = &"melee"
 	pkt.source_node = self
@@ -3580,7 +3580,7 @@ func _surge_deal_secondary_burst(
 	var candidates: Array[EnemyBase] = _edge_collect_enemies_in_radius(origin, radius, primary_uid)
 	if candidates.is_empty():
 		return
-	var each := maxi(1, pool / candidates.size())
+	var each := maxi(1, int(floorf(float(pool) / float(candidates.size()))))
 	var pkt := DamagePacketScript.new() as DamagePacket
 	pkt.kind = &"melee"
 	pkt.source_node = self
@@ -3859,7 +3859,7 @@ func _phase_deal_tagged_radial_burst(
 	var candidates: Array[EnemyBase] = _edge_collect_enemies_in_radius(origin, radius, primary_uid)
 	if candidates.is_empty():
 		return
-	var each := maxi(1, pool / candidates.size())
+	var each := maxi(1, int(floorf(float(pool) / float(candidates.size()))))
 	var pkt := DamagePacketScript.new() as DamagePacket
 	pkt.kind = &"melee"
 	pkt.source_node = self
@@ -4485,7 +4485,7 @@ func _mass_deal_impact_pulse(
 	var candidates: Array[EnemyBase] = _edge_collect_enemies_in_radius(origin, r, primary_uid)
 	if candidates.is_empty():
 		return
-	var each := maxi(1, pool / candidates.size())
+	var each := maxi(1, int(floorf(float(pool) / float(candidates.size()))))
 	var pkt := DamagePacketScript.new() as DamagePacket
 	pkt.kind = &"melee"
 	pkt.source_node = self
@@ -4531,7 +4531,7 @@ func _mass_trigger_shockwave(hit_damage: int) -> void:
 	var total := maxi(
 		1, int(roundf(float(maxi(1, hit_damage)) * InfusionMassRef.shockwave_damage_ratio(mt)))
 	)
-	var each := maxi(1, total / candidates.size())
+	var each := maxi(1, int(floorf(float(total) / float(candidates.size()))))
 	var kb := (
 		InfusionMassRef.shockwave_knockback(mt)
 		* _mass_loadout_knockback_mult()
@@ -4703,7 +4703,7 @@ func _mass_deal_unstable_burst(victim: EnemyBase, mt: int) -> void:
 	var candidates: Array[EnemyBase] = _edge_collect_enemies_in_radius(origin, r, -1)
 	if candidates.is_empty():
 		return
-	var each := maxi(1, total / candidates.size())
+	var each := maxi(1, int(floorf(float(total) / float(candidates.size()))))
 	var pkt := DamagePacketScript.new() as DamagePacket
 	pkt.kind = &"melee"
 	pkt.source_node = self
@@ -4834,7 +4834,7 @@ func _edge_deal_kill_splash_damage(
 	var candidates: Array[EnemyBase] = _edge_collect_enemies_in_radius(origin, splash_r, exclude_uid)
 	if candidates.is_empty():
 		return
-	var each := maxi(1, total_damage / candidates.size())
+	var each := maxi(1, int(floorf(float(total_damage) / float(candidates.size()))))
 	var pkt := DamagePacketScript.new() as DamagePacket
 	pkt.kind = &"melee"
 	pkt.source_node = self
@@ -5182,4 +5182,3 @@ func _free_world_debug_meshes() -> void:
 
 func _ui_blocks_attack_this_physics_frame() -> bool:
 	return false
-

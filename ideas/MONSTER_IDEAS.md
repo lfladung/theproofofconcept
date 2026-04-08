@@ -8,19 +8,19 @@ Each family shares a core idea. The same creature, becoming more of what it is.
 
 ---
 
-## Family: RUSH / FLOW
+## Family: FLOW
 *The concept of direct pursuit — momentum as a force*
 
 > Near the surface: it barely knows how to move. Deeper: it has become the act of moving.
 
-**Lore:** These creatures were born with a single instruction that hasn't finished writing itself. At the
-surface they stumble toward you because they have no other idea. By mid-depth they've learned to
-anticipate, to close distance deliberately. In the deep, they've stopped being creatures that move —
-they've become movement itself, leaving wreckage behind them like evidence they were ever here.
+**Lore:** These creatures were born with a single instruction that hasn't finished writing itself. 
+At the surface they stumble toward you because they have no other idea. By mid-depth they've learned to anticipate, to close distance deliberately. 
+In the deep, they've stopped being creatures that move — they've become movement itself, leaving wreckage behind them like evidence they were ever here.
 
-**Visual identity:** The Rush family always leans forward. At the surface, asymmetrical and half-formed,
-too much weight in the front. Mid-tier: compact, low to the ground, crystalline (shardling art). Deep:
-elongated, blurred — the silhouette looks like speed, with ghost-trails of itself left behind.
+**Visual identity:** The Rush family always leans forward.
+At the surface, asymmetrical and half-formed, too much weight in the front. 
+Mid-tier: compact, low to the ground, crystalline (shardling art). 
+Deep: elongated, blurred — the silhouette looks like speed, with ghost-trails of itself left behind.
 
 ---
 
@@ -38,7 +38,7 @@ elongated, blurred — the silhouette looks like speed, with ghost-trails of its
 
 ---
 
-### DasherMob *(Mid)* `[exists: scripts/entities/mob.gd]`
+### Dasher *(Mid)*
 
 **Concept addition:** gains intention — it anticipates where you'll be
 
@@ -50,8 +50,7 @@ elongated, blurred — the silhouette looks like speed, with ghost-trails of its
 - **Stats:** 50 HP · Chase speed: 12 · Dash speed: ~28 · Dash damage: 25 · Drops: 2 Resonances
 - **Counterplay:** Move perpendicular during the telegraph. The arrow is the tell — learn to read it
   as the commit signal. Interrupting during the telegraph is high-reward but requires getting close.
-- **Spawn guidance:** 1–3. In tight corridors, even 1 is threatening. Pairs well with anything that
-  forces the player to stay still.
+- **Spawn guidance:** 1–3. In tight corridors, even 1 is threatening. Pairs well with anything that forces the player to stay still.
 
 ---
 
@@ -81,16 +80,14 @@ elongated, blurred — the silhouette looks like speed, with ghost-trails of its
 
 > Near the surface: it throws blindly. Deeper: it has perfected the act of reaching out.
 
-**Lore:** Something in these creatures discovered distance. They found they could extend beyond their
-own body — send a piece of themselves somewhere else. Near the surface this is crude, almost
-accidental. They fling without aim, surprised by the act. Deeper, the Pit has had time to refine
-the idea. By the deep layer the creature no longer thinks of the projectile as separate from itself.
-It is still the arrow when it arrives.
+**Lore:** Something in these creatures discovered distance. They found they could extend beyond their own body — send a piece of themselves somewhere else. 
+Near the surface this is crude, almost accidental. 
+They fling without aim, surprised by the act. Deeper, the Pit has had time to refine the idea. 
+By the deep layer the creature no longer thinks of the projectile as separate from itself. It is still the arrow when it arrives.
 
 **Visual identity:** All have a visible "output" — a protrusion, a barrel, a mouth. The Spitter has one
-unformed opening, like a wound. The RobotMob has structured barrel ports (hence the spread). The Barrage
-has multiple secondary extensions — eyes, arms, tendrils — each capable of launching. As the tier
-increases, the creature looks more like it was designed to fire rather than a creature that learned to.
+unformed opening, like a wound. The Volley has structured barrel ports (hence the spread). The Barrage has multiple secondary extensions — eyes, arms, tendrils — each capable of launching. 
+As the tier increases, the creature looks more like it was designed to fire rather than a creature that learned to.
 
 ---
 
@@ -104,8 +101,7 @@ increases, the creature looks more like it was designed to fire rather than a cr
 - Projectile is large and slow enough to see clearly — the threat is volume and zone coverage.
 - **Stats:** 25 HP · Move speed: 4 (retreat only) · Projectile speed: 7 · Projectile damage: 10 · Drops: 1 Resonance
 - **Counterplay:** Walk toward it — it will retreat rather than fight. Chase it down. Slow projectiles
-  let you dodge by moving rather than reacting. With multiple Spitters the stagger of their fire
-  rates creates a continuous field even without coordination.
+  let you dodge by moving rather than reacting. With multiple Spitters the stagger of their fire rates creates a continuous field even without coordination.
 - **Spawn guidance:** 3–5 together. The overlap of their fire rhythms creates area denial. Single
   Spitters are trivial. Works well at the back of a room behind melee enemies.
 
@@ -120,10 +116,8 @@ increases, the creature looks more like it was designed to fire rather than a cr
 - After firing: cooldown (1.6s), then reposition to maintain distance.
 - Disrupted by hits — cancels charge, enters brief stagger.
 - **Stats:** 60 HP · Move speed: 7 · Projectile speed: 18 · Projectile damage: 12 each · Drops: 3 Resonances
-- **Counterplay:** Aggressive pressure disrupts its charge. The spread cone is a visible tell — dodge
-  sideways from the center. At close range it becomes a melee target with no fallback.
-- **Spawn guidance:** 1–2 in mid-depth rooms. Behind a Shieldwall is a strong combination — forces
-  the player to flank while dodging volleys.
+- **Counterplay:** Aggressive pressure disrupts its charge. The spread cone is a visible tell — dodge sideways from the center. At close range it becomes a melee target with no fallback.
+- **Spawn guidance:** 1–2 in mid-depth rooms. Behind a Shieldwall is a strong combination — forces the player to flank while dodging volleys.
 
 ---
 
@@ -133,17 +127,14 @@ increases, the creature looks more like it was designed to fire rather than a cr
 
 - Slow movement (~4 units/s). High HP. Does not interrupt its attack cycle when hit.
 - **Phase 1 (immediate):** telegraphed spread volley, same pattern as RobotMob (5 projectiles, wider spread).
-- **Phase 2 (3s later):** fires 3 homing projectiles from secondary ports. These slowly track the
-  player's current position. Homing speed is low — they're meant to punish players who stop after
-  dodging the spread.
+- **Phase 2 (3s later):** fires 3 homing projectiles from secondary ports. These slowly track the player's current position. Homing speed is low — they're meant to punish players who stop after dodging the spread.
 - Homing projectiles have their own HP (20 each) and can be destroyed by hitting them.
 - After both phases: 3s cooldown, then repeats.
 - **Stats:** 120 HP · Move speed: 4 · Spread damage: 14 · Homing damage: 18 · Drops: 6 Resonances
 - **Counterplay:** Kill the homing projectiles if you can't outrun them. Keep moving after dodging
-  the spread — standing still to fight is what the follow-up punishes. Aggressive melee is risky
-  because it doesn't interrupt; high burst damage is rewarded here.
-- **Spawn guidance:** Always solo or with 1 weak add (Spitter or Scrambler). Two Barrages staggering
-  their two-phase attacks is extremely punishing and should be reserved for very late rooms.
+  the spread — standing still to fight is what the follow-up punishes. Aggressive melee is risky because it doesn't interrupt; high burst damage is rewarded here.
+- **Spawn guidance:** Always solo or with 1 weak add (Spitter or Scrambler). 
+Two Barrages staggering their two-phase attacks is extremely punishing and should be reserved for very late rooms.
 
 **Encounter compositions (Volley):**
 - Safe intro: 3 Spitters in a room with obstacles — teaches dodging slow projectiles while navigating
@@ -153,22 +144,20 @@ increases, the creature looks more like it was designed to fire rather than a cr
 
 ---
 
-## Family: WEIGHT / MASS
+## Family:  MASS
 *The concept of mass — gravity, presence, immovability*
 
 > Near the surface: it falls. Deeper: it has become the thing that cannot be moved.
 
-**Lore:** Gravity is the Pit's first language. These creatures are the concept of weight, of permanence,
-of the force that makes things stay. At the surface this is incomplete — it's just a body that hasn't
-learned to resist falling forward. Deeper, the Weight family has learned to project presence: first
-through a shield, then by bending the space around it. The Warden doesn't fight you. It makes the
-room smaller.
+**Lore:** Gravity is the Pit's first language. These creatures are the concept of weight, of permanence, of the force that makes things stay. 
+At the surface this is incomplete — it's just a body that hasn't learned to resist falling forward. 
+Deeper, the Weight family has learned to project presence: first through a shield, then by bending the space around it. 
+The Warden doesn't fight you. It makes the room smaller.
 
 **Visual identity:** All Weight enemies look dense and grounded. No sharp angles — mass, not precision.
 The Stumbler is rough and barely shaped, like a stone that started becoming something. The Shieldwall
 is more defined, but the most finished part of it is the shield — the body behind it is still crude.
-The Warden looks architectural: like a moving structure, not a creature. Its outline is stable and
-heavy even when standing still.
+The Warden looks architectural: like a moving structure, not a creature. Its outline is stable and heavy even when standing still.
 
 ---
 
@@ -199,8 +188,7 @@ heavy even when standing still.
 - **Exposed state:** after being hit from behind 3 times within 5s, the shield drops for 2s (2x damage window).
   Then it resets its back-hit counter.
 - **Stats:** 70 HP · Speed: 6 · Shield bash knockback: high · Back damage multiplier: 1.5x · Exposed: 2x · Drops: 4 Resonances
-- **Counterplay:** Circle-strafe behind it. In multiplayer, one player draws attention while the other
-  flanks. The bash is a positioning tool — if you're against a wall when it hits, you lose your angle.
+- **Counterplay:** Circle-strafe behind it. In multiplayer, one player draws attention while the other flanks. The bash is a positioning tool — if you're against a wall when it hits, you lose your angle.
 - **Spawn guidance:** Pairs with anything that fires from range (Spitter, RobotMob). The Shieldwall
   limits the player's repositioning options while the ranged enemy punishes the paths they're forced into.
 
@@ -211,13 +199,10 @@ heavy even when standing still.
 **Concept addition:** stops trying to reach the player — makes the player unable to leave
 
 - Large, slow (~3 units/s). Always present, never rushing.
-- **Gravity field:** passive, radius ~8 units. Players inside move 40% slower. Visual: distortion effect
-  around The Warden, a subtle pull on particles/debris.
+- **Gravity field:** passive, radius ~8 units. Players inside move 40% slower. Visual: distortion effect around The Warden, a subtle pull on particles/debris.
 - **Ground slam:** raises one arm, then slams. AoE radius ~4.5 units, telegraphed by spreading floor
   cracks (1.5s). High damage, large knockback. Used every 6–8s.
-- **Immunity phase:** every 30s, The Warden goes fully immune for 4s (gray glow). Its weak point (a
-  bright spot on the back) appears. Hitting the weak point ends the phase immediately. If no one hits
-  it, the phase ends naturally and The Warden performs a slam immediately after.
+- **Immunity phase:** every 30s, The Warden goes fully immune for 4s (gray glow). Its weak point (a bright spot on the back) appears. Hitting the weak point ends the phase immediately. If no one hits it, the phase ends naturally and The Warden performs a slam immediately after.
 - **On death:** collapses. Spawns 3 Shieldwall enemies at 50% HP at its position.
 - **Stats:** 300 HP · Speed: 3 · Slam damage: 45 · Gravity slow: 40% · Phase duration: 4s · Drops: 15 Resonances
 - **Counterplay:** The gravity field is the core threat — it turns the slam from dodgeable to unavoidable
@@ -240,8 +225,9 @@ heavy even when standing still.
 
 > Near the surface: it makes copies without knowing why. Deeper: it has become the act of repetition itself.
 
-**Lore:** Echo creatures didn't evolve — they iterated. Something in them discovered the loop: that a
-thing done once could be done again, and again. Near the surface this is mechanical and blind: a sac (Spawner) that pulses and splits, without purpose or direction. Deeper, the Echo family begins to understand what it's copying. The Splitter learns from the player specifically. The Triad is three versions of the same idea that won't collapse into one — or can't.
+**Lore:** Echo creatures didn't evolve — they iterated. Something in them discovered the loop: that a thing done once could be done again, and again. 
+Near the surface this is mechanical and blind: a sac (Spawner) that pulses and splits, without purpose or direction. 
+Deeper, the Echo family begins to understand what it's copying. The Splitter learns from the player specifically. The Triad is three versions of the same idea that won't collapse into one — or can't.
 
 **Visual identity:** All Echo enemies look layered or doubled. The Spawner Sac pulses like something under pressure, with visible buds on its surface — each bud is a future Scrambler, half-formed. 
 
@@ -271,12 +257,10 @@ The Splitter looks slightly mirrored: its surface is reflective, and when it cop
 - After observation: adapts its behavior to mirror the player's dominant approach:
   - **Melee player:** Echoform becomes an aggressive rusher (DasherMob patterns, shorter telegraph)
   - **Ranged player:** Echoform keeps distance and fires volleys (RobotMob patterns, slightly weaker)
-- **Reflection:** each time it takes damage, it emits a 30%-power version of the hit back at the attacker
-  (reflected projectile, or a short melee lunge if hit in melee).
+- **Reflection:** each time it takes damage, it emits a 30%-power version of the hit back at the attacker (reflected projectile, or a short melee lunge if hit in melee).
 - At 50% HP: reflection count doubles (2 reflections per hit instead of 1).
 - **Stats:** 70 HP · Reflected damage: 30% of incoming · Drops: 5 Resonances
-- **Counterplay:** Use the attack type it doesn't copy — if it mirrors melee, fight it at range and
-  vice versa. In multiplayer it observes the highest-damage player and mirrors them specifically.
+- **Counterplay:** Use the attack type it doesn't copy — if it mirrors melee, fight it at range and vice versa. In multiplayer it observes the highest-damage player and mirrors them specifically.
   Dealing small, frequent hits generates many weak reflections; fewer big hits is safer.
 - **Spawn guidance:** 1 per room at most. Pairs well with a Spawner Sac — the Sac produces pressure
   while the Echoform adapts. Don't spawn it alongside enemies that match the player's loadout.
@@ -401,7 +385,7 @@ irrelevant compared to the web it builds.
 
 ---
 
-## Family: EDGE / PRECISION
+## Family: EDGE 
 *The concept of lethality — intent reduced to a single, perfect point*
 
 > Near the surface: it doesn't quite know where to aim. Deeper: it cannot miss.
@@ -570,21 +554,6 @@ fissures in its body; the Fizzlers it spawns literally emerge from these cracks,
 
 ## Cross-Family Synergies
 
-These combinations are particularly interesting because the families interact mechanically:
-
-| Combo | Why it works |
-|-------|-------------|
-| **Shieldwall + Barrage** | Barrage fires over the Shieldwall; player must flank the shield while dodging volleys |
-| **Binder + Shieldwall** | Binder roots from range, Shieldwall advances on the immobilized player |
-| **Leecher + Scrambler** | Getting latched means standing still while Scramblers arrive |
-| **Spawner Sac + Echoform** | Sac floods with pressure, Echoform adapts to the player's panicked response |
-| **Burster + Stumbler** | Stumbler herds the player; Burster timer runs in the background |
-| **Lurker + Barrage** | Lurkers demand floor attention; Barrage demands sky attention simultaneously |
-| **Triad + Fizzler** | Fizzlers add urgency to the 3s burst window — can't take time to position |
-| **Detonator + DasherMob** | DasherMob forces movement while Detonator spawns Fizzlers; clearing Fizzlers safely becomes impossible |
-| **Razorform + Binder** | Binder roots or pulls positioning; layered cuts punish panic dodges |
-| **Razorform + Shieldwall** | Shieldwall shrinks safe angles while Razorform telegraphs demand lateral space |
-| **Glaiver + Shieldwall** | Player must flank under time pressure while reading committed slash lines |
 
 ---
 
@@ -598,7 +567,7 @@ These combinations are particularly interesting because the families interact me
 - **Counterplay diversity** — each family rewards different player builds: Surge rewards AoE, Phase
   rewards mobility, Weight rewards patience and positioning, Echo rewards burst damage, Edge rewards
   lateral positioning and reading committed ground lines.
-
+`
 ### Multiplayer-specific notes
 - **Leecher:** trivial with a teammate, genuine threat solo. Scales naturally with group size.
 - **Triad:** requires explicit coordination — the 3s window needs communication.

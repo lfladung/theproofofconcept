@@ -14,6 +14,15 @@ const _CATEGORY_ORDER := [
 	"trap",
 	"treasure",
 ]
+const _SPAWN_SUBFOLDER_ORDER: Array[StringName] = [
+	&"general",
+	&"edge",
+	&"flow",
+	&"mass",
+	&"echo",
+	&"phase",
+	&"surge",
+]
 const _ALL_CATEGORIES: StringName = &"all"
 const _PREVIEW_CAMERA_PITCH_DEG := -38.0
 const _PREVIEW_CAMERA_YAW_DEG := 180.0
@@ -112,6 +121,9 @@ func _rebuild_tree() -> void:
 		if _selected_category_filter != _ALL_CATEGORIES and category_name != _selected_category_filter:
 			continue
 		var entries = _catalog.pieces_in_category(category_name)
+		if category_name == &"spawn":
+			visible_count += _append_spawn_category_grouped(root, entries, filter_text)
+			continue
 		var category_item: TreeItem
 		for piece in entries:
 			if piece == null:
@@ -157,6 +169,105 @@ func _ordered_categories() -> PackedStringArray:
 
 func _display_category_name(category: StringName) -> String:
 	return String(category).capitalize()
+
+
+func _spawn_palette_subfolder_title(folder_id: StringName) -> String:
+	match String(folder_id):
+		"general":
+			return "General"
+		"edge":
+			return "Edge"
+		"flow":
+			return "Flow"
+		"mass":
+			return "Mass"
+		"echo":
+			return "Echo"
+		"phase":
+			return "Phase"
+		"surge":
+			return "Surge"
+		_:
+			return String(folder_id).capitalize()
+
+
+func _append_spawn_category_grouped(root: TreeItem, entries: Array, filter_text: String) -> int:
+	var buckets: Dictionary = {}
+	for piece in entries:
+		if piece == null:
+			continue
+		var def = piece as RoomPieceDefinition
+		var fid: StringName = def.palette_subfolder if def != null and def.palette_subfolder != &"" else &"general"
+		if not buckets.has(fid):
+			buckets[fid] = []
+		(buckets[fid] as Array).append(piece)
+	var match_count := 0
+	for fid in buckets.keys():
+		for piece in buckets[fid] as Array:
+			if piece == null:
+				continue
+			var plabel: String = (
+				String(piece.display_name) if piece.display_name != "" else String(piece.piece_id)
+			)
+			if filter_text == "" or plabel.to_lower().find(filter_text) != -1:
+				match_count += 1
+	if match_count == 0:
+		return 0
+	var category_item := _piece_tree.create_item(root)
+	category_item.set_text(0, _display_category_name(&"spawn"))
+	category_item.set_selectable(0, false)
+	category_item.collapsed = false
+	var emitted: Dictionary = {}
+	var visible_count := 0
+	for fid in _SPAWN_SUBFOLDER_ORDER:
+		if not buckets.has(fid):
+			continue
+		emitted[fid] = true
+		visible_count += _append_spawn_subfolder(
+			category_item, fid, buckets[fid] as Array, filter_text
+		)
+	var extras: Array[StringName] = []
+	for fid in buckets.keys():
+		if not emitted.has(fid):
+			extras.append(fid)
+	extras.sort_custom(func(a: StringName, b: StringName) -> bool: return String(a) < String(b))
+	for fid in extras:
+		visible_count += _append_spawn_subfolder(
+			category_item, fid, buckets[fid] as Array, filter_text
+		)
+	return visible_count
+
+
+func _append_spawn_subfolder(
+	parent: TreeItem, folder_id: StringName, pieces: Array, filter_text: String
+) -> int:
+	var sorted_pieces: Array = pieces.duplicate()
+	sorted_pieces.sort_custom(
+		func(a, b) -> bool:
+			var la: String = String(a.display_name) if a.display_name != "" else String(a.piece_id)
+			var lb: String = String(b.display_name) if b.display_name != "" else String(b.piece_id)
+			return la.nocasecmp_to(lb) < 0
+	)
+	var folder_item: TreeItem = null
+	var count := 0
+	for piece in sorted_pieces:
+		if piece == null:
+			continue
+		var label: String = (
+			String(piece.display_name) if piece.display_name != "" else String(piece.piece_id)
+		)
+		if filter_text != "" and label.to_lower().find(filter_text) == -1:
+			continue
+		if folder_item == null:
+			folder_item = _piece_tree.create_item(parent)
+			folder_item.set_text(0, _spawn_palette_subfolder_title(folder_id))
+			folder_item.set_selectable(0, false)
+			folder_item.collapsed = false
+		var piece_item := _piece_tree.create_item(folder_item)
+		piece_item.set_text(0, label)
+		piece_item.set_metadata(0, piece.piece_id)
+		count += 1
+	return count
 
 
 func _select_piece_in_tree(item: TreeItem, piece_id: StringName) -> bool:

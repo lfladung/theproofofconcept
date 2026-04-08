@@ -1,0 +1,24 @@
+[gd_scene load_steps=4 format=3 uid="uid://cflowform_hotspot_2d"]
+
+[ext_resource type="Script" path="res://dungeon/modules/gameplay/flowform_dash_hotspot_2d.gd" id="1"]
+[ext_resource type="Script" path="res://scripts/combat/hitbox_2d.gd" id="2"]
+
+[sub_resource type="CircleShape2D" id="CircleShape2D_trail"]
+radius = 1.15
+
+[node name="FlowformDashHotspot2D" type="Node2D"]
+script = ExtResource("1")
+
+[node name="Hitbox" type="Area2D" parent="."]
+collision_layer = 64
+collision_mask = 8
+monitoring = false
+monitorable = false
+script = ExtResource("2")
+repeat_mode = 1
+repeat_interval_sec = 0.35
+owner_path = NodePath("..")
+debug_label = &"flowform_trail_hitbox"
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="Hitbox"]
+shape = SubResource("CircleShape2D_trail")

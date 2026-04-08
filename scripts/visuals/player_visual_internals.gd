@@ -1350,10 +1350,10 @@ func _replace_attachment_child(
 		_apply_equipment_visibility_material_override(scene_instance, slot_name)
 
 
-func _apply_attachment_visibility(root: Node3D, is_visible: bool) -> void:
+func _apply_attachment_visibility(root: Node3D, attachment_visible: bool) -> void:
 	if root == null or not is_instance_valid(root):
 		return
-	root.visible = is_visible
+	root.visible = attachment_visible
 
 
 func _find_bone_idx_case_insensitive(skeleton: Skeleton3D, target_name: String) -> int:

@@ -144,7 +144,7 @@ static func shockwave_buildup_hits(threshold: int) -> int:
 	return 4
 
 
-static func shockwave_radius(threshold: int) -> float:
+static func shockwave_radius(_threshold: int) -> float:
 	return 13.0
 
 
@@ -152,7 +152,7 @@ static func shockwave_damage_ratio(threshold: int) -> float:
 	return 0.36
 
 
-static func shockwave_knockback(threshold: int) -> float:
+static func shockwave_knockback(_threshold: int) -> float:
 	return 15.0
 
 

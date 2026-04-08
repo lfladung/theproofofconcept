@@ -1,5 +1,8 @@
 extends "res://scripts/entities/player/player_internals.gd"
 
+var _cached_ui_hovered_physics_frame := -1
+var _cached_ui_blocks_attack := false
+
 ## Presentation tick, debug overlays, and lifecycle helpers.
 
 func _rebuild_melee_debug_mesh() -> void:

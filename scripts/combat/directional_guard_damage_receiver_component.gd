@@ -22,7 +22,15 @@ func _process_damage(
 		if guard_owner != null and guard_owner.has_method(guard_blocked_callback_method):
 			guard_owner.call(guard_blocked_callback_method, packet, hurtbox)
 		return _result(false, true, &"blocked_guard", 0)
-	return health_component.apply_damage(packet)
+	var incoming := packet
+	if guard_owner != null and guard_owner.has_method(&"directional_guard_incoming_damage_scale"):
+		var scale_v: Variant = guard_owner.call(&"directional_guard_incoming_damage_scale", packet)
+		if scale_v is float or scale_v is int:
+			var s := float(scale_v)
+			if absf(s - 1.0) > 0.0001:
+				incoming = packet.duplicate_packet()
+				incoming.amount = maxi(1, int(round(float(packet.amount) * s)))
+	return health_component.apply_damage(incoming)
 
 
 func _should_block_packet(guard_owner: Node, packet: DamagePacket) -> bool:

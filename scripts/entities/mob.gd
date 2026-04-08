@@ -1,10 +1,8 @@
 class_name DasherMob
 extends EnemyBase
 
-const LEGACY_MOB_VISUAL_SCENE := preload("res://scenes/visuals/mob_visual.tscn")
 const EnemyStateVisualScript = preload("res://scripts/visuals/enemy_state_visual.gd")
-const SHARDLING_IDLE_SCENE := preload("res://art/characters/enemies/shardling_texture.glb")
-const SHARDLING_WALK_SCENE := preload("res://art/characters/enemies/shardling_walk.glb")
+const DASHER_VISUAL_SCENE := preload("res://art/characters/enemies/Dasher.glb")
 const _TELEGRAPH_PROGRESS_STEPS := 12
 
 @export var min_speed := 10.0
@@ -28,6 +26,8 @@ const _TELEGRAPH_PROGRESS_STEPS := 12
 @export var target_refresh_interval := 0.3
 @export var mesh_ground_y := 0.24
 @export var mesh_scale := Vector3(2.0, 2.0, 2.0)
+## Root scale for imported `Dasher.glb` inside `EnemyStateVisual` (idle + walk use the same mesh).
+@export var dasher_clip_scale: float = 2.5
 ## Max rotation rate when aligning to chase direction / player (lets players slip behind).
 @export var turn_toward_facing_deg_per_sec := 420.0
 
@@ -552,31 +552,18 @@ func _resolve_visual_facing_direction() -> Vector2:
 
 
 func _build_visual_state_config() -> Dictionary:
-	var idle_scene := SHARDLING_IDLE_SCENE
-	var walk_scene := SHARDLING_WALK_SCENE
-	if idle_scene == null and walk_scene == null:
-		return {
-			&"idle": {
-				"scene": LEGACY_MOB_VISUAL_SCENE,
-				"keywords": ["float"],
-			},
-			&"walk": {
-				"scene": LEGACY_MOB_VISUAL_SCENE,
-				"keywords": ["float"],
-			},
-		}
-	if idle_scene == null:
-		idle_scene = walk_scene
-	if walk_scene == null:
-		walk_scene = idle_scene
+	var scale_v: Variant = dasher_clip_scale
 	return {
 		&"idle": {
-			"scene": idle_scene,
-			"keywords": ["idle", "stand", "reset"],
+			"scene": DASHER_VISUAL_SCENE,
+			"scene_scale": scale_v,
+			"clip_hint": "",
+			"keywords": [],
 		},
 		&"walk": {
-			"scene": walk_scene,
-			"scene_scale": 114.0,
-			"keywords": ["walk", "run", "moving"],
+			"scene": DASHER_VISUAL_SCENE,
+			"scene_scale": scale_v,
+			"clip_hint": "",
+			"keywords": [],
 		},
 	}

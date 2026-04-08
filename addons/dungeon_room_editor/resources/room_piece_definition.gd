@@ -5,6 +5,8 @@ class_name RoomPieceDefinition
 @export var piece_id: StringName = &""
 @export var display_name := ""
 @export var category: StringName = &""
+## Under **Spawn** category only: groups pieces in the palette tree (e.g. `edge`, `echo`). Empty = General.
+@export var palette_subfolder: StringName = &""
 @export var preview_scene: PackedScene
 @export var runtime_scene: PackedScene
 @export var mapping_kind: StringName = &"visual_only"

@@ -59,15 +59,15 @@ func _ready() -> void:
 		if pr is Node3D:
 			add_child(pr as Node3D)
 		else:
-			var wrap := Node3D.new()
-			wrap.name = &"PillarVisualRoot"
+			var wrap_root := Node3D.new()
+			wrap_root.name = &"PillarVisualRoot"
 			var n := pr as Node
 			while n.get_child_count() > 0:
 				var c: Node = n.get_child(0)
 				n.remove_child(c)
-				wrap.add_child(c)
+				wrap_root.add_child(c)
 			n.queue_free()
-			add_child(wrap)
+			add_child(wrap_root)
 	var orb_scene := _orb_scene_for_pillar_id(infusion_pillar_id)
 	_orb = orb_scene.instantiate() as Node3D
 	if _orb != null:

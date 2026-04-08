@@ -173,7 +173,6 @@ func _effective_stack(pillar_id: StringName) -> float:
 
 ## Returns [old_thr, new_thr] if threshold changed; updates stack/threshold caches always.
 func _recompute_pillar(pillar_id: StringName) -> Array:
-	var old_stack := float(_pillar_stacks.get(pillar_id, 0.0))
 	var old_thr := int(_pillar_thresholds.get(pillar_id, int(IC.InfusionThreshold.INACTIVE)))
 	var new_stack := _effective_stack(pillar_id)
 	var rules = _rules()

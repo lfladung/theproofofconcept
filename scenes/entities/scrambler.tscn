@@ -1,0 +1,76 @@
+[gd_scene load_steps=7 format=3 uid="uid://cscrambler_flow_mob"]
+
+[ext_resource type="Script" path="res://scripts/entities/scrambler_mob.gd" id="1"]
+[ext_resource type="Script" path="res://scripts/entities/fake_shadow_3d.gd" id="2"]
+[ext_resource type="Script" path="res://scripts/combat/health_component.gd" id="3"]
+[ext_resource type="Script" path="res://scripts/combat/damage_receiver_component.gd" id="4"]
+[ext_resource type="Script" path="res://scripts/combat/hurtbox_2d.gd" id="5"]
+[ext_resource type="Script" path="res://scripts/combat/hitbox_2d.gd" id="6"]
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_mob"]
+size = Vector2(1.0, 1.55)
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_contact"]
+size = Vector2(1.15, 1.65)
+
+[node name="Scrambler" type="CharacterBody2D" groups=["mob"]]
+collision_layer = 2
+collision_mask = 7
+motion_mode = 1
+script = ExtResource("1")
+move_speed = 14.0
+contact_damage = 8
+mesh_ground_y = 0.2
+mesh_scale = Vector3(1.85, 1.85, 1.85)
+scrambler_clip_scale = 2.5
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="."]
+shape = SubResource("RectangleShape2D_mob")
+
+[node name="HealthComponent" type="Node" parent="."]
+script = ExtResource("3")
+max_health = 15
+starting_health = 15
+debug_label = &"scrambler_health"
+
+[node name="DamageReceiver" type="Node" parent="."]
+script = ExtResource("4")
+owner_path = NodePath("..")
+health_component_path = NodePath("../HealthComponent")
+debug_label = &"scrambler_receiver"
+
+[node name="EnemyHurtbox" type="Area2D" parent="."]
+collision_layer = 16
+collision_mask = 0
+monitoring = false
+monitorable = true
+script = ExtResource("5")
+receiver_path = NodePath("../DamageReceiver")
+owner_path = NodePath("..")
+faction = &"enemy"
+debug_label = &"scrambler_hurtbox"
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="EnemyHurtbox"]
+shape = SubResource("RectangleShape2D_mob")
+
+[node name="BodyContactHitbox" type="Area2D" parent="."]
+collision_layer = 64
+collision_mask = 8
+monitoring = false
+monitorable = false
+script = ExtResource("6")
+repeat_mode = 1
+repeat_interval_sec = 0.5
+owner_path = NodePath("..")
+debug_label = &"scrambler_contact"
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="BodyContactHitbox"]
+shape = SubResource("RectangleShape2D_contact")
+
+[node name="FakeShadow3D" type="Node" parent="."]
+script = ExtResource("2")
+base_scale = 4.2
+min_scale = 2.6
+base_alpha = 0.86
+min_alpha = 0.6
+floor_offset = 0.075

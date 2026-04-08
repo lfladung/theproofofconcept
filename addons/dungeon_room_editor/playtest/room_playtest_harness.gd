@@ -5,6 +5,24 @@ const DASHER_SCENE := preload("res://scenes/entities/dasher.tscn")
 const ARROW_TOWER_SCENE := preload("res://scenes/entities/arrow_tower.tscn")
 const IRON_SENTINEL_SCENE := preload("res://scenes/entities/iron_sentinel.tscn")
 const ROBOT_MOB_SCENE := preload("res://scenes/entities/robot_mob.tscn")
+const SKEWER_SCENE := preload("res://scenes/entities/skewer.tscn")
+const GLAIVER_SCENE := preload("res://scenes/entities/glaiver.tscn")
+const RAZORFORM_SCENE := preload("res://scenes/entities/razorform.tscn")
+const SCRAMBLER_SCENE := preload("res://scenes/entities/scrambler.tscn")
+const FLOW_DASHER_SCENE := preload("res://scenes/entities/flow_dasher.tscn")
+const FLOWFORM_SCENE := preload("res://scenes/entities/flowform.tscn")
+const STUMBLER_SCENE := preload("res://scenes/entities/stumbler.tscn")
+const SHIELDWALL_SCENE := preload("res://scenes/entities/shieldwall.tscn")
+const WARDEN_SCENE := preload("res://scenes/entities/warden.tscn")
+const SPLITTER_SCENE := preload("res://scenes/entities/splitter.tscn")
+const SPAWNER_SCENE := preload("res://scenes/entities/spawner.tscn")
+const TRIAD_SCENE := preload("res://scenes/entities/triad.tscn")
+const LURKER_SCENE := preload("res://scenes/entities/lurker.tscn")
+const LEECHER_SCENE := preload("res://scenes/entities/leecher.tscn")
+const BINDER_SCENE := preload("res://scenes/entities/binder.tscn")
+const FIZZLER_SCENE := preload("res://scenes/entities/fizzler.tscn")
+const BURSTER_SCENE := preload("res://scenes/entities/burster.tscn")
+const DETONATOR_SCENE := preload("res://scenes/entities/detonator.tscn")
 const CAMERA_FOLLOW_SCRIPT := preload("res://dungeon/game/components/camera_follow.gd")
 const SERIALIZER_SCRIPT := preload("res://addons/dungeon_room_editor/core/serializer.gd")
 const SCENE_SYNC_SCRIPT := preload("res://addons/dungeon_room_editor/core/scene_sync.gd")
@@ -23,6 +41,24 @@ const ENEMY_ID_DASHER := &"dasher"
 const ENEMY_ID_ARROW_TOWER := &"arrow_tower"
 const ENEMY_ID_IRON_SENTINEL := &"iron_sentinel"
 const ENEMY_ID_ROBOT_MOB := &"robot_mob"
+const ENEMY_ID_SKEWER := &"skewer"
+const ENEMY_ID_GLAIVER := &"glaiver"
+const ENEMY_ID_RAZORFORM := &"razorform"
+const ENEMY_ID_SCRAMBLER := &"scrambler"
+const ENEMY_ID_FLOW_DASHER := &"flow_dasher"
+const ENEMY_ID_FLOWFORM := &"flowform"
+const ENEMY_ID_STUMBLER := &"stumbler"
+const ENEMY_ID_SHIELDWALL := &"shieldwall"
+const ENEMY_ID_WARDEN := &"warden"
+const ENEMY_ID_SPLITTER := &"splitter"
+const ENEMY_ID_SPAWNER := &"spawner"
+const ENEMY_ID_TRIAD := &"triad"
+const ENEMY_ID_LURKER := &"lurker"
+const ENEMY_ID_LEECHER := &"leecher"
+const ENEMY_ID_BINDER := &"binder"
+const ENEMY_ID_FIZZLER := &"fizzler"
+const ENEMY_ID_BURSTER := &"burster"
+const ENEMY_ID_DETONATOR := &"detonator"
 
 @onready var _game_world_2d: Node2D = $GameWorld2D
 @onready var _visual_world_3d: Node3D = $VisualWorld3D
@@ -143,6 +179,42 @@ func _enemy_scene_for_zone(zone: ZoneMarker2D) -> PackedScene:
 			return ROBOT_MOB_SCENE
 		ENEMY_ID_DASHER:
 			return DASHER_SCENE
+		ENEMY_ID_SKEWER:
+			return SKEWER_SCENE
+		ENEMY_ID_GLAIVER:
+			return GLAIVER_SCENE
+		ENEMY_ID_RAZORFORM:
+			return RAZORFORM_SCENE
+		ENEMY_ID_SCRAMBLER:
+			return SCRAMBLER_SCENE
+		ENEMY_ID_FLOW_DASHER:
+			return FLOW_DASHER_SCENE
+		ENEMY_ID_FLOWFORM:
+			return FLOWFORM_SCENE
+		ENEMY_ID_STUMBLER:
+			return STUMBLER_SCENE
+		ENEMY_ID_SHIELDWALL:
+			return SHIELDWALL_SCENE
+		ENEMY_ID_WARDEN:
+			return WARDEN_SCENE
+		ENEMY_ID_SPLITTER:
+			return SPLITTER_SCENE
+		ENEMY_ID_SPAWNER:
+			return SPAWNER_SCENE
+		ENEMY_ID_TRIAD:
+			return TRIAD_SCENE
+		ENEMY_ID_LURKER:
+			return LURKER_SCENE
+		ENEMY_ID_LEECHER:
+			return LEECHER_SCENE
+		ENEMY_ID_BINDER:
+			return BINDER_SCENE
+		ENEMY_ID_FIZZLER:
+			return FIZZLER_SCENE
+		ENEMY_ID_BURSTER:
+			return BURSTER_SCENE
+		ENEMY_ID_DETONATOR:
+			return DETONATOR_SCENE
 		&"melee":
 			return DASHER_SCENE
 		&"ranged":

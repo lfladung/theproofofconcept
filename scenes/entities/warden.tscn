@@ -1,0 +1,80 @@
+[gd_scene load_steps=7 format=3 uid="uid://warden_mass_mob"]
+
+[ext_resource type="Script" path="res://scripts/entities/warden_mob.gd" id="1"]
+[ext_resource type="Script" path="res://scripts/entities/fake_shadow_3d.gd" id="2"]
+[ext_resource type="Script" path="res://scripts/combat/health_component.gd" id="3"]
+[ext_resource type="Script" path="res://scripts/combat/damage_receiver_component.gd" id="4"]
+[ext_resource type="Script" path="res://scripts/combat/hurtbox_2d.gd" id="5"]
+[ext_resource type="Script" path="res://scripts/combat/hitbox_2d.gd" id="6"]
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_body"]
+size = Vector2(3.25, 3.875)
+
+[sub_resource type="CircleShape2D" id="CircleShape2D_slam"]
+radius = 2.8125
+
+[node name="Warden" type="CharacterBody2D" groups=["mob"]]
+collision_layer = 2
+collision_mask = 7
+motion_mode = 1
+script = ExtResource("1")
+max_health = 300
+coin_drop_value = 15
+move_speed = 3.0
+slam_damage = 45
+slam_radius = 2.8125
+mesh_ground_y = 0.21875
+mesh_scale = Vector3(2.625, 2.625, 2.625)
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="."]
+shape = SubResource("RectangleShape2D_body")
+
+[node name="HealthComponent" type="Node" parent="."]
+script = ExtResource("3")
+max_health = 300
+starting_health = 300
+debug_label = &"warden_health"
+
+[node name="DamageReceiver" type="Node" parent="."]
+script = ExtResource("4")
+owner_path = NodePath("..")
+health_component_path = NodePath("../HealthComponent")
+debug_label = &"warden_receiver"
+
+[node name="EnemyHurtbox" type="Area2D" parent="."]
+collision_layer = 16
+collision_mask = 0
+monitoring = false
+monitorable = true
+script = ExtResource("5")
+receiver_path = NodePath("../DamageReceiver")
+owner_path = NodePath("..")
+faction = &"enemy"
+debug_label = &"warden_hurtbox"
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="EnemyHurtbox"]
+shape = SubResource("RectangleShape2D_body")
+
+[node name="SlamHitbox" type="Area2D" parent="."]
+collision_layer = 64
+collision_mask = 8
+monitoring = false
+monitorable = false
+script = ExtResource("6")
+owner_path = NodePath("..")
+debug_label = &"warden_slam"
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="SlamHitbox"]
+shape = SubResource("CircleShape2D_slam")
+
+[node name="FakeShadow3D" type="Node" parent="."]
+script = ExtResource("2")
+base_scale = 5.9375
+min_scale = 3.4375
+base_alpha = 0.9
+min_alpha = 0.62
+floor_offset = 0.09
+
+[node name="NavigationAgent2D" type="NavigationAgent2D" parent="."]
+path_desired_distance = 0.53125
+target_desired_distance = 3.1875

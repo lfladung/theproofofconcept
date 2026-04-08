@@ -41,6 +41,24 @@ const DASHER_SCENE := preload("res://scenes/entities/dasher.tscn")
 const ARROW_TOWER_SCENE := preload("res://scenes/entities/arrow_tower.tscn")
 const IRON_SENTINEL_SCENE := preload("res://scenes/entities/iron_sentinel.tscn")
 const ROBOT_MOB_SCENE := preload("res://scenes/entities/robot_mob.tscn")
+const SKEWER_SCENE := preload("res://scenes/entities/skewer.tscn")
+const GLAIVER_SCENE := preload("res://scenes/entities/glaiver.tscn")
+const RAZORFORM_SCENE := preload("res://scenes/entities/razorform.tscn")
+const SCRAMBLER_SCENE := preload("res://scenes/entities/scrambler.tscn")
+const FLOW_DASHER_SCENE := preload("res://scenes/entities/flow_dasher.tscn")
+const FLOWFORM_SCENE := preload("res://scenes/entities/flowform.tscn")
+const STUMBLER_SCENE := preload("res://scenes/entities/stumbler.tscn")
+const SHIELDWALL_SCENE := preload("res://scenes/entities/shieldwall.tscn")
+const WARDEN_SCENE := preload("res://scenes/entities/warden.tscn")
+const SPLITTER_SCENE := preload("res://scenes/entities/splitter.tscn")
+const SPAWNER_SCENE := preload("res://scenes/entities/spawner.tscn")
+const TRIAD_SCENE := preload("res://scenes/entities/triad.tscn")
+const LURKER_SCENE := preload("res://scenes/entities/lurker.tscn")
+const LEECHER_SCENE := preload("res://scenes/entities/leecher.tscn")
+const BINDER_SCENE := preload("res://scenes/entities/binder.tscn")
+const FIZZLER_SCENE := preload("res://scenes/entities/fizzler.tscn")
+const BURSTER_SCENE := preload("res://scenes/entities/burster.tscn")
+const DETONATOR_SCENE := preload("res://scenes/entities/detonator.tscn")
 const SPAWN_POINT_SCENE := preload("res://dungeon/modules/encounter/enemy_spawn_point_2d.tscn")
 const SPAWN_VOLUME_SCENE := preload("res://dungeon/modules/encounter/enemy_spawn_volume_2d.tscn")
 const ROOM_TRIGGER_SCENE := preload("res://dungeon/modules/encounter/room_encounter_trigger_2d.tscn")
@@ -68,11 +86,41 @@ const INFUSION_GUIDE_OVERLAY_SCENE := preload("res://scenes/ui/infusion_guide_ov
 const LoadoutRepositoryScript = preload("res://scripts/loadout/loadout_repository.gd")
 const IRON_SENTINEL_SCRIPT = preload("res://scripts/entities/iron_sentinel.gd")
 const ROBOT_MOB_SCRIPT = preload("res://scripts/entities/robot_mob.gd")
+const StumblerMobScript = preload("res://scripts/entities/stumbler_mob.gd")
+const ShieldwallMobScript = preload("res://scripts/entities/shieldwall_mob.gd")
+const WardenMobScript = preload("res://scripts/entities/warden_mob.gd")
+const SplitterMobScript = preload("res://scripts/entities/splitter_mob.gd")
+const SpawnerMobScript = preload("res://scripts/entities/spawner_mob.gd")
+const TriadMobScript = preload("res://scripts/entities/triad_mob.gd")
+const LurkerMobScript = preload("res://scripts/entities/lurker_mob.gd")
+const LeecherMobScript = preload("res://scripts/entities/leecher_mob.gd")
+const BinderMobScript = preload("res://scripts/entities/binder_mob.gd")
+const FizzlerMobScript = preload("res://scripts/entities/fizzler_mob.gd")
+const BursterMobScript = preload("res://scripts/entities/burster_mob.gd")
+const DetonatorMobScript = preload("res://scripts/entities/detonator_mob.gd")
 const ELEVATOR_VISUAL_SCENE := preload("res://art/props/interactables/elevator_texture.glb")
 const ENEMY_SCENE_KIND_DASHER := 1
 const ENEMY_SCENE_KIND_ARROW_TOWER := 2
 const ENEMY_SCENE_KIND_IRON_SENTINEL := 3
 const ENEMY_SCENE_KIND_ROBOT_MOB := 4
+const ENEMY_SCENE_KIND_SKEWER := 5
+const ENEMY_SCENE_KIND_GLAIVER := 6
+const ENEMY_SCENE_KIND_RAZORFORM := 7
+const ENEMY_SCENE_KIND_SCRAMBLER := 8
+const ENEMY_SCENE_KIND_FLOW_DASHER := 9
+const ENEMY_SCENE_KIND_FLOWFORM := 10
+const ENEMY_SCENE_KIND_STUMBLER := 11
+const ENEMY_SCENE_KIND_SHIELDWALL := 12
+const ENEMY_SCENE_KIND_WARDEN := 13
+const ENEMY_SCENE_KIND_SPLITTER := 14
+const ENEMY_SCENE_KIND_SPAWNER := 15
+const ENEMY_SCENE_KIND_TRIAD := 16
+const ENEMY_SCENE_KIND_LURKER := 17
+const ENEMY_SCENE_KIND_LEECHER := 18
+const ENEMY_SCENE_KIND_BINDER := 19
+const ENEMY_SCENE_KIND_FIZZLER := 20
+const ENEMY_SCENE_KIND_BURSTER := 21
+const ENEMY_SCENE_KIND_DETONATOR := 22
 ## World units per texture repeat on floors (4x4 gameplay tiles at 3 units per tile).
 const FLOOR_TEXTURE_TILE_WORLD := 12.0
 ## Match floor tile size so wall stone pattern lines up at room corners.
@@ -358,6 +406,22 @@ func _next_enemy_network_id() -> int:
 	return _enemy_network_id_sequence
 
 
+## Echo / Phase / Surge: placeholder spawns use Edge-style lunge (shake telegraph) until family mechanics land.
+func _pick_echo_phase_surge_edge_placeholder_scene() -> PackedScene:
+	var pool: Array[PackedScene] = [
+		SPLITTER_SCENE,
+		SPAWNER_SCENE,
+		TRIAD_SCENE,
+		LURKER_SCENE,
+		LEECHER_SCENE,
+		BINDER_SCENE,
+		FIZZLER_SCENE,
+		BURSTER_SCENE,
+		DETONATOR_SCENE,
+	]
+	return pool[randi() % pool.size()]
+
+
 func _enemy_scene_kind_from_scene(scene: PackedScene) -> int:
 	if scene == ARROW_TOWER_SCENE:
 		return ENEMY_SCENE_KIND_ARROW_TOWER
@@ -365,6 +429,42 @@ func _enemy_scene_kind_from_scene(scene: PackedScene) -> int:
 		return ENEMY_SCENE_KIND_IRON_SENTINEL
 	if scene == ROBOT_MOB_SCENE:
 		return ENEMY_SCENE_KIND_ROBOT_MOB
+	if scene == SKEWER_SCENE:
+		return ENEMY_SCENE_KIND_SKEWER
+	if scene == GLAIVER_SCENE:
+		return ENEMY_SCENE_KIND_GLAIVER
+	if scene == RAZORFORM_SCENE:
+		return ENEMY_SCENE_KIND_RAZORFORM
+	if scene == SCRAMBLER_SCENE:
+		return ENEMY_SCENE_KIND_SCRAMBLER
+	if scene == FLOW_DASHER_SCENE:
+		return ENEMY_SCENE_KIND_FLOW_DASHER
+	if scene == FLOWFORM_SCENE:
+		return ENEMY_SCENE_KIND_FLOWFORM
+	if scene == STUMBLER_SCENE:
+		return ENEMY_SCENE_KIND_STUMBLER
+	if scene == SHIELDWALL_SCENE:
+		return ENEMY_SCENE_KIND_SHIELDWALL
+	if scene == WARDEN_SCENE:
+		return ENEMY_SCENE_KIND_WARDEN
+	if scene == SPLITTER_SCENE:
+		return ENEMY_SCENE_KIND_SPLITTER
+	if scene == SPAWNER_SCENE:
+		return ENEMY_SCENE_KIND_SPAWNER
+	if scene == TRIAD_SCENE:
+		return ENEMY_SCENE_KIND_TRIAD
+	if scene == LURKER_SCENE:
+		return ENEMY_SCENE_KIND_LURKER
+	if scene == LEECHER_SCENE:
+		return ENEMY_SCENE_KIND_LEECHER
+	if scene == BINDER_SCENE:
+		return ENEMY_SCENE_KIND_BINDER
+	if scene == FIZZLER_SCENE:
+		return ENEMY_SCENE_KIND_FIZZLER
+	if scene == BURSTER_SCENE:
+		return ENEMY_SCENE_KIND_BURSTER
+	if scene == DETONATOR_SCENE:
+		return ENEMY_SCENE_KIND_DETONATOR
 	return ENEMY_SCENE_KIND_DASHER
 
 
@@ -375,6 +475,42 @@ func _enemy_scene_kind_from_enemy_instance(enemy: EnemyBase) -> int:
 		return ENEMY_SCENE_KIND_IRON_SENTINEL
 	if enemy != null and enemy.get_script() == ROBOT_MOB_SCRIPT:
 		return ENEMY_SCENE_KIND_ROBOT_MOB
+	if enemy is SkewerMob:
+		return ENEMY_SCENE_KIND_SKEWER
+	if enemy is GlaiverMob:
+		return ENEMY_SCENE_KIND_GLAIVER
+	if enemy is RazorformMob:
+		return ENEMY_SCENE_KIND_RAZORFORM
+	if enemy is ScramblerMob:
+		return ENEMY_SCENE_KIND_SCRAMBLER
+	if enemy is FlowDasherMob:
+		return ENEMY_SCENE_KIND_FLOW_DASHER
+	if enemy is FlowformMob:
+		return ENEMY_SCENE_KIND_FLOWFORM
+	if enemy != null and enemy.get_script() == StumblerMobScript:
+		return ENEMY_SCENE_KIND_STUMBLER
+	if enemy != null and enemy.get_script() == ShieldwallMobScript:
+		return ENEMY_SCENE_KIND_SHIELDWALL
+	if enemy != null and enemy.get_script() == WardenMobScript:
+		return ENEMY_SCENE_KIND_WARDEN
+	if enemy != null and enemy.get_script() == SplitterMobScript:
+		return ENEMY_SCENE_KIND_SPLITTER
+	if enemy != null and enemy.get_script() == SpawnerMobScript:
+		return ENEMY_SCENE_KIND_SPAWNER
+	if enemy != null and enemy.get_script() == TriadMobScript:
+		return ENEMY_SCENE_KIND_TRIAD
+	if enemy != null and enemy.get_script() == LurkerMobScript:
+		return ENEMY_SCENE_KIND_LURKER
+	if enemy != null and enemy.get_script() == LeecherMobScript:
+		return ENEMY_SCENE_KIND_LEECHER
+	if enemy != null and enemy.get_script() == BinderMobScript:
+		return ENEMY_SCENE_KIND_BINDER
+	if enemy != null and enemy.get_script() == FizzlerMobScript:
+		return ENEMY_SCENE_KIND_FIZZLER
+	if enemy != null and enemy.get_script() == BursterMobScript:
+		return ENEMY_SCENE_KIND_BURSTER
+	if enemy != null and enemy.get_script() == DetonatorMobScript:
+		return ENEMY_SCENE_KIND_DETONATOR
 	return ENEMY_SCENE_KIND_DASHER
 
 
@@ -386,6 +522,42 @@ func _enemy_scene_from_kind(kind: int) -> PackedScene:
 			return IRON_SENTINEL_SCENE
 		ENEMY_SCENE_KIND_ROBOT_MOB:
 			return ROBOT_MOB_SCENE
+		ENEMY_SCENE_KIND_SKEWER:
+			return SKEWER_SCENE
+		ENEMY_SCENE_KIND_GLAIVER:
+			return GLAIVER_SCENE
+		ENEMY_SCENE_KIND_RAZORFORM:
+			return RAZORFORM_SCENE
+		ENEMY_SCENE_KIND_SCRAMBLER:
+			return SCRAMBLER_SCENE
+		ENEMY_SCENE_KIND_FLOW_DASHER:
+			return FLOW_DASHER_SCENE
+		ENEMY_SCENE_KIND_FLOWFORM:
+			return FLOWFORM_SCENE
+		ENEMY_SCENE_KIND_STUMBLER:
+			return STUMBLER_SCENE
+		ENEMY_SCENE_KIND_SHIELDWALL:
+			return SHIELDWALL_SCENE
+		ENEMY_SCENE_KIND_WARDEN:
+			return WARDEN_SCENE
+		ENEMY_SCENE_KIND_SPLITTER:
+			return SPLITTER_SCENE
+		ENEMY_SCENE_KIND_SPAWNER:
+			return SPAWNER_SCENE
+		ENEMY_SCENE_KIND_TRIAD:
+			return TRIAD_SCENE
+		ENEMY_SCENE_KIND_LURKER:
+			return LURKER_SCENE
+		ENEMY_SCENE_KIND_LEECHER:
+			return LEECHER_SCENE
+		ENEMY_SCENE_KIND_BINDER:
+			return BINDER_SCENE
+		ENEMY_SCENE_KIND_FIZZLER:
+			return FIZZLER_SCENE
+		ENEMY_SCENE_KIND_BURSTER:
+			return BURSTER_SCENE
+		ENEMY_SCENE_KIND_DETONATOR:
+			return DETONATOR_SCENE
 		_:
 			return DASHER_SCENE
 
@@ -3402,6 +3574,27 @@ func _spawn_encounter_mob(
 		_encounter_spawn_queue_time_remaining = 0.0
 
 
+## Server-only: queue a specific enemy scene with full replication (death splits, scripted adds).
+func server_enqueue_enemy_spawn(
+	encounter_id: StringName,
+	spawn_position: Vector2,
+	target_position: Vector2,
+	speed_multiplier: float,
+	enemy_scene: PackedScene,
+	start_aggro: bool = true
+) -> void:
+	if not is_inside_tree() or not _is_server_peer() or enemy_scene == null:
+		return
+	_spawn_encounter_mob(
+		encounter_id,
+		spawn_position,
+		target_position,
+		speed_multiplier,
+		enemy_scene,
+		start_aggro
+	)
+
+
 func _spawn_encounter_mob_deferred(
 	encounter_id: StringName,
 	spawn_position: Vector2,
@@ -3458,7 +3651,30 @@ func _process_pending_enemy_spawns(delta: float) -> void:
 func _prewarm_enemy_assets_once() -> void:
 	if _enemy_assets_prewarmed or not prewarm_enemy_assets or _is_dedicated_server_session():
 		return
-	for scene in [DASHER_SCENE, ARROW_TOWER_SCENE, IRON_SENTINEL_SCENE, ROBOT_MOB_SCENE]:
+	for scene in [
+		DASHER_SCENE,
+		ARROW_TOWER_SCENE,
+		IRON_SENTINEL_SCENE,
+		ROBOT_MOB_SCENE,
+		SKEWER_SCENE,
+		GLAIVER_SCENE,
+		RAZORFORM_SCENE,
+		SCRAMBLER_SCENE,
+		FLOW_DASHER_SCENE,
+		FLOWFORM_SCENE,
+		STUMBLER_SCENE,
+		SHIELDWALL_SCENE,
+		WARDEN_SCENE,
+		SPLITTER_SCENE,
+		SPAWNER_SCENE,
+		TRIAD_SCENE,
+		LURKER_SCENE,
+		LEECHER_SCENE,
+		BINDER_SCENE,
+		FIZZLER_SCENE,
+		BURSTER_SCENE,
+		DETONATOR_SCENE,
+	]:
 		if scene == null:
 			continue
 		var enemy: Node = scene.instantiate()
@@ -3830,26 +4046,95 @@ func _resolve_encounter_for_spawn(requested_encounter_id: StringName, spawn_pos:
 func _pick_enemy_scene(encounter_id: StringName) -> PackedScene:
 	var roll := randf()
 	if String(encounter_id) == "boss":
-		if roll < 0.22:
+		if roll < 0.19:
 			return ARROW_TOWER_SCENE
-		if roll < 0.45:
+		if roll < 0.4:
 			return ROBOT_MOB_SCENE
-		if roll < 0.76:
+		if roll < 0.6:
 			return IRON_SENTINEL_SCENE
+		if roll < 0.69:
+			return RAZORFORM_SCENE
+		if roll < 0.77:
+			return GLAIVER_SCENE
+		if roll < 0.84:
+			return FLOWFORM_SCENE
+		if roll < 0.87:
+			return SHIELDWALL_SCENE
+		if roll < 0.9:
+			return STUMBLER_SCENE
+		if roll < 0.95:
+			return WARDEN_SCENE
+		if roll < 0.975:
+			return _pick_echo_phase_surge_edge_placeholder_scene()
 		return DASHER_SCENE
-	if roll < 0.22:
+	if roll < 0.18:
 		return ARROW_TOWER_SCENE
-	if roll < 0.48:
+	if roll < 0.4:
 		return ROBOT_MOB_SCENE
-	if roll < 0.72:
+	if roll < 0.58:
 		return IRON_SENTINEL_SCENE
+	if roll < 0.66:
+		return SKEWER_SCENE
+	if roll < 0.72:
+		return GLAIVER_SCENE
+	if roll < 0.76:
+		return RAZORFORM_SCENE
+	if roll < 0.8:
+		return SCRAMBLER_SCENE
+	if roll < 0.84:
+		return FLOW_DASHER_SCENE
+	if roll < 0.87:
+		return FLOWFORM_SCENE
+	if roll < 0.9:
+		return STUMBLER_SCENE
+	if roll < 0.93:
+		return SHIELDWALL_SCENE
+	if roll < 0.965:
+		return _pick_echo_phase_surge_edge_placeholder_scene()
 	return DASHER_SCENE
 
 
 func _pick_melee_enemy_scene(encounter_id: StringName) -> PackedScene:
+	var roll := randf()
 	if String(encounter_id) == "boss":
-		return IRON_SENTINEL_SCENE if randf() < 0.6 else DASHER_SCENE
-	return IRON_SENTINEL_SCENE if randf() < 0.45 else DASHER_SCENE
+		if roll < 0.3:
+			return IRON_SENTINEL_SCENE
+		if roll < 0.42:
+			return RAZORFORM_SCENE
+		if roll < 0.54:
+			return GLAIVER_SCENE
+		if roll < 0.64:
+			return FLOWFORM_SCENE
+		if roll < 0.72:
+			return SHIELDWALL_SCENE
+		if roll < 0.8:
+			return STUMBLER_SCENE
+		if roll < 0.88:
+			return WARDEN_SCENE
+		if roll < 0.96:
+			return _pick_echo_phase_surge_edge_placeholder_scene()
+		return DASHER_SCENE
+	if roll < 0.34:
+		return IRON_SENTINEL_SCENE
+	if roll < 0.47:
+		return SKEWER_SCENE
+	if roll < 0.59:
+		return GLAIVER_SCENE
+	if roll < 0.71:
+		return RAZORFORM_SCENE
+	if roll < 0.78:
+		return SCRAMBLER_SCENE
+	if roll < 0.85:
+		return FLOW_DASHER_SCENE
+	if roll < 0.88:
+		return FLOWFORM_SCENE
+	if roll < 0.91:
+		return STUMBLER_SCENE
+	if roll < 0.94:
+		return SHIELDWALL_SCENE
+	if roll < 0.97:
+		return _pick_echo_phase_surge_edge_placeholder_scene()
+	return DASHER_SCENE
 
 
 func _pick_ranged_enemy_scene(encounter_id: StringName) -> PackedScene:
@@ -3868,6 +4153,42 @@ func _enemy_scene_from_id(enemy_id: StringName) -> PackedScene:
 			return ROBOT_MOB_SCENE
 		"dasher":
 			return DASHER_SCENE
+		"skewer":
+			return SKEWER_SCENE
+		"glaiver":
+			return GLAIVER_SCENE
+		"razorform":
+			return RAZORFORM_SCENE
+		"scrambler":
+			return SCRAMBLER_SCENE
+		"flow_dasher":
+			return FLOW_DASHER_SCENE
+		"flowform":
+			return FLOWFORM_SCENE
+		"stumbler":
+			return STUMBLER_SCENE
+		"shieldwall":
+			return SHIELDWALL_SCENE
+		"warden":
+			return WARDEN_SCENE
+		"splitter":
+			return SPLITTER_SCENE
+		"spawner":
+			return SPAWNER_SCENE
+		"triad":
+			return TRIAD_SCENE
+		"lurker":
+			return LURKER_SCENE
+		"leecher":
+			return LEECHER_SCENE
+		"binder":
+			return BINDER_SCENE
+		"fizzler":
+			return FIZZLER_SCENE
+		"burster":
+			return BURSTER_SCENE
+		"detonator":
+			return DETONATOR_SCENE
 		_:
 			return null
 

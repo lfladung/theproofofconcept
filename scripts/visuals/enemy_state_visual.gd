@@ -19,6 +19,8 @@ var _active_facing_yaw_offset_deg := 180.0
 var _active_clip_key := ""
 var _clip_roots_by_key: Dictionary = {}
 var _clip_anim_players_by_key: Dictionary = {}
+## 0 = off; 1 = full intensity. Used for model-only enemies (no attack clips).
+var _attack_shake_progress := 0.0
 
 
 func _ready() -> void:
@@ -27,6 +29,10 @@ func _ready() -> void:
 
 func configure_states(state_configs: Dictionary) -> void:
 	_state_configs = state_configs.duplicate(true)
+
+
+func set_attack_shake_progress(progress: float) -> void:
+	_attack_shake_progress = clampf(progress, 0.0, 1.0)
 
 
 func set_state(state: StringName, restart: bool = false) -> float:
@@ -80,6 +86,7 @@ func sync_from_2d(world_position: Vector2, facing_direction: Vector2) -> void:
 		yaw,
 		deg_to_rad(rotation_offset_degrees.z)
 	)
+	_apply_attack_shake()
 
 
 func get_current_animation_duration_seconds() -> float:
@@ -269,3 +276,26 @@ func _disable_cast_shadows_recursive(node: Node) -> void:
 		(node as GeometryInstance3D).cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	for child in node.get_children():
 		_disable_cast_shadows_recursive(child)
+
+
+func _apply_attack_shake() -> void:
+	if _pivot == null or not is_instance_valid(_pivot):
+		return
+	if _attack_shake_progress <= 0.0001:
+		_pivot.position = Vector3.ZERO
+		_pivot.rotation = Vector3.ZERO
+		return
+	var t := float(Time.get_ticks_msec()) * 0.001
+	var curve := pow(_attack_shake_progress, 1.35)
+	var amp_pos := lerpf(0.0, 0.11, curve)
+	var amp_rot := deg_to_rad(lerpf(0.0, 9.0, curve))
+	_pivot.position = Vector3(
+		sin(t * 61.0) * amp_pos,
+		sin(t * 47.0) * amp_pos * 0.38,
+		cos(t * 54.0) * amp_pos
+	)
+	_pivot.rotation = Vector3(
+		sin(t * 73.0) * amp_rot,
+		sin(t * 58.0) * amp_rot * 0.55,
+		cos(t * 66.0) * amp_rot * 0.45
+	)

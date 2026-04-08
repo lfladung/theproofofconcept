@@ -1,0 +1,84 @@
+[gd_scene load_steps=8 format=3 uid="uid://shieldwall_mass_mob"]
+
+[ext_resource type="Script" path="res://scripts/entities/shieldwall_mob.gd" id="1"]
+[ext_resource type="Script" path="res://scripts/entities/fake_shadow_3d.gd" id="2"]
+[ext_resource type="Script" path="res://scripts/combat/health_component.gd" id="3"]
+[ext_resource type="Script" path="res://scripts/combat/directional_guard_damage_receiver_component.gd" id="4"]
+[ext_resource type="Script" path="res://scripts/combat/hurtbox_2d.gd" id="5"]
+[ext_resource type="Script" path="res://scripts/combat/hitbox_2d.gd" id="6"]
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_body"]
+size = Vector2(1.8, 2.1375)
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_bash"]
+size = Vector2(1.8, 1.35)
+
+[node name="Shieldwall" type="CharacterBody2D" groups=["mob"]]
+collision_layer = 2
+collision_mask = 7
+motion_mode = 1
+script = ExtResource("1")
+max_health = 70
+coin_drop_value = 4
+move_speed = 6.0
+block_arc_degrees = 135.0
+mesh_ground_y = 0.15
+mesh_scale = Vector3(1.95, 1.95, 1.95)
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="."]
+shape = SubResource("RectangleShape2D_body")
+
+[node name="HealthComponent" type="Node" parent="."]
+script = ExtResource("3")
+max_health = 70
+starting_health = 70
+debug_label = &"shieldwall_health"
+
+[node name="DamageReceiver" type="Node" parent="."]
+script = ExtResource("4")
+owner_path = NodePath("..")
+health_component_path = NodePath("../HealthComponent")
+guard_owner_path = NodePath("..")
+block_arc_degrees = 135.0
+debug_label = &"shieldwall_receiver"
+
+[node name="EnemyHurtbox" type="Area2D" parent="."]
+collision_layer = 16
+collision_mask = 0
+monitoring = false
+monitorable = true
+script = ExtResource("5")
+receiver_path = NodePath("../DamageReceiver")
+owner_path = NodePath("..")
+faction = &"enemy"
+debug_label = &"shieldwall_hurtbox"
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="EnemyHurtbox"]
+shape = SubResource("RectangleShape2D_body")
+
+[node name="BashHitbox" type="Area2D" parent="."]
+position = Vector2(0, -1.0125)
+rotation = 0.0
+collision_layer = 64
+collision_mask = 8
+monitoring = false
+monitorable = false
+script = ExtResource("6")
+owner_path = NodePath("..")
+stop_after_first_consume_hit = false
+debug_label = &"shieldwall_bash"
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="BashHitbox"]
+shape = SubResource("RectangleShape2D_bash")
+
+[node name="FakeShadow3D" type="Node" parent="."]
+script = ExtResource("2")
+base_scale = 3.9
+min_scale = 2.4
+base_alpha = 0.88
+min_alpha = 0.6
+floor_offset = 0.08
+
+[node name="NavigationAgent2D" type="NavigationAgent2D" parent="."]
+path_desired_distance = 0.5625
+target_desired_distance = 1.65

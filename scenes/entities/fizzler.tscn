@@ -1,0 +1,91 @@
+[gd_scene load_steps=8 format=3 uid="uid://fizzler_surge_mob"]
+
+[ext_resource type="Script" path="res://scripts/entities/fizzler_mob.gd" id="1"]
+[ext_resource type="Script" path="res://scripts/entities/fake_shadow_3d.gd" id="2"]
+[ext_resource type="Script" path="res://scripts/combat/health_component.gd" id="3"]
+[ext_resource type="Script" path="res://scripts/combat/damage_receiver_component.gd" id="4"]
+[ext_resource type="Script" path="res://scripts/combat/hurtbox_2d.gd" id="5"]
+[ext_resource type="Script" path="res://scripts/combat/hitbox_2d.gd" id="6"]
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_mob"]
+size = Vector2(0.38, 0.55)
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_dash_contact"]
+size = Vector2(0.65, 0.65)
+
+[node name="Fizzler" type="CharacterBody2D" groups=["mob"]]
+collision_layer = 2
+collision_mask = 7
+motion_mode = 1
+script = ExtResource("1")
+min_speed = 14.0
+max_speed = 18.0
+speed_scale = 1.0
+stop_distance = 0.45
+telegraph_duration = 0.45
+dash_distance = 2.8
+dash_duration = 0.16
+dash_hit_width = 0.45
+dash_damage = 8
+arrow_length = 3.2
+mesh_ground_y = 0.08
+mesh_scale = Vector3(0.85, 0.85, 0.85)
+edge_clip_scale = 2.8
+max_health = 1
+drops_coin_on_death = false
+coin_drop_value = 0
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="."]
+shape = SubResource("RectangleShape2D_mob")
+
+[node name="HealthComponent" type="Node" parent="."]
+script = ExtResource("3")
+max_health = 1
+starting_health = 1
+debug_label = &"fizzler_health"
+
+[node name="DamageReceiver" type="Node" parent="."]
+script = ExtResource("4")
+owner_path = NodePath("..")
+health_component_path = NodePath("../HealthComponent")
+debug_label = &"fizzler_receiver"
+
+[node name="EnemyHurtbox" type="Area2D" parent="."]
+collision_layer = 16
+collision_mask = 0
+monitoring = false
+monitorable = true
+script = ExtResource("5")
+receiver_path = NodePath("../DamageReceiver")
+owner_path = NodePath("..")
+faction = &"enemy"
+debug_label = &"fizzler_hurtbox"
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="EnemyHurtbox"]
+shape = SubResource("RectangleShape2D_mob")
+
+[node name="DashContactHitbox" type="Area2D" parent="."]
+collision_layer = 64
+collision_mask = 8
+monitoring = false
+monitorable = false
+script = ExtResource("6")
+repeat_mode = 1
+repeat_interval_sec = 0.5
+owner_path = NodePath("..")
+debug_label = &"fizzler_dash_contact"
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="DashContactHitbox"]
+shape = SubResource("RectangleShape2D_dash_contact")
+
+[node name="FakeShadow3D" type="Node" parent="."]
+script = ExtResource("2")
+base_scale = 1.6
+min_scale = 1.0
+base_alpha = 0.78
+min_alpha = 0.5
+floor_offset = 0.05
+
+[node name="NavigationAgent2D" type="NavigationAgent2D" parent="."]
+path_desired_distance = 0.5
+target_desired_distance = 0.45

@@ -1,0 +1,76 @@
+[gd_scene load_steps=7 format=3 uid="uid://stumbler_mass_mob"]
+
+[ext_resource type="Script" path="res://scripts/entities/stumbler_mob.gd" id="1"]
+[ext_resource type="Script" path="res://scripts/entities/fake_shadow_3d.gd" id="2"]
+[ext_resource type="Script" path="res://scripts/combat/health_component.gd" id="3"]
+[ext_resource type="Script" path="res://scripts/combat/damage_receiver_component.gd" id="4"]
+[ext_resource type="Script" path="res://scripts/combat/hurtbox_2d.gd" id="5"]
+[ext_resource type="Script" path="res://scripts/combat/hitbox_2d.gd" id="6"]
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_body"]
+size = Vector2(1.0125, 1.3125)
+
+[sub_resource type="CircleShape2D" id="CircleShape2D_stomp"]
+radius = 1.875
+
+[node name="Stumbler" type="CharacterBody2D" groups=["mob"]]
+collision_layer = 2
+collision_mask = 7
+motion_mode = 1
+script = ExtResource("1")
+max_health = 40
+coin_drop_value = 2
+move_speed = 4.0
+stomp_damage = 20
+stomp_radius = 1.875
+mesh_ground_y = 0.165
+mesh_scale = Vector3(1.65, 1.65, 1.65)
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="."]
+shape = SubResource("RectangleShape2D_body")
+
+[node name="HealthComponent" type="Node" parent="."]
+script = ExtResource("3")
+max_health = 40
+starting_health = 40
+debug_label = &"stumbler_health"
+
+[node name="DamageReceiver" type="Node" parent="."]
+script = ExtResource("4")
+owner_path = NodePath("..")
+health_component_path = NodePath("../HealthComponent")
+debug_label = &"stumbler_receiver"
+
+[node name="EnemyHurtbox" type="Area2D" parent="."]
+collision_layer = 16
+collision_mask = 0
+monitoring = false
+monitorable = true
+script = ExtResource("5")
+receiver_path = NodePath("../DamageReceiver")
+owner_path = NodePath("..")
+faction = &"enemy"
+debug_label = &"stumbler_hurtbox"
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="EnemyHurtbox"]
+shape = SubResource("RectangleShape2D_body")
+
+[node name="StompHitbox" type="Area2D" parent="."]
+collision_layer = 64
+collision_mask = 8
+monitoring = false
+monitorable = false
+script = ExtResource("6")
+owner_path = NodePath("..")
+debug_label = &"stumbler_stomp"
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="StompHitbox"]
+shape = SubResource("CircleShape2D_stomp")
+
+[node name="FakeShadow3D" type="Node" parent="."]
+script = ExtResource("2")
+base_scale = 3.6
+min_scale = 2.1
+base_alpha = 0.86
+min_alpha = 0.58
+floor_offset = 0.08

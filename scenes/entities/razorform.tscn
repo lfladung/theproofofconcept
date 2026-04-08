@@ -1,0 +1,88 @@
+[gd_scene load_steps=8 format=3 uid="uid://crazorform_edge_mob"]
+
+[ext_resource type="Script" path="res://scripts/entities/razorform_mob.gd" id="1"]
+[ext_resource type="Script" path="res://scripts/entities/fake_shadow_3d.gd" id="2"]
+[ext_resource type="Script" path="res://scripts/combat/health_component.gd" id="3"]
+[ext_resource type="Script" path="res://scripts/combat/damage_receiver_component.gd" id="4"]
+[ext_resource type="Script" path="res://scripts/combat/hurtbox_2d.gd" id="5"]
+[ext_resource type="Script" path="res://scripts/combat/hitbox_2d.gd" id="6"]
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_mob"]
+size = Vector2(1.45, 2.15)
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_dash_contact"]
+size = Vector2(3.0, 3.0)
+
+[node name="Razorform" type="CharacterBody2D" groups=["mob"]]
+collision_layer = 2
+collision_mask = 7
+motion_mode = 1
+script = ExtResource("1")
+min_speed = 5.0
+max_speed = 7.5
+speed_scale = 1.0
+stop_distance = 1.45
+telegraph_duration = 0.4
+dash_distance = 6.5
+dash_duration = 0.2
+dash_hit_width = 1.65
+dash_damage = 40
+arrow_length = 9.5
+mesh_ground_y = 0.26
+mesh_scale = Vector3(2.35, 2.35, 2.35)
+edge_clip_scale = 2.5
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="."]
+shape = SubResource("RectangleShape2D_mob")
+
+[node name="HealthComponent" type="Node" parent="."]
+script = ExtResource("3")
+max_health = 110
+starting_health = 110
+debug_label = &"razorform_health"
+
+[node name="DamageReceiver" type="Node" parent="."]
+script = ExtResource("4")
+owner_path = NodePath("..")
+health_component_path = NodePath("../HealthComponent")
+debug_label = &"razorform_receiver"
+
+[node name="EnemyHurtbox" type="Area2D" parent="."]
+collision_layer = 16
+collision_mask = 0
+monitoring = false
+monitorable = true
+script = ExtResource("5")
+receiver_path = NodePath("../DamageReceiver")
+owner_path = NodePath("..")
+faction = &"enemy"
+debug_label = &"razorform_hurtbox"
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="EnemyHurtbox"]
+shape = SubResource("RectangleShape2D_mob")
+
+[node name="DashContactHitbox" type="Area2D" parent="."]
+collision_layer = 64
+collision_mask = 8
+monitoring = false
+monitorable = false
+script = ExtResource("6")
+repeat_mode = 1
+repeat_interval_sec = 0.65
+owner_path = NodePath("..")
+debug_label = &"razorform_dash_contact"
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="DashContactHitbox"]
+shape = SubResource("RectangleShape2D_dash_contact")
+
+[node name="FakeShadow3D" type="Node" parent="."]
+script = ExtResource("2")
+base_scale = 5.5
+min_scale = 3.2
+base_alpha = 0.86
+min_alpha = 0.6
+floor_offset = 0.075
+
+[node name="NavigationAgent2D" type="NavigationAgent2D" parent="."]
+path_desired_distance = 0.75
+target_desired_distance = 1.45

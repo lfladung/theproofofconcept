@@ -79,7 +79,7 @@ static func child_echo_proc_chance(threshold: int) -> float:
 	return 0.18
 
 
-static func child_echo_damage_ratio(threshold: int) -> float:
+static func child_echo_damage_ratio(_threshold: int) -> float:
 	return 0.38
 
 
@@ -92,7 +92,7 @@ static func projectile_twin_chance(threshold: int) -> float:
 	return 0.14
 
 
-static func projectile_twin_damage_ratio(threshold: int) -> float:
+static func projectile_twin_damage_ratio(_threshold: int) -> float:
 	return 0.52
 
 

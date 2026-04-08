@@ -69,5 +69,3 @@ func _apply_editor_animation_preview() -> void:
 		EditorAnimationPreview.DOWNED:
 			set_defending_state(false)
 			set_downed_state(true)
-
-
