@@ -27,6 +27,8 @@ enum BashPhase { IDLE, WINDUP, LUNGE, RECOVER }
 @export var bash_arrow_head_length := 0.7
 @export var bash_arrow_half_width := 0.24
 @export var bash_circle_radius := 5.0
+## Forward hitbox placement: same convention as player melee (rect `size.y` = depth along bash after `rotation = dir.angle() + PI/2`).
+@export var bash_hit_start_beyond_body := 0.06
 @export var exposed_duration_sec := 2.0
 @export var back_hits_to_expose := 3
 @export var back_hit_window_sec := 5.0
@@ -198,10 +200,13 @@ func _build_visual_state_config() -> Dictionary:
 
 
 func _refresh_bash_hitbox_layout() -> void:
+	var depth_along_bash := 1.35
 	if _bash_shape_node != null and _bash_shape_node.shape is RectangleShape2D:
 		var rect := _bash_shape_node.shape as RectangleShape2D
 		rect.size = Vector2(1.8, 1.35)
-	_bash_hitbox.position = _bash_dir * 1.0125
+		depth_along_bash = rect.size.y
+	var inner := _body_footprint_radius() + bash_hit_start_beyond_body
+	_bash_hitbox.position = _bash_dir * (inner + depth_along_bash * 0.5)
 	_bash_hitbox.rotation = _bash_dir.angle() + PI * 0.5
 
 
@@ -330,7 +335,11 @@ func _activate_bash_hitbox() -> void:
 	packet.kind = &"bash"
 	packet.source_node = self
 	packet.source_uid = get_instance_id()
-	packet.origin = global_position + _bash_dir * 1.2
+	packet.origin = (
+		_bash_hitbox.global_position
+		if _bash_hitbox != null
+		else global_position + _bash_dir * (_body_footprint_radius() + bash_hit_start_beyond_body)
+	)
 	packet.direction = _bash_dir
 	packet.knockback = bash_knockback
 	packet.apply_iframes = false

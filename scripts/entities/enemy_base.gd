@@ -75,6 +75,11 @@ static func step_planar_facing_toward(
 @export_range(0.0, 2.0, 0.05) var mob_separation_strength := 0.85
 @export_range(0.0, 1.0, 0.05) var mob_slide_bias := 0.4
 @export_range(0.0, 1.0, 0.05) var mob_min_forward_bias := 0.2
+## Gentle post-slide pair separation so rear mobs can squeeze pressure through the front line.
+@export_range(0.0, 0.5, 0.01) var mob_squeeze_min_push := 0.06
+@export_range(0.0, 0.5, 0.01) var mob_squeeze_max_push := 0.18
+@export_range(0.0, 1.0, 0.05) var mob_squeeze_transfer_ratio := 0.8
+@export_range(0.0, 1.0, 0.05) var mob_squeeze_velocity_factor := 0.35
 
 @onready var _health_component: HealthComponent = $HealthComponent
 @onready var _damage_receiver: DamageReceiverComponent = $DamageReceiver
@@ -258,7 +263,9 @@ func configure_spawn(start_position: Vector2, _player_position: Vector2) -> void
 
 func move_and_slide_with_mob_separation() -> bool:
 	_apply_mob_separation_to_velocity()
-	return move_and_slide()
+	var collided := move_and_slide()
+	_apply_mob_contact_squeeze()
+	return collided
 
 
 func apply_speed_multiplier(_multiplier: float) -> void:
@@ -1269,6 +1276,56 @@ func _mob_separation_vector(desired_dir: Vector2) -> Vector2:
 			tangent = -tangent
 		steer += tangent * proximity * mob_slide_bias
 	return steer
+
+
+func _apply_mob_contact_squeeze() -> void:
+	if not is_damage_authority():
+		return
+	if velocity.length_squared() <= 0.0001:
+		return
+	var my_radius := _body_footprint_radius()
+	if my_radius <= 0.0:
+		return
+	var desired_speed := velocity.length()
+	var squeeze_from_speed := desired_speed * get_physics_process_delta_time() * mob_squeeze_velocity_factor
+	for i in get_slide_collision_count():
+		var collision := get_slide_collision(i)
+		if collision == null:
+			continue
+		var other_v: Variant = collision.get_collider()
+		if other_v == null or other_v is not EnemyBase:
+			continue
+		var other := other_v as EnemyBase
+		if other == self or not is_instance_valid(other):
+			continue
+		if other.get_instance_id() < get_instance_id():
+			continue
+		if not other.is_damage_authority():
+			continue
+		var other_radius := other._body_footprint_radius()
+		if other_radius <= 0.0:
+			continue
+		var separation_axis := collision.get_normal()
+		if separation_axis.length_squared() <= 0.0001:
+			separation_axis = global_position - other.global_position
+		if separation_axis.length_squared() <= 0.0001:
+			var deterministic_sign := -1.0 if get_instance_id() < other.get_instance_id() else 1.0
+			separation_axis = Vector2(deterministic_sign, 0.0)
+		separation_axis = separation_axis.normalized()
+		var center_delta := other.global_position - global_position
+		var center_dist := center_delta.length()
+		var overlap := my_radius + other_radius - center_dist
+		var squeeze_amount := clampf(
+			maxf(mob_squeeze_min_push, overlap * 0.5 + squeeze_from_speed),
+			0.0,
+			mob_squeeze_max_push
+		)
+		if squeeze_amount <= 0.0:
+			continue
+		var other_share := clampf(mob_squeeze_transfer_ratio, 0.0, 1.0)
+		var self_share := 1.0 - other_share
+		global_position += separation_axis * squeeze_amount * self_share
+		other.global_position -= separation_axis * squeeze_amount * other_share
 
 
 func _body_footprint_radius() -> float:
