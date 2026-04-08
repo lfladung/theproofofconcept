@@ -10,6 +10,9 @@ enum TrailMode { NONE, DASH, DEATH_SKID }
 @export var trail_damage_per_tick := 1
 @export var trail_tick_interval_sec := 0.2
 @export var trail_lifetime_sec := 3.0
+@export var dash_distance_multiplier := 3.0
+## Telegraph/dash when within this fraction of nominal dash length: (dash_range + pass_through) * dash_distance_multiplier.
+@export var attack_trigger_dash_length_fraction := 0.5
 @export var death_skid_distance := 2.4
 @export var death_skid_speed := 12.0
 
@@ -24,6 +27,15 @@ var _death_skid_time := 0.0
 
 func _flow_character_scene() -> PackedScene:
 	return FLOWFORM_MODEL
+
+
+func _attack_trigger_distance() -> float:
+	var nominal_dash := (dash_range + dash_pass_through_distance) * dash_distance_multiplier
+	return (
+		nominal_dash
+		* attack_trigger_dash_length_fraction
+		* attack_trigger_distance_multiplier
+	)
 
 
 func _ready() -> void:
@@ -43,7 +55,7 @@ func _physics_process(delta: float) -> void:
 		return
 	if _death_skid_active:
 		_update_death_skid(delta)
-		move_and_slide()
+		move_and_slide_with_mob_separation()
 		mass_server_post_slide()
 		_enemy_network_server_broadcast(delta)
 		_sync_visual_from_body()
@@ -153,6 +165,10 @@ func _current_death_skid_duration() -> float:
 
 func _start_dash() -> void:
 	super._start_dash()
+	var dash_vec := _dash_end - _dash_start
+	if dash_vec.length_squared() > 0.0001 and dash_distance_multiplier != 1.0:
+		_dash_end = _dash_start + dash_vec * dash_distance_multiplier
+		_refresh_dash_contact_hitbox()
 	_start_trail_mode(TrailMode.DASH, true)
 
 

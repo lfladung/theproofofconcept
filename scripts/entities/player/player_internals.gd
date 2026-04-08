@@ -155,6 +155,7 @@ var _ranged_cooldown_remaining := 0.0
 var _bomb_cooldown_remaining := 0.0
 var _rmb_down := false
 var _lmb_down := false
+var _external_move_speed_multipliers: Dictionary = {}
 const _MELEE_CHARGE_SRC_NONE := 0
 const _MELEE_CHARGE_SRC_MELEE_ACTION := 1
 const _MELEE_CHARGE_SRC_MOUSE_PRIMARY := 2
@@ -959,6 +960,7 @@ func _set_downed_state(next_downed: bool, emit_hit_signal: bool = false) -> void
 		return
 	_is_dead = next_downed
 	if _is_dead:
+		clear_all_external_move_speed_multipliers()
 		_set_defending_state(false)
 	if _is_dead:
 		velocity = Vector2.ZERO
@@ -1390,6 +1392,7 @@ func _apply_movement_step(
 			resolved_speed *= InfusionSurgeRef.overdrive_player_move_speed_mult()
 		if _is_defending:
 			resolved_speed *= clampf(defend_move_speed_multiplier, 0.0, 1.0)
+		resolved_speed *= _external_move_speed_factor()
 		velocity = direction * resolved_speed
 		planar_speed = resolved_speed
 	else:
@@ -1399,6 +1402,32 @@ func _apply_movement_step(
 	if (_is_server_peer() or not _multiplayer_active()) and is_damage_authority():
 		_anchor_bastion_charge_tick(delta, move_active, dodge_pressed, wants_defending)
 	return planar_speed
+
+
+func set_external_move_speed_multiplier(source_key: Variant, multiplier: float) -> void:
+	var key := StringName(str(source_key))
+	if key == &"":
+		return
+	_external_move_speed_multipliers[key] = clampf(multiplier, 0.05, 1.0)
+
+
+func clear_external_move_speed_multiplier(source_key: Variant) -> void:
+	var key := StringName(str(source_key))
+	if key == &"":
+		return
+	_external_move_speed_multipliers.erase(key)
+
+
+func clear_all_external_move_speed_multipliers() -> void:
+	_external_move_speed_multipliers.clear()
+
+
+func _external_move_speed_factor() -> float:
+	var multiplier := 1.0
+	for value in _external_move_speed_multipliers.values():
+		if value is float or value is int:
+			multiplier = minf(multiplier, clampf(float(value), 0.05, 1.0))
+	return multiplier
 
 
 func _server_authoritative_step(delta: float) -> void:

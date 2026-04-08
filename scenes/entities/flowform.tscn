@@ -15,7 +15,7 @@ size = Vector2(3.2, 3.2)
 
 [node name="Flowform" type="CharacterBody2D" groups=["mob"]]
 collision_layer = 2
-collision_mask = 7
+collision_mask = 4
 motion_mode = 1
 script = ExtResource("1")
 min_speed = 14.0
@@ -28,8 +28,9 @@ dash_speed = 32.0
 dash_pass_through_distance = 1.5
 dash_hit_width = 1.9
 dash_damage = 30
+guard_stamina_split_ratio = 0.5
 dash_recovery_duration = 0.3
-arrow_length = 7.5
+arrow_length = 22.5
 mesh_ground_y = 0.26
 mesh_scale = Vector3(2.2, 2.2, 2.2)
 flow_clip_scale = 2.5

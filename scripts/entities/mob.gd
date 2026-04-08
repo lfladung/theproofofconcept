@@ -23,6 +23,7 @@ enum AttackPhase { CHASE, TELEGRAPH, DASH, RECOVERY, STUN }
 @export var dash_hit_width := 1.8
 @export var dash_damage := 25
 @export var dash_recovery_duration := 0.3
+@export_range(0.0, 1.0, 0.05) var guard_stamina_split_ratio := 0.5
 @export var arrow_ground_y := 0.06
 @export var arrow_length := 7.8
 @export var arrow_head_length := 0.8
@@ -139,7 +140,8 @@ func _ready() -> void:
 		_nav_agent.avoidance_enabled = false
 	if _has_spawn:
 		set_deferred(&"collision_layer", 2)
-		set_deferred(&"collision_mask", 7)
+		set_deferred(&"collision_mask", _body_collision_mask_on_spawn())
+		ignore_player_body_collisions()
 	else:
 		push_warning("Mob entered tree without configure_spawn; removing.")
 		queue_free()
@@ -162,7 +164,8 @@ func _physics_process(delta: float) -> void:
 		return
 	surge_infusion_tick_server_field_decay()
 	_update_attack_state(delta)
-	move_and_slide()
+	move_and_slide_with_mob_separation()
+	_handle_flow_wall_reset()
 	mass_server_post_slide()
 	_update_planar_facing(delta)
 	_enemy_network_server_broadcast(delta)
@@ -251,6 +254,7 @@ func _update_attack_state(delta: float) -> void:
 		_sync_visual_anim_speed(0.0)
 		return
 	_refresh_target_player(delta, _attack_phase == AttackPhase.CHASE)
+	ignore_player_body_collisions()
 	if _is_player_downed_node(_target_player):
 		_target_player = _pick_target_player()
 		_set_attack_phase(AttackPhase.CHASE)
@@ -277,9 +281,13 @@ func _update_attack_state(delta: float) -> void:
 		return
 	_update_chase_velocity(delta)
 	var to_player := _target_player.global_position - global_position
-	var trigger_distance := dash_range * attack_trigger_distance_multiplier
+	var trigger_distance := _attack_trigger_distance()
 	if to_player.length() <= trigger_distance:
 		_start_telegraph(_target_player.global_position)
+
+
+func _attack_trigger_distance() -> float:
+	return dash_range * attack_trigger_distance_multiplier
 
 
 func _update_chase_velocity(delta: float) -> void:
@@ -497,11 +505,51 @@ func _refresh_dash_contact_hitbox() -> void:
 	packet.knockback = 0.0
 	packet.apply_iframes = true
 	packet.blockable = true
+	packet.guard_stamina_split_ratio = guard_stamina_split_ratio
 	packet.debug_label = &"dash_contact"
 	if _dash_contact_hitbox.is_active():
 		_dash_contact_hitbox.update_packet_template(packet)
 	else:
 		_dash_contact_hitbox.activate(packet, _current_dash_duration())
+
+
+func _body_collision_mask_on_spawn() -> int:
+	return 7
+
+
+func _handle_flow_wall_reset() -> void:
+	if not _hit_non_player_wall_this_frame():
+		return
+	velocity = Vector2.ZERO
+	if _is_dashing():
+		if _dash_contact_hitbox != null:
+			_dash_contact_hitbox.deactivate()
+		_set_attack_phase(AttackPhase.RECOVERY)
+		_recovery_time_remaining = dash_recovery_duration
+		_dash_time = 0.0
+		return
+	if _attack_phase == AttackPhase.TELEGRAPH:
+		_set_attack_phase(AttackPhase.CHASE)
+		_telegraph_time = 0.0
+		return
+	_set_attack_phase(AttackPhase.CHASE)
+	_repath_time_remaining = 0.0
+
+
+func _hit_non_player_wall_this_frame() -> bool:
+	for i in get_slide_collision_count():
+		var collision := get_slide_collision(i)
+		if collision == null:
+			continue
+		var collider: Variant = collision.get_collider()
+		if collider == null:
+			return true
+		if collider is Area2D:
+			continue
+		if collider is Node and (collider as Node).is_in_group(&"player"):
+			continue
+		return true
+	return false
 
 
 func squash() -> void:

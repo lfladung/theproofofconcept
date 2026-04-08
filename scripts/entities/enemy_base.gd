@@ -16,10 +16,14 @@ const DAMAGE_TEXT_HP_COLOR := Color(1.0, 0.15, 0.15, 1.0)
 const DAMAGE_TEXT_BLOCK_COLOR := Color(0.25, 0.62, 1.0, 1.0)
 const DAMAGE_TEXT_OUTLINE_COLOR := Color(0.0, 0.0, 0.0, 1.0)
 const _PLAYER_ROSTER_CACHE_INTERVAL_USEC := 100000
+const _MOB_ROSTER_CACHE_INTERVAL_USEC := 100000
 
 static var _cached_player_nodes: Array = []
 static var _cached_player_tree_id := 0
 static var _cached_player_snapshot_usec := 0
+static var _cached_mob_nodes: Array = []
+static var _cached_mob_tree_id := 0
+static var _cached_mob_snapshot_usec := 0
 
 
 ## Rotate a planar unit direction toward a target by at most `max_step_radians` this frame.
@@ -64,6 +68,13 @@ static func step_planar_facing_toward(
 ## Planar knockback impulse = `knockback_strength * knockback_impulse_scale` while `hit_knockback_duration` elapses.
 @export var knockback_impulse_scale := 1.3
 @export var hit_knockback_duration := 0.22
+## Convert tall top-down rectangles into footprint circles so enemies collide closer to their feet than their full silhouette.
+@export_range(0.5, 1.5, 0.05) var topdown_collision_radius_scale := 1.0
+## Mob-to-mob steering buffer added on top of footprint radii to reduce crowd jams while chasing players.
+@export var mob_separation_extra_margin := 0.3
+@export_range(0.0, 2.0, 0.05) var mob_separation_strength := 0.85
+@export_range(0.0, 1.0, 0.05) var mob_slide_bias := 0.4
+@export_range(0.0, 1.0, 0.05) var mob_min_forward_bias := 0.2
 
 @onready var _health_component: HealthComponent = $HealthComponent
 @onready var _damage_receiver: DamageReceiverComponent = $DamageReceiver
@@ -122,6 +133,7 @@ func echo_infusion_refresh_imprint(duration_sec: float) -> void:
 
 
 func _ready() -> void:
+	_normalize_topdown_collision_footprint()
 	if _health_component != null:
 		_health_component.max_health = max_health
 		_health_component.starting_health = max_health
@@ -242,6 +254,11 @@ func _enemy_network_client_interpolate(delta: float) -> void:
 
 func configure_spawn(start_position: Vector2, _player_position: Vector2) -> void:
 	global_position = start_position
+
+
+func move_and_slide_with_mob_separation() -> bool:
+	_apply_mob_separation_to_velocity()
+	return move_and_slide()
 
 
 func apply_speed_multiplier(_multiplier: float) -> void:
@@ -377,7 +394,7 @@ func _resolve_player_mass_knockback_source(packet: DamagePacket) -> Node:
 		return src
 	if src.has_method(&"get_knockback_attribution_owner"):
 		var o: Variant = src.call(&"get_knockback_attribution_owner")
-		if o is Node and is_instance_valid(o):
+		if is_instance_valid(o) and o is Node:
 			return o as Node
 	return null
 
@@ -1162,11 +1179,146 @@ func _targetable_player_candidates() -> Array[Node2D]:
 	):
 		_cached_player_nodes.clear()
 		for node in tree.get_nodes_in_group(&"player"):
-			if node is Node2D and is_instance_valid(node):
+			if is_instance_valid(node) and node is Node2D:
 				_cached_player_nodes.append(node)
 		_cached_player_tree_id = tree_id
 		_cached_player_snapshot_usec = now_usec
 	for node in _cached_player_nodes:
-		if node is Node2D and is_instance_valid(node):
+		if is_instance_valid(node) and node is Node2D:
 			out.append(node as Node2D)
 	return out
+
+
+func ignore_player_body_collisions() -> void:
+	for candidate in _targetable_player_candidates():
+		if is_instance_valid(candidate) and candidate is CollisionObject2D:
+			add_collision_exception_with(candidate as CollisionObject2D)
+
+
+func _normalize_topdown_collision_footprint() -> void:
+	var body_shape_node := get_node_or_null("CollisionShape2D") as CollisionShape2D
+	if body_shape_node != null:
+		_convert_shape_node_to_footprint_circle(body_shape_node)
+	if _hurtbox != null:
+		var hurtbox_shape_node := _hurtbox.get_node_or_null("CollisionShape2D") as CollisionShape2D
+		if hurtbox_shape_node != null:
+			_convert_shape_node_to_footprint_circle(hurtbox_shape_node)
+
+
+func _convert_shape_node_to_footprint_circle(shape_node: CollisionShape2D) -> void:
+	if shape_node == null or shape_node.shape == null:
+		return
+	var shape := shape_node.shape
+	if shape is CircleShape2D:
+		var circle := shape as CircleShape2D
+		circle.radius = maxf(0.05, circle.radius * topdown_collision_radius_scale)
+		return
+	if shape is RectangleShape2D:
+		var rect := shape as RectangleShape2D
+		var radius := minf(rect.size.x, rect.size.y) * 0.5 * topdown_collision_radius_scale
+		var footprint := CircleShape2D.new()
+		footprint.radius = maxf(0.05, radius)
+		shape_node.shape = footprint
+
+
+func _apply_mob_separation_to_velocity() -> void:
+	if not is_damage_authority():
+		return
+	if velocity.length_squared() <= 0.0001:
+		return
+	var desired_speed := velocity.length()
+	var desired_dir := velocity / desired_speed
+	var steer := desired_dir + _mob_separation_vector(desired_dir) * mob_separation_strength
+	if steer.length_squared() <= 0.0001:
+		return
+	steer = steer.normalized()
+	if steer.dot(desired_dir) < mob_min_forward_bias:
+		steer = (desired_dir * mob_min_forward_bias + steer).normalized()
+	velocity = steer * desired_speed
+
+
+func _mob_separation_vector(desired_dir: Vector2) -> Vector2:
+	if desired_dir.length_squared() <= 0.0001:
+		return Vector2.ZERO
+	var my_radius := _body_footprint_radius()
+	if my_radius <= 0.0:
+		return Vector2.ZERO
+	var steer := Vector2.ZERO
+	for candidate in _targetable_mob_candidates():
+		if candidate == self or not is_instance_valid(candidate):
+			continue
+		if candidate is CollisionObject2D and (candidate as CollisionObject2D).collision_layer == 0:
+			continue
+		var delta := global_position - candidate.global_position
+		if delta.length_squared() <= 0.000001:
+			var deterministic_sign := -1.0 if get_instance_id() < candidate.get_instance_id() else 1.0
+			delta = Vector2(deterministic_sign, 0.0)
+		var other_radius := _mob_footprint_radius_for(candidate)
+		if other_radius <= 0.0:
+			continue
+		var interaction_radius := my_radius + other_radius + mob_separation_extra_margin
+		var dist_sq := delta.length_squared()
+		if dist_sq >= interaction_radius * interaction_radius:
+			continue
+		var dist := sqrt(dist_sq)
+		var away := delta / maxf(dist, 0.0001)
+		var proximity := clampf((interaction_radius - dist) / interaction_radius, 0.0, 1.0)
+		steer += away * proximity
+		var tangent := Vector2(-away.y, away.x)
+		if tangent.dot(desired_dir) < 0.0:
+			tangent = -tangent
+		steer += tangent * proximity * mob_slide_bias
+	return steer
+
+
+func _body_footprint_radius() -> float:
+	var shape_node := get_node_or_null("CollisionShape2D") as CollisionShape2D
+	return _footprint_radius_for_shape_node(shape_node)
+
+
+func _mob_footprint_radius_for(candidate: Node2D) -> float:
+	if candidate == null:
+		return 0.0
+	if candidate.has_method("_body_footprint_radius"):
+		return float(candidate.call("_body_footprint_radius"))
+	var shape_node := candidate.get_node_or_null("CollisionShape2D") as CollisionShape2D
+	return _footprint_radius_for_shape_node(shape_node)
+
+
+func _footprint_radius_for_shape_node(shape_node: CollisionShape2D) -> float:
+	if shape_node == null or shape_node.shape == null:
+		return 0.0
+	var shape := shape_node.shape
+	if shape is CircleShape2D:
+		return (shape as CircleShape2D).radius * _max_abs_component(shape_node.global_scale)
+	if shape is RectangleShape2D:
+		var rect := shape as RectangleShape2D
+		return minf(rect.size.x, rect.size.y) * 0.5 * _max_abs_component(shape_node.global_scale)
+	return 0.0
+
+
+func _targetable_mob_candidates() -> Array[Node2D]:
+	var out: Array[Node2D] = []
+	var tree: SceneTree = get_tree()
+	if tree == null:
+		return out
+	var tree_id := tree.get_instance_id()
+	var now_usec := Time.get_ticks_usec()
+	if (
+		tree_id != _cached_mob_tree_id
+		or now_usec - _cached_mob_snapshot_usec >= _MOB_ROSTER_CACHE_INTERVAL_USEC
+	):
+		_cached_mob_nodes.clear()
+		for node in tree.get_nodes_in_group(&"mob"):
+			if is_instance_valid(node) and node is Node2D:
+				_cached_mob_nodes.append(node)
+		_cached_mob_tree_id = tree_id
+		_cached_mob_snapshot_usec = now_usec
+	for node in _cached_mob_nodes:
+		if is_instance_valid(node) and node is Node2D:
+			out.append(node as Node2D)
+	return out
+
+
+func _max_abs_component(v: Vector2) -> float:
+	return maxf(absf(v.x), absf(v.y))

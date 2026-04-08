@@ -326,6 +326,7 @@ func _exit_tree() -> void:
 func reset_for_retry(world_pos: Vector2) -> void:
 	_set_downed_state(false)
 	_set_defending_state(false)
+	clear_all_external_move_speed_multipliers()
 	_clear_pending_rmb_attack()
 	weapon_mode = WeaponMode.SWORD
 	_coerce_weapon_mode_to_available(true)
@@ -355,6 +356,7 @@ func revive(health_after_revive: int = -1) -> void:
 		return
 	if not _is_dead:
 		return
+	clear_all_external_move_speed_multipliers()
 	var resolved_health := health_after_revive
 	if resolved_health <= 0:
 		resolved_health = REVIVE_HEALTH

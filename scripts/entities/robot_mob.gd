@@ -128,7 +128,7 @@ func _physics_process(delta: float) -> void:
 	else:
 		_update_behavior(delta)
 	apply_hit_knockback_to_body_velocity()
-	move_and_slide()
+	move_and_slide_with_mob_separation()
 	mass_server_post_slide()
 	tick_hit_knockback_timer(delta)
 	_update_planar_facing(delta)

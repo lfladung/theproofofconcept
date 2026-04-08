@@ -7,8 +7,8 @@
 [ext_resource type="Script" path="res://scripts/combat/hurtbox_2d.gd" id="5"]
 [ext_resource type="Script" path="res://scripts/combat/hitbox_2d.gd" id="6"]
 
-[sub_resource type="RectangleShape2D" id="RectangleShape2D_sentinel_body"]
-size = Vector2(6, 7.75)
+[sub_resource type="CircleShape2D" id="CircleShape2D_sentinel_body"]
+radius = 3.6
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_sentinel_punch"]
 size = Vector2(11, 13)
@@ -22,10 +22,13 @@ collision_mask = 7
 motion_mode = 1
 script = ExtResource("1")
 max_health = 150
+topdown_collision_radius_scale = 1.0
+mob_separation_extra_margin = 1.0
 guard_break_damage_threshold = 150.0
+mesh_ground_y = 1.1
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="."]
-shape = SubResource("RectangleShape2D_sentinel_body")
+shape = SubResource("CircleShape2D_sentinel_body")
 
 [node name="HealthComponent" type="Node" parent="."]
 script = ExtResource("3")
@@ -53,7 +56,7 @@ faction = &"enemy"
 debug_label = &"sentinel_hurtbox"
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="EnemyHurtbox"]
-shape = SubResource("RectangleShape2D_sentinel_body")
+shape = SubResource("CircleShape2D_sentinel_body")
 
 [node name="PunchHitbox" type="Area2D" parent="."]
 collision_layer = 64

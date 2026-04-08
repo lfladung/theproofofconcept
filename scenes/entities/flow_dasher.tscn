@@ -8,31 +8,32 @@
 [ext_resource type="Script" path="res://scripts/combat/hitbox_2d.gd" id="6"]
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_mob"]
-size = Vector2(1.35, 2.15)
+size = Vector2(1.08, 1.72)
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_dash_contact"]
-size = Vector2(3, 3)
+size = Vector2(2.4, 2.4)
 
 [node name="FlowDasher" type="CharacterBody2D" groups=["mob"]]
 collision_layer = 2
-collision_mask = 7
+collision_mask = 4
 motion_mode = 1
 script = ExtResource("1")
 min_speed = 12.0
 max_speed = 12.0
 speed_scale = 1.0
-stop_distance = 1.2
+stop_distance = 0.96
 telegraph_duration = 1.0
 dash_range = 7.0
 dash_speed = 28.0
-dash_pass_through_distance = 1.35
-dash_hit_width = 1.8
+dash_pass_through_distance = 1.08
+dash_hit_width = 1.44
 dash_damage = 25
+guard_stamina_split_ratio = 0.5
 dash_recovery_duration = 0.3
-arrow_length = 7.8
-mesh_ground_y = 0.24
-mesh_scale = Vector3(2.1, 2.1, 2.1)
-flow_clip_scale = 2.5
+arrow_length = 6.24
+mesh_ground_y = 0.192
+mesh_scale = Vector3(1.68, 1.68, 1.68)
+flow_clip_scale = 2.0
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="."]
 shape = SubResource("RectangleShape2D_mob")
@@ -79,12 +80,12 @@ shape = SubResource("RectangleShape2D_dash_contact")
 
 [node name="FakeShadow3D" type="Node" parent="."]
 script = ExtResource("2")
-base_scale = 5.0
-min_scale = 3.0
+base_scale = 4.0
+min_scale = 2.4
 base_alpha = 0.86
 min_alpha = 0.6
-floor_offset = 0.075
+floor_offset = 0.06
 
 [node name="NavigationAgent2D" type="NavigationAgent2D" parent="."]
-path_desired_distance = 0.75
-target_desired_distance = 1.2
+path_desired_distance = 0.6
+target_desired_distance = 0.96

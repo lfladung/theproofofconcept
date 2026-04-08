@@ -4,30 +4,42 @@ extends EnemyBase
 
 const EnemyStateVisualScript = preload("res://scripts/visuals/enemy_state_visual.gd")
 const ShieldwallDamagePacketScript = preload("res://scripts/combat/damage_packet.gd")
+const GroundAoeTelegraphMeshScript = preload("res://scripts/visuals/ground_aoe_telegraph_mesh.gd")
+const FlowTelegraphArrowMeshScript = preload("res://scripts/entities/flow_telegraph_arrow_mesh.gd")
 
 enum BashPhase { IDLE, WINDUP, LUNGE, RECOVER }
 
 @export var move_speed := 6.0
-@export var stop_distance := 1.65
+@export var stop_distance := 2.5
 @export var repath_interval := 0.22
 @export var target_refresh_interval := 0.35
 @export var shield_turn_deg_per_sec := 80.0
-@export var block_arc_degrees := 135.0
-@export var bash_interval_sec := 4.0
+@export var block_arc_degrees := 90.0
+@export var bash_interval_sec := 2.0
+@export var bash_trigger_distance := 9.5
 @export var bash_windup_sec := 0.5
 @export var bash_lunge_sec := 0.2
-@export var bash_lunge_distance := 1.5
+@export var bash_lunge_distance := 2.0
 @export var bash_recover_sec := 0.4
 @export var bash_knockback := 22.0
+@export var bash_telegraph_ground_y := 0.05
+@export var bash_arrow_length := 2.8
+@export var bash_arrow_head_length := 0.7
+@export var bash_arrow_half_width := 0.24
+@export var bash_circle_radius := 3.5
 @export var exposed_duration_sec := 2.0
 @export var back_hits_to_expose := 3
 @export var back_hit_window_sec := 5.0
-@export var mesh_ground_y := 0.15
+@export var mesh_ground_y := 0.28
 @export var mesh_scale := Vector3(1.95, 1.95, 1.95)
 @export var shieldwall_clip_scale := 1.8375
 
 var _visual: Node3D
 var _vw: Node3D
+var _telegraph_arrow_mesh: MeshInstance3D
+var _telegraph_circle_mesh: MeshInstance3D
+var _telegraph_outline_mat: StandardMaterial3D
+var _telegraph_fill_mat: StandardMaterial3D
 var _target_player: Node2D
 var _target_refresh_time_remaining := 0.0
 var _repath_time_remaining := 0.0
@@ -41,6 +53,7 @@ var _bash_dir := Vector2(0.0, -1.0)
 var _exposed_until_msec := 0
 var _back_hit_times: Array[float] = []
 var _remote_exposed := false
+var _exposed_indicator_mesh: MeshInstance3D
 
 @onready var _nav_agent: NavigationAgent2D = $NavigationAgent2D
 @onready var _bash_hitbox: Hitbox2D = $BashHitbox
@@ -120,6 +133,8 @@ func _ready() -> void:
 		vis.configure_states(_build_visual_state_config())
 		vw.add_child(vis)
 		_visual = vis
+		_create_exposed_indicator(vw)
+		_create_bash_telegraph_meshes(vw)
 	_sync_visual()
 	if _nav_agent != null:
 		_nav_agent.path_desired_distance = 0.5625
@@ -133,6 +148,12 @@ func _exit_tree() -> void:
 	super._exit_tree()
 	if _visual != null and is_instance_valid(_visual):
 		_visual.queue_free()
+	if _exposed_indicator_mesh != null and is_instance_valid(_exposed_indicator_mesh):
+		_exposed_indicator_mesh.queue_free()
+	if _telegraph_arrow_mesh != null and is_instance_valid(_telegraph_arrow_mesh):
+		_telegraph_arrow_mesh.queue_free()
+	if _telegraph_circle_mesh != null and is_instance_valid(_telegraph_circle_mesh):
+		_telegraph_circle_mesh.queue_free()
 
 
 func _on_receiver_damage_applied(packet: DamagePacket, hp_damage: int, hurtbox: Area2D) -> void:
@@ -214,7 +235,7 @@ func _physics_process(delta: float) -> void:
 			velocity = Vector2.ZERO
 			_tick_bash_recover(delta)
 	apply_hit_knockback_to_body_velocity()
-	move_and_slide()
+	move_and_slide_with_mob_separation()
 	mass_server_post_slide()
 	tick_hit_knockback_timer(delta)
 	_enemy_network_server_broadcast(delta)
@@ -264,7 +285,7 @@ func _try_start_bash() -> void:
 	if _bash_cooldown_rem > 0.0 or _target_player == null or not is_instance_valid(_target_player):
 		return
 	var to_t := _target_player.global_position - global_position
-	if to_t.length_squared() > 100.0:
+	if to_t.length_squared() > bash_trigger_distance * bash_trigger_distance:
 		return
 	_bash_phase = BashPhase.WINDUP
 	_bash_elapsed = 0.0
@@ -363,10 +384,18 @@ func _refresh_target_player(delta: float, allow_retarget: bool = true) -> void:
 func _sync_visual() -> void:
 	if _visual == null:
 		return
+	var shake_progress := (
+		clampf(_bash_elapsed / maxf(0.01, bash_windup_sec), 0.0, 1.0)
+		if _bash_phase == BashPhase.WINDUP
+		else 0.0
+	)
+	_visual.set_attack_shake_progress(shake_progress)
 	_visual.set_high_detail_enabled(_should_use_high_detail_visuals())
 	var moving := velocity.length_squared() > 0.04
 	_visual.set_state(&"walk" if moving else &"idle")
 	_visual.sync_from_2d(global_position, _shield_facing)
+	_update_exposed_indicator()
+	_update_bash_telegraph_visual()
 
 
 func _should_use_high_detail_visuals() -> bool:
@@ -375,3 +404,97 @@ func _should_use_high_detail_visuals() -> bool:
 	if _target_player != null and is_instance_valid(_target_player):
 		return global_position.distance_squared_to(_target_player.global_position) <= 20.0 * 20.0
 	return velocity.length_squared() > 0.04
+
+
+func _create_exposed_indicator(parent: Node3D) -> void:
+	_exposed_indicator_mesh = MeshInstance3D.new()
+	_exposed_indicator_mesh.name = &"ShieldwallExposedIndicator"
+	var mesh := TorusMesh.new()
+	mesh.inner_radius = 0.42
+	mesh.outer_radius = 0.62
+	_exposed_indicator_mesh.mesh = mesh
+	var material := StandardMaterial3D.new()
+	material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	material.albedo_color = Color(1.0, 0.82, 0.24, 0.75)
+	material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	material.cull_mode = BaseMaterial3D.CULL_DISABLED
+	material.emission_enabled = true
+	material.emission = Color(1.0, 0.9, 0.3, 1.0)
+	material.emission_energy_multiplier = 1.8
+	_exposed_indicator_mesh.material_override = material
+	_exposed_indicator_mesh.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	_exposed_indicator_mesh.rotation_degrees = Vector3(90.0, 0.0, 0.0)
+	_exposed_indicator_mesh.visible = false
+	parent.add_child(_exposed_indicator_mesh)
+
+
+func _create_bash_telegraph_meshes(parent: Node3D) -> void:
+	_telegraph_outline_mat = FlowTelegraphArrowMeshScript.create_outline_material(Color(0.02, 0.02, 0.02, 1.0))
+	_telegraph_fill_mat = FlowTelegraphArrowMeshScript.create_fill_material(Color(0.75, 0.62, 0.2, 0.72))
+	_telegraph_arrow_mesh = MeshInstance3D.new()
+	_telegraph_arrow_mesh.name = &"ShieldwallBashArrow"
+	_telegraph_arrow_mesh.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	_telegraph_arrow_mesh.visible = false
+	parent.add_child(_telegraph_arrow_mesh)
+
+	_telegraph_circle_mesh = MeshInstance3D.new()
+	_telegraph_circle_mesh.name = &"ShieldwallBashCircle"
+	_telegraph_circle_mesh.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	_telegraph_circle_mesh.visible = false
+	parent.add_child(_telegraph_circle_mesh)
+
+
+func _update_bash_telegraph_visual() -> void:
+	var active := _bash_phase == BashPhase.WINDUP
+	if _telegraph_arrow_mesh != null and is_instance_valid(_telegraph_arrow_mesh):
+		_telegraph_arrow_mesh.visible = active
+	if _telegraph_circle_mesh != null and is_instance_valid(_telegraph_circle_mesh):
+		_telegraph_circle_mesh.visible = active
+	if not active:
+		return
+	var progress := clampf(_bash_elapsed / maxf(0.01, bash_windup_sec), 0.0, 1.0)
+	var dir := _bash_dir.normalized() if _bash_dir.length_squared() > 0.0001 else _shield_facing.normalized()
+	if dir.length_squared() <= 0.0001:
+		dir = Vector2(0.0, -1.0)
+	if _telegraph_arrow_mesh != null and is_instance_valid(_telegraph_arrow_mesh):
+		_telegraph_arrow_mesh.global_position = Vector3(global_position.x, bash_telegraph_ground_y, global_position.y)
+		_telegraph_arrow_mesh.rotation = Vector3(0.0, atan2(dir.x, dir.y), 0.0)
+		var arrow_step := int(round(progress * 12.0))
+		_telegraph_arrow_mesh.mesh = FlowTelegraphArrowMeshScript.build_mesh_for_step(
+			arrow_step,
+			12,
+			bash_arrow_length,
+			bash_arrow_head_length,
+			bash_arrow_half_width,
+			_telegraph_outline_mat,
+			_telegraph_fill_mat
+		)
+	if _telegraph_circle_mesh != null and is_instance_valid(_telegraph_circle_mesh):
+		var impact_center := global_position + dir * bash_lunge_distance
+		_telegraph_circle_mesh.global_position = Vector3(impact_center.x, bash_telegraph_ground_y, impact_center.y)
+		_telegraph_circle_mesh.rotation = Vector3.ZERO
+		_telegraph_circle_mesh.mesh = GroundAoeTelegraphMeshScript.build_expanding_circle_mesh(
+			progress,
+			bash_circle_radius,
+			20,
+			_telegraph_outline_mat,
+			_telegraph_fill_mat
+		)
+
+
+func _is_exposed_active() -> bool:
+	if not is_damage_authority():
+		return _remote_exposed
+	return Time.get_ticks_msec() < _exposed_until_msec
+
+
+func _update_exposed_indicator() -> void:
+	if _exposed_indicator_mesh == null or not is_instance_valid(_exposed_indicator_mesh):
+		return
+	var active := _is_exposed_active()
+	_exposed_indicator_mesh.visible = active
+	if not active:
+		return
+	_exposed_indicator_mesh.global_position = Vector3(global_position.x, mesh_ground_y + 2.4, global_position.y)
+	var t := float(Time.get_ticks_msec()) * 0.001
+	_exposed_indicator_mesh.scale = Vector3.ONE * (0.9 + sin(t * 5.2) * 0.08)

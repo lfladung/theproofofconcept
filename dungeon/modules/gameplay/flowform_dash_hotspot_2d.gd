@@ -17,7 +17,7 @@ var _visual_mesh: MeshInstance3D
 
 
 func _ready() -> void:
-	_create_visual_mesh()
+	call_deferred("_create_visual_mesh")
 	if visual_only:
 		_hitbox.deactivate()
 		_hitbox.monitoring = false
@@ -45,6 +45,8 @@ func _exit_tree() -> void:
 
 
 func _create_visual_mesh() -> void:
+	if not is_inside_tree():
+		return
 	var tree := get_tree()
 	if tree == null or tree.current_scene == null:
 		return
@@ -66,5 +68,5 @@ func _create_visual_mesh() -> void:
 	material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 	material.cull_mode = BaseMaterial3D.CULL_DISABLED
 	_visual_mesh.material_override = material
-	_visual_mesh.global_position = Vector3(global_position.x, glow_ground_y, global_position.y)
 	visual_world.add_child(_visual_mesh)
+	_visual_mesh.global_position = Vector3(global_position.x, glow_ground_y, global_position.y)

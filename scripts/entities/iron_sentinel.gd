@@ -175,7 +175,7 @@ func _physics_process(delta: float) -> void:
 	if _recovery_state != RecoveryState.NONE:
 		_update_recovery(delta)
 		apply_hit_knockback_to_body_velocity()
-		move_and_slide()
+		move_and_slide_with_mob_separation()
 		mass_server_post_slide()
 		tick_hit_knockback_timer(delta)
 		_enemy_network_server_broadcast(delta)
@@ -189,7 +189,7 @@ func _physics_process(delta: float) -> void:
 	else:
 		_update_behavior(delta)
 	apply_hit_knockback_to_body_velocity()
-	move_and_slide()
+	move_and_slide_with_mob_separation()
 	mass_server_post_slide()
 	tick_hit_knockback_timer(delta)
 	_enemy_network_server_broadcast(delta)

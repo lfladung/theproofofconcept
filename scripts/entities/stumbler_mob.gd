@@ -3,23 +3,28 @@ extends EnemyBase
 ## Mass / surface: slow straight-line approach, telegraphed stomp AoE.
 
 const EnemyStateVisualScript = preload("res://scripts/visuals/enemy_state_visual.gd")
+const GroundAoeTelegraphMeshScript = preload("res://scripts/visuals/ground_aoe_telegraph_mesh.gd")
 const StumblerDamagePacketScript = preload("res://scripts/combat/damage_packet.gd")
 
 enum Phase { CHASE, STOMP_WINDUP, STOMP_HIT, RECOVER }
 
 @export var move_speed := 4.0
-@export var stomp_trigger_dist := 2.1375
+@export var reorient_stop_distance := 2.9
+@export var turn_toward_target_deg_per_sec := 110.0
+@export var turn_ready_angle_deg := 14.0
+@export var reorient_delay_sec := 0.28
+@export var stomp_trigger_dist := 5.0
 @export var stomp_windup_sec := 1.2
-@export var stomp_radius := 1.875
+@export var stomp_radius := 4.5
 @export var stomp_damage := 20
 @export var stomp_knockback := 14.0
 @export var stomp_hitbox_duration := 0.14
-@export var stomp_cooldown_sec := 2.0
+@export var stomp_cooldown_sec := 1.0
 @export var recover_sec := 0.45
 @export var stuck_speed_threshold := 0.15
 @export var stuck_time_to_retarget := 0.22
 @export var target_refresh_interval := 0.35
-@export var mesh_ground_y := 0.165
+@export var mesh_ground_y := 0.3
 @export var mesh_scale := Vector3(1.65, 1.65, 1.65)
 @export var stumbler_clip_scale := 1.7625
 @export var telegraph_ground_y := 0.045
@@ -39,6 +44,9 @@ var _target_refresh_time_remaining := 0.0
 var _locked_dir := Vector2(0.0, -1.0)
 var _planar_facing := Vector2(0.0, -1.0)
 var _stuck_accum := 0.0
+var _is_reorienting := false
+var _reorient_delay_remaining := 0.0
+var _reorient_target_dir := Vector2(0.0, -1.0)
 
 var _phase := Phase.CHASE
 var _phase_elapsed := 0.0
@@ -87,6 +95,7 @@ func _ready() -> void:
 	var to_p := _spawn_target - _spawn_start
 	_locked_dir = to_p.normalized() if to_p.length_squared() > 0.01 else Vector2(0.0, -1.0)
 	_planar_facing = _locked_dir
+	_reorient_target_dir = _locked_dir
 	velocity = _locked_dir * move_speed * _speed_multiplier
 	var vw := get_node_or_null("../../VisualWorld3D") as Node3D
 	_vw = vw
@@ -151,7 +160,7 @@ func _physics_process(delta: float) -> void:
 	_stomp_cooldown_rem = maxf(0.0, _stomp_cooldown_rem - delta)
 	if not _aggro_enabled:
 		velocity = Vector2.ZERO
-		move_and_slide()
+		move_and_slide_with_mob_separation()
 		_enemy_network_server_broadcast(delta)
 		_update_stomp_telegraph_visual()
 		_sync_visual_from_body()
@@ -169,8 +178,16 @@ func _physics_process(delta: float) -> void:
 		Phase.RECOVER:
 			_tick_recover(delta)
 	apply_hit_knockback_to_body_velocity()
-	move_and_slide()
+	move_and_slide_with_mob_separation()
 	mass_server_post_slide()
+	if _phase == Phase.CHASE:
+		var to_player := (
+			_target_player.global_position - global_position
+			if _target_player != null and is_instance_valid(_target_player)
+			else Vector2.ZERO
+		)
+		if _hit_non_player_wall_this_frame():
+			_reset_after_wall_hit(to_player)
 	tick_hit_knockback_timer(delta)
 	_enemy_network_server_broadcast(delta)
 	_update_stomp_telegraph_visual()
@@ -195,18 +212,61 @@ func _tick_chase(delta: float) -> void:
 		_planar_facing = _locked_dir
 		velocity = Vector2.ZERO
 		return
+	if _is_reorienting:
+		_update_reorientation(delta, to_p, dist)
+		return
+	if dist <= reorient_stop_distance:
+		_begin_reorientation(to_p)
+		_update_reorientation(delta, to_p, dist)
+		return
 	var sp := move_speed * _speed_multiplier * surge_infusion_field_move_speed_factor()
 	velocity = _locked_dir * sp
+	_planar_facing = _locked_dir
 	var spd := velocity.length()
 	if spd < stuck_speed_threshold:
 		_stuck_accum += delta
 		if _stuck_accum >= stuck_time_to_retarget:
 			_stuck_accum = 0.0
-			var to_player := _target_player.global_position - global_position
-			_locked_dir = to_player.normalized() if to_player.length_squared() > 0.01 else _locked_dir
+			_begin_reorientation(to_p)
 	else:
 		_stuck_accum = 0.0
-	_planar_facing = _locked_dir
+
+
+func _update_reorientation(delta: float, to_player: Vector2, _player_distance: float) -> void:
+	velocity = Vector2.ZERO
+	_reorient_delay_remaining = maxf(0.0, _reorient_delay_remaining - delta)
+	if to_player.length_squared() > 0.0001:
+		_reorient_target_dir = to_player.normalized()
+	if _reorient_target_dir.length_squared() > 0.0001:
+		var max_step := deg_to_rad(turn_toward_target_deg_per_sec) * delta
+		_planar_facing = EnemyBase.step_planar_facing_toward(
+			_planar_facing,
+			_reorient_target_dir,
+			max_step
+		)
+	var ready_cos := cos(deg_to_rad(turn_ready_angle_deg))
+	var facing_ready := (
+		_reorient_target_dir.length_squared() <= 0.0001
+		or _planar_facing.dot(_reorient_target_dir.normalized()) >= ready_cos
+	)
+	if facing_ready and _reorient_delay_remaining <= 0.0:
+		_locked_dir = _planar_facing.normalized()
+		_is_reorienting = false
+
+
+func _begin_reorientation(target_dir: Vector2 = Vector2.ZERO) -> void:
+	_is_reorienting = true
+	_reorient_delay_remaining = reorient_delay_sec
+	if target_dir.length_squared() > 0.0001:
+		_reorient_target_dir = target_dir.normalized()
+	elif _target_player != null and is_instance_valid(_target_player):
+		var to_player := _target_player.global_position - global_position
+		_reorient_target_dir = (
+			to_player.normalized() if to_player.length_squared() > 0.0001 else _planar_facing
+		)
+	else:
+		_reorient_target_dir = _planar_facing
+	velocity = Vector2.ZERO
 
 
 func _tick_stomp_windup(delta: float) -> void:
@@ -263,6 +323,9 @@ func _enemy_network_compact_state() -> Dictionary:
 		"pe": _phase_elapsed,
 		"pf": _planar_facing,
 		"ld": _locked_dir,
+		"ro": _is_reorienting,
+		"rd": _reorient_delay_remaining,
+		"rt": _reorient_target_dir,
 		"sa": _stomp_anchor,
 		"cd": _stomp_cooldown_rem,
 	}
@@ -272,6 +335,8 @@ func _enemy_network_apply_remote_state(state: Dictionary) -> void:
 	_aggro_enabled = bool(state.get("ag", _aggro_enabled))
 	_phase = int(state.get("ph", _phase)) as Phase
 	_phase_elapsed = maxf(0.0, float(state.get("pe", 0.0)))
+	_is_reorienting = bool(state.get("ro", _is_reorienting))
+	_reorient_delay_remaining = maxf(0.0, float(state.get("rd", _reorient_delay_remaining)))
 	var pf_v: Variant = state.get("pf", _planar_facing)
 	if pf_v is Vector2:
 		var pf := pf_v as Vector2
@@ -282,6 +347,11 @@ func _enemy_network_apply_remote_state(state: Dictionary) -> void:
 		var ld := ld_v as Vector2
 		if ld.length_squared() > 0.0001:
 			_locked_dir = ld.normalized()
+	var rt_v: Variant = state.get("rt", _reorient_target_dir)
+	if rt_v is Vector2:
+		var rt := rt_v as Vector2
+		if rt.length_squared() > 0.0001:
+			_reorient_target_dir = rt.normalized()
 	var sa_v: Variant = state.get("sa", _stomp_anchor)
 	if sa_v is Vector2:
 		_stomp_anchor = sa_v as Vector2
@@ -291,6 +361,8 @@ func _enemy_network_apply_remote_state(state: Dictionary) -> void:
 func _sync_visual_from_body() -> void:
 	if _visual == null:
 		return
+	var shake_progress := _stomp_telegraph_progress() if _phase == Phase.STOMP_WINDUP else 0.0
+	_visual.set_attack_shake_progress(shake_progress)
 	_visual.set_high_detail_enabled(_should_use_high_detail_visuals())
 	var moving := _phase == Phase.CHASE and velocity.length_squared() > 0.04
 	_visual.set_state(&"walk" if moving else &"idle")
@@ -316,19 +388,41 @@ func _refresh_target_player(delta: float) -> void:
 		_target_refresh_time_remaining = maxf(0.05, target_refresh_interval)
 
 
+func _hit_non_player_wall_this_frame() -> bool:
+	for i in get_slide_collision_count():
+		var collision := get_slide_collision(i)
+		if collision == null:
+			continue
+		var collider: Variant = collision.get_collider()
+		if collider == null:
+			return true
+		if collider is Area2D:
+			continue
+		if collider is Node and (collider as Node).is_in_group(&"player"):
+			continue
+		if collider is Node and (collider as Node).is_in_group(&"mob"):
+			continue
+		return true
+	return false
+
+
+func _reset_after_wall_hit(to_player: Vector2) -> void:
+	velocity = Vector2.ZERO
+	_stuck_accum = 0.0
+	var reset_dir := (
+		to_player.normalized()
+		if to_player.length_squared() > 0.0001
+		else (_planar_facing.normalized() if _planar_facing.length_squared() > 0.0001 else Vector2(0.0, -1.0))
+	)
+	_reorient_target_dir = reset_dir
+	_begin_reorientation(reset_dir)
+
+
 func _create_telegraph_mesh(parent: Node3D) -> void:
 	_telegraph_mesh = MeshInstance3D.new()
 	_telegraph_mesh.name = &"StumblerTelegraph"
-	_outline_mat = StandardMaterial3D.new()
-	_outline_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	_outline_mat.albedo_color = Color(0.0, 0.0, 0.0, 1.0)
-	_outline_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	_outline_mat.cull_mode = BaseMaterial3D.CULL_DISABLED
-	_fill_mat = StandardMaterial3D.new()
-	_fill_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	_fill_mat.albedo_color = Color(0.55, 0.42, 0.2, 0.7)
-	_fill_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	_fill_mat.cull_mode = BaseMaterial3D.CULL_DISABLED
+	_outline_mat = GroundAoeTelegraphMeshScript.create_outline_material(Color(0.0, 0.0, 0.0, 1.0))
+	_fill_mat = GroundAoeTelegraphMeshScript.create_fill_material(Color(0.48, 0.34, 0.18, 0.78))
 	_telegraph_mesh.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	_telegraph_mesh.visible = false
 	parent.add_child(_telegraph_mesh)
@@ -351,31 +445,10 @@ func _update_stomp_telegraph_visual() -> void:
 	_telegraph_mesh.visible = true
 	_telegraph_mesh.global_position = Vector3(_stomp_anchor.x, telegraph_ground_y, _stomp_anchor.y)
 	_telegraph_mesh.rotation = Vector3.ZERO
-	var imm := ImmediateMesh.new()
-	var radius := stomp_radius * p
-	var outer_radius := maxf(stomp_radius, 0.1)
-	var segments := 24
-	imm.surface_begin(Mesh.PRIMITIVE_LINES, _outline_mat)
-	for segment_index in range(segments):
-		var t0 := float(segment_index) / float(segments)
-		var t1 := float(segment_index + 1) / float(segments)
-		var a0 := lerpf(0.0, TAU, t0)
-		var a1 := lerpf(0.0, TAU, t1)
-		var p0 := Vector3(sin(a0) * outer_radius, 0.0, cos(a0) * outer_radius)
-		var p1 := Vector3(sin(a1) * outer_radius, 0.0, cos(a1) * outer_radius)
-		imm.surface_add_vertex(p0)
-		imm.surface_add_vertex(p1)
-	imm.surface_end()
-	imm.surface_begin(Mesh.PRIMITIVE_TRIANGLES, _fill_mat)
-	for segment_index in range(segments):
-		var t0 := float(segment_index) / float(segments)
-		var t1 := float(segment_index + 1) / float(segments)
-		var a0 := lerpf(0.0, TAU, t0)
-		var a1 := lerpf(0.0, TAU, t1)
-		var fp0 := Vector3(sin(a0) * radius, 0.001, cos(a0) * radius)
-		var fp1 := Vector3(sin(a1) * radius, 0.001, cos(a1) * radius)
-		imm.surface_add_vertex(Vector3(0.0, 0.001, 0.0))
-		imm.surface_add_vertex(fp0)
-		imm.surface_add_vertex(fp1)
-	imm.surface_end()
-	_telegraph_mesh.mesh = imm
+	_telegraph_mesh.mesh = GroundAoeTelegraphMeshScript.build_crack_ring_mesh(
+		p,
+		stomp_radius,
+		28,
+		_outline_mat,
+		_fill_mat
+	)

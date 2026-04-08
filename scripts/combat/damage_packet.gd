@@ -33,6 +33,8 @@ var echo_generation := 0
 var mitigation_ignore_ratio := 0.0
 ## When true, `DirectionalGuardDamageReceiverComponent` does not block this packet (Phase Fracture).
 var ignore_directional_guard := false
+## 0–1: for blockable hits inside the player's guard arc, this fraction still drains stamina while the remainder chips HP.
+var guard_stamina_split_ratio := 1.0
 
 
 func duplicate_packet() -> DamagePacket:
@@ -58,6 +60,7 @@ func duplicate_packet() -> DamagePacket:
 	copy.echo_generation = echo_generation
 	copy.mitigation_ignore_ratio = mitigation_ignore_ratio
 	copy.ignore_directional_guard = ignore_directional_guard
+	copy.guard_stamina_split_ratio = guard_stamina_split_ratio
 	return copy
 
 

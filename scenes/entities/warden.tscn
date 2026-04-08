@@ -7,11 +7,11 @@
 [ext_resource type="Script" path="res://scripts/combat/hurtbox_2d.gd" id="5"]
 [ext_resource type="Script" path="res://scripts/combat/hitbox_2d.gd" id="6"]
 
-[sub_resource type="RectangleShape2D" id="RectangleShape2D_body"]
-size = Vector2(3.25, 3.875)
+[sub_resource type="CircleShape2D" id="CircleShape2D_body"]
+radius = 3.25
 
 [sub_resource type="CircleShape2D" id="CircleShape2D_slam"]
-radius = 2.8125
+radius = 8.0
 
 [node name="Warden" type="CharacterBody2D" groups=["mob"]]
 collision_layer = 2
@@ -21,13 +21,21 @@ script = ExtResource("1")
 max_health = 300
 coin_drop_value = 15
 move_speed = 3.0
+topdown_collision_radius_scale = 1.0
+mob_separation_extra_margin = 1.0
+stop_distance = 4.0
 slam_damage = 45
-slam_radius = 2.8125
-mesh_ground_y = 0.21875
+slam_radius = 8.0
+gravity_radius = 8.0
+gravity_move_speed_multiplier = 0.6
+close_range_followup_cooldown_sec = 1.0
+collapse_shockwave_radius = 8.5
+collapse_zone_radius = 5.5
+mesh_ground_y = 1.0
 mesh_scale = Vector3(2.625, 2.625, 2.625)
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="."]
-shape = SubResource("RectangleShape2D_body")
+shape = SubResource("CircleShape2D_body")
 
 [node name="HealthComponent" type="Node" parent="."]
 script = ExtResource("3")
@@ -53,7 +61,7 @@ faction = &"enemy"
 debug_label = &"warden_hurtbox"
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="EnemyHurtbox"]
-shape = SubResource("RectangleShape2D_body")
+shape = SubResource("CircleShape2D_body")
 
 [node name="SlamHitbox" type="Area2D" parent="."]
 collision_layer = 64

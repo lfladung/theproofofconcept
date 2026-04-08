@@ -2355,7 +2355,3 @@ z_index = 30
 [node name="GeneratedByRoomEditor" type="Node2D" parent="Zones" index="5" unique_id=255939075]
 
 [node name="GeneratedByRoomEditor" type="Node2D" parent="Gameplay" index="0" unique_id=1857560619]
-
-[node name="Visual3DProxy" parent="." index="4"]
-visible = false
-metadata/_room_editor_suppressed_proxy_visible = true
