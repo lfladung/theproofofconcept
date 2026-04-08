@@ -27,12 +27,14 @@ enum EchoUnitMode {
 @export var projectile_cooldown := 1.35
 @export var projectile_count := 2
 @export var projectile_total_spread_degrees := 18.0
-@export var mesh_ground_y := .8
+@export var mesh_ground_y := 0.24
 @export var mesh_scale := Vector3(1.0, 1.0, 1.0)
 @export var visual_scene_scale := 1.25
 @export var spawn_growth_duration := 0.65
 @export var spawn_final_visual_scale := 0.5
 @export var turn_toward_target_deg_per_sec := 240.0
+@export var stuck_speed_threshold := 0.2
+@export var stuck_repath_time := 0.22
 
 var _visual: EnemyStateVisual
 var _vw: Node3D
@@ -47,6 +49,7 @@ var _has_spawn := false
 var _planar_facing := Vector2(0.0, -1.0)
 var _growth = EchoGrowthScript.new()
 var _growth_scale := 0.5
+var _stuck_time_accum := 0.0
 
 @onready var _nav_agent: NavigationAgent2D = $NavigationAgent2D
 @onready var _body_contact_hitbox: Hitbox2D = $BodyContactHitbox
@@ -137,6 +140,7 @@ func _physics_process(delta: float) -> void:
 				_update_shooter(delta)
 	move_and_slide_with_mob_separation()
 	mass_server_post_slide()
+	_update_stuck_repath(delta)
 	_enemy_network_server_broadcast(delta)
 	_sync_visual()
 
@@ -199,7 +203,9 @@ func _update_rusher(_delta: float) -> void:
 	if to_target.length_squared() <= rush_stop_distance * rush_stop_distance:
 		velocity = Vector2.ZERO
 		return
-	var desired := to_target.normalized()
+	var desired := _desired_nav_direction(_target_player.global_position)
+	if desired.length_squared() <= 0.0001:
+		desired = to_target.normalized()
 	velocity = desired * move_speed * surge_infusion_field_move_speed_factor()
 	_planar_facing = desired
 
@@ -212,8 +218,9 @@ func _update_shooter(delta: float) -> void:
 	if _nav_agent != null and _repath_time_remaining <= 0.0:
 		_nav_agent.target_position = _target_player.global_position
 		_repath_time_remaining = repath_interval
+	var nav_dir := _desired_nav_direction(_target_player.global_position)
 	if distance > ranged_preferred_distance:
-		desired = to_target.normalized()
+		desired = nav_dir if nav_dir.length_squared() > 0.0001 else to_target.normalized()
 	elif distance < ranged_backoff_distance and to_target.length_squared() > 0.0001:
 		desired = -to_target.normalized()
 	velocity = desired * move_speed * 0.82 * surge_infusion_field_move_speed_factor()
@@ -224,6 +231,17 @@ func _update_shooter(delta: float) -> void:
 	if _cooldown_remaining <= 0.0 and distance <= projectile_max_distance:
 		_fire_projectiles(_planar_facing)
 		_cooldown_remaining = projectile_cooldown
+
+
+func _desired_nav_direction(target_position: Vector2) -> Vector2:
+	if _nav_agent == null or _nav_agent.get_navigation_map() == RID():
+		return Vector2.ZERO
+	if _repath_time_remaining <= 0.0:
+		_nav_agent.target_position = target_position
+		_repath_time_remaining = repath_interval
+	var next_pos := _nav_agent.get_next_path_position()
+	var to_next := next_pos - global_position
+	return to_next.normalized() if to_next.length_squared() > 0.001 else Vector2.ZERO
 
 
 func _fire_projectiles(direction: Vector2) -> void:
@@ -264,3 +282,17 @@ func _sync_visual() -> void:
 	_visual.mesh_scale = mesh_scale * _growth_scale
 	_visual.set_state(&"walk" if moving else &"idle")
 	_visual.sync_from_2d(global_position, _planar_facing)
+
+
+func _update_stuck_repath(delta: float) -> void:
+	if mode != EchoUnitMode.RUSHER:
+		return
+	var desired_speed := velocity.length()
+	var actual_speed := get_real_velocity().length()
+	if desired_speed > 0.2 and actual_speed <= stuck_speed_threshold:
+		_stuck_time_accum += delta
+		if _stuck_time_accum >= stuck_repath_time:
+			_stuck_time_accum = 0.0
+			_repath_time_remaining = 0.0
+	else:
+		_stuck_time_accum = 0.0

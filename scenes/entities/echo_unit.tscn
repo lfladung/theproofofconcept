@@ -18,11 +18,14 @@ collision_layer = 2
 collision_mask = 7
 motion_mode = 1
 script = ExtResource("1")
-mesh_ground_y = 0.24
+mesh_ground_y = 0.34
 mesh_scale = Vector3(0.9, 0.9, 0.9)
-spawn_final_visual_scale = 0.75
+spawn_final_visual_scale = 1.125
 max_health = 25
 drops_coin_on_death = false
+topdown_collision_radius_scale = 0.8
+mob_separation_extra_margin = 0.46
+mob_separation_strength = 1.08
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="." unique_id=164794758]
 shape = SubResource("CircleShape2D_body")
@@ -68,7 +71,7 @@ shape = SubResource("CircleShape2D_contact")
 
 [node name="FakeShadow3D" type="Node" parent="." unique_id=970694420]
 script = ExtResource("2")
-base_scale = 1.9
+base_scale = 2.7
 min_scale = 0.9
 base_alpha = 0.76
 floor_offset = 0.05

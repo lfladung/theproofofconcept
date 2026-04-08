@@ -24,11 +24,14 @@ reengage_distance = 1.7
 contact_damage = 5
 contact_repeat_sec = 0.45
 mesh_ground_y = 0.2
-mesh_scale = Vector3(0.75, 0.75, 0.75)
+mesh_scale = Vector3(1.125, 1.125, 1.125)
 scrambler_clip_scale = 1.25
 max_health = 10
 drops_coin_on_death = false
 coin_drop_value = 1
+topdown_collision_radius_scale = 0.78
+mob_separation_extra_margin = 0.42
+mob_separation_strength = 1.05
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="."]
 shape = SubResource("CircleShape2D_body")
@@ -75,7 +78,7 @@ shape = SubResource("CircleShape2D_contact")
 
 [node name="FakeShadow3D" type="Node" parent="."]
 script = ExtResource("2")
-base_scale = 1.5
+base_scale = 2.2
 min_scale = 0.8
 base_alpha = 0.72
 min_alpha = 0.5
