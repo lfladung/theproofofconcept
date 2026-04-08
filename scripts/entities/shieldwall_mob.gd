@@ -182,21 +182,7 @@ func _register_back_hit() -> void:
 
 func _build_visual_state_config() -> Dictionary:
 	var scene := preload("res://art/characters/enemies/Shieldwall.glb")
-	var scale_v: Variant = shieldwall_clip_scale
-	return {
-		&"idle": {
-			"scene": scene,
-			"scene_scale": scale_v,
-			"clip_hint": "",
-			"keywords": [],
-		},
-		&"walk": {
-			"scene": scene,
-			"scene_scale": scale_v,
-			"clip_hint": "",
-			"keywords": [],
-		},
-	}
+	return build_single_scene_visual_state_config(scene, shieldwall_clip_scale)
 
 
 func _refresh_bash_hitbox_layout() -> void:
@@ -380,14 +366,17 @@ func _enemy_network_apply_remote_state(state: Dictionary) -> void:
 
 
 func _refresh_target_player(delta: float, allow_retarget: bool = true) -> void:
-	_target_refresh_time_remaining = maxf(0.0, _target_refresh_time_remaining - delta)
-	if (
-		_target_player == null
-		or not is_instance_valid(_target_player)
-		or (allow_retarget and _target_refresh_time_remaining <= 0.0)
-	):
-		_target_player = _pick_nearest_player_target()
-		_target_refresh_time_remaining = maxf(0.05, target_refresh_interval)
+	var refresh := refresh_enemy_target_player(
+		delta,
+		_target_player,
+		_target_refresh_time_remaining,
+		target_refresh_interval,
+		allow_retarget
+	)
+	_target_player = refresh.get("target", _target_player) as Node2D
+	_target_refresh_time_remaining = float(
+		refresh.get("refresh_time_remaining", _target_refresh_time_remaining)
+	)
 
 
 func _sync_visual() -> void:

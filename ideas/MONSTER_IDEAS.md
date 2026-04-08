@@ -58,7 +58,7 @@ Deep: elongated, blurred — the silhouette looks like speed, with ghost-trails 
 
 **Concept addition:** gains consequence — it leaves the room worse than it found it
 
-- All DasherMob behaviors, but: telegraph shortened to 0.5s, dash speed increased.
+- All Dasher behaviors, but: telegraph shortened to 0.5s, dash speed increased.
 - Dash leaves a glowing ground trail that lingers for 3s and deals damage on contact (~5/s).
 - Cannot be interrupted during the dash itself (only during telegraph).
 - **On death:** immediately splits into two Scramblers at 40% HP each. They spawn at the death position.
@@ -226,7 +226,7 @@ The Warden looks architectural: like a moving structure, not a creature. Its out
 > Near the surface: it makes copies without knowing why. Deeper: it has become the act of repetition itself.
 
 **Lore:** Echo creatures didn't evolve — they iterated. Something in them discovered the loop: that a thing done once could be done again, and again. 
-Near the surface this is mechanical and blind: a sac (Spawner) that pulses and splits, without purpose or direction. 
+Near the surface this is mechanical and blind: a brood sac that pulses and splits, without purpose or direction. 
 Deeper, the Echo family begins to understand what it's copying. The Splitter learns from the player specifically. The Triad is three versions of the same idea that won't collapse into one — or can't.
 
 **Visual identity:** All Echo enemies look layered or doubled. The Spawner Sac pulses like something under pressure, with visible buds on its surface — each bud is a future Scrambler, half-formed. 
@@ -249,7 +249,7 @@ The Splitter looks slightly mirrored: its surface is reflective, and when it cop
 
 ---
 
-### Spawner *(Mid)*
+### Echoform *(Mid)*
 
 **Concept addition:** learns from the player specifically — becomes a threat shaped by you
 

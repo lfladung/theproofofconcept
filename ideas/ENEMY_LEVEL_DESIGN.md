@@ -97,7 +97,7 @@ Support (buffs others)
 Instead of random mixes, define encounter archetypes:
 
 “Sniper + Pusher”
-“Spawner + Tank”
+“Echoform + Tank”
 “Glass Cannon swarm”
 
 This is where your system becomes designed, not procedural chaos.

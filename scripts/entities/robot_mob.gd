@@ -327,14 +327,18 @@ func _rpc_receive_robot_volley_event(
 
 
 func _refresh_target_player(delta: float, allow_retarget: bool = true) -> void:
-	_target_refresh_time_remaining = maxf(0.0, _target_refresh_time_remaining - delta)
-	if (
-		_target_player == null
-		or not is_instance_valid(_target_player)
-		or (allow_retarget and _target_refresh_time_remaining <= 0.0)
-	):
-		_target_player = _pick_target_player()
-		_target_refresh_time_remaining = maxf(0.05, target_refresh_interval)
+	var refresh := refresh_enemy_target_player(
+		delta,
+		_target_player,
+		_target_refresh_time_remaining,
+		target_refresh_interval,
+		allow_retarget,
+		Callable(self, "_pick_target_player")
+	)
+	_target_player = refresh.get("target", _target_player) as Node2D
+	_target_refresh_time_remaining = float(
+		refresh.get("refresh_time_remaining", _target_refresh_time_remaining)
+	)
 
 
 func _sync_visual() -> void:

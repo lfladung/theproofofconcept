@@ -1,4 +1,4 @@
-class_name SpawnerMob
+class_name EchoformMob
 extends EdgeLungeMob
 
 

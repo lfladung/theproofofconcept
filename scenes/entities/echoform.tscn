@@ -1,6 +1,6 @@
-[gd_scene load_steps=8 format=3 uid="uid://spawner_echo_mob"]
+[gd_scene load_steps=8 format=3 uid="uid://echoform_mob"]
 
-[ext_resource type="Script" path="res://scripts/entities/spawner_mob.gd" id="1"]
+[ext_resource type="Script" path="res://scripts/entities/echoform_mob.gd" id="1"]
 [ext_resource type="Script" path="res://scripts/entities/fake_shadow_3d.gd" id="2"]
 [ext_resource type="Script" path="res://scripts/combat/health_component.gd" id="3"]
 [ext_resource type="Script" path="res://scripts/combat/damage_receiver_component.gd" id="4"]
@@ -13,7 +13,7 @@ size = Vector2(0.75, 1.05)
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_dash_contact"]
 size = Vector2(1.1, 1.1)
 
-[node name="Spawner" type="CharacterBody2D" groups=["mob"]]
+[node name="Echoform" type="CharacterBody2D" groups=["mob"]]
 collision_layer = 2
 collision_mask = 7
 motion_mode = 1
@@ -41,13 +41,13 @@ shape = SubResource("RectangleShape2D_mob")
 script = ExtResource("3")
 max_health = 70
 starting_health = 70
-debug_label = &"spawner_health"
+debug_label = &"echoform_health"
 
 [node name="DamageReceiver" type="Node" parent="."]
 script = ExtResource("4")
 owner_path = NodePath("..")
 health_component_path = NodePath("../HealthComponent")
-debug_label = &"spawner_receiver"
+debug_label = &"echoform_receiver"
 
 [node name="EnemyHurtbox" type="Area2D" parent="."]
 collision_layer = 16
@@ -58,7 +58,7 @@ script = ExtResource("5")
 receiver_path = NodePath("../DamageReceiver")
 owner_path = NodePath("..")
 faction = &"enemy"
-debug_label = &"spawner_hurtbox"
+debug_label = &"echoform_hurtbox"
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="EnemyHurtbox"]
 shape = SubResource("RectangleShape2D_mob")
@@ -72,7 +72,7 @@ script = ExtResource("6")
 repeat_mode = 1
 repeat_interval_sec = 0.65
 owner_path = NodePath("..")
-debug_label = &"spawner_dash_contact"
+debug_label = &"echoform_dash_contact"
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="DashContactHitbox"]
 shape = SubResource("RectangleShape2D_dash_contact")

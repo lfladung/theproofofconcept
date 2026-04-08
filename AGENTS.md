@@ -33,7 +33,7 @@ Read the smallest relevant set before editing:
 
 ## Current Project Snapshot
 
-As of 2026-04-04 (bump this date when you materially change this section):
+As of 2026-04-08 (bump this date when you materially change this section):
 
 - Multiplayer milestones 1-9 are complete per `dungeon/MULTIPLAYER_MILESTONE_MAP.md`.
 - Dedicated server: session boot, registry/session-code scaffold, and client join-by-code are in place (DS milestones 1-3); external matchmaker/allocator and reconnect-token run handoff remain future work (DS 4-5).
@@ -44,6 +44,7 @@ As of 2026-04-04 (bump this date when you materially change this section):
 - A dedicated `Room Editor` main-screen plugin now exists for authoring handcrafted `RoomBase` scenes with sidecar layout resources, generated sockets/zones/gameplay markers, a live 3D preview, and a room playtest harness.
 - Stat pillars (`dungeon/modules/gameplay/stat_pillar_2d.gd`) grant server-authoritative runtime bonuses merged in `player.gd`; several new stat keys exist in `scripts/loadout/loadout_constants.gd` but are not necessarily consumed by combat math yet (affix items / full wiring: see `ideas/EQUIPMENT_UPGRADES.md`).
 - A reusable authored outline library lives under `dungeon/rooms/authored/outlines/` with generator/validator helpers in `tools/room_editor/generate_outline_rooms.gd` and `tools/room_editor/validate_outline_rooms.gd`.
+- Enemy families now share more of their common target-refresh and single-model visual-state wiring through `scripts/entities/enemy_base.gd`; when adding a new Flow/Mass/Edge variant, prefer family or base helpers over copy-pasting per-enemy plumbing.
 
 ## Subsystem Notes
 
@@ -61,6 +62,14 @@ As of 2026-04-04 (bump this date when you materially change this section):
 - `res://dungeon/rooms/base/room_base.tscn` is the base room contract.
 - `dungeon_orchestrator_internals.gd` currently mixes generation, encounter flow, room transitions, camera, doors, coins, and multiplayer glue, so seemingly local changes can have broad side effects.
 - Do not bulk-read `dungeon/rooms/authored/` unless the task explicitly edits or validates specific room assets; those trees are large packed scenes/resources. Prefer contract scripts, `dungeon/README.md`, room-editor code, and orchestrator/query services (see **Context hygiene** under Working Agreements).
+
+### Enemy Families And Combat AI
+
+- Start enemy work with `scripts/entities/enemy_base.gd`, then read the narrowest family root (`mob.gd` / `arrow_tower.gd` / `edge_lunge_mob.gd` / `flow_model_dasher_mob.gd` / specific Mass family root) before opening leaf variants.
+- Shared behaviors such as target refresh cadence, reusable visual-state config, replication helpers, knockback timers, and roster queries should live in `enemy_base.gd` or the nearest family base, not duplicated across leaf enemy scripts.
+- Flow-family dashers should keep their common chase/dash/telegraph loop in `mob.gd`/`flow_model_dasher_mob.gd`; Edge variants should usually be data/model overrides on top of that rather than re-implementations.
+- When reviewing a new enemy, look for duplicate `_refresh_target_player`, `_build_visual_state_config`, nav chase, telegraph mesh setup, and wall-hit reset code before adding new branches.
+- Enemy gameplay remains 2D-authoritative. Only `enemy_state_visual.gd`, telegraph meshes, and other presentation helpers should convert into 3D world space.
 
 ### Room Editor / Map Authoring
 
@@ -189,6 +198,7 @@ Use this checklist whenever a task could affect runtime cost, load-time spikes, 
 - When adding combat visuals, ask whether the effect belongs in the live game at all distances. Enemy visuals, props, and telegraphs should support low-detail or streamed behavior before the project scales up to denser fights.
 - Prefer caches that invalidate explicitly when dungeon rooms regenerate, room trees change, or encounter rosters change. Hidden stale-cache bugs are bad, but hidden per-frame scans are usually worse.
 - If a future prompt asks for new UI, debug, AI, encounter, room, or visual behavior, include one sentence up front about where the likely hot path lives before editing.
+- Enemy AI hot path: avoid adding fresh per-frame target scans, telegraph mesh rebuilds, or repeated state-dictionary churn across multiple enemy leaf scripts when a shared helper or cached family path would do.
 
 ## Local WIP Snapshot
 
@@ -215,6 +225,14 @@ Use these file groups as shortcuts:
   - `dungeon/game/dungeon_orchestrator_internals.gd`
   - `dungeon/game/components/*.gd`
   - `dungeon/modules/**/*.gd`
+- Enemy / combat AI tasks:
+  - `scripts/entities/enemy_base.gd`
+  - `scripts/entities/mob.gd`
+  - `scripts/entities/arrow_tower.gd`
+  - `scripts/entities/flow_model_dasher_mob.gd`
+  - `scripts/entities/edge_lunge_mob.gd`
+  - specific leaf enemy script(s) being changed
+  - `scripts/visuals/enemy_state_visual.gd`
 - Visual, animation, or equipment tasks:
   - `scripts/visuals/player_visual.gd`
   - `scenes/visuals/player_visual.tscn`
@@ -241,6 +259,7 @@ Update this list when something materially ships; prefer pointers to docs and sc
 - Room editor: main-screen **Room Editor** tab, sidecar `*.layout.tres`, generated roots under `Sockets/Zones/Gameplay/Visual3DProxy/GeneratedByRoomEditor`; enemy spawn markers carry `enemy_id` on `ZoneMarker2D`.
 - Authored outline starter kit: `dungeon/rooms/authored/outlines/` (nine rooms) with `tools/room_editor/generate_outline_rooms.gd` and `validate_outline_rooms.gd`.
 - Multiplayer: co-op milestones 1–9 complete; dedicated join-by-session-code through DS milestones 1–3; external matchmaker / reconnect-token handoff still open (`dungeon/MULTIPLAYER_MILESTONE_MAP.md`).
+- Enemy-family cleanup: `enemy_base.gd` now owns shared target-refresh cadence and single-scene visual-state helpers used by Flow/Edge/Mass enemy variants; keep future family work layered there first.
 
 ---
 

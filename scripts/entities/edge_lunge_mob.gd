@@ -13,27 +13,13 @@ func _build_visual_state_config() -> Dictionary:
 	var scene := _edge_character_scene()
 	if scene == null:
 		return super._build_visual_state_config()
-	var scale_v: Variant = edge_clip_scale
-	return {
-		&"idle": {
-			"scene": scene,
-			"scene_scale": scale_v,
-			"clip_hint": "",
-			"keywords": [],
-		},
-		&"walk": {
-			"scene": scene,
-			"scene_scale": scale_v,
-			"clip_hint": "",
-			"keywords": [],
-		},
-	}
+	return build_single_scene_visual_state_config(scene, edge_clip_scale)
 
 
 func _sync_visual_from_body() -> void:
 	if _visual != null:
 		var shake := 0.0
-		if _is_telegraphing:
+		if _is_telegraphing():
 			shake = clampf(_telegraph_time / maxf(0.01, telegraph_duration), 0.0, 1.0)
 		_visual.set_attack_shake_progress(shake)
 	super._sync_visual_from_body()

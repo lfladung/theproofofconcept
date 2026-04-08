@@ -13,18 +13,4 @@ func _build_visual_state_config() -> Dictionary:
 	var scene := _flow_character_scene()
 	if scene == null:
 		return super._build_visual_state_config()
-	var scale_v: Variant = flow_clip_scale
-	return {
-		&"idle": {
-			"scene": scene,
-			"scene_scale": scale_v,
-			"clip_hint": "",
-			"keywords": [],
-		},
-		&"walk": {
-			"scene": scene,
-			"scene_scale": scale_v,
-			"clip_hint": "",
-			"keywords": [],
-		},
-	}
+	return build_single_scene_visual_state_config(scene, flow_clip_scale)

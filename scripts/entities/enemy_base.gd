@@ -313,6 +313,53 @@ func set_aggro_enabled(_enabled: bool) -> void:
 	pass
 
 
+func refresh_enemy_target_player(
+	delta: float,
+	current_target: Node2D,
+	refresh_time_remaining: float,
+	target_refresh_interval_sec: float,
+	allow_retarget: bool = true,
+	picker: Callable = Callable()
+) -> Dictionary:
+	var next_refresh_time_remaining := maxf(0.0, refresh_time_remaining - delta)
+	var target_invalid := current_target == null or not is_instance_valid(current_target)
+	if target_invalid or (allow_retarget and next_refresh_time_remaining <= 0.0):
+		var pick_target := picker
+		if not pick_target.is_valid():
+			pick_target = Callable(self, "_pick_nearest_player_target")
+		current_target = pick_target.call()
+		next_refresh_time_remaining = maxf(0.05, target_refresh_interval_sec)
+	return {
+		"target": current_target,
+		"refresh_time_remaining": next_refresh_time_remaining,
+	}
+
+
+func build_single_scene_visual_state_config(
+	scene: PackedScene,
+	scene_scale: Variant = null,
+	idle_keywords: Array = [],
+	walk_keywords: Array = []
+) -> Dictionary:
+	if scene == null:
+		return {}
+	var idle_state := {
+		"scene": scene,
+		"keywords": idle_keywords.duplicate(),
+	}
+	var walk_state := {
+		"scene": scene,
+		"keywords": walk_keywords.duplicate(),
+	}
+	if scene_scale != null:
+		idle_state["scene_scale"] = scene_scale
+		walk_state["scene_scale"] = scene_scale
+	return {
+		&"idle": idle_state,
+		&"walk": walk_state,
+	}
+
+
 ## Planar forward used for combat hooks (e.g. backstab); override when visuals use dedicated facing state.
 func get_combat_planar_facing() -> Vector2:
 	if velocity.length_squared() > 1e-4:
