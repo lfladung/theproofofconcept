@@ -1,11 +1,11 @@
-[gd_scene load_steps=9 format=3]
+[gd_scene format=3 uid="uid://d0pnfjlkhbn6f"]
 
-[ext_resource type="Script" path="res://scripts/entities/echo_unit_mob.gd" id="1"]
-[ext_resource type="Script" path="res://scripts/entities/fake_shadow_3d.gd" id="2"]
-[ext_resource type="Script" path="res://scripts/combat/health_component.gd" id="3"]
-[ext_resource type="Script" path="res://scripts/combat/damage_receiver_component.gd" id="4"]
-[ext_resource type="Script" path="res://scripts/combat/hurtbox_2d.gd" id="5"]
-[ext_resource type="Script" path="res://scripts/combat/hitbox_2d.gd" id="6"]
+[ext_resource type="Script" uid="uid://3e4nwebwfpuo" path="res://scripts/entities/echo_unit_mob.gd" id="1"]
+[ext_resource type="Script" uid="uid://yb3m10oc1rxm" path="res://scripts/entities/fake_shadow_3d.gd" id="2"]
+[ext_resource type="Script" uid="uid://blnwgfjty0y0d" path="res://scripts/combat/health_component.gd" id="3"]
+[ext_resource type="Script" uid="uid://byij7c8d7bwc" path="res://scripts/combat/damage_receiver_component.gd" id="4"]
+[ext_resource type="Script" uid="uid://kpxleo06iuok" path="res://scripts/combat/hurtbox_2d.gd" id="5"]
+[ext_resource type="Script" uid="uid://dj22rnalobyyo" path="res://scripts/combat/hitbox_2d.gd" id="6"]
 
 [sub_resource type="CircleShape2D" id="CircleShape2D_body"]
 radius = 0.7
@@ -13,68 +13,66 @@ radius = 0.7
 [sub_resource type="CircleShape2D" id="CircleShape2D_contact"]
 radius = 0.92
 
-[node name="EchoUnit" type="CharacterBody2D" groups=["mob"]]
+[node name="EchoUnit" type="CharacterBody2D" unique_id=1907119721 groups=["mob"]]
 collision_layer = 2
 collision_mask = 7
 motion_mode = 1
 script = ExtResource("1")
+mesh_ground_y = 0.24
 mesh_scale = Vector3(0.9, 0.9, 0.9)
 spawn_final_visual_scale = 0.75
-max_health = 30
+max_health = 25
 drops_coin_on_death = false
-coin_drop_value = 1
 
-[node name="CollisionShape2D" type="CollisionShape2D" parent="."]
+[node name="CollisionShape2D" type="CollisionShape2D" parent="." unique_id=164794758]
 shape = SubResource("CircleShape2D_body")
 
-[node name="HealthComponent" type="Node" parent="."]
+[node name="HealthComponent" type="Node" parent="." unique_id=2047118375]
 script = ExtResource("3")
-max_health = 30
-starting_health = 30
+max_health = 25
+starting_health = 25
 debug_label = &"echo_unit_health"
 
-[node name="DamageReceiver" type="Node" parent="."]
+[node name="DamageReceiver" type="Node" parent="." unique_id=147589073]
 script = ExtResource("4")
 owner_path = NodePath("..")
 health_component_path = NodePath("../HealthComponent")
 debug_label = &"echo_unit_receiver"
 
-[node name="EnemyHurtbox" type="Area2D" parent="."]
+[node name="EnemyHurtbox" type="Area2D" parent="." unique_id=269506336]
 collision_layer = 16
 collision_mask = 0
 monitoring = false
-monitorable = true
 script = ExtResource("5")
 receiver_path = NodePath("../DamageReceiver")
 owner_path = NodePath("..")
 faction = &"enemy"
 debug_label = &"echo_unit_hurtbox"
 
-[node name="CollisionShape2D" type="CollisionShape2D" parent="EnemyHurtbox"]
+[node name="CollisionShape2D" type="CollisionShape2D" parent="EnemyHurtbox" unique_id=1053301305]
 shape = SubResource("CircleShape2D_body")
 
-[node name="BodyContactHitbox" type="Area2D" parent="."]
+[node name="BodyContactHitbox" type="Area2D" parent="." unique_id=613574569]
 collision_layer = 64
 collision_mask = 8
 monitoring = false
 monitorable = false
 script = ExtResource("6")
+owner_path = NodePath("..")
 repeat_mode = 1
 repeat_interval_sec = 0.55
-owner_path = NodePath("..")
 debug_label = &"echo_unit_contact"
 
-[node name="CollisionShape2D" type="CollisionShape2D" parent="BodyContactHitbox"]
+[node name="CollisionShape2D" type="CollisionShape2D" parent="BodyContactHitbox" unique_id=560094966]
 shape = SubResource("CircleShape2D_contact")
 
-[node name="FakeShadow3D" type="Node" parent="."]
+[node name="FakeShadow3D" type="Node" parent="." unique_id=970694420]
 script = ExtResource("2")
 base_scale = 1.9
 min_scale = 0.9
 base_alpha = 0.76
-min_alpha = 0.52
 floor_offset = 0.05
 
-[node name="NavigationAgent2D" type="NavigationAgent2D" parent="."]
+[node name="NavigationAgent2D" type="NavigationAgent2D" parent="." unique_id=1091038717]
 path_desired_distance = 0.75
 target_desired_distance = 1.2

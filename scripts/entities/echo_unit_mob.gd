@@ -27,7 +27,7 @@ enum EchoUnitMode {
 @export var projectile_cooldown := 1.35
 @export var projectile_count := 2
 @export var projectile_total_spread_degrees := 18.0
-@export var mesh_ground_y := 0.14
+@export var mesh_ground_y := .8
 @export var mesh_scale := Vector3(1.0, 1.0, 1.0)
 @export var visual_scene_scale := 1.25
 @export var spawn_growth_duration := 0.65

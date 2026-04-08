@@ -23,10 +23,10 @@ stop_distance = 1.25
 reengage_distance = 1.7
 contact_damage = 5
 contact_repeat_sec = 0.45
-mesh_ground_y = 0.12
+mesh_ground_y = 0.2
 mesh_scale = Vector3(0.75, 0.75, 0.75)
 scrambler_clip_scale = 1.25
-max_health = 8
+max_health = 10
 drops_coin_on_death = false
 coin_drop_value = 1
 
@@ -35,8 +35,8 @@ shape = SubResource("CircleShape2D_body")
 
 [node name="HealthComponent" type="Node" parent="."]
 script = ExtResource("3")
-max_health = 8
-starting_health = 8
+max_health = 10
+starting_health = 10
 debug_label = &"echo_splinter_health"
 
 [node name="DamageReceiver" type="Node" parent="."]

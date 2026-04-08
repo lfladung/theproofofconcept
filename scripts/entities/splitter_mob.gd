@@ -182,5 +182,11 @@ func _sync_visual() -> void:
 		return
 	_visual.set_high_detail_enabled(true)
 	_visual.set_state(&"walk" if velocity.length_squared() > 0.02 else &"idle")
-	var facing := velocity.normalized() if velocity.length_squared() > 0.0001 else Vector2(0.0, -1.0)
+	var facing := Vector2(0.0, -1.0)
+	if _target_player != null and is_instance_valid(_target_player):
+		var to_target := _target_player.global_position - global_position
+		if to_target.length_squared() > 0.0001:
+			facing = to_target.normalized()
+	elif velocity.length_squared() > 0.0001:
+		facing = velocity.normalized()
 	_visual.sync_from_2d(global_position, facing)

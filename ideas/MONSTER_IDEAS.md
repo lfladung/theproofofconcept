@@ -262,8 +262,7 @@ The Splitter looks slightly mirrored: its surface is reflective, and when it cop
 - **Stats:** 70 HP · Reflected damage: 30% of incoming · Drops: 5 Resonances
 - **Counterplay:** Use the attack type it doesn't copy — if it mirrors melee, fight it at range and vice versa. In multiplayer it observes the highest-damage player and mirrors them specifically.
   Dealing small, frequent hits generates many weak reflections; fewer big hits is safer.
-- **Spawn guidance:** 1 per room at most. Pairs well with a Spawner Sac — the Sac produces pressure
-  while the Echoform adapts. Don't spawn it alongside enemies that match the player's loadout.
+- **Spawn guidance:** 1 per room at most. Pairs well with a Spawner Sac — the Sac produces pressure while the Echoform adapts. Don't spawn it alongside enemies that match the player's loadout.
 
 ---
 
