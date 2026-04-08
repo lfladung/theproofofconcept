@@ -19,6 +19,7 @@ var _active_facing_yaw_offset_deg := 180.0
 var _active_clip_key := ""
 var _clip_roots_by_key: Dictionary = {}
 var _clip_anim_players_by_key: Dictionary = {}
+var _mesh_transparency := 0.0
 ## 0 = off; 1 = full intensity. Used for model-only enemies (no attack clips).
 var _attack_shake_progress := 0.0
 
@@ -69,6 +70,11 @@ func set_playback_paused(paused: bool) -> void:
 func set_high_detail_enabled(enabled: bool) -> void:
 	_high_detail_enabled = enabled
 	_apply_active_anim_speed()
+
+
+func set_mesh_transparency(transparency_amount: float) -> void:
+	_mesh_transparency = clampf(transparency_amount, 0.0, 1.0)
+	_apply_mesh_transparency()
 
 
 func get_current_state() -> StringName:
@@ -151,6 +157,7 @@ func _swap_active_clip(desired_scene: PackedScene) -> void:
 			_clip_anim_players_by_key[clip_key] = anim_player
 	_active_clip_root.visible = true
 	_active_clip_key = clip_key
+	_apply_mesh_transparency()
 
 
 func _play_current_animation(config: Dictionary, restart: bool) -> float:
@@ -267,6 +274,21 @@ func _apply_active_anim_speed() -> void:
 	if _active_anim_player == null:
 		return
 	_active_anim_player.speed_scale = 0.0 if (_playback_paused or not _high_detail_enabled) else _playback_speed_scale
+
+
+func _apply_mesh_transparency() -> void:
+	for root_v in _clip_roots_by_key.values():
+		if root_v is Node3D and is_instance_valid(root_v):
+			_apply_mesh_transparency_recursive(root_v as Node3D)
+
+
+func _apply_mesh_transparency_recursive(node: Node) -> void:
+	if node == null:
+		return
+	if node is MeshInstance3D:
+		(node as MeshInstance3D).transparency = _mesh_transparency
+	for child in node.get_children():
+		_apply_mesh_transparency_recursive(child)
 
 
 func _disable_cast_shadows_recursive(node: Node) -> void:

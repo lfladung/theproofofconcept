@@ -214,6 +214,12 @@ var _reconcile_target_dodge_cooldown_remaining := 0.0
 var _reconcile_target_dodge_direction := Vector2.ZERO
 var _reconcile_target_facing_lock_time_remaining := 0.0
 var _reconcile_target_facing_lock_planar := Vector2(0.0, -1.0)
+var _reconcile_target_external_dash_blocked := false
+var _reconcile_target_external_movement_rooted := false
+var _reconcile_target_external_root_origin := Vector2.ZERO
+var _reconcile_target_external_root_pull_used := false
+var _reconcile_target_leecher_escape_progress := 0.0
+var _reconcile_target_latched_enemy_id := 0
 var _reconcile_has_target := false
 var _authoritative_weapon_mode_id := int(WeaponMode.SWORD)
 var _authoritative_melee_cooldown_remaining := 0.0
@@ -258,6 +264,17 @@ var _anchor_micro_shield := 0.0
 var _anchor_bastion_charge := 0.0
 var _anchor_rooted := false
 var _anchor_critical_bastion := false
+## Enemy-applied control states (server / offline authority).
+var _external_dash_blocked := false
+var _external_movement_rooted := false
+var _external_root_origin_position := Vector2.ZERO
+var _external_root_pull_used := false
+var _external_leecher_escape_progress := 0.0
+var _external_latched_enemy_id := 0
+var _external_root_source_id := 0
+var _external_leecher_break_count := 0
+var _external_leecher_break_target := 0
+var _external_dash_block_sources: Dictionary = {}
 ## Surge — charge-field debuffs, melee overcharge, overdrive (authoritative sim + mirrored field RPC).
 var _surge_energy: float = 0.0
 var _surge_melee_overcharge_time: float = 0.0
@@ -961,6 +978,7 @@ func _set_downed_state(next_downed: bool, emit_hit_signal: bool = false) -> void
 	_is_dead = next_downed
 	if _is_dead:
 		clear_all_external_move_speed_multipliers()
+		_clear_enemy_control_states()
 		_set_defending_state(false)
 	if _is_dead:
 		velocity = Vector2.ZERO
@@ -1176,7 +1194,13 @@ func _broadcast_server_state(delta: float) -> void:
 		_anchor_micro_shield,
 		_anchor_bastion_charge,
 		1 if _anchor_rooted else 0,
-		1 if _anchor_critical_bastion else 0
+		1 if _anchor_critical_bastion else 0,
+		1 if _external_dash_blocked else 0,
+		1 if _external_movement_rooted else 0,
+		_external_root_origin_position,
+		1 if _external_root_pull_used else 0,
+		_external_leecher_escape_progress,
+		_external_latched_enemy_id
 	)
 
 
@@ -1232,7 +1256,13 @@ func _rpc_receive_server_state(
 	anchor_micro_shield: float = 0.0,
 	anchor_bastion_charge: float = 0.0,
 	anchor_rooted_i: int = 0,
-	anchor_critical_i: int = 0
+	anchor_critical_i: int = 0,
+	external_dash_blocked_i: int = 0,
+	external_movement_rooted_i: int = 0,
+	external_root_origin: Vector2 = Vector2.ZERO,
+	external_root_pull_used_i: int = 0,
+	leecher_escape_progress: float = 0.0,
+	latched_enemy_id: int = 0
 ) -> void:
 	if _is_server_peer():
 		return
@@ -1252,6 +1282,12 @@ func _rpc_receive_server_state(
 	_anchor_bastion_charge = clampf(anchor_bastion_charge, 0.0, 1.0)
 	_anchor_rooted = anchor_rooted_i != 0
 	_anchor_critical_bastion = anchor_critical_i != 0
+	_external_dash_blocked = external_dash_blocked_i != 0
+	_external_movement_rooted = external_movement_rooted_i != 0
+	_external_root_origin_position = external_root_origin
+	_external_root_pull_used = external_root_pull_used_i != 0
+	_external_leecher_escape_progress = clampf(leecher_escape_progress, 0.0, 1.0)
+	_external_latched_enemy_id = maxi(0, latched_enemy_id)
 	var normalized_health := clampi(health_value, 0, max_health)
 	if health != normalized_health:
 		health = normalized_health
@@ -1292,6 +1328,12 @@ func _rpc_receive_server_state(
 		_reconcile_target_dodge_direction = dodge_direction_value.normalized()
 		_reconcile_target_facing_lock_time_remaining = _facing_lock_time_remaining
 		_reconcile_target_facing_lock_planar = _facing_lock_planar
+		_reconcile_target_external_dash_blocked = _external_dash_blocked
+		_reconcile_target_external_movement_rooted = _external_movement_rooted
+		_reconcile_target_external_root_origin = _external_root_origin_position
+		_reconcile_target_external_root_pull_used = _external_root_pull_used
+		_reconcile_target_leecher_escape_progress = _external_leecher_escape_progress
+		_reconcile_target_latched_enemy_id = _external_latched_enemy_id
 		_reconcile_has_target = true
 		_last_acknowledged_input_sequence = max(_last_acknowledged_input_sequence, ack_input_sequence)
 		_prune_acknowledged_pending_inputs(_last_acknowledged_input_sequence)
@@ -1332,6 +1374,12 @@ func _apply_local_reconciliation(_delta: float) -> void:
 	_dodge_direction = _reconcile_target_dodge_direction
 	_facing_lock_time_remaining = _reconcile_target_facing_lock_time_remaining
 	_facing_lock_planar = _reconcile_target_facing_lock_planar
+	_external_dash_blocked = _reconcile_target_external_dash_blocked
+	_external_movement_rooted = _reconcile_target_external_movement_rooted
+	_external_root_origin_position = _reconcile_target_external_root_origin
+	_external_root_pull_used = _reconcile_target_external_root_pull_used
+	_external_leecher_escape_progress = _reconcile_target_leecher_escape_progress
+	_external_latched_enemy_id = _reconcile_target_latched_enemy_id
 	for command in _pending_input_commands:
 		var move_active := bool(command.get("move_active", false))
 		var target_world_variant: Variant = command.get("target_world", global_position)
@@ -1358,6 +1406,17 @@ func _apply_movement_step(
 	if (_is_server_peer() or not _multiplayer_active()) and is_damage_authority():
 		if _anchor_rooted and (move_active or dodge_pressed):
 			_anchor_release_bastion()
+	var rooted_by_enemy := _external_movement_rooted
+	var dash_blocked := _external_dash_blocked
+	if rooted_by_enemy and move_active:
+		move_active = false
+	if rooted_by_enemy and dodge_pressed:
+		if is_damage_authority():
+			_enemy_control_consume_root_pull_attempt()
+		dodge_pressed = false
+	if dash_blocked and dodge_pressed:
+		enemy_control_register_latch_break_input()
+		dodge_pressed = false
 	var direction := Vector2.ZERO
 	if move_active:
 		var to_target := target_world - global_position
@@ -1369,6 +1428,8 @@ func _apply_movement_step(
 	var wants_defending: bool = defend_down and _can_defend_in_current_mode() and _dodge_time_remaining <= 0.0
 	_set_defending_state(wants_defending)
 	_dodge_cooldown_remaining = maxf(0.0, _dodge_cooldown_remaining - delta)
+	if rooted_by_enemy:
+		_dodge_time_remaining = 0.0
 	if _dodge_time_remaining > 0.0:
 		_dodge_time_remaining = maxf(0.0, _dodge_time_remaining - delta)
 	elif dodge_pressed and _dodge_cooldown_remaining <= 0.0 and not _is_defending:
@@ -1409,6 +1470,144 @@ func set_external_move_speed_multiplier(source_key: Variant, multiplier: float) 
 	if key == &"":
 		return
 	_external_move_speed_multipliers[key] = clampf(multiplier, 0.05, 1.0)
+
+
+func enemy_control_apply_dash_lock(source_id: int) -> void:
+	if not is_damage_authority() or source_id == 0:
+		return
+	_external_dash_block_sources[source_id] = true
+	_refresh_enemy_control_dash_blocked()
+
+
+func enemy_control_clear_dash_lock(source_id: int) -> void:
+	if not is_damage_authority() or source_id == 0:
+		return
+	_external_dash_block_sources.erase(source_id)
+	_refresh_enemy_control_dash_blocked()
+
+
+func enemy_control_apply_root(source_id: int, root_origin_position: Vector2) -> void:
+	if not is_damage_authority() or source_id == 0:
+		return
+	_external_movement_rooted = true
+	_external_root_source_id = source_id
+	_external_root_origin_position = root_origin_position
+	_external_root_pull_used = false
+	_dodge_time_remaining = 0.0
+	velocity = Vector2.ZERO
+
+
+func enemy_control_clear_root(source_id: int = 0) -> void:
+	if not is_damage_authority():
+		return
+	if source_id != 0 and _external_root_source_id != source_id:
+		return
+	_external_movement_rooted = false
+	_external_root_source_id = 0
+	_external_root_origin_position = Vector2.ZERO
+	_external_root_pull_used = false
+
+
+func enemy_control_begin_latch(enemy: Node, break_target: int) -> void:
+	if not is_damage_authority() or enemy == null or not is_instance_valid(enemy):
+		return
+	_external_latched_enemy_id = enemy.get_instance_id()
+	_external_leecher_break_target = maxi(1, break_target)
+	_external_leecher_break_count = 0
+	_update_leecher_escape_progress()
+	enemy_control_apply_dash_lock(_external_latched_enemy_id)
+
+
+func enemy_control_end_latch(enemy: Node = null) -> void:
+	if not is_damage_authority():
+		return
+	var enemy_id := 0
+	if enemy != null and is_instance_valid(enemy):
+		enemy_id = enemy.get_instance_id()
+	if enemy_id != 0 and enemy_id != _external_latched_enemy_id:
+		return
+	if _external_latched_enemy_id != 0:
+		enemy_control_clear_dash_lock(_external_latched_enemy_id)
+	_external_latched_enemy_id = 0
+	_external_leecher_break_target = 0
+	_external_leecher_break_count = 0
+	_update_leecher_escape_progress()
+
+
+func enemy_control_register_latch_break_input() -> void:
+	if _external_latched_enemy_id == 0:
+		return
+	_external_leecher_break_count = mini(
+		_external_leecher_break_target,
+		_external_leecher_break_count + 1
+	)
+	_update_leecher_escape_progress()
+
+
+func enemy_control_latch_break_ready() -> bool:
+	return (
+		_external_latched_enemy_id != 0
+		and _external_leecher_break_target > 0
+		and _external_leecher_break_count >= _external_leecher_break_target
+	)
+
+
+func enemy_control_latch_escape_progress() -> float:
+	return _external_leecher_escape_progress
+
+
+func enemy_control_latched_enemy_id() -> int:
+	return _external_latched_enemy_id
+
+
+func enemy_control_is_movement_rooted() -> bool:
+	return _external_movement_rooted
+
+
+func enemy_control_root_pull_used() -> bool:
+	return _external_root_pull_used
+
+
+func enemy_control_root_origin_position() -> Vector2:
+	return _external_root_origin_position
+
+
+func _enemy_control_consume_root_pull_attempt() -> void:
+	if not _external_movement_rooted or _external_root_pull_used:
+		return
+	_external_root_pull_used = true
+	global_position = _external_root_origin_position
+	velocity = Vector2.ZERO
+
+
+func _refresh_enemy_control_dash_blocked() -> void:
+	_external_dash_blocked = not _external_dash_block_sources.is_empty()
+	if _external_dash_blocked:
+		_dodge_time_remaining = 0.0
+
+
+func _update_leecher_escape_progress() -> void:
+	if _external_latched_enemy_id == 0 or _external_leecher_break_target <= 0:
+		_external_leecher_escape_progress = 0.0
+		return
+	_external_leecher_escape_progress = clampf(
+		float(_external_leecher_break_count) / float(_external_leecher_break_target),
+		0.0,
+		1.0
+	)
+
+
+func _clear_enemy_control_states() -> void:
+	_external_dash_block_sources.clear()
+	_external_dash_blocked = false
+	_external_movement_rooted = false
+	_external_root_origin_position = Vector2.ZERO
+	_external_root_pull_used = false
+	_external_root_source_id = 0
+	_external_leecher_escape_progress = 0.0
+	_external_latched_enemy_id = 0
+	_external_leecher_break_count = 0
+	_external_leecher_break_target = 0
 
 
 func clear_external_move_speed_multiplier(source_key: Variant) -> void:
@@ -2490,6 +2689,12 @@ func get_combat_debug_snapshot() -> Dictionary:
 		"anchor_bastion_charge": _anchor_bastion_charge,
 		"anchor_rooted": _anchor_rooted,
 		"anchor_critical_bastion": _anchor_critical_bastion,
+		"enemy_dash_blocked": _external_dash_blocked,
+		"enemy_movement_rooted": _external_movement_rooted,
+		"enemy_root_origin": _external_root_origin_position,
+		"enemy_root_pull_used": _external_root_pull_used,
+		"leecher_escape_progress": _external_leecher_escape_progress,
+		"latched_enemy_id": _external_latched_enemy_id,
 	}
 
 
