@@ -18,21 +18,13 @@ collision_layer = 2
 collision_mask = 7
 motion_mode = 1
 script = ExtResource("1")
-min_speed = 5.0
-max_speed = 7.5
-speed_scale = 0.9
-stop_distance = 1.15
-telegraph_duration = 0.7
-dash_distance = 5.0
-dash_duration = 0.2
-dash_hit_width = 1.0
-dash_damage = 24
-arrow_length = 5.8
+move_speed = 2.0
+pulse_damage = 4
 mesh_ground_y = 0.16
 mesh_scale = Vector3(1.2, 1.2, 1.2)
-edge_clip_scale = 2.55
-max_health = 80
-coin_drop_value = 6
+triad_scene_scale = 2.55
+max_health = 120
+coin_drop_value = 10
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="."]
 shape = SubResource("RectangleShape2D_mob")

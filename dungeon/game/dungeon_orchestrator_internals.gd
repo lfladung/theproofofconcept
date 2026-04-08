@@ -43,6 +43,16 @@ const SCRAMBLER_SCENE := preload("res://scenes/entities/scrambler.tscn")
 const STUMBLER_SCENE := preload("res://scenes/entities/stumbler.tscn")
 const SHIELDWALL_SCENE := preload("res://scenes/entities/shieldwall.tscn")
 const WARDEN_SCENE := preload("res://scenes/entities/warden.tscn")
+const SPLITTER_SCENE := preload("res://scenes/entities/splitter.tscn")
+const ECHOFORM_SCENE := preload("res://scenes/entities/echoform.tscn")
+const TRIAD_SCENE := preload("res://scenes/entities/triad.tscn")
+const ECHO_SPLINTER_SCENE := preload("res://scenes/entities/echo_splinter.tscn")
+const ECHO_UNIT_SCENE := preload("res://scenes/entities/echo_unit.tscn")
+const SPLITTER_MOB_SCRIPT := preload("res://scripts/entities/splitter_mob.gd")
+const ECHOFORM_MOB_SCRIPT := preload("res://scripts/entities/echoform_mob.gd")
+const TRIAD_MOB_SCRIPT := preload("res://scripts/entities/triad_mob.gd")
+const ECHO_SPLINTER_MOB_SCRIPT := preload("res://scripts/entities/echo_splinter_mob.gd")
+const ECHO_UNIT_MOB_SCRIPT := preload("res://scripts/entities/echo_unit_mob.gd")
 const SPAWN_POINT_SCENE := preload("res://dungeon/modules/encounter/enemy_spawn_point_2d.tscn")
 const SPAWN_VOLUME_SCENE := preload("res://dungeon/modules/encounter/enemy_spawn_volume_2d.tscn")
 const ROOM_TRIGGER_SCENE := preload("res://dungeon/modules/encounter/room_encounter_trigger_2d.tscn")
@@ -91,6 +101,8 @@ const ENEMY_SCENE_KIND_BINDER := 19
 const ENEMY_SCENE_KIND_FIZZLER := 20
 const ENEMY_SCENE_KIND_BURSTER := 21
 const ENEMY_SCENE_KIND_DETONATOR := 22
+const ENEMY_SCENE_KIND_ECHO_SPLINTER := 23
+const ENEMY_SCENE_KIND_ECHO_UNIT := 24
 ## World units per texture repeat on floors (4x4 gameplay tiles at 3 units per tile).
 const FLOOR_TEXTURE_TILE_WORLD := 12.0
 ## Match floor tile size so wall stone pattern lines up at room corners.
@@ -376,12 +388,22 @@ func _next_enemy_network_id() -> int:
 	return _enemy_network_id_sequence
 
 
-func _pick_random_flow_family_scene() -> PackedScene:
-	var pool: Array[PackedScene] = [STUMBLER_SCENE, SHIELDWALL_SCENE, WARDEN_SCENE]
+func _pick_random_echo_family_scene() -> PackedScene:
+	var pool: Array[PackedScene] = [SPLITTER_SCENE, ECHOFORM_SCENE, TRIAD_SCENE]
 	return pool[randi() % pool.size()]
 
 
 func _enemy_scene_kind_from_scene(scene: PackedScene) -> int:
+	if scene == SPLITTER_SCENE:
+		return ENEMY_SCENE_KIND_SPLITTER
+	if scene == ECHOFORM_SCENE:
+		return ENEMY_SCENE_KIND_ECHOFORM
+	if scene == TRIAD_SCENE:
+		return ENEMY_SCENE_KIND_TRIAD
+	if scene == ECHO_SPLINTER_SCENE:
+		return ENEMY_SCENE_KIND_ECHO_SPLINTER
+	if scene == ECHO_UNIT_SCENE:
+		return ENEMY_SCENE_KIND_ECHO_UNIT
 	if scene == STUMBLER_SCENE:
 		return ENEMY_SCENE_KIND_STUMBLER
 	if scene == SHIELDWALL_SCENE:
@@ -396,6 +418,17 @@ func _enemy_scene_kind_from_scene(scene: PackedScene) -> int:
 
 
 func _enemy_scene_kind_from_enemy_instance(enemy: EnemyBase) -> int:
+	var script_v: Variant = enemy.get_script() if enemy != null else null
+	if script_v == SPLITTER_MOB_SCRIPT:
+		return ENEMY_SCENE_KIND_SPLITTER
+	if script_v == ECHOFORM_MOB_SCRIPT:
+		return ENEMY_SCENE_KIND_ECHOFORM
+	if script_v == TRIAD_MOB_SCRIPT:
+		return ENEMY_SCENE_KIND_TRIAD
+	if script_v == ECHO_SPLINTER_MOB_SCRIPT:
+		return ENEMY_SCENE_KIND_ECHO_SPLINTER
+	if script_v == ECHO_UNIT_MOB_SCRIPT:
+		return ENEMY_SCENE_KIND_ECHO_UNIT
 	if enemy is StumblerMob:
 		return ENEMY_SCENE_KIND_STUMBLER
 	if enemy is ShieldwallMob:
@@ -411,6 +444,16 @@ func _enemy_scene_kind_from_enemy_instance(enemy: EnemyBase) -> int:
 
 func _enemy_scene_from_kind(kind: int) -> PackedScene:
 	match kind:
+		ENEMY_SCENE_KIND_SPLITTER:
+			return SPLITTER_SCENE
+		ENEMY_SCENE_KIND_ECHOFORM:
+			return ECHOFORM_SCENE
+		ENEMY_SCENE_KIND_TRIAD:
+			return TRIAD_SCENE
+		ENEMY_SCENE_KIND_ECHO_SPLINTER:
+			return ECHO_SPLINTER_SCENE
+		ENEMY_SCENE_KIND_ECHO_UNIT:
+			return ECHO_UNIT_SCENE
 		ENEMY_SCENE_KIND_STUMBLER:
 			return STUMBLER_SCENE
 		ENEMY_SCENE_KIND_SHIELDWALL:
@@ -3359,7 +3402,7 @@ func _spawn_encounter_wave(encounter_id: StringName, total_count: int, speed_mul
 	if total_count >= 2:
 		planned_scenes.append(_pick_ranged_enemy_scene(encounter_id))
 	if total_count >= 3:
-		planned_scenes.append(_pick_random_flow_family_scene())
+		planned_scenes.append(_pick_random_echo_family_scene())
 	for i in range(planned_scenes.size(), total_count):
 		planned_scenes.append(_pick_enemy_scene(encounter_id))
 	planned_scenes.shuffle()
@@ -3483,6 +3526,45 @@ func _spawn_encounter_mob_deferred(
 		)
 
 
+func spawn_runtime_enemy_by_kind(
+	encounter_id: StringName,
+	scene_kind: int,
+	spawn_position: Vector2,
+	target_position: Vector2,
+	speed_multiplier: float = 1.0,
+	start_aggro: bool = true
+) -> EnemyBase:
+	if not _is_authoritative_world():
+		return null
+	var scene_to_spawn := _enemy_scene_from_kind(scene_kind)
+	if scene_to_spawn == null:
+		return null
+	var resolved_encounter_id := _resolve_encounter_for_spawn(encounter_id, spawn_position)
+	var net_id := _next_enemy_network_id()
+	var enemy := scene_to_spawn.instantiate() as EnemyBase
+	if enemy == null:
+		return null
+	enemy.apply_speed_multiplier(speed_multiplier)
+	enemy.configure_spawn(spawn_position, target_position)
+	_register_enemy_network_id(enemy, net_id)
+	$GameWorld2D.add_child(enemy)
+	var encounter_is_active := bool(_encounter_active.get(resolved_encounter_id, false))
+	var final_aggro := start_aggro or encounter_is_active
+	enemy.set_aggro_enabled(final_aggro)
+	_register_encounter_enemy(resolved_encounter_id, enemy)
+	if _is_server_peer() and _can_broadcast_world_replication():
+		_rpc_spawn_enemy.rpc(
+			net_id,
+			String(resolved_encounter_id),
+			scene_kind,
+			spawn_position,
+			target_position,
+			speed_multiplier,
+			final_aggro
+		)
+	return enemy
+
+
 func _process_pending_enemy_spawns(delta: float) -> void:
 	if _pending_enemy_spawn_requests.is_empty():
 		return
@@ -3504,7 +3586,7 @@ func _process_pending_enemy_spawns(delta: float) -> void:
 func _prewarm_enemy_assets_once() -> void:
 	if _enemy_assets_prewarmed or not prewarm_enemy_assets or _is_dedicated_server_session():
 		return
-	for scene in [STUMBLER_SCENE, SHIELDWALL_SCENE, WARDEN_SCENE]:
+	for scene in [SPLITTER_SCENE, ECHOFORM_SCENE, TRIAD_SCENE]:
 		if scene == null:
 			continue
 		var enemy: Node = scene.instantiate()
@@ -3874,27 +3956,27 @@ func _resolve_encounter_for_spawn(requested_encounter_id: StringName, spawn_pos:
 
 
 func _pick_enemy_scene(_encounter_id: StringName) -> PackedScene:
-	return _pick_random_flow_family_scene()
+	return _pick_random_echo_family_scene()
 
 
 func _pick_melee_enemy_scene(_encounter_id: StringName) -> PackedScene:
-	return _pick_random_flow_family_scene()
+	return _pick_random_echo_family_scene()
 
 
 func _pick_ranged_enemy_scene(_encounter_id: StringName) -> PackedScene:
-	return _pick_random_flow_family_scene()
+	return _pick_random_echo_family_scene()
 
 
 func _enemy_scene_from_id(enemy_id: StringName) -> PackedScene:
 	match String(enemy_id):
-		"stumbler":
-			return STUMBLER_SCENE
-		"shieldwall":
-			return SHIELDWALL_SCENE
-		"warden":
-			return WARDEN_SCENE
+		"splitter":
+			return SPLITTER_SCENE
+		"echoform":
+			return ECHOFORM_SCENE
+		"triad":
+			return TRIAD_SCENE
 		_:
-			return null
+			return _pick_random_echo_family_scene()
 
 
 func _room_name_for_encounter(encounter_id: StringName) -> StringName:

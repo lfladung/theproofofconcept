@@ -253,7 +253,7 @@ The Splitter looks slightly mirrored: its surface is reflective, and when it cop
 
 **Concept addition:** learns from the player specifically — becomes a threat shaped by you
 
-- On spawn: 3s observation phase. Watches the player and tracks attack style (melee vs. ranged).
+- On spawn: 3s observation phase. Watches the player, backs away to keep space, and tracks attack style (melee vs. ranged).
 - After observation: adapts its behavior to mirror the player's dominant approach:
   - **Melee player:** Echoform becomes an aggressive rusher (DasherMob patterns, shorter telegraph)
   - **Ranged player:** Echoform keeps distance and fires volleys (RobotMob patterns, slightly weaker)
@@ -269,23 +269,20 @@ The Splitter looks slightly mirrored: its surface is reflective, and when it cop
 
 ### Triad *(Deep)*
 
-**Concept addition:** multiplicity made intentional — requires coordinated burst to break the loop
+**Concept addition:** multiplicity made intentional — it sustains a growing loop of adaptive copies
 
-- Three distinct bodies that operate as one encounter:
-  - **Front (Charger):** rushes toward the nearest player. Melee contact damage. Higher HP.
-  - **Back (Lobber):** hangs at range, fires slow projectiles like a Spitter. Lower HP.
-  - **Anchor:** orbits the other two slowly. Passively absorbs incoming hits aimed at nearby Triad
-    members (within 3 units). Takes that damage itself. Does not attack.
-- **Resurrection mechanic:** if any body dies, a 3s timer starts. If the other two are still alive when
-  the timer ends, the dead body reforms at full HP.
-- **To end the encounter:** kill all three within any 3s window.
-- The Anchor's absorption means killing it first removes the protection, but now the 3s clock is
-  ticking and the other two are still alive.
-- **Stats:** Charger: 80 HP · Lobber: 45 HP · Anchor: 55 HP · Drops: 12 Resonances total
-- **Counterplay:** Understand the resurrection before engaging. Strategy options:
-  - Kill Anchor first, then burst Lobber + Charger together
-  - Use AoE to damage all three simultaneously to equalize HP, then burst
-  - In multiplayer: coordinate to focus a different body each, kill simultaneously
+- One slow-moving **Triad Core** that continuously generates **Echo Units**.
+- Every 5s: spawns 1 Echo Unit, up to 3 active at once.
+- If all Echo Units are killed, the Core immediately spawns 1 replacement so the pressure returns.
+- Echo Units are created from a snapshot of player behavior at spawn time:
+  - **Melee-focused player:** mini-rusher
+  - **Ranged-focused player:** mini-shooter
+- Echo Units do not adapt after spawning.
+- Echo Units are readable on spawn: they begin tiny, grow to their final 50%-size silhouette, can still be damaged during the growth window, and only begin moving/attacking once fully formed.
+- The Core emits a light pulse occasionally, but its main role is to sustain the loop rather than deal heavy damage itself.
+- On Core death, all Echo Units destabilize and die shortly after so the room does not leave cleanup enemies behind.
+- **Stats:** Core HP: 120 · Core Speed: 2 · Spawn interval: 5s · Max Echo Units: 3 · Echo Unit HP: ~25–35 · Drops: 10–12 Resonances total
+- **Counterplay:** Keep the number of active Echo Units low and avoid letting the Core keep re-establishing pressure. Burst windows matter, but the main test is solving your own behavior being mirrored back at you over time.
 - **Spawn guidance:** Always a solo encounter. The Triad IS the room. No other enemies.
 
 **Encounter compositions (Echo):**
