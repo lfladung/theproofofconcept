@@ -24,7 +24,7 @@ move_speed = 6.0
 topdown_collision_radius_scale = 1.0
 mob_separation_extra_margin = 0.8
 stop_distance = 2.5
-block_arc_degrees = 90.0
+block_arc_degrees = 180.0
 bash_trigger_distance = 6.5
 bash_circle_radius = 2.4
 mesh_ground_y = 0.75
@@ -44,7 +44,7 @@ script = ExtResource("4")
 owner_path = NodePath("..")
 health_component_path = NodePath("../HealthComponent")
 guard_owner_path = NodePath("..")
-block_arc_degrees = 90.0
+block_arc_degrees = 180.0
 debug_label = &"shieldwall_receiver"
 
 [node name="EnemyHurtbox" type="Area2D" parent="."]
