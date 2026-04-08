@@ -2,14 +2,24 @@ class_name FlowformMob
 extends FlowModelDasherMob
 
 const FLOWFORM_MODEL := preload("res://art/characters/enemies/Flowform.glb")
-const SCRAMBLER_SCENE := preload("res://scenes/entities/scrambler.tscn")
 const HOTSPOT_SCENE := preload("res://dungeon/modules/gameplay/flowform_dash_hotspot_2d.tscn")
 
-@export var trail_spawn_interval := 0.1
-@export var trail_damage_per_tick := 2
+enum TrailMode { NONE, DASH, DEATH_SKID }
+
+@export var trail_spawn_interval := 0.09
+@export var trail_damage_per_tick := 1
+@export var trail_tick_interval_sec := 0.2
+@export var trail_lifetime_sec := 3.0
+@export var death_skid_distance := 2.4
+@export var death_skid_speed := 12.0
 
 var _trail_timer: Timer
-var _was_dashing := false
+var _trail_mode := TrailMode.NONE
+var _death_skid_active := false
+var _death_skid_dir := Vector2.ZERO
+var _death_skid_start := Vector2.ZERO
+var _death_skid_end := Vector2.ZERO
+var _death_skid_time := 0.0
 
 
 func _flow_character_scene() -> PackedScene:
@@ -28,61 +38,176 @@ func _ready() -> void:
 
 
 func _physics_process(delta: float) -> void:
-	super._physics_process(delta)
 	if _multiplayer_active() and not _is_server_peer():
+		super._physics_process(delta)
 		return
-	if not is_damage_authority():
+	if _death_skid_active:
+		_update_death_skid(delta)
+		move_and_slide()
+		mass_server_post_slide()
+		_enemy_network_server_broadcast(delta)
+		_sync_visual_from_body()
+		_update_telegraph_visual()
 		return
-	if _is_dashing and not _was_dashing:
-		_trail_timer.wait_time = maxf(0.04, trail_spawn_interval)
-		_trail_timer.start()
-	elif not _is_dashing and _was_dashing:
-		_trail_timer.stop()
-	_was_dashing = _is_dashing
+	super._physics_process(delta)
+
+
+func _enemy_network_compact_state() -> Dictionary:
+	var state := super._enemy_network_compact_state()
+	state["dk"] = _death_skid_active
+	state["ddr"] = _death_skid_dir
+	state["dks"] = _death_skid_start
+	state["dke"] = _death_skid_end
+	state["dkt"] = _death_skid_time
+	return state
+
+
+func _enemy_network_apply_remote_state(state: Dictionary) -> void:
+	super._enemy_network_apply_remote_state(state)
+	_death_skid_active = bool(state.get("dk", _death_skid_active))
+	var death_dir_v: Variant = state.get("ddr", _death_skid_dir)
+	if death_dir_v is Vector2:
+		var death_dir := death_dir_v as Vector2
+		if death_dir.length_squared() > 0.0001:
+			_death_skid_dir = death_dir.normalized()
+	var death_start_v: Variant = state.get("dks", _death_skid_start)
+	if death_start_v is Vector2:
+		_death_skid_start = death_start_v as Vector2
+	var death_end_v: Variant = state.get("dke", _death_skid_end)
+	if death_end_v is Vector2:
+		_death_skid_end = death_end_v as Vector2
+	_death_skid_time = maxf(0.0, float(state.get("dkt", _death_skid_time)))
+
+
+func _should_defer_death(_packet: DamagePacket) -> bool:
+	return true
+
+
+func _begin_deferred_death(_packet: DamagePacket) -> void:
+	_begin_death_skid()
 
 
 func _on_nonlethal_hit(knockback_dir: Vector2, knockback_strength: float) -> void:
-	if _is_dashing:
-		_apply_hit_knockback_impulse(knockback_dir, knockback_strength)
+	if _death_skid_active:
+		return
+	if _is_dashing():
 		return
 	super._on_nonlethal_hit(knockback_dir, knockback_strength)
 
 
-func squash() -> void:
-	if _squash_applied:
-		return
-	if is_damage_authority():
-		_request_spawn_scrambler_splits()
+func _begin_death_skid() -> void:
+	_death_skid_active = true
+	_aggro_enabled = false
+	_set_attack_phase(AttackPhase.CHASE)
+	_telegraph_time = 0.0
+	_dash_time = 0.0
+	_recovery_time_remaining = 0.0
+	_stun_time_remaining = 0.0
+	_dash_hit_applied = false
+	if _damage_receiver != null:
+		_damage_receiver.set_active(false)
+	if _hurtbox != null:
+		_hurtbox.set_active(false)
+	if _dash_contact_hitbox != null:
+		_dash_contact_hitbox.deactivate()
+	var death_dir := _dash_dir
+	if death_dir.length_squared() <= 0.0001:
+		death_dir = _planar_facing
+	if death_dir.length_squared() <= 0.0001:
+		death_dir = velocity
+	_death_skid_dir = death_dir.normalized() if death_dir.length_squared() > 0.0001 else Vector2(0.0, -1.0)
+	_death_skid_start = global_position
+	_death_skid_end = _death_skid_start + _death_skid_dir * death_skid_distance
+	_death_skid_time = 0.0
+	_planar_facing = _death_skid_dir
+	velocity = _death_skid_dir * death_skid_speed
+	_start_trail_mode(TrailMode.DEATH_SKID, true)
+	_sync_visual_anim_speed(death_skid_speed)
+
+
+func _update_death_skid(delta: float) -> void:
+	_death_skid_time += delta
+	var duration := _current_death_skid_duration()
+	var u := clampf(_death_skid_time / maxf(0.01, duration), 0.0, 1.0)
+	var target_pos := _death_skid_start.lerp(_death_skid_end, u)
+	var to_target := target_pos - global_position
+	if to_target.length_squared() > 0.0001:
+		velocity = to_target / maxf(delta, 0.0001)
+	else:
+		velocity = Vector2.ZERO
+	if u >= 1.0:
+		_finish_death_skid()
+
+
+func _finish_death_skid() -> void:
+	_death_skid_active = false
+	_stop_trail_mode()
+	velocity = Vector2.ZERO
+	_sync_visual_anim_speed(0.0)
 	super.squash()
 
 
-func _on_trail_timer_timeout() -> void:
-	if not is_damage_authority() or not _is_dashing:
+func _current_death_skid_duration() -> float:
+	return _death_skid_start.distance_to(_death_skid_end) / maxf(0.01, death_skid_speed)
+
+
+func _start_dash() -> void:
+	super._start_dash()
+	_start_trail_mode(TrailMode.DASH, true)
+
+
+func _update_dash(delta: float) -> void:
+	super._update_dash(delta)
+	if not _is_dashing() and _trail_mode == TrailMode.DASH:
+		_stop_trail_mode()
+
+
+func _start_trail_mode(next_mode: TrailMode, spawn_immediate: bool) -> void:
+	_trail_mode = next_mode
+	if _trail_timer == null:
 		return
+	_trail_timer.wait_time = maxf(0.04, trail_spawn_interval)
+	if spawn_immediate:
+		_spawn_trail_segment(global_position, true)
+	_trail_timer.start()
+
+
+func _stop_trail_mode() -> void:
+	_trail_mode = TrailMode.NONE
+	if _trail_timer != null:
+		_trail_timer.stop()
+
+
+func _on_trail_timer_timeout() -> void:
+	if not is_damage_authority():
+		return
+	if _trail_mode == TrailMode.NONE:
+		return
+	_spawn_trail_segment(global_position, true)
+
+
+func _spawn_trail_segment(world_position: Vector2, authoritative_damage: bool) -> void:
 	var parent := get_parent()
 	if parent == null:
 		return
 	var spot := HOTSPOT_SCENE.instantiate()
 	if spot is FlowformDashHotspot2D:
-		(spot as FlowformDashHotspot2D).damage_per_tick = trail_damage_per_tick
+		var hotspot := spot as FlowformDashHotspot2D
+		hotspot.damage_per_tick = trail_damage_per_tick
+		hotspot.tick_interval_sec = trail_tick_interval_sec
+		hotspot.lifetime_sec = trail_lifetime_sec
+		hotspot.visual_only = not authoritative_damage
 	parent.add_child(spot)
-	spot.global_position = global_position
+	spot.global_position = world_position
+	if authoritative_damage and _multiplayer_active() and _is_server_peer() and _can_broadcast_world_replication():
+		_rpc_spawn_trail_segment.rpc(world_position)
 
 
-func _request_spawn_scrambler_splits() -> void:
-	var scene_root := get_tree().current_scene
-	if scene_root == null or not scene_root.has_method(&"server_enqueue_enemy_spawn"):
+@rpc("any_peer", "call_remote", "reliable")
+func _rpc_spawn_trail_segment(world_position: Vector2) -> void:
+	if _is_server_peer():
 		return
-	var encounter_id := get_meta(&"encounter_id", &"") as StringName
-	var target := _pick_nearest_player_target()
-	var tpos := target.global_position if target != null else global_position
-	var offsets: Array[Vector2] = [Vector2(-0.55, 0.0), Vector2(0.55, 0.0)]
-	for off in offsets:
-		scene_root.call(
-			&"server_enqueue_enemy_spawn",
-			encounter_id,
-			global_position + off,
-			tpos,
-			_speed_multiplier,
-			SCRAMBLER_SCENE
-		)
+	var mp := _multiplayer_api_safe()
+	if mp == null or mp.get_remote_sender_id() != 1:
+		return
+	_spawn_trail_segment(world_position, false)

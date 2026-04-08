@@ -3,6 +3,7 @@ class_name ArrowTowerMob
 
 const TOWER_VISUAL_SCENE := preload("res://art/combat/towers/stylized_arrow_tower_texture.glb")
 const ArrowProjectilePoolScript = preload("res://scripts/entities/arrow_projectile_pool.gd")
+const FlowTelegraphArrowMeshScript = preload("res://scripts/entities/flow_telegraph_arrow_mesh.gd")
 const _TELEGRAPH_PROGRESS_STEPS := 12
 
 @export var range_tiles := 5.0
@@ -57,16 +58,8 @@ func _ready() -> void:
 	if vw != null:
 		_telegraph_mesh = MeshInstance3D.new()
 		_telegraph_mesh.name = &"TowerTelegraphArrow"
-		_outline_mat = StandardMaterial3D.new()
-		_outline_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-		_outline_mat.albedo_color = Color(0.0, 0.0, 0.0, 1.0)
-		_outline_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-		_outline_mat.cull_mode = BaseMaterial3D.CULL_DISABLED
-		_fill_mat = StandardMaterial3D.new()
-		_fill_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-		_fill_mat.albedo_color = Color(0.9, 0.08, 0.08, 0.75)
-		_fill_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-		_fill_mat.cull_mode = BaseMaterial3D.CULL_DISABLED
+		_outline_mat = FlowTelegraphArrowMeshScript.create_outline_material()
+		_fill_mat = FlowTelegraphArrowMeshScript.create_fill_material(Color(0.9, 0.08, 0.08, 0.75))
 		_telegraph_mesh.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		_telegraph_mesh.visible = false
 		_telegraph_meshes.clear()
@@ -339,37 +332,15 @@ func _update_telegraph_visual(in_range: bool, dir: Vector2, progress: float) -> 
 
 
 func _build_telegraph_mesh_for_step(progress_step: int) -> Mesh:
-	var fill_ratio := float(progress_step) / float(_TELEGRAPH_PROGRESS_STEPS)
-	var shaft_len := maxf(0.1, telegraph_arrow_length - telegraph_arrow_head_length)
-	var shaft_end_z := shaft_len
-	var tip_z := telegraph_arrow_length
-	var half_width := telegraph_arrow_half_width
-	var head_half_width := telegraph_arrow_half_width * 1.8
-	var fill_tip_z := telegraph_arrow_length * fill_ratio
-	var imm := ImmediateMesh.new()
-	imm.surface_begin(Mesh.PRIMITIVE_LINES, _outline_mat)
-	for pair in [
-		[Vector3(half_width, 0.0, 0.0), Vector3(half_width, 0.0, shaft_end_z)],
-		[Vector3(half_width, 0.0, shaft_end_z), Vector3(head_half_width, 0.0, shaft_end_z)],
-		[Vector3(head_half_width, 0.0, shaft_end_z), Vector3(0.0, 0.0, tip_z)],
-		[Vector3(0.0, 0.0, tip_z), Vector3(-head_half_width, 0.0, shaft_end_z)],
-		[Vector3(-head_half_width, 0.0, shaft_end_z), Vector3(-half_width, 0.0, shaft_end_z)],
-		[Vector3(-half_width, 0.0, shaft_end_z), Vector3(-half_width, 0.0, 0.0)],
-		[Vector3(-half_width, 0.0, 0.0), Vector3(half_width, 0.0, 0.0)],
-	]:
-		imm.surface_add_vertex(pair[0] as Vector3)
-		imm.surface_add_vertex(pair[1] as Vector3)
-	imm.surface_end()
-
-	imm.surface_begin(Mesh.PRIMITIVE_TRIANGLES, _fill_mat)
-	for v in [
-		Vector3(half_width * 0.55, 0.001, 0.0),
-		Vector3(-half_width * 0.55, 0.001, 0.0),
-		Vector3(0.0, 0.001, fill_tip_z),
-	]:
-		imm.surface_add_vertex(v as Vector3)
-	imm.surface_end()
-	return imm
+	return FlowTelegraphArrowMeshScript.build_mesh_for_step(
+		progress_step,
+		_TELEGRAPH_PROGRESS_STEPS,
+		telegraph_arrow_length,
+		telegraph_arrow_head_length,
+		telegraph_arrow_half_width,
+		_outline_mat,
+		_fill_mat
+	)
 
 
 func _sync_visual() -> void:

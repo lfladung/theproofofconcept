@@ -2,8 +2,11 @@ class_name DasherMob
 extends EnemyBase
 
 const EnemyStateVisualScript = preload("res://scripts/visuals/enemy_state_visual.gd")
+const FlowTelegraphArrowMeshScript = preload("res://scripts/entities/flow_telegraph_arrow_mesh.gd")
 const DASHER_VISUAL_SCENE := preload("res://art/characters/enemies/Dasher.glb")
 const _TELEGRAPH_PROGRESS_STEPS := 12
+
+enum AttackPhase { CHASE, TELEGRAPH, DASH, RECOVERY, STUN }
 
 @export var min_speed := 10.0
 @export var max_speed := 18.0
@@ -14,10 +17,12 @@ const _TELEGRAPH_PROGRESS_STEPS := 12
 @export var speed_scale := 0.75
 @export var attack_trigger_distance_multiplier := 1.0
 @export var telegraph_duration := 1.0
-@export var dash_distance := 5.0
-@export var dash_duration := 0.25
+@export var dash_range := 7.0
+@export var dash_speed := 28.0
+@export var dash_pass_through_distance := 1.25
 @export var dash_hit_width := 1.8
 @export var dash_damage := 25
+@export var dash_recovery_duration := 0.3
 @export var arrow_ground_y := 0.06
 @export var arrow_length := 7.8
 @export var arrow_head_length := 0.8
@@ -45,18 +50,20 @@ var _speed_multiplier := 1.0
 var _repath_time_remaining := 0.0
 var _target_player: Node2D
 var _target_refresh_time_remaining := 0.0
-var _is_telegraphing := false
-var _is_dashing := false
+var _attack_phase := AttackPhase.CHASE
 var _telegraph_time := 0.0
 var _dash_time := 0.0
 var _dash_start := Vector2.ZERO
 var _dash_end := Vector2.ZERO
+var _dash_target_point := Vector2.ZERO
 var _dash_dir := Vector2.ZERO
 var _dash_hit_applied := false
+var _recovery_time_remaining := 0.0
 var _stun_time_remaining := 0.0
 var _aggro_enabled := true
 var _telegraph_progress_step := -1
 var _planar_facing := Vector2(0.0, -1.0)
+var _telegraph_meshes: Array[Mesh] = []
 @onready var _nav_agent: NavigationAgent2D = $NavigationAgent2D
 @onready var _dash_contact_hitbox: Hitbox2D = $DashContactHitbox
 
@@ -79,8 +86,11 @@ func set_aggro_enabled(enabled: bool) -> void:
 	_aggro_enabled = enabled
 	if not _aggro_enabled:
 		velocity = Vector2.ZERO
-		_is_telegraphing = false
-		_is_dashing = false
+		_set_attack_phase(AttackPhase.CHASE)
+		_telegraph_time = 0.0
+		_dash_time = 0.0
+		_recovery_time_remaining = 0.0
+		_stun_time_remaining = 0.0
 		if _dash_contact_hitbox != null:
 			_dash_contact_hitbox.deactivate()
 		_sync_visual_anim_speed(0.0)
@@ -112,18 +122,13 @@ func _ready() -> void:
 		_sync_visual_from_body()
 		_telegraph_mesh = MeshInstance3D.new()
 		_telegraph_mesh.name = &"MobTelegraphArrow"
-		_outline_mat = StandardMaterial3D.new()
-		_outline_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-		_outline_mat.albedo_color = Color(0.0, 0.0, 0.0, 1.0)
-		_outline_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-		_outline_mat.cull_mode = BaseMaterial3D.CULL_DISABLED
-		_fill_mat = StandardMaterial3D.new()
-		_fill_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-		_fill_mat.albedo_color = Color(0.9, 0.08, 0.08, 0.75)
-		_fill_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-		_fill_mat.cull_mode = BaseMaterial3D.CULL_DISABLED
+		_outline_mat = FlowTelegraphArrowMeshScript.create_outline_material()
+		_fill_mat = FlowTelegraphArrowMeshScript.create_fill_material(Color(0.9, 0.08, 0.08, 0.75))
 		_telegraph_mesh.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		_telegraph_mesh.visible = false
+		_telegraph_meshes.clear()
+		for step in range(_TELEGRAPH_PROGRESS_STEPS + 1):
+			_telegraph_meshes.append(_build_telegraph_mesh_for_step(step))
 		vw.add_child(_telegraph_mesh)
 	_sync_visual_anim_speed()
 	_target_player = _pick_target_player()
@@ -168,27 +173,41 @@ func _physics_process(delta: float) -> void:
 func _enemy_network_compact_state() -> Dictionary:
 	return {
 		"ag": _aggro_enabled,
-		"tg": _is_telegraphing,
+		"ph": _attack_phase,
 		"tt": _telegraph_time,
 		"td": telegraph_duration,
 		"dd": _dash_dir,
-		"ds": _is_dashing,
+		"dt": _dash_target_point,
+		"de": _dash_end,
+		"da": _dash_start,
+		"rt": _recovery_time_remaining,
+		"st": _stun_time_remaining,
 		"pf": _planar_facing,
 	}
 
 
 func _enemy_network_apply_remote_state(state: Dictionary) -> void:
 	_aggro_enabled = bool(state.get("ag", _aggro_enabled))
-	_is_telegraphing = bool(state.get("tg", false))
-	_is_dashing = bool(state.get("ds", false))
+	_attack_phase = int(state.get("ph", _attack_phase)) as AttackPhase
 	telegraph_duration = maxf(0.01, float(state.get("td", telegraph_duration)))
 	_telegraph_time = clampf(float(state.get("tt", 0.0)), 0.0, telegraph_duration)
+	_recovery_time_remaining = maxf(0.0, float(state.get("rt", _recovery_time_remaining)))
+	_stun_time_remaining = maxf(0.0, float(state.get("st", _stun_time_remaining)))
 	var dash_dir_v: Variant = state.get("dd", _dash_dir)
 	if dash_dir_v is Vector2:
 		var dash_dir := dash_dir_v as Vector2
 		if dash_dir.length_squared() > 0.0001:
 			_dash_dir = dash_dir.normalized()
-	if not _is_telegraphing:
+	var dash_target_v: Variant = state.get("dt", _dash_target_point)
+	if dash_target_v is Vector2:
+		_dash_target_point = dash_target_v as Vector2
+	var dash_end_v: Variant = state.get("de", _dash_end)
+	if dash_end_v is Vector2:
+		_dash_end = dash_end_v as Vector2
+	var dash_start_v: Variant = state.get("da", _dash_start)
+	if dash_start_v is Vector2:
+		_dash_start = dash_start_v as Vector2
+	if not _is_telegraphing():
 		_telegraph_time = 0.0
 	var pf_v: Variant = state.get("pf", _planar_facing)
 	if pf_v is Vector2:
@@ -200,6 +219,10 @@ func _enemy_network_apply_remote_state(state: Dictionary) -> void:
 func _sync_visual_from_body() -> void:
 	if _visual == null:
 		return
+	var shake_progress := 0.0
+	if _is_telegraphing():
+		shake_progress = clampf(_telegraph_time / maxf(0.01, telegraph_duration), 0.0, 1.0)
+	_visual.set_attack_shake_progress(shake_progress)
 	_visual.set_high_detail_enabled(_should_use_high_detail_visuals())
 	_visual.set_state(_resolve_visual_state_name())
 	_visual.sync_from_2d(global_position, _resolve_visual_facing_direction())
@@ -224,38 +247,39 @@ func _apply_spawn(start_position: Vector2, player_position: Vector2) -> void:
 func _update_attack_state(delta: float) -> void:
 	if not _aggro_enabled:
 		velocity = Vector2.ZERO
-		_is_telegraphing = false
-		_is_dashing = false
+		_set_attack_phase(AttackPhase.CHASE)
 		_sync_visual_anim_speed(0.0)
 		return
-	_refresh_target_player(delta, not _is_telegraphing and not _is_dashing)
+	_refresh_target_player(delta, _attack_phase == AttackPhase.CHASE)
 	if _is_player_downed_node(_target_player):
 		_target_player = _pick_target_player()
-		_is_telegraphing = false
-		_is_dashing = false
+		_set_attack_phase(AttackPhase.CHASE)
 		_telegraph_time = 0.0
 		_dash_time = 0.0
 		_dash_hit_applied = false
+		_recovery_time_remaining = 0.0
 		velocity = Vector2.ZERO
 	if _target_player == null or not is_instance_valid(_target_player):
 		velocity = Vector2.ZERO
-		_is_telegraphing = false
-		_is_dashing = false
+		_set_attack_phase(AttackPhase.CHASE)
 		return
-	if _stun_time_remaining > 0.0:
+	if _attack_phase == AttackPhase.STUN:
 		_update_stun(delta)
 		return
-	if _is_dashing:
+	if _attack_phase == AttackPhase.DASH:
 		_update_dash(delta)
 		return
-	if _is_telegraphing:
+	if _attack_phase == AttackPhase.TELEGRAPH:
 		_update_telegraph(delta)
+		return
+	if _attack_phase == AttackPhase.RECOVERY:
+		_update_recovery(delta)
 		return
 	_update_chase_velocity(delta)
 	var to_player := _target_player.global_position - global_position
-	var trigger_distance := arrow_length * attack_trigger_distance_multiplier
+	var trigger_distance := dash_range * attack_trigger_distance_multiplier
 	if to_player.length() <= trigger_distance:
-		_start_telegraph(to_player.normalized())
+		_start_telegraph(_target_player.global_position)
 
 
 func _update_chase_velocity(delta: float) -> void:
@@ -293,10 +317,14 @@ func _update_chase_velocity(delta: float) -> void:
 	_sync_visual_anim_speed()
 
 
-func _start_telegraph(dir_to_player: Vector2) -> void:
-	_is_telegraphing = true
+func _start_telegraph(target_point: Vector2) -> void:
+	_set_attack_phase(AttackPhase.TELEGRAPH)
 	_telegraph_time = 0.0
-	_dash_dir = dir_to_player if dir_to_player.length_squared() > 0.0001 else Vector2(1.0, 0.0)
+	_dash_target_point = target_point
+	var dir_to_target := _dash_target_point - global_position
+	_dash_dir = dir_to_target.normalized() if dir_to_target.length_squared() > 0.0001 else _planar_facing
+	if _dash_dir.length_squared() <= 0.0001:
+		_dash_dir = Vector2(0.0, -1.0)
 	velocity = Vector2.ZERO
 	_sync_visual_anim_speed(0.0)
 
@@ -305,23 +333,30 @@ func _update_telegraph(delta: float) -> void:
 	telegraph_duration = maxf(0.01, telegraph_duration)
 	_telegraph_time += delta
 	velocity = Vector2.ZERO
+	var dir_to_target := _dash_target_point - global_position
+	if dir_to_target.length_squared() > 0.0001:
+		_dash_dir = dir_to_target.normalized()
 	if _telegraph_time >= telegraph_duration:
 		_start_dash()
 
 
 func _start_dash() -> void:
-	_is_telegraphing = false
-	_is_dashing = true
+	_set_attack_phase(AttackPhase.DASH)
 	_dash_time = 0.0
 	_dash_start = global_position
-	_dash_end = _dash_start + _dash_dir.normalized() * dash_distance
+	var dash_dir := _dash_dir.normalized() if _dash_dir.length_squared() > 0.0001 else Vector2(0.0, -1.0)
+	var to_target := _dash_target_point - _dash_start
+	var dash_distance := maxf(to_target.dot(dash_dir), dash_range)
+	dash_distance += dash_pass_through_distance
+	_dash_end = _dash_start + dash_dir * dash_distance
 	_dash_hit_applied = false
-	velocity = _dash_dir.normalized() * (dash_distance / maxf(0.01, dash_duration))
+	velocity = dash_dir * dash_speed
 	_refresh_dash_contact_hitbox()
 
 
 func _update_dash(delta: float) -> void:
 	_dash_time += delta
+	var dash_duration := _current_dash_duration()
 	var u := clampf(_dash_time / maxf(0.01, dash_duration), 0.0, 1.0)
 	var target_pos := _dash_start.lerp(_dash_end, u)
 	var to_target := target_pos - global_position
@@ -331,59 +366,39 @@ func _update_dash(delta: float) -> void:
 		velocity = Vector2.ZERO
 	_refresh_dash_contact_hitbox()
 	if u >= 1.0:
-		_is_dashing = false
+		_set_attack_phase(AttackPhase.RECOVERY)
+		_recovery_time_remaining = dash_recovery_duration
 		velocity = Vector2.ZERO
 		if _dash_contact_hitbox != null:
 			_dash_contact_hitbox.deactivate()
 		_sync_visual_anim_speed(0.0)
 
 
+func _update_recovery(delta: float) -> void:
+	_recovery_time_remaining = maxf(0.0, _recovery_time_remaining - delta)
+	velocity = Vector2.ZERO
+	if _recovery_time_remaining <= 0.0:
+		_set_attack_phase(AttackPhase.CHASE)
+
+
 func _update_telegraph_visual() -> void:
 	if _telegraph_mesh == null:
 		return
-	if not _is_telegraphing:
+	if not _is_telegraphing():
 		_telegraph_mesh.visible = false
 		_telegraph_progress_step = -1
 		return
 	_telegraph_mesh.visible = true
 	var progress := clampf(_telegraph_time / maxf(0.01, telegraph_duration), 0.0, 1.0)
-	var dir := _dash_dir.normalized()
+	var dir := _dash_dir.normalized() if _dash_dir.length_squared() > 0.0001 else Vector2(0.0, -1.0)
 	_telegraph_mesh.global_position = Vector3(global_position.x, arrow_ground_y, global_position.y)
 	_telegraph_mesh.rotation = Vector3(0.0, atan2(dir.x, dir.y), 0.0)
 	var progress_step := int(round(progress * float(_TELEGRAPH_PROGRESS_STEPS)))
 	if progress_step == _telegraph_progress_step:
 		return
 	_telegraph_progress_step = progress_step
-	var fill_ratio := float(progress_step) / float(_TELEGRAPH_PROGRESS_STEPS)
-	var shaft_end_z := maxf(0.1, arrow_length - arrow_head_length)
-	var tip_z := arrow_length
-	var half_width := arrow_half_width
-	var head_half_width := arrow_half_width * 1.8
-	var fill_tip_z := arrow_length * fill_ratio
-	var imm := ImmediateMesh.new()
-	imm.surface_begin(Mesh.PRIMITIVE_LINES, _outline_mat)
-	for pair in [
-		[Vector3(half_width, 0.0, 0.0), Vector3(half_width, 0.0, shaft_end_z)],
-		[Vector3(half_width, 0.0, shaft_end_z), Vector3(head_half_width, 0.0, shaft_end_z)],
-		[Vector3(head_half_width, 0.0, shaft_end_z), Vector3(0.0, 0.0, tip_z)],
-		[Vector3(0.0, 0.0, tip_z), Vector3(-head_half_width, 0.0, shaft_end_z)],
-		[Vector3(-head_half_width, 0.0, shaft_end_z), Vector3(-half_width, 0.0, shaft_end_z)],
-		[Vector3(-half_width, 0.0, shaft_end_z), Vector3(-half_width, 0.0, 0.0)],
-		[Vector3(-half_width, 0.0, 0.0), Vector3(half_width, 0.0, 0.0)],
-	]:
-		imm.surface_add_vertex(pair[0] as Vector3)
-		imm.surface_add_vertex(pair[1] as Vector3)
-	imm.surface_end()
-
-	imm.surface_begin(Mesh.PRIMITIVE_TRIANGLES, _fill_mat)
-	for v in [
-		Vector3(half_width * 0.55, 0.001, 0.0),
-		Vector3(-half_width * 0.55, 0.001, 0.0),
-		Vector3(0.0, 0.001, fill_tip_z),
-	]:
-		imm.surface_add_vertex(v as Vector3)
-	imm.surface_end()
-	_telegraph_mesh.mesh = imm
+	if progress_step >= 0 and progress_step < _telegraph_meshes.size():
+		_telegraph_mesh.mesh = _telegraph_meshes[progress_step]
 
 
 func _sync_visual_anim_speed(for_speed: float = -1.0) -> void:
@@ -395,10 +410,10 @@ func _sync_visual_anim_speed(for_speed: float = -1.0) -> void:
 
 
 func _should_use_high_detail_visuals() -> bool:
-	if _is_telegraphing or _is_dashing or _stun_time_remaining > 0.0:
+	if _is_telegraphing() or _is_dashing() or _attack_phase == AttackPhase.RECOVERY or _stun_time_remaining > 0.0:
 		return true
 	if _target_player != null and is_instance_valid(_target_player):
-		var detail_range := maxf(stop_distance + dash_distance, 18.0)
+		var detail_range := maxf(stop_distance + dash_range + dash_pass_through_distance, 18.0)
 		return global_position.distance_squared_to(_target_player.global_position) <= detail_range * detail_range
 	return velocity.length_squared() > 0.04
 
@@ -416,11 +431,11 @@ func take_hit(
 
 
 func _on_nonlethal_hit(knockback_dir: Vector2, knockback_strength: float) -> void:
-	_is_telegraphing = false
-	_is_dashing = false
+	_set_attack_phase(AttackPhase.STUN)
 	_telegraph_time = 0.0
 	_dash_time = 0.0
 	_dash_hit_applied = false
+	_recovery_time_remaining = 0.0
 	if _dash_contact_hitbox != null:
 		_dash_contact_hitbox.deactivate()
 	super._on_nonlethal_hit(knockback_dir, knockback_strength)
@@ -434,6 +449,7 @@ func _update_stun(delta: float) -> void:
 	if not apply_hit_knockback_to_body_velocity() and _stun_time_remaining > 0.0:
 		velocity = Vector2.ZERO
 	if _stun_time_remaining <= 0.0 and not is_hit_knockback_active():
+		_set_attack_phase(AttackPhase.CHASE)
 		velocity = Vector2.ZERO
 		_sync_visual_anim_speed(0.0)
 
@@ -468,7 +484,7 @@ func _refresh_dash_contact_hitbox() -> void:
 	_dash_contact_hitbox.rotation = dir.angle() + PI * 0.5
 	_dash_contact_hitbox.repeat_mode = Hitbox2D.RepeatMode.INTERVAL
 	_dash_contact_hitbox.repeat_interval_sec = 0.65
-	if not _is_dashing or not is_damage_authority():
+	if not _is_dashing() or not is_damage_authority():
 		_dash_contact_hitbox.deactivate()
 		return
 	var packet := DamagePacketScript.new() as DamagePacket
@@ -485,7 +501,7 @@ func _refresh_dash_contact_hitbox() -> void:
 	if _dash_contact_hitbox.is_active():
 		_dash_contact_hitbox.update_packet_template(packet)
 	else:
-		_dash_contact_hitbox.activate(packet, dash_duration)
+		_dash_contact_hitbox.activate(packet, _current_dash_duration())
 
 
 func squash() -> void:
@@ -514,16 +530,44 @@ func _refresh_target_player(delta: float, allow_retarget: bool = true) -> void:
 		_target_refresh_time_remaining = maxf(0.05, target_refresh_interval)
 
 
+func _set_attack_phase(next_phase: AttackPhase) -> void:
+	_attack_phase = next_phase
+
+
+func _is_telegraphing() -> bool:
+	return _attack_phase == AttackPhase.TELEGRAPH
+
+
+func _is_dashing() -> bool:
+	return _attack_phase == AttackPhase.DASH
+
+
+func _current_dash_duration() -> float:
+	return _dash_start.distance_to(_dash_end) / maxf(0.01, dash_speed)
+
+
+func _build_telegraph_mesh_for_step(progress_step: int) -> Mesh:
+	return FlowTelegraphArrowMeshScript.build_mesh_for_step(
+		progress_step,
+		_TELEGRAPH_PROGRESS_STEPS,
+		arrow_length,
+		arrow_head_length,
+		arrow_half_width,
+		_outline_mat,
+		_fill_mat
+	)
+
+
 func _resolve_visual_state_name() -> StringName:
-	if _is_telegraphing or _stun_time_remaining > 0.0:
+	if _is_telegraphing() or _attack_phase == AttackPhase.STUN:
 		return &"idle"
-	if _is_dashing or velocity.length_squared() > 0.01:
+	if _is_dashing() or _attack_phase == AttackPhase.RECOVERY or velocity.length_squared() > 0.01:
 		return &"walk"
 	return &"idle"
 
 
 func _desired_facing_for_orient() -> Vector2:
-	if (_is_telegraphing or _is_dashing) and _dash_dir.length_squared() > 0.0001:
+	if (_is_telegraphing() or _is_dashing()) and _dash_dir.length_squared() > 0.0001:
 		return _dash_dir.normalized()
 	if velocity.length_squared() > 0.0001:
 		return velocity.normalized()
@@ -538,7 +582,7 @@ func _desired_facing_for_orient() -> Vector2:
 
 func _update_planar_facing(delta: float) -> void:
 	var desired := _desired_facing_for_orient()
-	if (_is_telegraphing or _is_dashing) and _dash_dir.length_squared() > 0.0001:
+	if (_is_telegraphing() or _is_dashing()) and _dash_dir.length_squared() > 0.0001:
 		_planar_facing = _dash_dir.normalized()
 		return
 	var max_step := deg_to_rad(turn_toward_facing_deg_per_sec) * delta

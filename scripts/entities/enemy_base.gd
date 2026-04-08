@@ -71,6 +71,7 @@ static func step_planar_facing_toward(
 
 var _health := 0
 var _dead := false
+var _death_deferred := false
 var _last_authoritative_hit_event_id := -1
 var _network_sync_time_accum := 0.0
 var _remote_target_position := Vector2.ZERO
@@ -469,6 +470,10 @@ func _on_health_component_depleted(packet: DamagePacket) -> void:
 	_health = 0
 	if is_damage_authority():
 		_edge_on_lethal(packet)
+	if _should_defer_death(packet):
+		_death_deferred = true
+		_begin_deferred_death(packet)
+		return
 	squash()
 
 
@@ -925,10 +930,23 @@ func can_contact_damage() -> bool:
 	return false
 
 
+func _should_defer_death(_packet: DamagePacket) -> bool:
+	return false
+
+
+func _begin_deferred_death(_packet: DamagePacket) -> void:
+	squash()
+
+
+func is_death_deferred() -> bool:
+	return _death_deferred
+
+
 func squash() -> void:
 	if _dead:
 		return
 	_dead = true
+	_death_deferred = false
 	squashed.emit()
 	if drops_coin_on_death:
 		_spawn_dropped_coin()
