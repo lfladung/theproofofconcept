@@ -3,7 +3,7 @@
 [ext_resource type="Script" path="res://scripts/entities/detonator_mob.gd" id="1"]
 [ext_resource type="Script" path="res://scripts/entities/fake_shadow_3d.gd" id="2"]
 [ext_resource type="Script" path="res://scripts/combat/health_component.gd" id="3"]
-[ext_resource type="Script" path="res://scripts/combat/damage_receiver_component.gd" id="4"]
+[ext_resource type="Script" path="res://scripts/combat/surge_window_damage_receiver_component.gd" id="4"]
 [ext_resource type="Script" path="res://scripts/combat/hurtbox_2d.gd" id="5"]
 [ext_resource type="Script" path="res://scripts/combat/hitbox_2d.gd" id="6"]
 
@@ -22,12 +22,17 @@ min_speed = 2.5
 max_speed = 3.5
 speed_scale = 1.0
 stop_distance = 1.35
-telegraph_duration = 0.85
-dash_distance = 3.5
-dash_duration = 0.24
-dash_hit_width = 1.05
-dash_damage = 28
-arrow_length = 4.0
+repath_interval = 0.28
+target_refresh_interval = 0.4
+spawn_interval = 5.0
+vent_interval = 10.0
+vent_duration = 1.5
+max_active_fizzlers = 6
+death_sequence_duration = 0.18
+death_explosion_radius = 7.0
+death_explosion_damage = 80
+death_explosion_knockback = 34.0
+vent_damage_multiplier = 2.0
 mesh_ground_y = 0.18
 mesh_scale = Vector3(1.35, 1.35, 1.35)
 edge_clip_scale = 2.35

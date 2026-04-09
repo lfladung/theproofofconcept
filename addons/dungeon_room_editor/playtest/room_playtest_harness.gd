@@ -1,9 +1,7 @@
 extends Node
 
 const PLAYER_SCENE := preload("res://scenes/entities/player.tscn")
-const STUMBLER_SCENE := preload("res://scenes/entities/stumbler.tscn")
-const SHIELDWALL_SCENE := preload("res://scenes/entities/shieldwall.tscn")
-const WARDEN_SCENE := preload("res://scenes/entities/warden.tscn")
+const EnemySpawnByEnemyId = preload("res://dungeon/game/enemy_spawn_by_id.gd")
 const CAMERA_FOLLOW_SCRIPT := preload("res://dungeon/game/components/camera_follow.gd")
 const SERIALIZER_SCRIPT := preload("res://addons/dungeon_room_editor/core/serializer.gd")
 const SCENE_SYNC_SCRIPT := preload("res://addons/dungeon_room_editor/core/scene_sync.gd")
@@ -18,10 +16,6 @@ const CAMERA_ORTHO_SIZE := 50.0
 const CAMERA_FAR := 500.0
 const ROOM_BOUNDARY_LAYER := 4
 const ROOM_WALL_COLLIDER_THICKNESS := 3.0
-const ENEMY_ID_STUMBLER := &"stumbler"
-const ENEMY_ID_SHIELDWALL := &"shieldwall"
-const ENEMY_ID_WARDEN := &"warden"
-
 @onready var _game_world_2d: Node2D = $GameWorld2D
 @onready var _visual_world_3d: Node3D = $VisualWorld3D
 @onready var _room_visuals: Node3D = $VisualWorld3D/RoomVisuals
@@ -126,25 +120,107 @@ func _spawn_authored_enemies() -> void:
 		_game_world_2d.add_child(enemy)
 
 
+## Spawns used by runtime enemies (Triad echo units, Splitter splinters, etc.). `current_scene` in playtest
+## is this harness, not `DungeonOrchestrator`, so those mobs call here via the same method name/signature as
+## `dungeon_orchestrator_internals.gd` `spawn_runtime_enemy_by_kind`.
+func spawn_runtime_enemy_by_kind(
+	encounter_id: StringName,
+	scene_kind: int,
+	spawn_position: Vector2,
+	target_position: Vector2,
+	speed_multiplier: float = 1.0,
+	start_aggro: bool = true
+) -> EnemyBase:
+	var scene_to_spawn := _playtest_enemy_scene_from_kind(scene_kind)
+	if scene_to_spawn == null:
+		return null
+	var enemy := scene_to_spawn.instantiate() as EnemyBase
+	if enemy == null:
+		return null
+	enemy.apply_speed_multiplier(speed_multiplier)
+	enemy.configure_spawn(spawn_position, target_position)
+	_game_world_2d.add_child(enemy)
+	enemy.set_aggro_enabled(start_aggro)
+	if not encounter_id.is_empty():
+		enemy.set_meta(&"encounter_id", encounter_id)
+	return enemy
+
+
+## Integer kinds must stay aligned with `dungeon_orchestrator_internals.gd` `ENEMY_SCENE_KIND_*`.
+func _playtest_enemy_scene_from_kind(kind: int) -> PackedScene:
+	match kind:
+		1:
+			return EnemySpawnByEnemyId.DASHER_SCENE
+		2:
+			return EnemySpawnByEnemyId.ARROW_TOWER_SCENE
+		3:
+			return EnemySpawnByEnemyId.IRON_SENTINEL_SCENE
+		4:
+			return EnemySpawnByEnemyId.ROBOT_MOB_SCENE
+		5:
+			return EnemySpawnByEnemyId.SKEWER_SCENE
+		6:
+			return EnemySpawnByEnemyId.GLAIVER_SCENE
+		7:
+			return EnemySpawnByEnemyId.RAZORFORM_SCENE
+		8:
+			return EnemySpawnByEnemyId.SCRAMBLER_SCENE
+		9:
+			return EnemySpawnByEnemyId.FLOW_DASHER_SCENE
+		10:
+			return EnemySpawnByEnemyId.FLOWFORM_SCENE
+		11:
+			return EnemySpawnByEnemyId.STUMBLER_SCENE
+		12:
+			return EnemySpawnByEnemyId.SHIELDWALL_SCENE
+		13:
+			return EnemySpawnByEnemyId.WARDEN_SCENE
+		14:
+			return EnemySpawnByEnemyId.SPLITTER_SCENE
+		15:
+			return EnemySpawnByEnemyId.ECHOFORM_SCENE
+		16:
+			return EnemySpawnByEnemyId.TRIAD_SCENE
+		17:
+			return EnemySpawnByEnemyId.LURKER_SCENE
+		18:
+			return EnemySpawnByEnemyId.LEECHER_SCENE
+		19:
+			return EnemySpawnByEnemyId.BINDER_SCENE
+		20:
+			return EnemySpawnByEnemyId.FIZZLER_SCENE
+		21:
+			return EnemySpawnByEnemyId.BURSTER_SCENE
+		22:
+			return EnemySpawnByEnemyId.DETONATOR_SCENE
+		23:
+			return EnemySpawnByEnemyId.ECHO_SPLINTER_SCENE
+		24:
+			return EnemySpawnByEnemyId.ECHO_UNIT_SCENE
+		_:
+			return EnemySpawnByEnemyId.FLOW_DASHER_SCENE
+
+
 func _enemy_scene_for_zone(zone: ZoneMarker2D) -> PackedScene:
 	if zone == null:
 		return null
 	var resolved_enemy_id := zone.enemy_id
 	if resolved_enemy_id == &"":
 		resolved_enemy_id = StringName(String(zone.zone_role))
+	var from_catalog := EnemySpawnByEnemyId.scene_for_enemy_id(resolved_enemy_id)
+	if from_catalog != null:
+		return from_catalog
 	match resolved_enemy_id:
-		ENEMY_ID_STUMBLER:
-			return STUMBLER_SCENE
-		ENEMY_ID_SHIELDWALL:
-			return SHIELDWALL_SCENE
-		ENEMY_ID_WARDEN:
-			return WARDEN_SCENE
 		&"melee":
-			return STUMBLER_SCENE
+			return EnemySpawnByEnemyId.STUMBLER_SCENE
 		&"ranged":
-			return SHIELDWALL_SCENE
+			return EnemySpawnByEnemyId.SHIELDWALL_SCENE
 		_:
-			var pool: Array[PackedScene] = [STUMBLER_SCENE, SHIELDWALL_SCENE, WARDEN_SCENE]
+			var pool: Array[PackedScene] = [
+				EnemySpawnByEnemyId.STUMBLER_SCENE,
+				EnemySpawnByEnemyId.SHIELDWALL_SCENE,
+				EnemySpawnByEnemyId.WARDEN_SCENE,
+			]
 			return pool[randi() % pool.size()]
 
 

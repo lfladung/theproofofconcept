@@ -2296,32 +2296,32 @@ placement_layer = &"ground"
 
 [sub_resource type="Resource" id="Resource_nl44m"]
 script = ExtResource("1_nl44m")
-item_id = "spawn_flow_dasher_marker_001"
-piece_id = &"spawn_flow_dasher_marker"
+item_id = "spawn_burster_marker_001"
+piece_id = &"spawn_burster_marker"
 category = &"spawn"
-grid_position = Vector2i(7, 7)
-tags = PackedStringArray("spawn", "flow_dasher", "flow")
-enemy_id = &"flow_dasher"
+grid_position = Vector2i(9, 7)
+tags = PackedStringArray("spawn", "burster", "surge")
+enemy_id = &"burster"
 placement_layer = &"overlay"
 
 [sub_resource type="Resource" id="Resource_53w17"]
 script = ExtResource("1_nl44m")
-item_id = "spawn_flowform_marker_001"
-piece_id = &"spawn_flowform_marker"
+item_id = "spawn_detonator_marker_001"
+piece_id = &"spawn_detonator_marker"
 category = &"spawn"
-grid_position = Vector2i(0, 7)
-tags = PackedStringArray("spawn", "flowform", "flow")
-enemy_id = &"flowform"
+grid_position = Vector2i(0, 11)
+tags = PackedStringArray("spawn", "detonator", "surge")
+enemy_id = &"detonator"
 placement_layer = &"overlay"
 
 [sub_resource type="Resource" id="Resource_vi6ip"]
 script = ExtResource("1_nl44m")
-item_id = "spawn_scrambler_marker_001"
-piece_id = &"spawn_scrambler_marker"
+item_id = "spawn_fizzler_marker_001"
+piece_id = &"spawn_fizzler_marker"
 category = &"spawn"
-grid_position = Vector2i(-8, 7)
-tags = PackedStringArray("spawn", "scrambler", "flow")
-enemy_id = &"scrambler"
+grid_position = Vector2i(-9, 7)
+tags = PackedStringArray("spawn", "fizzler", "surge")
+enemy_id = &"fizzler"
 placement_layer = &"overlay"
 
 [resource]

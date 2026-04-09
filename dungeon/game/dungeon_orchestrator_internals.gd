@@ -86,6 +86,7 @@ const RoomPreviewBuilderScript = preload("res://addons/dungeon_room_editor/previ
 const ROOM_PIECE_CATALOG = preload("res://addons/dungeon_room_editor/resources/default_room_piece_catalog.tres")
 const AuthoredRoomCatalogScript = preload("res://dungeon/game/floor_generation/authored_room_catalog.gd")
 const AuthoredFloorGeneratorScript = preload("res://dungeon/game/floor_generation/authored_floor_generator.gd")
+const EnemySpawnByEnemyId = preload("res://dungeon/game/enemy_spawn_by_id.gd")
 const PLAYER_SCENE := preload("res://scenes/entities/player.tscn")
 const LOADOUT_OVERLAY_SCENE := preload("res://scenes/ui/loadout/loadout_overlay.tscn")
 const INFUSION_GUIDE_OVERLAY_SCENE := preload("res://scenes/ui/infusion_guide_overlay.tscn")
@@ -274,7 +275,7 @@ var _backdrop_offset_cam := Vector3.ZERO
 var _prev_backdrop_camera_ref := Vector3.ZERO
 @export_enum("legacy_grid", "authored_rooms") var floor_generation_mode := "authored_rooms"
 ## When true, each floor uses exactly 3 rooms (authored generator + legacy layout). Default false keeps 7–9 / 8–10.
-@export var floor_generation_compact_three_rooms := false
+@export var floor_generation_compact_three_rooms := true
 @export var show_combat_debug_overlay := false
 @export var show_fps_counter := true
 @export var combat_debug_update_interval := 0.25
@@ -438,6 +439,22 @@ func _enemy_scene_kind_from_scene(scene: PackedScene) -> int:
 		return ENEMY_SCENE_KIND_FLOWFORM
 	if scene == SCRAMBLER_SCENE:
 		return ENEMY_SCENE_KIND_SCRAMBLER
+	if scene == FLOW_DASHER_SCENE:
+		return ENEMY_SCENE_KIND_FLOW_DASHER
+	if scene == EnemySpawnByEnemyId.DASHER_SCENE:
+		return ENEMY_SCENE_KIND_DASHER
+	if scene == EnemySpawnByEnemyId.ARROW_TOWER_SCENE:
+		return ENEMY_SCENE_KIND_ARROW_TOWER
+	if scene == EnemySpawnByEnemyId.IRON_SENTINEL_SCENE:
+		return ENEMY_SCENE_KIND_IRON_SENTINEL
+	if scene == EnemySpawnByEnemyId.ROBOT_MOB_SCENE:
+		return ENEMY_SCENE_KIND_ROBOT_MOB
+	if scene == EnemySpawnByEnemyId.FIZZLER_SCENE:
+		return ENEMY_SCENE_KIND_FIZZLER
+	if scene == EnemySpawnByEnemyId.BURSTER_SCENE:
+		return ENEMY_SCENE_KIND_BURSTER
+	if scene == EnemySpawnByEnemyId.DETONATOR_SCENE:
+		return ENEMY_SCENE_KIND_DETONATOR
 	return ENEMY_SCENE_KIND_FLOW_DASHER
 
 
@@ -475,11 +492,25 @@ func _enemy_scene_kind_from_enemy_instance(enemy: EnemyBase) -> int:
 		return ENEMY_SCENE_KIND_FLOWFORM
 	if enemy is ScramblerMob:
 		return ENEMY_SCENE_KIND_SCRAMBLER
+	if enemy is FizzlerMob:
+		return ENEMY_SCENE_KIND_FIZZLER
+	if enemy is BursterMob:
+		return ENEMY_SCENE_KIND_BURSTER
+	if enemy is DetonatorMob:
+		return ENEMY_SCENE_KIND_DETONATOR
 	return ENEMY_SCENE_KIND_FLOW_DASHER
 
 
 func _enemy_scene_from_kind(kind: int) -> PackedScene:
 	match kind:
+		ENEMY_SCENE_KIND_DASHER:
+			return EnemySpawnByEnemyId.DASHER_SCENE
+		ENEMY_SCENE_KIND_ARROW_TOWER:
+			return EnemySpawnByEnemyId.ARROW_TOWER_SCENE
+		ENEMY_SCENE_KIND_IRON_SENTINEL:
+			return EnemySpawnByEnemyId.IRON_SENTINEL_SCENE
+		ENEMY_SCENE_KIND_ROBOT_MOB:
+			return EnemySpawnByEnemyId.ROBOT_MOB_SCENE
 		ENEMY_SCENE_KIND_SPLITTER:
 			return SPLITTER_SCENE
 		ENEMY_SCENE_KIND_ECHOFORM:
@@ -512,6 +543,14 @@ func _enemy_scene_from_kind(kind: int) -> PackedScene:
 			return FLOWFORM_SCENE
 		ENEMY_SCENE_KIND_SCRAMBLER:
 			return SCRAMBLER_SCENE
+		ENEMY_SCENE_KIND_FLOW_DASHER:
+			return FLOW_DASHER_SCENE
+		ENEMY_SCENE_KIND_FIZZLER:
+			return EnemySpawnByEnemyId.FIZZLER_SCENE
+		ENEMY_SCENE_KIND_BURSTER:
+			return EnemySpawnByEnemyId.BURSTER_SCENE
+		ENEMY_SCENE_KIND_DETONATOR:
+			return EnemySpawnByEnemyId.DETONATOR_SCENE
 		_:
 			return FLOW_DASHER_SCENE
 
@@ -4016,15 +4055,10 @@ func _pick_ranged_enemy_scene(_encounter_id: StringName) -> PackedScene:
 
 
 func _enemy_scene_from_id(enemy_id: StringName) -> PackedScene:
-	match String(enemy_id):
-		"skewer":
-			return SKEWER_SCENE
-		"glaiver":
-			return GLAIVER_SCENE
-		"razorform":
-			return RAZORFORM_SCENE
-		_:
-			return _pick_random_edge_family_scene()
+	var resolved := EnemySpawnByEnemyId.scene_for_enemy_id(enemy_id)
+	if resolved != null:
+		return resolved
+	return _pick_random_edge_family_scene()
 
 
 func _room_name_for_encounter(encounter_id: StringName) -> StringName:
