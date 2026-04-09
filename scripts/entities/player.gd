@@ -231,9 +231,11 @@ func _physics_process(delta: float) -> void:
 
 	var direction := Vector2.ZERO
 	var aim_planar_sp := Vector2.ZERO
+	var move_active := false
 	if not _menu_input_blocked:
 		var intent := _local_move_steering_intent()
-		if bool(intent.get("move_active", false)):
+		move_active = bool(intent.get("move_active", false))
+		if move_active:
 			var tw: Variant = intent.get("target_world", global_position)
 			var target_world: Vector2 = tw as Vector2 if tw is Vector2 else global_position
 			var to_target := target_world - global_position
@@ -241,6 +243,19 @@ func _physics_process(delta: float) -> void:
 				direction = to_target.normalized()
 		var av: Variant = intent.get("aim_planar", Vector2.ZERO)
 		aim_planar_sp = av as Vector2 if av is Vector2 else Vector2.ZERO
+	var rooted_by_enemy := _external_movement_rooted
+	var dash_blocked := _external_dash_blocked
+	var dodge_pressed := not _menu_input_blocked and Input.is_action_just_pressed(&"dodge")
+	if rooted_by_enemy:
+		move_active = false
+		direction = Vector2.ZERO
+		if dodge_pressed:
+			if is_damage_authority():
+				_enemy_control_consume_root_pull_attempt()
+			dodge_pressed = false
+	if dash_blocked and dodge_pressed:
+		enemy_control_register_latch_break_input()
+		dodge_pressed = false
 
 	_update_facing_planar(
 		direction, true, _resolve_facing_aim_for_move_step(aim_planar_sp, direction, defend_down)
@@ -251,14 +266,11 @@ func _physics_process(delta: float) -> void:
 		velocity = Vector2.ZERO
 
 	_dodge_cooldown_remaining = maxf(0.0, _dodge_cooldown_remaining - delta)
+	if rooted_by_enemy:
+		_dodge_time_remaining = 0.0
 	if _dodge_time_remaining > 0.0:
 		_dodge_time_remaining = maxf(0.0, _dodge_time_remaining - delta)
-	elif (
-		not _menu_input_blocked
-		and Input.is_action_just_pressed(&"dodge")
-		and _dodge_cooldown_remaining <= 0.0
-		and not _is_defending
-	):
+	elif dodge_pressed and _dodge_cooldown_remaining <= 0.0 and not _is_defending:
 		_dodge_direction = _facing_planar.normalized()
 		if _dodge_direction.length_squared() <= 1e-6:
 			_dodge_direction = Vector2(0.0, -1.0)
@@ -280,6 +292,7 @@ func _physics_process(delta: float) -> void:
 			resolved_speed *= InfusionSurgeRef.overdrive_player_move_speed_mult()
 		if _is_defending:
 			resolved_speed *= clampf(defend_move_speed_multiplier, 0.0, 1.0)
+		resolved_speed *= _external_move_speed_factor()
 		velocity = direction * resolved_speed
 		planar_speed = resolved_speed
 	else:

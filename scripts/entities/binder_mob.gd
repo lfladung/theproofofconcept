@@ -10,6 +10,7 @@ enum PhaseState { POSITION, FIRE_TETHER, ROOTED_TARGET, FOLLOW_UP }
 @export var strafe_speed_multiplier := 0.65
 @export var maintain_distance_min := 5.0
 @export var maintain_distance_max := 8.0
+@export var orbit_distance_tolerance := 1.5
 @export var target_refresh_interval := 0.3
 @export var fire_windup_duration := 0.35
 @export var tether_cooldown_duration := 1.4
@@ -17,6 +18,7 @@ enum PhaseState { POSITION, FIRE_TETHER, ROOTED_TARGET, FOLLOW_UP }
 @export var tether_speed := 8.0
 @export var tether_damage := 10
 @export var tether_max_distance := 18.0
+@export var tether_fire_distance := 20.0
 @export var max_active_tethers := 3
 @export var root_duration := 0.8
 @export var follow_up_speed := 8.5
@@ -181,15 +183,18 @@ func _tick_position(delta: float) -> void:
 	var to_target := _target_player.global_position - global_position
 	var distance := to_target.length()
 	var desired := Vector2.ZERO
-	if distance < maintain_distance_min and distance > 0.001:
+	var orbit_distance := maxf(tether_fire_distance, maintain_distance_max)
+	var orbit_min := maxf(0.0, orbit_distance - orbit_distance_tolerance)
+	var orbit_max := orbit_distance
+	if distance < orbit_min and distance > 0.001:
 		desired = -to_target.normalized()
-	elif distance > maintain_distance_max and distance > 0.001:
+	elif distance > orbit_max and distance > 0.001:
 		desired = to_target.normalized()
 	else:
 		var lateral := Vector2(-to_target.y, to_target.x).normalized()
 		desired = lateral * _strafe_sign
 	if desired.length_squared() > 0.001:
-		var speed_scale := 1.0 if distance < maintain_distance_min or distance > maintain_distance_max else strafe_speed_multiplier
+		var speed_scale := 1.0 if distance < orbit_min or distance > orbit_max else strafe_speed_multiplier
 		velocity = desired * move_speed * speed_scale
 		_planar_facing = desired
 	else:
@@ -287,7 +292,7 @@ func _can_fire_tether(distance_to_target: float) -> bool:
 		return false
 	if _active_tethers.size() >= max_active_tethers:
 		return false
-	return distance_to_target <= max(maintain_distance_max + 2.0, 10.0)
+	return distance_to_target <= tether_fire_distance
 
 
 func _spawn_tether_projectile(
@@ -296,6 +301,10 @@ func _spawn_tether_projectile(
 	var parent := get_parent()
 	if parent == null:
 		return false
+	var event_id := projectile_event_id
+	if authoritative_damage and event_id <= 0:
+		_projectile_event_sequence += 1
+		event_id = _projectile_event_sequence
 	if not authoritative_damage and projectile_event_id > 0:
 		var existing_v: Variant = _remote_projectiles_by_event_id.get(projectile_event_id, null)
 		if existing_v != null and is_instance_valid(existing_v):
@@ -315,13 +324,9 @@ func _spawn_tether_projectile(
 		self,
 		_vw,
 		authoritative_damage,
-		projectile_event_id
+		event_id
 	)
 	if authoritative_damage:
-		var event_id := projectile_event_id
-		if event_id <= 0:
-			_projectile_event_sequence += 1
-			event_id = _projectile_event_sequence
 		_active_tethers[event_id] = projectile
 		projectile.tether_connected.connect(_on_server_tether_connected.bind(event_id), CONNECT_ONE_SHOT)
 		projectile.tether_finished.connect(_on_server_tether_finished.bind(event_id), CONNECT_ONE_SHOT)

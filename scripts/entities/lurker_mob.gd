@@ -144,10 +144,12 @@ func _tick_phased_idle(_delta: float) -> void:
 	if _target_player == null or not is_instance_valid(_target_player):
 		_distance_to_target = INF
 		_is_materialized = false
+		_apply_phase_collision_state()
 		velocity = Vector2.ZERO
 		return
 	_distance_to_target = global_position.distance_to(_target_player.global_position)
 	_is_materialized = _distance_to_target <= materialize_distance
+	_apply_phase_collision_state()
 	_telegraph_anchor = _pick_ambush_position(_target_player)
 	var to_anchor := _telegraph_anchor - global_position
 	if to_anchor.length_squared() > 0.0001:

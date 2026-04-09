@@ -4,7 +4,7 @@
 [ext_resource type="Script" path="res://scripts/combat/hitbox_2d.gd" id="2"]
 
 [sub_resource type="CircleShape2D" id="CircleShape2D_tether"]
-radius = 0.32
+radius = 0.48
 
 [node name="BinderTetherProjectile" type="Area2D"]
 collision_layer = 0

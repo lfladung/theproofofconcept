@@ -74,5 +74,3 @@ zone_role = &"room_walkable"
 [node name="Gameplay" type="Node2D" parent="." unique_id=9398409]
 
 [node name="Visual3DProxy" type="Node3D" parent="." unique_id=1197574521]
-visible = false
-metadata/_room_editor_suppressed_proxy_visible = true

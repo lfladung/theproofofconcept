@@ -8,10 +8,10 @@
 [ext_resource type="Script" path="res://scripts/combat/hitbox_2d.gd" id="6"]
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_mob"]
-size = Vector2(0.88, 1.1)
+size = Vector2(1.232, 1.54)
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_dash_contact"]
-size = Vector2(1.15, 1.15)
+size = Vector2(1.61, 1.61)
 
 [node name="Binder" type="CharacterBody2D" groups=["mob"]]
 collision_layer = 2
@@ -21,17 +21,19 @@ script = ExtResource("1")
 move_speed = 6.0
 maintain_distance_min = 5.0
 maintain_distance_max = 8.0
+orbit_distance_tolerance = 1.5
 fire_windup_duration = 0.35
 tether_cooldown_duration = 1.4
 tether_speed = 8.0
 tether_damage = 10
 tether_max_distance = 18.0
-root_duration = 0.8
+tether_fire_distance = 20.0
+root_duration = 2.0
 follow_up_speed = 8.5
 follow_up_hit_distance = 1.35
 follow_up_damage = 30
 mesh_ground_y = 0.14
-mesh_scale = Vector3(1.1, 1.1, 1.1)
+mesh_scale = Vector3(1.54, 1.54, 1.54)
 edge_clip_scale = 2.5
 max_health = 90
 coin_drop_value = 6
@@ -81,8 +83,8 @@ shape = SubResource("RectangleShape2D_dash_contact")
 
 [node name="FakeShadow3D" type="Node" parent="."]
 script = ExtResource("2")
-base_scale = 3.1
-min_scale = 1.9
+base_scale = 4.34
+min_scale = 2.66
 base_alpha = 0.86
 min_alpha = 0.6
 floor_offset = 0.075

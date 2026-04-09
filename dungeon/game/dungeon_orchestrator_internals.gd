@@ -51,6 +51,9 @@ const ECHO_UNIT_SCENE := preload("res://scenes/entities/echo_unit.tscn")
 const BINDER_SCENE := preload("res://scenes/entities/binder.tscn")
 const LURKER_SCENE := preload("res://scenes/entities/lurker.tscn")
 const LEECHER_SCENE := preload("res://scenes/entities/leecher.tscn")
+const SKEWER_SCENE := preload("res://scenes/entities/skewer.tscn")
+const GLAIVER_SCENE := preload("res://scenes/entities/glaiver.tscn")
+const RAZORFORM_SCENE := preload("res://scenes/entities/razorform.tscn")
 const SPLITTER_MOB_SCRIPT := preload("res://scripts/entities/splitter_mob.gd")
 const ECHOFORM_MOB_SCRIPT := preload("res://scripts/entities/echoform_mob.gd")
 const TRIAD_MOB_SCRIPT := preload("res://scripts/entities/triad_mob.gd")
@@ -59,6 +62,9 @@ const ECHO_UNIT_MOB_SCRIPT := preload("res://scripts/entities/echo_unit_mob.gd")
 const BINDER_MOB_SCRIPT := preload("res://scripts/entities/binder_mob.gd")
 const LURKER_MOB_SCRIPT := preload("res://scripts/entities/lurker_mob.gd")
 const LEECHER_MOB_SCRIPT := preload("res://scripts/entities/leecher_mob.gd")
+const SKEWER_MOB_SCRIPT := preload("res://scripts/entities/skewer_mob.gd")
+const GLAIVER_MOB_SCRIPT := preload("res://scripts/entities/glaiver_mob.gd")
+const RAZORFORM_MOB_SCRIPT := preload("res://scripts/entities/razorform_mob.gd")
 const SPAWN_POINT_SCENE := preload("res://dungeon/modules/encounter/enemy_spawn_point_2d.tscn")
 const SPAWN_VOLUME_SCENE := preload("res://dungeon/modules/encounter/enemy_spawn_volume_2d.tscn")
 const ROOM_TRIGGER_SCENE := preload("res://dungeon/modules/encounter/room_encounter_trigger_2d.tscn")
@@ -394,8 +400,8 @@ func _next_enemy_network_id() -> int:
 	return _enemy_network_id_sequence
 
 
-func _pick_random_phase_family_scene() -> PackedScene:
-	var pool: Array[PackedScene] = [BINDER_SCENE, LURKER_SCENE, LEECHER_SCENE]
+func _pick_random_edge_family_scene() -> PackedScene:
+	var pool: Array[PackedScene] = [SKEWER_SCENE, GLAIVER_SCENE, RAZORFORM_SCENE]
 	return pool[randi() % pool.size()]
 
 
@@ -416,6 +422,12 @@ func _enemy_scene_kind_from_scene(scene: PackedScene) -> int:
 		return ENEMY_SCENE_KIND_LURKER
 	if scene == LEECHER_SCENE:
 		return ENEMY_SCENE_KIND_LEECHER
+	if scene == SKEWER_SCENE:
+		return ENEMY_SCENE_KIND_SKEWER
+	if scene == GLAIVER_SCENE:
+		return ENEMY_SCENE_KIND_GLAIVER
+	if scene == RAZORFORM_SCENE:
+		return ENEMY_SCENE_KIND_RAZORFORM
 	if scene == STUMBLER_SCENE:
 		return ENEMY_SCENE_KIND_STUMBLER
 	if scene == SHIELDWALL_SCENE:
@@ -447,6 +459,12 @@ func _enemy_scene_kind_from_enemy_instance(enemy: EnemyBase) -> int:
 		return ENEMY_SCENE_KIND_LURKER
 	if script_v == LEECHER_MOB_SCRIPT:
 		return ENEMY_SCENE_KIND_LEECHER
+	if script_v == SKEWER_MOB_SCRIPT:
+		return ENEMY_SCENE_KIND_SKEWER
+	if script_v == GLAIVER_MOB_SCRIPT:
+		return ENEMY_SCENE_KIND_GLAIVER
+	if script_v == RAZORFORM_MOB_SCRIPT:
+		return ENEMY_SCENE_KIND_RAZORFORM
 	if enemy is StumblerMob:
 		return ENEMY_SCENE_KIND_STUMBLER
 	if enemy is ShieldwallMob:
@@ -478,6 +496,12 @@ func _enemy_scene_from_kind(kind: int) -> PackedScene:
 			return LURKER_SCENE
 		ENEMY_SCENE_KIND_LEECHER:
 			return LEECHER_SCENE
+		ENEMY_SCENE_KIND_SKEWER:
+			return SKEWER_SCENE
+		ENEMY_SCENE_KIND_GLAIVER:
+			return GLAIVER_SCENE
+		ENEMY_SCENE_KIND_RAZORFORM:
+			return RAZORFORM_SCENE
 		ENEMY_SCENE_KIND_STUMBLER:
 			return STUMBLER_SCENE
 		ENEMY_SCENE_KIND_SHIELDWALL:
@@ -3426,7 +3450,7 @@ func _spawn_encounter_wave(encounter_id: StringName, total_count: int, speed_mul
 	if total_count >= 2:
 		planned_scenes.append(_pick_ranged_enemy_scene(encounter_id))
 	if total_count >= 3:
-		planned_scenes.append(_pick_random_phase_family_scene())
+		planned_scenes.append(_pick_random_edge_family_scene())
 	for i in range(planned_scenes.size(), total_count):
 		planned_scenes.append(_pick_enemy_scene(encounter_id))
 	planned_scenes.shuffle()
@@ -3610,7 +3634,7 @@ func _process_pending_enemy_spawns(delta: float) -> void:
 func _prewarm_enemy_assets_once() -> void:
 	if _enemy_assets_prewarmed or not prewarm_enemy_assets or _is_dedicated_server_session():
 		return
-	for scene in [BINDER_SCENE, LURKER_SCENE, LEECHER_SCENE]:
+	for scene in [SKEWER_SCENE, GLAIVER_SCENE, RAZORFORM_SCENE]:
 		if scene == null:
 			continue
 		var enemy: Node = scene.instantiate()
@@ -3980,27 +4004,27 @@ func _resolve_encounter_for_spawn(requested_encounter_id: StringName, spawn_pos:
 
 
 func _pick_enemy_scene(_encounter_id: StringName) -> PackedScene:
-	return _pick_random_phase_family_scene()
+	return _pick_random_edge_family_scene()
 
 
 func _pick_melee_enemy_scene(_encounter_id: StringName) -> PackedScene:
-	return _pick_random_phase_family_scene()
+	return _pick_random_edge_family_scene()
 
 
 func _pick_ranged_enemy_scene(_encounter_id: StringName) -> PackedScene:
-	return _pick_random_phase_family_scene()
+	return _pick_random_edge_family_scene()
 
 
 func _enemy_scene_from_id(enemy_id: StringName) -> PackedScene:
 	match String(enemy_id):
-		"binder":
-			return BINDER_SCENE
-		"lurker":
-			return LURKER_SCENE
-		"leecher":
-			return LEECHER_SCENE
+		"skewer":
+			return SKEWER_SCENE
+		"glaiver":
+			return GLAIVER_SCENE
+		"razorform":
+			return RAZORFORM_SCENE
 		_:
-			return _pick_random_phase_family_scene()
+			return _pick_random_edge_family_scene()
 
 
 func _room_name_for_encounter(encounter_id: StringName) -> StringName:

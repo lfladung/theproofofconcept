@@ -10,7 +10,7 @@ const DamagePacketScript = preload("res://scripts/combat/damage_packet.gd")
 @export var max_distance := 20.0
 @export var damage := 10
 @export var mesh_ground_y := 1.0
-@export var mesh_scale := Vector3(1.2, 1.2, 1.2)
+@export var mesh_scale := Vector3(1.8, 1.8, 1.8)
 
 @onready var _world_shape: CollisionShape2D = $CollisionShape2D
 @onready var _hitbox: Hitbox2D = $DamageHitbox
@@ -106,8 +106,8 @@ func _ensure_visual() -> void:
 		_visual = MeshInstance3D.new()
 		_visual.name = &"BinderTetherProjectileVisual"
 		var sphere := SphereMesh.new()
-		sphere.radius = 0.28
-		sphere.height = 0.56
+		sphere.radius = 0.42
+		sphere.height = 0.84
 		_visual.mesh = sphere
 		var mat := StandardMaterial3D.new()
 		mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED

@@ -260,6 +260,7 @@ Update this list when something materially ships; prefer pointers to docs and sc
 - Authored outline starter kit: `dungeon/rooms/authored/outlines/` (nine rooms) with `tools/room_editor/generate_outline_rooms.gd` and `validate_outline_rooms.gd`.
 - Multiplayer: co-op milestones 1–9 complete; dedicated join-by-session-code through DS milestones 1–3; external matchmaker / reconnect-token handoff still open (`dungeon/MULTIPLAYER_MILESTONE_MAP.md`).
 - Enemy-family cleanup: `enemy_base.gd` now owns shared target-refresh cadence and single-scene visual-state helpers used by Flow/Edge/Mass enemy variants; keep future family work layered there first.
+- Edge family: `edge_family_base.gd` now owns committed line-attack facing, thin floor telegraphs, and precision line damage; `skewer_mob.gd`, `glaiver_mob.gd`, and `razorform_mob.gd` layer Skewer/Glaiver/Razorform behavior on top, with Razorform cut telegraphs managed by `edge_cut_line_hazard.gd`.
 
 ---
 

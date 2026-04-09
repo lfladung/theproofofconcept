@@ -8,10 +8,10 @@
 [ext_resource type="Script" path="res://scripts/combat/hitbox_2d.gd" id="6"]
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_mob"]
-size = Vector2(0.72, 1.0)
+size = Vector2(0.864, 1.2)
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_dash_contact"]
-size = Vector2(1.05, 1.05)
+size = Vector2(1.26, 1.26)
 
 [node name="Leecher" type="CharacterBody2D" groups=["mob"]]
 collision_layer = 2
@@ -26,7 +26,7 @@ detach_recovery_duration = 1.1
 break_free_presses = 5
 detach_hop_distance = 2.3
 mesh_ground_y = 0.13
-mesh_scale = Vector3(1.05, 1.05, 1.05)
+mesh_scale = Vector3(1.26, 1.26, 1.26)
 edge_clip_scale = 2.45
 max_health = 50
 coin_drop_value = 4
@@ -76,8 +76,8 @@ shape = SubResource("RectangleShape2D_dash_contact")
 
 [node name="FakeShadow3D" type="Node" parent="."]
 script = ExtResource("2")
-base_scale = 2.85
-min_scale = 1.7
+base_scale = 3.42
+min_scale = 2.04
 base_alpha = 0.85
 min_alpha = 0.58
 floor_offset = 0.075
