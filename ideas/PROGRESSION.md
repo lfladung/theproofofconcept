@@ -30,7 +30,8 @@ Three principles guide every decision in this system:
 *The thing that makes your run feel like yours.*
 
 ### What they are
-Infusions are run-permanent amplifiers tied to the seven concept pillars: **Edge, Flow, Mass, Echo, Anchor, Phase, Surge**.
+Infusions are run-permanent amplifiers tied to the seven concept pillars:
+ **Edge, Flow, Mass, Echo, Anchor, Phase, Surge**.
 
 They do not grant flat stats. They activate and escalate pillar-coded behaviors across your equipped gear.
 

@@ -94,28 +94,26 @@ const LoadoutRepositoryScript = preload("res://scripts/loadout/loadout_repositor
 const ELEVATOR_VISUAL_SCENE := preload("res://art/props/interactables/elevator_texture.glb")
 const ENEMY_SCENE_KIND_DASHER := 1
 const ENEMY_SCENE_KIND_ARROW_TOWER := 2
-const ENEMY_SCENE_KIND_IRON_SENTINEL := 3
-const ENEMY_SCENE_KIND_ROBOT_MOB := 4
-const ENEMY_SCENE_KIND_SKEWER := 5
-const ENEMY_SCENE_KIND_GLAIVER := 6
-const ENEMY_SCENE_KIND_RAZORFORM := 7
-const ENEMY_SCENE_KIND_SCRAMBLER := 8
-const ENEMY_SCENE_KIND_FLOW_DASHER := 9
-const ENEMY_SCENE_KIND_FLOWFORM := 10
-const ENEMY_SCENE_KIND_STUMBLER := 11
-const ENEMY_SCENE_KIND_SHIELDWALL := 12
-const ENEMY_SCENE_KIND_WARDEN := 13
-const ENEMY_SCENE_KIND_SPLITTER := 14
-const ENEMY_SCENE_KIND_ECHOFORM := 15
-const ENEMY_SCENE_KIND_TRIAD := 16
-const ENEMY_SCENE_KIND_LURKER := 17
-const ENEMY_SCENE_KIND_LEECHER := 18
-const ENEMY_SCENE_KIND_BINDER := 19
-const ENEMY_SCENE_KIND_FIZZLER := 20
-const ENEMY_SCENE_KIND_BURSTER := 21
-const ENEMY_SCENE_KIND_DETONATOR := 22
-const ENEMY_SCENE_KIND_ECHO_SPLINTER := 23
-const ENEMY_SCENE_KIND_ECHO_UNIT := 24
+const ENEMY_SCENE_KIND_SKEWER := 3
+const ENEMY_SCENE_KIND_GLAIVER := 4
+const ENEMY_SCENE_KIND_RAZORFORM := 5
+const ENEMY_SCENE_KIND_SCRAMBLER := 6
+const ENEMY_SCENE_KIND_FLOW_DASHER := 7
+const ENEMY_SCENE_KIND_FLOWFORM := 8
+const ENEMY_SCENE_KIND_STUMBLER := 9
+const ENEMY_SCENE_KIND_SHIELDWALL := 10
+const ENEMY_SCENE_KIND_WARDEN := 11
+const ENEMY_SCENE_KIND_SPLITTER := 12
+const ENEMY_SCENE_KIND_ECHOFORM := 13
+const ENEMY_SCENE_KIND_TRIAD := 14
+const ENEMY_SCENE_KIND_LURKER := 15
+const ENEMY_SCENE_KIND_LEECHER := 16
+const ENEMY_SCENE_KIND_BINDER := 17
+const ENEMY_SCENE_KIND_FIZZLER := 18
+const ENEMY_SCENE_KIND_BURSTER := 19
+const ENEMY_SCENE_KIND_DETONATOR := 20
+const ENEMY_SCENE_KIND_ECHO_SPLINTER := 21
+const ENEMY_SCENE_KIND_ECHO_UNIT := 22
 ## World units per texture repeat on floors (4x4 gameplay tiles at 3 units per tile).
 const FLOOR_TEXTURE_TILE_WORLD := 12.0
 ## Match floor tile size so wall stone pattern lines up at room corners.
@@ -445,10 +443,6 @@ func _enemy_scene_kind_from_scene(scene: PackedScene) -> int:
 		return ENEMY_SCENE_KIND_DASHER
 	if scene == EnemySpawnByEnemyId.ARROW_TOWER_SCENE:
 		return ENEMY_SCENE_KIND_ARROW_TOWER
-	if scene == EnemySpawnByEnemyId.IRON_SENTINEL_SCENE:
-		return ENEMY_SCENE_KIND_IRON_SENTINEL
-	if scene == EnemySpawnByEnemyId.ROBOT_MOB_SCENE:
-		return ENEMY_SCENE_KIND_ROBOT_MOB
 	if scene == EnemySpawnByEnemyId.FIZZLER_SCENE:
 		return ENEMY_SCENE_KIND_FIZZLER
 	if scene == EnemySpawnByEnemyId.BURSTER_SCENE:
@@ -507,10 +501,6 @@ func _enemy_scene_from_kind(kind: int) -> PackedScene:
 			return EnemySpawnByEnemyId.DASHER_SCENE
 		ENEMY_SCENE_KIND_ARROW_TOWER:
 			return EnemySpawnByEnemyId.ARROW_TOWER_SCENE
-		ENEMY_SCENE_KIND_IRON_SENTINEL:
-			return EnemySpawnByEnemyId.IRON_SENTINEL_SCENE
-		ENEMY_SCENE_KIND_ROBOT_MOB:
-			return EnemySpawnByEnemyId.ROBOT_MOB_SCENE
 		ENEMY_SCENE_KIND_SPLITTER:
 			return SPLITTER_SCENE
 		ENEMY_SCENE_KIND_ECHOFORM:

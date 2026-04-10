@@ -5,8 +5,6 @@ class_name EnemySpawnById
 
 const DASHER_SCENE := preload("res://scenes/entities/dasher.tscn")
 const ARROW_TOWER_SCENE := preload("res://scenes/entities/arrow_tower.tscn")
-const IRON_SENTINEL_SCENE := preload("res://scenes/entities/iron_sentinel.tscn")
-const ROBOT_MOB_SCENE := preload("res://scenes/entities/robot_mob.tscn")
 const SKEWER_SCENE := preload("res://scenes/entities/skewer.tscn")
 const GLAIVER_SCENE := preload("res://scenes/entities/glaiver.tscn")
 const RAZORFORM_SCENE := preload("res://scenes/entities/razorform.tscn")
@@ -38,10 +36,6 @@ static func scene_for_enemy_id(enemy_id: StringName) -> PackedScene:
 			return DASHER_SCENE
 		"arrow_tower":
 			return ARROW_TOWER_SCENE
-		"iron_sentinel":
-			return IRON_SENTINEL_SCENE
-		"robot_mob":
-			return ROBOT_MOB_SCENE
 		"skewer":
 			return SKEWER_SCENE
 		"glaiver":

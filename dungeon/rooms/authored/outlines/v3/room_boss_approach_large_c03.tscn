@@ -50,18 +50,3 @@ position = Vector2(36.0, 54.0)
 zone_type = "floor_exit"
 zone_role = &"boss_corner"
 tags = PackedStringArray("marker", "boss", "floor_exit")
-
-[node name="spawn_iron_sentinel_marker_spawn_iron_sentinel_marker_1345" parent="Zones/GeneratedByRoomEditor" instance=ExtResource("4_zone")]
-position = Vector2(0.0, -27.0)
-zone_type = "enemy_spawn"
-zone_role = &"iron_sentinel"
-enemy_id = &"iron_sentinel"
-tags = PackedStringArray("spawn", "iron_sentinel")
-
-[node name="spawn_robot_mob_marker_spawn_robot_mob_marker_1346" parent="Zones/GeneratedByRoomEditor" instance=ExtResource("4_zone")]
-position = Vector2(0.0, 6.0)
-zone_type = "enemy_spawn"
-zone_role = &"robot_mob"
-enemy_id = &"robot_mob"
-tags = PackedStringArray("spawn", "robot_mob")
-

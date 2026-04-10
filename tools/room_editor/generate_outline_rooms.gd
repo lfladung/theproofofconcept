@@ -364,7 +364,6 @@ func _build_room_specs() -> Array[Dictionary]:
 			"nav_marker": Vector2i(0, 0),
 			"blockers": [Vector2i(-2, -2), Vector2i(2, 2)],
 			"spawns": [
-				{"piece_id": &"spawn_robot_mob_marker", "position": Vector2i(3, -2)},
 				{"piece_id": &"spawn_dasher_marker", "position": Vector2i(3, 3)},
 			],
 		},
@@ -392,7 +391,6 @@ func _build_room_specs() -> Array[Dictionary]:
 			"nav_marker": Vector2i(0, 0),
 			"blockers": [Vector2i(-3, 3), Vector2i(3, -3)],
 			"spawns": [
-				{"piece_id": &"spawn_robot_mob_marker", "position": Vector2i(-5, -6)},
 				{"piece_id": &"spawn_dasher_marker", "position": Vector2i(6, 5)},
 				{"piece_id": &"spawn_arrow_tower_marker", "position": Vector2i(2, 8)},
 			],
@@ -419,10 +417,7 @@ func _build_room_specs() -> Array[Dictionary]:
 			"nav_marker": Vector2i(0, 0),
 			"blockers": [Vector2i(-6, 0), Vector2i(6, 0)],
 			"spawns": [
-				{"piece_id": &"spawn_robot_mob_marker", "position": Vector2i(-9, -8)},
 				{"piece_id": &"spawn_dasher_marker", "position": Vector2i(9, -6)},
-				{"piece_id": &"spawn_iron_sentinel_marker", "position": Vector2i(0, 9)},
-				{"piece_id": &"spawn_robot_mob_marker", "position": Vector2i(-8, 8)},
 				{"piece_id": &"spawn_arrow_tower_marker", "position": Vector2i(9, 8)},
 			],
 			# The v3-sized variant of this large arena currently violates the strict
@@ -522,7 +517,6 @@ func _build_room_specs() -> Array[Dictionary]:
 			"nav_marker": Vector2i(0, 0),
 			"blockers": [Vector2i(0, -2), Vector2i(0, 2), Vector2i(3, 0)],
 			"spawns": [
-				{"piece_id": &"spawn_robot_mob_marker", "position": Vector2i(6, -2)},
 				{"piece_id": &"spawn_dasher_marker", "position": Vector2i(5, 3)},
 				{"piece_id": &"spawn_arrow_tower_marker", "position": Vector2i(8, 0)},
 			],
@@ -544,8 +538,8 @@ func _build_room_specs() -> Array[Dictionary]:
 			"nav_marker": Vector2i(0, 0),
 			"blockers": [Vector2i(-5, 0), Vector2i(5, 0)],
 			"spawns": [
-				{"piece_id": &"spawn_iron_sentinel_marker", "position": Vector2i(6, -3)},
-				{"piece_id": &"spawn_robot_mob_marker", "position": Vector2i(8, 5)},
+				{"piece_id": &"spawn_warden_marker", "position": Vector2i(6, -3)},
+				{"piece_id": &"spawn_shieldwall_marker", "position": Vector2i(8, 5)},
 			],
 		},
 	]

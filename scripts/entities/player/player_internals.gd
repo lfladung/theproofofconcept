@@ -689,7 +689,9 @@ func _is_server_peer() -> bool:
 
 
 func _can_broadcast_world_replication() -> bool:
-	if not _multiplayer_active() or not _is_server_peer():
+	if not _multiplayer_active():
+		return false
+	if not _is_server_peer():
 		return true
 	var session := get_node_or_null("/root/NetworkSession")
 	if session != null and session.has_method("can_broadcast_world_replication"):

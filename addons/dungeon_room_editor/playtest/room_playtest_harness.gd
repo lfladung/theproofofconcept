@@ -154,48 +154,44 @@ func _playtest_enemy_scene_from_kind(kind: int) -> PackedScene:
 		2:
 			return EnemySpawnByEnemyId.ARROW_TOWER_SCENE
 		3:
-			return EnemySpawnByEnemyId.IRON_SENTINEL_SCENE
-		4:
-			return EnemySpawnByEnemyId.ROBOT_MOB_SCENE
-		5:
 			return EnemySpawnByEnemyId.SKEWER_SCENE
-		6:
+		4:
 			return EnemySpawnByEnemyId.GLAIVER_SCENE
-		7:
+		5:
 			return EnemySpawnByEnemyId.RAZORFORM_SCENE
-		8:
+		6:
 			return EnemySpawnByEnemyId.SCRAMBLER_SCENE
-		9:
+		7:
 			return EnemySpawnByEnemyId.FLOW_DASHER_SCENE
-		10:
+		8:
 			return EnemySpawnByEnemyId.FLOWFORM_SCENE
-		11:
+		9:
 			return EnemySpawnByEnemyId.STUMBLER_SCENE
-		12:
+		10:
 			return EnemySpawnByEnemyId.SHIELDWALL_SCENE
-		13:
+		11:
 			return EnemySpawnByEnemyId.WARDEN_SCENE
-		14:
+		12:
 			return EnemySpawnByEnemyId.SPLITTER_SCENE
-		15:
+		13:
 			return EnemySpawnByEnemyId.ECHOFORM_SCENE
-		16:
+		14:
 			return EnemySpawnByEnemyId.TRIAD_SCENE
-		17:
+		15:
 			return EnemySpawnByEnemyId.LURKER_SCENE
-		18:
+		16:
 			return EnemySpawnByEnemyId.LEECHER_SCENE
-		19:
+		17:
 			return EnemySpawnByEnemyId.BINDER_SCENE
-		20:
+		18:
 			return EnemySpawnByEnemyId.FIZZLER_SCENE
-		21:
+		19:
 			return EnemySpawnByEnemyId.BURSTER_SCENE
-		22:
+		20:
 			return EnemySpawnByEnemyId.DETONATOR_SCENE
-		23:
+		21:
 			return EnemySpawnByEnemyId.ECHO_SPLINTER_SCENE
-		24:
+		22:
 			return EnemySpawnByEnemyId.ECHO_UNIT_SCENE
 		_:
 			return EnemySpawnByEnemyId.FLOW_DASHER_SCENE
