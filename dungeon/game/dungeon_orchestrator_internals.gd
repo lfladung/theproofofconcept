@@ -91,6 +91,7 @@ const PLAYER_SCENE := preload("res://scenes/entities/player.tscn")
 const LOADOUT_OVERLAY_SCENE := preload("res://scenes/ui/loadout/loadout_overlay.tscn")
 const INFUSION_GUIDE_OVERLAY_SCENE := preload("res://scenes/ui/infusion_guide_overlay.tscn")
 const LoadoutRepositoryScript = preload("res://scripts/loadout/loadout_repository.gd")
+const _MetaProgressionConstantsRef = preload("res://scripts/meta_progression/meta_progression_constants.gd")
 const ELEVATOR_VISUAL_SCENE := preload("res://art/props/interactables/elevator_texture.glb")
 const ENEMY_SCENE_KIND_DASHER := 1
 const ENEMY_SCENE_KIND_ARROW_TOWER := 2
@@ -245,6 +246,7 @@ var _player: CharacterBody2D
 var _players_by_peer: Dictionary = {}
 var _peer_slots: Dictionary = {}
 var _loadout_repository: Node
+var _tempering_manager: RefCounted  # TemperingManager, run-scoped
 var _loadout_overlay: Control
 var _infusion_guide_overlay: Control
 var _network_session: Node
@@ -768,12 +770,105 @@ func _on_network_slot_map_changed(slot_map: Dictionary) -> void:
 	_apply_player_roster_from_slot_map(slot_map)
 
 
+func _ensure_meta_progression_loaded(owner_id: StringName) -> void:
+	var meta_store := get_node_or_null("/root/MetaProgressionStore")
+	if meta_store == null:
+		return
+	if not bool(meta_store.call(&"is_initialized", owner_id)):
+		meta_store.call(&"load_local", owner_id)
+
+
+## Seeds the TemperingManager with the equipped gear instance IDs for this player.
+func _register_equipped_gear_for_tempering(owner_id: StringName) -> void:
+	if _tempering_manager == null:
+		return
+	var meta_store := get_node_or_null("/root/MetaProgressionStore")
+	if meta_store == null:
+		return
+	var LoadoutConstantsRef = load("res://scripts/loadout/loadout_constants.gd")
+	for slot_id in LoadoutConstantsRef.SLOT_ORDER:
+		var gear_v: Variant = meta_store.call(&"get_equipped_gear", owner_id, slot_id)
+		if gear_v == null:
+			continue
+		var iid_v: Variant = (gear_v as Object).get(&"instance_id") if gear_v is Object else null
+		if iid_v == null:
+			continue
+		var iid := StringName(String(iid_v))
+		if iid != &"":
+			_tempering_manager.call(&"add_xp", iid, 0.0)
+
+
+## Grants tempering XP to all tracked gear across all players.
+func _grant_tempering_xp_to_all_players(amount: float) -> void:
+	if _tempering_manager == null:
+		return
+	_tempering_manager.call(&"add_xp_to_all", amount)
+	# Re-apply loadout stats so tempering bonuses take effect immediately.
+	_reapply_loadout_snapshots_to_all_players()
+
+
+## Re-pushes the loadout snapshot (with updated tempering) to all connected players.
+func _reapply_loadout_snapshots_to_all_players() -> void:
+	if _loadout_repository == null:
+		return
+	for peer_id in _players_by_peer.keys():
+		var node: Variant = _players_by_peer[peer_id]
+		if node is CharacterBody2D and is_instance_valid(node):
+			var player := node as CharacterBody2D
+			var owner_id := _loadout_owner_id_for_peer(int(peer_id))
+			var snapshot_v: Variant = _loadout_repository.call(&"get_snapshot", owner_id)
+			if snapshot_v is Dictionary:
+				_apply_loadout_snapshot_to_player_and_replicate(player, snapshot_v as Dictionary)
+
+
+## Called at run end. Grants promotion progress + familiarity XP, resets tempering, saves.
+func _finalize_run_meta_progression() -> void:
+	if not _is_authoritative_world():
+		return
+	var meta_store := get_node_or_null("/root/MetaProgressionStore")
+	if meta_store == null:
+		return
+	var reached_tempered_ii := _tempering_manager != null and bool(_tempering_manager.call(&"any_reached_tempered_ii"))
+	for peer_id in _players_by_peer.keys():
+		var owner_id := _loadout_owner_id_for_peer(int(peer_id))
+		if not bool(meta_store.call(&"is_initialized", owner_id)):
+			continue
+		# Familiarity XP: scales with floors cleared.
+		var fam_xp := float(_floor_index) * 15.0
+		meta_store.call(&"add_familiarity_xp_to_equipped", owner_id, fam_xp)
+		# Promotion progress: based on run achievements.
+		var promo := 0.0
+		if reached_tempered_ii:
+			promo += _MetaProgressionConstantsRef.PROMOTION_PROGRESS_TEMPERED_II
+		if _boss_cleared:
+			promo += _MetaProgressionConstantsRef.PROMOTION_PROGRESS_BOSS_CLEAR
+		if _floor_index >= 3:
+			promo += _MetaProgressionConstantsRef.PROMOTION_PROGRESS_DEEP_FLOOR
+		if promo > 0.0:
+			meta_store.call(&"grant_promotion_progress_to_equipped", owner_id, promo)
+		# Save.
+		meta_store.call(&"save_local", owner_id)
+	# Reset tempering (run-scoped).
+	if _tempering_manager != null:
+		_tempering_manager.call(&"reset")
+
+
 func _ensure_loadout_repository() -> void:
 	if _loadout_repository != null and is_instance_valid(_loadout_repository):
 		return
 	_loadout_repository = LoadoutRepositoryScript.new()
 	_loadout_repository.name = "LoadoutRepository"
 	add_child(_loadout_repository)
+	_ensure_tempering_manager()
+
+
+func _ensure_tempering_manager() -> void:
+	if _tempering_manager != null:
+		return
+	var TemperingManagerScript = load("res://scripts/meta_progression/tempering_manager.gd")
+	_tempering_manager = TemperingManagerScript.new()
+	if _loadout_repository != null and _loadout_repository.has_method(&"set_tempering_manager"):
+		_loadout_repository.call(&"set_tempering_manager", _tempering_manager)
 
 
 func _ensure_loadout_overlay() -> void:
@@ -831,8 +926,14 @@ func _bind_player_loadout_runtime(player: CharacterBody2D, peer_id: int) -> void
 	if player == null:
 		return
 	var owner_id := _loadout_owner_id_for_peer(peer_id)
-	if _is_authoritative_world() and _loadout_repository != null and _loadout_repository.has_method(&"ensure_owner_initialized"):
-		_loadout_repository.call(&"ensure_owner_initialized", owner_id)
+	if _is_authoritative_world():
+		_ensure_meta_progression_loaded(owner_id)
+	if _is_authoritative_world() and _loadout_repository != null:
+		if _loadout_repository.has_method(&"ensure_owner_initialized"):
+			_loadout_repository.call(&"ensure_owner_initialized", owner_id)
+		# Re-sync from MetaProgressionStore in case it loaded after the first init.
+		if _loadout_repository.has_method(&"refresh_owner_from_meta_store"):
+			_loadout_repository.call(&"refresh_owner_from_meta_store", owner_id)
 	if player.has_method(&"bind_loadout_runtime"):
 		player.call(&"bind_loadout_runtime", self, Callable(self, "_room_type_at"), owner_id)
 	if (
@@ -844,6 +945,7 @@ func _bind_player_loadout_runtime(player: CharacterBody2D, peer_id: int) -> void
 		var snapshot_v: Variant = _loadout_repository.call(&"get_snapshot", owner_id)
 		if snapshot_v is Dictionary:
 			player.call(&"apply_authoritative_loadout_snapshot", snapshot_v as Dictionary)
+	_register_equipped_gear_for_tempering(owner_id)
 
 
 func get_player_loadout_snapshot(player: CharacterBody2D) -> Dictionary:
@@ -4111,6 +4213,8 @@ func _complete_encounter(encounter_id: StringName) -> void:
 				else:
 					_set_info_base_text("Arena room cleared.")
 	_magnet_dropped_coins_for_encounter_room(encounter_id)
+	if String(encounter_id) == "boss":
+		_grant_tempering_xp_to_all_players(_MetaProgressionConstantsRef.TEMPERING_XP_PER_BOSS_KILL)
 
 
 func _set_boss_exit_active(active: bool, replicate: bool = true) -> void:
@@ -4263,6 +4367,7 @@ func _deferred_advance_floor_after_portal() -> void:
 				player.call(&"revive_to_full")
 			elif player.has_method(&"heal_to_full"):
 				player.call(&"heal_to_full")
+	_grant_tempering_xp_to_all_players(_MetaProgressionConstantsRef.TEMPERING_XP_PER_FLOOR)
 	_floor_index += 1
 	_regenerate_level(true)
 	await get_tree().process_frame
@@ -4363,6 +4468,7 @@ func _deferred_return_party_to_lobby() -> void:
 	if not _party_wipe_pending:
 		return
 	_party_wipe_pending = false
+	_finalize_run_meta_progression()
 	var session := get_node_or_null("/root/NetworkSession")
 	if session == null:
 		get_tree().change_scene_to_file("res://scenes/ui/lobby_menu.tscn")

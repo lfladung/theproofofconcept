@@ -60,6 +60,10 @@ text = "Singleplayer"
 layout_mode = 2
 text = "Multiplayer"
 
+[node name="InventoryButton" type="Button" parent="Center/Margin/VBox/MainMenuVBox"]
+layout_mode = 2
+text = "Inventory"
+
 [node name="OptionsButton" type="Button" parent="Center/Margin/VBox/MainMenuVBox" unique_id=1147171306]
 layout_mode = 2
 text = "Options"

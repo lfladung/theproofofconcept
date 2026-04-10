@@ -1,6 +1,8 @@
 extends Control
 
 const LoadoutConstants = preload("res://scripts/loadout/loadout_constants.gd")
+const _MetaConstants = preload("res://scripts/meta_progression/meta_progression_constants.gd")
+const _InfusionConstants = preload("res://scripts/infusion/infusion_constants.gd")
 const CATEGORY_SECTION_SCENE := preload("res://scenes/ui/loadout/loadout_category_section.tscn")
 
 @onready var _open_button: Button = $OpenButton
@@ -137,6 +139,7 @@ func _rebuild_from_snapshot(snapshot: Dictionary) -> void:
 	var equipped_slots: Dictionary = snapshot.get("equipped_slots", {}) as Dictionary
 	var definitions_by_id: Dictionary = snapshot.get("item_definitions", {}) as Dictionary
 	var owned_items_by_slot: Dictionary = snapshot.get("owned_items_by_slot", {}) as Dictionary
+	var snapshot_owner_id := StringName(String(snapshot.get("owner_id", "")))
 	for slot_id in LoadoutConstants.SLOT_ORDER:
 		var equipped_item_id := String(equipped_slots.get(String(slot_id), ""))
 		var category_rows: Array = []
@@ -147,7 +150,7 @@ func _rebuild_from_snapshot(snapshot: Dictionary) -> void:
 			category_rows.append(
 				{
 					"item_definition": item_definition,
-					"tooltip_data": _make_item_tooltip(item_definition),
+					"tooltip_data": _make_item_tooltip(item_definition, snapshot_owner_id, StringName(slot_id)),
 					"equipped": item_id == equipped_item_id,
 				}
 			)
@@ -190,19 +193,44 @@ func _on_category_expansion_changed(slot_id: StringName, expanded: bool) -> void
 	_category_expanded_by_slot[slot_id] = expanded
 
 
-func _make_item_tooltip(item_definition: Dictionary) -> Dictionary:
+func _make_item_tooltip(item_definition: Dictionary, owner_id: StringName = &"", slot_id: StringName = &"") -> Dictionary:
 	var title := String(item_definition.get("display_name", "Item"))
-	var slot_id := StringName(String(item_definition.get("slot_id", "")))
+	var def_slot_id := StringName(String(item_definition.get("slot_id", "")))
 	var stat_lines := LoadoutConstants.format_stat_modifier_lines(
 		item_definition.get("stat_modifiers", {}) as Dictionary
 	)
 	var body_lines := PackedStringArray(
 		[
-			"Slot: %s" % LoadoutConstants.slot_display_name(slot_id),
+			"Slot: %s" % LoadoutConstants.slot_display_name(def_slot_id),
 		]
 	)
 	for line in stat_lines:
 		body_lines.append(line)
+	# Add meta-progression info for this item if it matches the equipped gear in the meta store.
+	var item_id := StringName(String(item_definition.get("item_id", "")))
+	var meta_store := get_node_or_null("/root/MetaProgressionStore")
+	if meta_store != null and owner_id != &"" and item_id != &"":
+		# Look up the specific gear instance by item_id (which IS the instance_id for meta-store owners).
+		var gear_v: Variant = meta_store.call(&"get_gear_instance", owner_id, item_id)
+		if gear_v is Object and gear_v != null:
+			var tier: int = int((gear_v as Object).get(&"tier")) if (gear_v as Object).get(&"tier") != null else 1
+			var pillar: String = String((gear_v as Object).get(&"pillar_alignment")) if (gear_v as Object).get(&"pillar_alignment") != null else ""
+			var fam_xp: float = float((gear_v as Object).get(&"familiarity_xp")) if (gear_v as Object).get(&"familiarity_xp") != null else 0.0
+			body_lines.append("")
+			# Tier.
+			var tier_name := "Base"
+			if tier == _MetaConstants.TIER_ALIGNED:
+				tier_name = "Aligned"
+			elif tier == _MetaConstants.TIER_SPECIALIZED:
+				tier_name = "Specialized"
+			body_lines.append("Tier: %d (%s) — x%.2f stats" % [tier, tier_name, _MetaConstants.tier_stat_multiplier(tier)])
+			# Pillar alignment.
+			if not pillar.is_empty():
+				body_lines.append("Pillar: %s" % pillar.capitalize())
+			# Familiarity.
+			var fam_level := _MetaConstants.familiarity_level_for_xp(fam_xp)
+			var fam_bonus := _MetaConstants.familiarity_bonus_for_xp(fam_xp)
+			body_lines.append("Familiarity: %s (+%d%%)" % [_MetaConstants.familiarity_display_name(fam_level), int(fam_bonus * 100.0)])
 	var description := String(item_definition.get("description", ""))
 	if not description.is_empty():
 		body_lines.append(description)

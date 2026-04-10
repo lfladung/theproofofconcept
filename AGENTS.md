@@ -136,6 +136,16 @@ Vector2(pos3d.x, pos3d.z)
 - Never feed a raw 3D world position into gameplay logic, and never feed a raw 2D game position into a 3D visual without going through the mapping above.
 - If something spawns, fires, or moves in the wrong direction, the first thing to check is whether it bypassed the Y↔Z remap.
 
+### Meta-Progression And Inventory
+
+- `MetaProgressionStore` is an autoload Node — all gear/gem/material reads and writes go through it. Never mutate `GearItemData` fields directly outside of `MetaProgressionStore` methods.
+- Gear tiers (1–3), pillar alignment, familiarity XP, and promotion progress live on `GearItemData` instances, not on item definitions. The base item definition (`LoadoutItemDefinition`) stays tier-agnostic; stats scale at runtime via `tier_stat_multiplier * (1 + familiarity_bonus) * tempering_multiplier`.
+- `TemperingManager` is run-scoped (`RefCounted`, not an autoload). The orchestrator creates it at run start, passes it to `LoadoutRepository` via `set_tempering_manager`, and all calls on it use `.call(&"method")` because the variable is typed as `RefCounted`.
+- `LoadoutRepository.ensure_owner_initialized` checks `MetaProgressionStore.is_initialized` first — if meta data exists, only owned gear appears in the in-run panel. Equipping during a run calls `_sync_equip_to_meta_store` so the choice persists.
+- Item display names: single source of truth is `LoadoutConstants.ITEM_DISPLAY_NAMES` dict + `item_display_name(item_id)` helper. When adding new items, update both `ITEM_DISPLAY_NAMES` and `LoadoutRepository._build_default_definitions`.
+- Persistence: `user://meta_progression_{player_id}.json`. Delete this file to regenerate starter state (T1 + T2 + T3 per slot). `apply_server_state()` is the future server-authority deserialization entry point.
+- Inventory UI lives in `scripts/ui/inventory/inventory_screen.gd` (built entirely in code). The lobby shows it as a full-screen overlay toggled by `_showing_inventory` in `lobby_menu.gd`.
+
 ### Tools And Verification
 
 - Common local multiplayer commands live in `tools/COMMANDS.md`.
@@ -245,6 +255,16 @@ Use these file groups as shortcuts:
   - `scripts/entities/player.gd`
   - `dungeon/modules/gameplay/stat_pillar_2d.gd`
   - `ideas/GAMEPLAY_IDEAS.md`, `ideas/EQUIPMENT_UPGRADES.md`
+- Meta-progression / inventory tasks:
+  - `scripts/meta_progression/meta_progression_constants.gd` — thresholds, multipliers, cost tables
+  - `scripts/meta_progression/meta_progression_store.gd` — autoload; all gear/gem/material mutations
+  - `scripts/meta_progression/gear_item_data.gd` — owned gear instance (tier, pillar, familiarity, promotion)
+  - `scripts/meta_progression/gem_item_data.gd` — gem instance (pillar, effect, durability)
+  - `scripts/meta_progression/tempering_manager.gd` — run-scoped RefCounted; tempering XP tracking
+  - `scripts/ui/inventory/inventory_screen.gd` — full-screen lobby inventory overlay
+  - `scripts/ui/lobby_menu.gd` — hosts inventory screen, visibility toggling
+  - `scripts/loadout/loadout_repository.gd` — also owns meta-store sync on equip
+  - `ideas/META_PROGRESSION.md`, `ideas/INVENTORY.md`
 
 ## Project Memory Template
 
@@ -261,6 +281,9 @@ Update this list when something materially ships; prefer pointers to docs and sc
 - Multiplayer: co-op milestones 1–9 complete; dedicated join-by-session-code through DS milestones 1–3; external matchmaker / reconnect-token handoff still open (`dungeon/MULTIPLAYER_MILESTONE_MAP.md`).
 - Enemy-family cleanup: `enemy_base.gd` now owns shared target-refresh cadence and single-scene visual-state helpers used by Flow/Edge/Mass enemy variants; keep future family work layered there first.
 - Edge family: `edge_family_base.gd` now owns committed line-attack facing, thin floor telegraphs, and precision line damage; `skewer_mob.gd`, `glaiver_mob.gd`, and `razorform_mob.gd` layer Skewer/Glaiver/Razorform behavior on top, with Razorform cut telegraphs managed by `edge_cut_line_hazard.gd`.
+- Meta-progression system: `MetaProgressionStore` autoload (gear instances, gems, materials, local JSON persistence); `GearItemData` / `GemItemData` resources; `TemperingManager` run-scoped RefCounted; `MetaProgressionConstants` (`class_name`). All stat multipliers flow through `LoadoutRepository._aggregate_stats_for_slots`. Item display names centralised in `LoadoutConstants.ITEM_DISPLAY_NAMES`. Design reference: `ideas/META_PROGRESSION.md`, `ideas/INVENTORY.md`.
+- Inventory UI: full-screen lobby overlay at `scripts/ui/inventory/inventory_screen.gd`; 3 sub-screens (Loadout with collapsible slot categories + equip/detail, Gear Detail, Gem Management). In-run loadout overlay (`loadout_overlay.gd`) tooltips also show tier/pillar/familiarity. `LoadoutRepository` initialises from `MetaProgressionStore` and syncs equip changes back to it.
+- Starter gear: T1 equipped + T2 Aligned + T3 Specialized per slot (varied pillars), seeded materials. Delete `user://meta_progression_local.json` to regenerate.
 
 ---
 

@@ -75,6 +75,29 @@ const STAT_ORDER: Array[StringName] = [
 	STAT_ON_HIT_SLOW_CHANCE,
 ]
 
+## Display names for every item id defined in LoadoutRepository.
+## Keep in sync with _build_default_definitions().
+const ITEM_DISPLAY_NAMES: Dictionary = {
+	&"armor_brigandine":              "Green Chestplate",
+	&"armor_scale":                   "Red Chestplate",
+	&"helmet_knight":                 "Knight Helmet",
+	&"helmet_knight_orange":          "Knight Helmet Orange",
+	&"sword_kaykit_1handed":          "1-Handed Sword",
+	&"sword_kaykit_a":                "Sword A",
+	&"sword_kaykit_b":                "Sword B",
+	&"sword_kaykit_c":                "Sword C",
+	&"sword_kaykit_d":                "Sword D",
+	&"sword_kaykit_e":                "Sword E",
+	&"handgun_red":                   "Red Handgun",
+	&"handgun_blue":                  "Blue Handgun",
+	&"bomb_iron":                     "Iron Bomb",
+	&"bomb_satchel":                  "Satchel Bomb",
+	&"shield_kaykit_badge_color":     "Shield Badge Color",
+	&"shield_kaykit_round_color":     "Shield Round Color",
+	&"shield_kaykit_spikes_color":    "Shield Spikes Color",
+	&"shield_kaykit_square_color":    "Shield Square Color",
+}
+
 const PROJECTILE_STYLE_RED: StringName = &"red"
 const PROJECTILE_STYLE_BLUE: StringName = &"blue"
 const PROJECTILE_STYLE_GREEN: StringName = &"green"
@@ -93,6 +116,10 @@ static func create_empty_equipped_slots() -> Dictionary:
 
 static func slot_display_name(slot_id: StringName) -> String:
 	return String(SLOT_DISPLAY_NAMES.get(slot_id, String(slot_id).capitalize()))
+
+
+static func item_display_name(item_id: StringName) -> String:
+	return String(ITEM_DISPLAY_NAMES.get(item_id, String(item_id).replace("_", " ").capitalize()))
 
 
 static func normalize_stat_key(stat_key: Variant) -> StringName:

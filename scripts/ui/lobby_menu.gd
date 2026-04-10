@@ -6,6 +6,7 @@ class_name LobbyMenu
 @onready var _options_vbox: VBoxContainer = $Center/Margin/VBox/OptionsVBox
 @onready var _singleplayer_button: Button = $Center/Margin/VBox/MainMenuVBox/SingleplayerButton
 @onready var _multiplayer_button: Button = $Center/Margin/VBox/MainMenuVBox/MultiplayerButton
+@onready var _inventory_button: Button = $Center/Margin/VBox/MainMenuVBox/InventoryButton
 @onready var _options_button: Button = $Center/Margin/VBox/MainMenuVBox/OptionsButton
 @onready var _exit_button: Button = $Center/Margin/VBox/MainMenuVBox/ExitButton
 @onready var _options_back_button: Button = $Center/Margin/VBox/OptionsVBox/OptionsBackButton
@@ -27,8 +28,12 @@ class_name LobbyMenu
 @onready var _error_label: Label = $Center/Margin/VBox/MultiplayerVBox/ErrorLabel
 @onready var _peers_list: ItemList = $Center/Margin/VBox/MultiplayerVBox/PeersList
 
+const _InventoryScreenScene = preload("res://scripts/ui/inventory/inventory_screen.gd")
+
 var _showing_multiplayer_menu: bool = false
 var _showing_options: bool = false
+var _showing_inventory: bool = false
+var _inventory_screen: Control = null
 
 
 func _ready() -> void:
@@ -40,8 +45,17 @@ func _ready() -> void:
 
 	_singleplayer_button.pressed.connect(_on_singleplayer_pressed)
 	_multiplayer_button.pressed.connect(_on_multiplayer_pressed)
+	_inventory_button.pressed.connect(_on_inventory_pressed)
 	_options_button.pressed.connect(_on_options_pressed)
 	_exit_button.pressed.connect(_on_exit_pressed)
+
+	# Build inventory screen (full-screen overlay, not inside CenterContainer).
+	_inventory_screen = Control.new()
+	_inventory_screen.set_script(_InventoryScreenScene)
+	_inventory_screen.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	_inventory_screen.visible = false
+	add_child(_inventory_screen)
+	_inventory_screen.back_pressed.connect(_on_inventory_back_pressed)
 	_options_back_button.pressed.connect(_on_options_back_pressed)
 	_back_button.pressed.connect(_on_back_pressed)
 	_host_button.pressed.connect(_on_host_pressed)
@@ -71,7 +85,11 @@ func _unhandled_input(event: InputEvent) -> void:
 	var k := event as InputEventKey
 	if not k.pressed or k.echo or k.keycode != KEY_ESCAPE:
 		return
-	if _showing_options:
+	if _showing_inventory:
+		# Let inventory_screen handle its own ESC (sub-screen back nav).
+		# Only close the overlay from here if inventory emits back_pressed.
+		return
+	elif _showing_options:
 		_on_options_back_pressed()
 		get_viewport().set_input_as_handled()
 	elif _showing_multiplayer_menu:
@@ -80,9 +98,13 @@ func _unhandled_input(event: InputEvent) -> void:
 
 
 func _refresh_root_menu_visibility() -> void:
-	_options_vbox.visible = _showing_options
-	_multiplayer_vbox.visible = _showing_multiplayer_menu and not _showing_options
-	_main_menu_vbox.visible = not _showing_options and not _showing_multiplayer_menu
+	_options_vbox.visible = _showing_options and not _showing_inventory
+	_multiplayer_vbox.visible = _showing_multiplayer_menu and not _showing_options and not _showing_inventory
+	_main_menu_vbox.visible = not _showing_options and not _showing_multiplayer_menu and not _showing_inventory
+	if _inventory_screen != null:
+		_inventory_screen.visible = _showing_inventory
+	# Hide the center container entirely when inventory is up (it needs full screen).
+	$Center.visible = not _showing_inventory
 
 
 func _set_showing_multiplayer_menu(show_multiplayer: bool) -> void:
@@ -127,6 +149,17 @@ func _on_control_scheme_selected(index: int) -> void:
 	)
 	GameSettings.set_control_scheme(scheme)
 	_refresh_control_scheme_hint()
+
+
+func _on_inventory_pressed() -> void:
+	_error_label.text = ""
+	_showing_inventory = true
+	_refresh_root_menu_visibility()
+
+
+func _on_inventory_back_pressed() -> void:
+	_showing_inventory = false
+	_refresh_root_menu_visibility()
 
 
 func _on_options_pressed() -> void:

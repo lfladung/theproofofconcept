@@ -42,9 +42,13 @@ var socketed_gem_instance_ids: Array[StringName] = []
 ## Accumulated XP from using this item in runs. Drives familiarity bonuses.
 var familiarity_xp: float = 0.0
 
+## Promotion progress toward the next tier unlock [0.0, 1.0]. (META_PROGRESSION.md §3)
+## When >= 1.0, gear is eligible for evolution via spend_materials + evolve.
+var promotion_progress: float = 0.0
+
 
 ## Returns the current familiarity level based on accumulated XP.
-func familiarity_level() -> _MetaConstants.FamiliarityLevel:
+func familiarity_level() -> int:
 	return _MetaConstants.familiarity_level_for_xp(familiarity_xp)
 
 
@@ -56,6 +60,11 @@ func familiarity_stat_bonus() -> float:
 ## Max gem sockets available on this item at its current tier.
 func max_gem_sockets() -> int:
 	return _MetaConstants.gem_sockets_for_tier(tier)
+
+
+## True if this gear has max promotion progress and is below max tier.
+func is_eligible_for_evolution() -> bool:
+	return tier < _MetaConstants.TIER_SPECIALIZED and promotion_progress >= 1.0
 
 
 ## Returns the inscription entry for a pillar, or null if none.
@@ -88,6 +97,7 @@ func to_dictionary() -> Dictionary:
 		"inscriptions": inscriptions_serialized,
 		"socketed_gem_instance_ids": gems_serialized,
 		"familiarity_xp": familiarity_xp,
+		"promotion_progress": promotion_progress,
 	}
 
 
@@ -102,6 +112,7 @@ static func from_dictionary(d: Dictionary) -> GearItemData:
 	item.attunement_pillar = StringName(String(d.get("attunement_pillar", "")))
 	item.attunement_level = clampi(int(d.get("attunement_level", 0)), 0, 2)
 	item.familiarity_xp = maxf(0.0, float(d.get("familiarity_xp", 0.0)))
+	item.promotion_progress = clampf(float(d.get("promotion_progress", 0.0)), 0.0, 1.0)
 	var inscriptions_raw: Array = d.get("inscriptions", [])
 	for entry in inscriptions_raw:
 		if entry is Dictionary:

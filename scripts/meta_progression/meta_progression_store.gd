@@ -100,6 +100,12 @@ func get_all_gear_instances(player_id: StringName) -> Array[_GearItemData]:
 # Query — Gems
 # ---------------------------------------------------------------------------
 
+## Returns the GearItemData for a specific instance_id, or null.
+func get_gear_instance(player_id: StringName, instance_id: StringName) -> _GearItemData:
+	var state := _get_state(player_id)
+	return _get_gear_instance(state, instance_id)
+
+
 ## Returns the GemItemData for a specific instance_id, or null.
 func get_gem_instance(player_id: StringName, instance_id: StringName) -> _GemItemData:
 	var state := _get_state(player_id)
@@ -211,7 +217,10 @@ func equip_gear(player_id: StringName, instance_id: StringName) -> bool:
 	var slot_key := String(item.slot_id)
 	var equipped: Dictionary = state.get("equipped_instance_ids", {})
 	var prev_equipped_id := StringName(String(equipped.get(slot_key, "")))
-	# Move current equipped to stash (if there's room).
+	# Remove the incoming item from stash first — this frees a slot so the previously
+	# equipped item can always swap in, even when the stash was full.
+	_remove_from_stash(state, item.slot_id, instance_id)
+	# Move the previously equipped item to stash.
 	if prev_equipped_id != &"" and prev_equipped_id != instance_id:
 		var stash_map: Dictionary = state.get("stash_instance_ids", {})
 		var stash_ids: Array = stash_map.get(slot_key, []).duplicate()
@@ -219,10 +228,6 @@ func equip_gear(player_id: StringName, instance_id: StringName) -> bool:
 			stash_ids.append(String(prev_equipped_id))
 			stash_map[slot_key] = stash_ids
 			state["stash_instance_ids"] = stash_map
-		# If stash is full we still allow equip — prev item stays in gear_instances
-		# but won't appear in equipped or stash. Callers should check capacity first.
-	# Remove from stash if it was there.
-	_remove_from_stash(state, item.slot_id, instance_id)
 	equipped[slot_key] = String(instance_id)
 	state["equipped_instance_ids"] = equipped
 	_set_state(player_id, state)
@@ -270,6 +275,103 @@ func add_gear_instance(player_id: StringName, item: _GearItemData) -> void:
 		equipped[slot_key] = String(item.instance_id)
 		state["equipped_instance_ids"] = equipped
 	_set_state(player_id, state)
+
+
+# ---------------------------------------------------------------------------
+# Mutations — Gear Evolution & Promotion
+# ---------------------------------------------------------------------------
+
+## Evolves a gear piece to the next tier. (META_PROGRESSION.md §1)
+## For tier 1→2, [target_pillar] chooses the pillar alignment (required).
+## For tier 2→3, [target_pillar] is ignored (keeps existing alignment).
+## Returns { "ok": bool, "message": String }.
+func evolve_gear(player_id: StringName, instance_id: StringName, target_pillar: StringName = &"") -> Dictionary:
+	var state := _get_state(player_id)
+	var item := _get_gear_instance(state, instance_id)
+	if item == null:
+		return {"ok": false, "message": "Gear not found."}
+	if item.tier >= _MetaConstants.TIER_SPECIALIZED:
+		return {"ok": false, "message": "Already at max tier."}
+	if item.promotion_progress < 1.0:
+		return {"ok": false, "message": "Promotion not complete."}
+	# Determine pillar for this evolution.
+	var pillar := target_pillar
+	if item.tier == _MetaConstants.TIER_BASE:
+		if pillar == &"":
+			return {"ok": false, "message": "Choose a pillar alignment."}
+	else:
+		pillar = item.pillar_alignment
+	# Check material costs.
+	var mat_cost := _MetaConstants.evolution_material_cost(item.tier)
+	var dust_cost := _MetaConstants.evolution_dust_cost(item.tier)
+	var materials: Dictionary = state.get("materials", {})
+	var current_mats := float(materials.get(String(pillar), 0.0))
+	if current_mats < mat_cost:
+		return {"ok": false, "message": "Not enough %s materials (%d/%d)." % [String(pillar), int(current_mats), int(mat_cost)]}
+	var current_dust := float(state.get("resonant_dust", 0.0))
+	if current_dust < dust_cost:
+		return {"ok": false, "message": "Not enough resonant dust (%d/%d)." % [int(current_dust), int(dust_cost)]}
+	# Apply evolution (irreversible).
+	materials[String(pillar)] = current_mats - mat_cost
+	state["materials"] = materials
+	state["resonant_dust"] = current_dust - dust_cost
+	item.tier += 1
+	item.pillar_alignment = pillar
+	item.promotion_progress = 0.0
+	_set_state(player_id, state)
+	return {"ok": true, "message": ""}
+
+
+## Grants promotion progress to a specific gear instance. Clamps to [0, 1].
+func grant_promotion_progress(player_id: StringName, instance_id: StringName, amount: float) -> void:
+	var state := _get_state(player_id)
+	var item := _get_gear_instance(state, instance_id)
+	if item == null or item.tier >= _MetaConstants.TIER_SPECIALIZED:
+		return
+	item.promotion_progress = clampf(item.promotion_progress + amount, 0.0, 1.0)
+	_set_state(player_id, state)
+
+
+## Grants promotion progress to ALL equipped gear for a player.
+func grant_promotion_progress_to_equipped(player_id: StringName, amount: float) -> void:
+	var state := _get_state(player_id)
+	var equipped: Dictionary = state.get("equipped_instance_ids", {})
+	var changed := false
+	for slot_key in equipped.keys():
+		var iid := StringName(String(equipped.get(slot_key, "")))
+		var item := _get_gear_instance(state, iid)
+		if item == null or item.tier >= _MetaConstants.TIER_SPECIALIZED:
+			continue
+		item.promotion_progress = clampf(item.promotion_progress + amount, 0.0, 1.0)
+		changed = true
+	if changed:
+		_set_state(player_id, state)
+
+
+## Adds familiarity XP to a specific gear instance.
+func add_familiarity_xp(player_id: StringName, instance_id: StringName, amount: float) -> void:
+	var state := _get_state(player_id)
+	var item := _get_gear_instance(state, instance_id)
+	if item == null:
+		return
+	item.familiarity_xp += maxf(0.0, amount)
+	_set_state(player_id, state)
+
+
+## Adds familiarity XP to ALL equipped gear for a player (e.g. after a run).
+func add_familiarity_xp_to_equipped(player_id: StringName, amount: float) -> void:
+	var state := _get_state(player_id)
+	var equipped: Dictionary = state.get("equipped_instance_ids", {})
+	var changed := false
+	for slot_key in equipped.keys():
+		var iid := StringName(String(equipped.get(slot_key, "")))
+		var item := _get_gear_instance(state, iid)
+		if item == null:
+			continue
+		item.familiarity_xp += maxf(0.0, amount)
+		changed = true
+	if changed:
+		_set_state(player_id, state)
 
 
 # ---------------------------------------------------------------------------
@@ -521,31 +623,59 @@ func _save_path(player_id: StringName) -> String:
 	return "user://meta_progression_%s.json" % _key(player_id)
 
 
-## Builds the starter state: one unaligned tier-1 gear piece per slot, no gems, no materials.
+## Builds the starter state:
+##   - T1 unaligned (equipped) + T2 Aligned + T3 Specialized (stash) per slot.
+##   - Each slot uses a distinct pillar so the UI shows pillar color variety.
+##   - Seed materials and resonant dust for immediate UI testing.
 func _build_starter_state() -> Dictionary:
 	var gear_map := {}
 	var equipped := {}
 	var stash_map := {}
-	# Create one starter gear instance per slot using base item IDs from LoadoutRepository defaults.
+
+	# slot → base_id + which pillar the T2/T3 variants align to.
+	# Pillars spread across all 6 slots to exercise the full color palette.
 	var starter_items: Array[Dictionary] = [
-		{"slot": _LoadoutConstants.SLOT_HELMET,  "base_id": &"helmet_knight"},
-		{"slot": _LoadoutConstants.SLOT_ARMOR,   "base_id": &"armor_brigandine"},
-		{"slot": _LoadoutConstants.SLOT_SWORD,   "base_id": &"sword_kaykit_1handed"},
-		{"slot": _LoadoutConstants.SLOT_HANDGUN, "base_id": &"handgun_red"},
-		{"slot": _LoadoutConstants.SLOT_BOMB,    "base_id": &"bomb_iron"},
-		{"slot": _LoadoutConstants.SLOT_SHIELD,  "base_id": &"shield_kaykit_round_color"},
+		{"slot": _LoadoutConstants.SLOT_HELMET,  "base_id": &"helmet_knight",            "pillar": _InfusionConstants.PILLAR_EDGE},
+		{"slot": _LoadoutConstants.SLOT_ARMOR,   "base_id": &"armor_brigandine",          "pillar": _InfusionConstants.PILLAR_FLOW},
+		{"slot": _LoadoutConstants.SLOT_SWORD,   "base_id": &"sword_kaykit_1handed",      "pillar": _InfusionConstants.PILLAR_MASS},
+		{"slot": _LoadoutConstants.SLOT_HANDGUN, "base_id": &"handgun_red",               "pillar": _InfusionConstants.PILLAR_ECHO},
+		{"slot": _LoadoutConstants.SLOT_BOMB,    "base_id": &"bomb_iron",                 "pillar": _InfusionConstants.PILLAR_SURGE},
+		{"slot": _LoadoutConstants.SLOT_SHIELD,  "base_id": &"shield_kaykit_round_color", "pillar": _InfusionConstants.PILLAR_PHASE},
 	]
+
 	for entry in starter_items:
 		var slot_id: StringName = entry["slot"]
 		var base_id: StringName = entry["base_id"]
-		var item := _GearItemData.create_new(base_id, slot_id)
-		gear_map[String(item.instance_id)] = item
-		equipped[String(slot_id)] = String(item.instance_id)
-		stash_map[String(slot_id)] = []
-	# Initialize empty materials for all known pillars.
+		var pillar: StringName  = entry["pillar"]
+
+		# T1 — unaligned, equipped.
+		var t1 := _GearItemData.create_new(base_id, slot_id)
+		gear_map[String(t1.instance_id)] = t1
+		equipped[String(slot_id)] = String(t1.instance_id)
+
+		# T2 — Aligned, Familiar familiarity, 60% promotion toward T3.
+		var t2 := _GearItemData.create_new(base_id, slot_id)
+		t2.tier = _MetaConstants.TIER_ALIGNED
+		t2.pillar_alignment = pillar
+		t2.familiarity_xp = 110.0   # Familiar (+2%)
+		t2.promotion_progress = 0.6
+		gear_map[String(t2.instance_id)] = t2
+
+		# T3 — Specialized, Masterwork familiarity, fully evolved.
+		var t3 := _GearItemData.create_new(base_id, slot_id)
+		t3.tier = _MetaConstants.TIER_SPECIALIZED
+		t3.pillar_alignment = pillar
+		t3.familiarity_xp = 320.0   # Masterwork (+6%)
+		t3.promotion_progress = 0.0
+		gear_map[String(t3.instance_id)] = t3
+
+		stash_map[String(slot_id)] = [String(t2.instance_id), String(t3.instance_id)]
+
+	# Seed materials — enough to show pillar colors and test evolution flow.
 	var materials := {}
 	for pillar_id in _InfusionConstants.PILLAR_ORDER:
-		materials[String(pillar_id)] = 0.0
+		materials[String(pillar_id)] = 30.0
+
 	return {
 		"gear_instances": gear_map,
 		"equipped_instance_ids": equipped,
@@ -554,7 +684,7 @@ func _build_starter_state() -> Dictionary:
 		"socketed_gem_slots": [],
 		"gem_slot_count": _MetaConstants.MAX_GEM_SLOTS_BASE,
 		"materials": materials,
-		"resonant_dust": 0.0,
+		"resonant_dust": 15.0,
 	}
 
 

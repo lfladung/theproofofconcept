@@ -32,6 +32,12 @@ Godot 4.6 project: 2–4 player authoritative co-op dungeon crawler.
 
 **Visuals/equipment:** `scripts/visuals/player_visual.gd` / `player_visual_internals.gd`, `scenes/visuals/player_visual.tscn`
 
+**Meta-progression / inventory:** `scripts/meta_progression/meta_progression_constants.gd`, `scripts/meta_progression/meta_progression_store.gd` (autoload), `scripts/meta_progression/gear_item_data.gd`, `scripts/meta_progression/gem_item_data.gd`, `scripts/meta_progression/tempering_manager.gd`
+
+**Inventory UI:** `scripts/ui/inventory/inventory_screen.gd`, `scripts/ui/lobby_menu.gd`
+
+**Loadout:** `scripts/loadout/loadout_constants.gd`, `scripts/loadout/loadout_repository.gd`, `scripts/ui/loadout/loadout_overlay.gd`, `scenes/ui/loadout/loadout_category_section.tscn`
+
 ## Authored Room System (summary — do not read the folder)
 
 - Base contract: `dungeon/rooms/base/room_base.tscn` with script `room_base.gd`
@@ -51,7 +57,7 @@ Godot 4.6 project: 2–4 player authoritative co-op dungeon crawler.
 - `dungeon_orchestrator_internals.gd` (and thin `dungeon_orchestrator.gd`) have broad side effects — changes there ripple into networking, encounters, cameras, and doors
 - `room_query_service.gd` is a shared hot-path — do not add per-frame scans to it
 
-## Current Status (as of 2026-04-04)
+## Current Status (as of 2026-04-10)
 
 - Multiplayer milestones 1–9 complete; dedicated join-by-session-code through DS milestones 1–3 (see `dungeon/MULTIPLAYER_MILESTONE_MAP.md`)
 - Melee: owner-client request → server validation → replicated event
@@ -59,3 +65,17 @@ Godot 4.6 project: 2–4 player authoritative co-op dungeon crawler.
 - Boss rooms: auto-stamped `floor_exit` marker placed by Room Editor, consumed at runtime by `room_query_service.gd`
 - Stat pillar module added (`dungeon/modules/gameplay/stat_pillar_2d.gd`); new affix stats declared but not yet wired into combat calculations
 - Authored outline starter rooms: `dungeon/rooms/authored/outlines/` with `tools/room_editor/generate_outline_rooms.gd` / `validate_outline_rooms.gd`
+- **Meta-progression system implemented** (see `ideas/META_PROGRESSION.md`, `ideas/INVENTORY.md`):
+  - `MetaProgressionStore` autoload — single mutation gateway for gear instances, gems, materials, resonant dust; persists to `user://meta_progression_{player_id}.json`; `apply_server_state()` is future server-authority entry point
+  - `GearItemData` — owned gear instance with tier (1–3), pillar alignment, familiarity XP, promotion progress, inscriptions, gem sockets
+  - `GemItemData` — gem instance with pillar, effect key, durability model
+  - `TemperingManager` — run-scoped `RefCounted`; tracks tempering XP per gear piece, two thresholds (Tempered I/II), emits `tempering_state_changed`; wired into orchestrator lifecycle
+  - `MetaProgressionConstants` — all thresholds, multipliers, cost tables; `class_name MetaProgressionConstants`
+  - `LoadoutRepository` now initialises owners from `MetaProgressionStore` (only owned items visible in-run); equipping during a run syncs back to `MetaProgressionStore`
+  - Item display names centralised in `LoadoutConstants.ITEM_DISPLAY_NAMES` / `item_display_name()`
+  - Starter state: T1 equipped + T2 Aligned + T3 Specialized per slot, varied pillar per slot, seeded materials
+- **Inventory UI implemented:**
+  - Lobby "Inventory" button → full-screen overlay (`scripts/ui/inventory/inventory_screen.gd`)
+  - 3 sub-screens: Loadout (categorised/collapsible per slot, equip via click), Gear Detail (tier/pillar/familiarity/promotion/inscriptions/sockets/evolve), Gem Management
+  - Clicking an already-equipped item opens Gear Detail; clicking a stash item equips it
+  - In-run loadout overlay tooltips now include tier, pillar, and familiarity info
