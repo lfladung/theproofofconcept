@@ -6,6 +6,11 @@ class_name MenuBackgroundVfx
 # itself renders in a transparent 3D SubViewport above it.
 const PILLAR_MENU_SCENE := preload("res://scenes/ui/menu/pillar_menu_scene.tscn")
 
+@export var effects_enabled := false:
+	set(value):
+		effects_enabled = value
+		_apply_effects_enabled()
+
 @export var pit_texture: Texture2D = preload("res://art/menu/theabyss.png"):
 	set(value):
 		pit_texture = value
@@ -39,6 +44,8 @@ const PILLAR_MENU_SCENE := preload("res://scenes/ui/menu/pillar_menu_scene.tscn"
 func _ready() -> void:
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_apply_viewport_settings()
+	_apply_effects_enabled()
 	_ensure_menu_scene_instance()
 	_apply_pit_settings()
 	_update_layout()
@@ -46,6 +53,22 @@ func _ready() -> void:
 
 func _notification(what: int) -> void:
 	if what == NOTIFICATION_RESIZED:
+		_update_layout()
+		call_deferred(&"_update_layout")
+
+
+func set_display_transition_active(active: bool) -> void:
+	visible = not active
+	if _pillar_viewport == null:
+		return
+	if not effects_enabled:
+		_pillar_viewport.render_target_update_mode = SubViewport.UPDATE_DISABLED
+		return
+	_pillar_viewport.render_target_update_mode = (
+		SubViewport.UPDATE_DISABLED if active else SubViewport.UPDATE_ALWAYS
+	)
+	if not active:
+		_apply_viewport_settings()
 		_update_layout()
 
 
@@ -61,20 +84,49 @@ func _apply_pit_settings() -> void:
 
 
 func _update_layout() -> void:
-	if _pillar_viewport == null:
+	if _pillar_viewport == null or not effects_enabled:
 		return
 	if _pillar_viewport_container != null and _pillar_viewport_container.stretch:
-		# With stretch enabled, the container owns the viewport sizing. Keep the
-		# export around for future low-res viewport work, but do not resize here.
+		# Match the container's size explicitly so transparent resize frames do not
+		# sample stale render-target pixels before the stretch pass catches up.
+		var container_size := _safe_viewport_size(_pillar_viewport_container.size)
+		if _pillar_viewport.size != container_size:
+			_pillar_viewport.size = container_size
 		return
 	var scaled_size := size * viewport_resolution_scale
-	scaled_size.x = maxf(scaled_size.x, 1.0)
-	scaled_size.y = maxf(scaled_size.y, 1.0)
-	_pillar_viewport.size = Vector2i(roundi(scaled_size.x), roundi(scaled_size.y))
+	var next_size := _safe_viewport_size(scaled_size)
+	if _pillar_viewport.size != next_size:
+		_pillar_viewport.size = next_size
+
+
+func _apply_viewport_settings() -> void:
+	if _pillar_viewport == null:
+		return
+	_pillar_viewport.transparent_bg = true
+	_pillar_viewport.render_target_clear_mode = SubViewport.CLEAR_MODE_ALWAYS
+	_pillar_viewport.render_target_update_mode = (
+		SubViewport.UPDATE_ALWAYS if effects_enabled else SubViewport.UPDATE_DISABLED
+	)
+
+
+func _apply_effects_enabled() -> void:
+	if _pillar_viewport_container != null:
+		_pillar_viewport_container.visible = effects_enabled
+	if _pillar_viewport != null:
+		_pillar_viewport.render_target_update_mode = (
+			SubViewport.UPDATE_ALWAYS if effects_enabled else SubViewport.UPDATE_DISABLED
+		)
+	if effects_enabled:
+		_ensure_menu_scene_instance()
+		_update_layout()
+
+
+func _safe_viewport_size(source_size: Vector2) -> Vector2i:
+	return Vector2i(maxi(roundi(source_size.x), 1), maxi(roundi(source_size.y), 1))
 
 
 func _ensure_menu_scene_instance() -> void:
-	if _pillar_viewport == null:
+	if _pillar_viewport == null or not effects_enabled:
 		return
 	if _pillar_viewport.get_node_or_null("MenuScene") != null:
 		return

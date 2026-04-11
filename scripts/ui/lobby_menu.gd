@@ -4,6 +4,7 @@ class_name LobbyMenu
 @onready var _main_menu_vbox: VBoxContainer = $Center/Margin/VBox/MainMenuVBox
 @onready var _multiplayer_vbox: VBoxContainer = $Center/Margin/VBox/MultiplayerVBox
 @onready var _options_vbox: VBoxContainer = $Center/Margin/VBox/OptionsVBox
+@onready var _menu_background_vfx: MenuBackgroundVfx = $MenuBackgroundVfx
 @onready var _singleplayer_button: Button = $Center/Margin/VBox/MainMenuVBox/SingleplayerButton
 @onready var _multiplayer_button: Button = $Center/Margin/VBox/MainMenuVBox/MultiplayerButton
 @onready var _inventory_button: Button = $Center/Margin/VBox/MainMenuVBox/InventoryButton
@@ -15,6 +16,12 @@ class_name LobbyMenu
 )
 @onready var _control_scheme_hint: Label = (
 	$Center/Margin/VBox/OptionsVBox/TabContainer/Controls/ControlSchemeHint
+)
+@onready var _resolution_option: OptionButton = (
+	$Center/Margin/VBox/OptionsVBox/TabContainer/General/ResolutionOption
+)
+@onready var _window_mode_option: OptionButton = (
+	$Center/Margin/VBox/OptionsVBox/TabContainer/General/WindowModeOption
 )
 @onready var _back_button: Button = $Center/Margin/VBox/MultiplayerVBox/ButtonRow/BackButton
 @onready var _session_code_input: LineEdit = $Center/Margin/VBox/MultiplayerVBox/CodeRow/SessionCodeInput
@@ -34,14 +41,29 @@ var _showing_multiplayer_menu: bool = false
 var _showing_options: bool = false
 var _showing_inventory: bool = false
 var _inventory_screen: Control = null
+var _display_transition_curtain: ColorRect = null
 
 
 func _ready() -> void:
 	_error_label.text = ""
+	_build_display_transition_curtain()
 
 	_control_scheme_option.add_item("Mouse")
 	_control_scheme_option.add_item("WASD + Mouse")
 	_control_scheme_option.item_selected.connect(_on_control_scheme_selected)
+	for option in GameSettings.get_resolution_options():
+		_resolution_option.add_item(GameSettings.resolution_display_name(option))
+	_resolution_option.item_selected.connect(_on_resolution_selected)
+	_window_mode_option.add_item(
+		GameSettings.window_mode_display_name(GameSettings.WindowMode.WINDOWED)
+	)
+	_window_mode_option.add_item(
+		GameSettings.window_mode_display_name(GameSettings.WindowMode.BORDERED_FULLSCREEN)
+	)
+	_window_mode_option.add_item(
+		GameSettings.window_mode_display_name(GameSettings.WindowMode.FULLSCREEN)
+	)
+	_window_mode_option.item_selected.connect(_on_window_mode_selected)
 
 	_singleplayer_button.pressed.connect(_on_singleplayer_pressed)
 	_multiplayer_button.pressed.connect(_on_multiplayer_pressed)
@@ -71,12 +93,25 @@ func _ready() -> void:
 	NetworkSession.registry_lookup_result.connect(_on_registry_lookup_result)
 	NetworkSession.session_code_changed.connect(_on_session_code_changed)
 	NetworkSession.lobby_ready_changed.connect(_on_lobby_ready_changed)
+	GameSettings.display_settings_apply_started.connect(_on_display_settings_apply_started)
+	GameSettings.display_settings_apply_finished.connect(_on_display_settings_apply_finished)
 
 	_refresh_ui()
 	_rebuild_peer_list(NetworkSession.get_peer_slot_map())
 	_set_showing_multiplayer_menu(false)
 	_set_showing_options_menu(false)
 	_sync_control_scheme_option()
+	_sync_display_options()
+
+
+func _build_display_transition_curtain() -> void:
+	_display_transition_curtain = ColorRect.new()
+	_display_transition_curtain.name = "DisplayTransitionCurtain"
+	_display_transition_curtain.color = Color.BLACK
+	_display_transition_curtain.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_display_transition_curtain.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	_display_transition_curtain.visible = false
+	add_child(_display_transition_curtain)
 
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -121,6 +156,7 @@ func _set_showing_options_menu(show_options: bool) -> void:
 	_refresh_root_menu_visibility()
 	if show_options:
 		_sync_control_scheme_option()
+		_sync_display_options()
 
 
 func _sync_control_scheme_option() -> void:
@@ -128,6 +164,17 @@ func _sync_control_scheme_option() -> void:
 	_control_scheme_option.select(1 if GameSettings.is_wasd_mouse_scheme() else 0)
 	_control_scheme_option.set_block_signals(false)
 	_refresh_control_scheme_hint()
+
+
+func _sync_display_options() -> void:
+	_resolution_option.set_block_signals(true)
+	var resolution_index := GameSettings.get_resolution_index()
+	_resolution_option.select(maxi(resolution_index, 0))
+	_resolution_option.set_block_signals(false)
+
+	_window_mode_option.set_block_signals(true)
+	_window_mode_option.select(GameSettings.get_window_mode_index())
+	_window_mode_option.set_block_signals(false)
 
 
 func _refresh_control_scheme_hint() -> void:
@@ -149,6 +196,38 @@ func _on_control_scheme_selected(index: int) -> void:
 	)
 	GameSettings.set_control_scheme(scheme)
 	_refresh_control_scheme_hint()
+
+
+func _on_display_settings_apply_started() -> void:
+	if _menu_background_vfx != null:
+		_menu_background_vfx.set_display_transition_active(true)
+	if _display_transition_curtain != null:
+		_display_transition_curtain.visible = true
+		_display_transition_curtain.move_to_front()
+
+
+func _on_display_settings_apply_finished() -> void:
+	if _menu_background_vfx != null:
+		_menu_background_vfx.set_display_transition_active(false)
+	if _display_transition_curtain != null:
+		_display_transition_curtain.visible = false
+
+
+func _on_resolution_selected(index: int) -> void:
+	var options := GameSettings.get_resolution_options()
+	if index < 0 or index >= options.size():
+		return
+	GameSettings.set_resolution(options[index])
+
+
+func _on_window_mode_selected(index: int) -> void:
+	match index:
+		int(GameSettings.WindowMode.BORDERED_FULLSCREEN):
+			GameSettings.set_window_mode(GameSettings.WindowMode.BORDERED_FULLSCREEN)
+		int(GameSettings.WindowMode.FULLSCREEN):
+			GameSettings.set_window_mode(GameSettings.WindowMode.FULLSCREEN)
+		_:
+			GameSettings.set_window_mode(GameSettings.WindowMode.WINDOWED)
 
 
 func _on_inventory_pressed() -> void:

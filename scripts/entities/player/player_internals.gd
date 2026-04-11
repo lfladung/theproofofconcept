@@ -1435,9 +1435,7 @@ func _apply_movement_step(
 	if _dodge_time_remaining > 0.0:
 		_dodge_time_remaining = maxf(0.0, _dodge_time_remaining - delta)
 	elif dodge_pressed and _dodge_cooldown_remaining <= 0.0 and not _is_defending:
-		_dodge_direction = _facing_planar.normalized()
-		if _dodge_direction.length_squared() <= 1e-6:
-			_dodge_direction = Vector2(0.0, -1.0)
+		_dodge_direction = _resolve_dodge_direction(direction)
 		_dodge_time_remaining = dodge_duration
 		_dodge_cooldown_remaining = dodge_cooldown
 		if is_damage_authority():
@@ -3271,9 +3269,7 @@ func _mouse_planar_world() -> Vector2:
 const _MOVE_STEER_HINT_DISTANCE := 512.0
 
 
-func _wasd_move_facing_aim(aim_planar: Vector2, move_direction: Vector2) -> Vector2:
-	if _is_wasd_mouse_scheme_enabled() and move_direction.length_squared() > 1e-6:
-		return Vector2.ZERO
+func _wasd_move_facing_aim(aim_planar: Vector2, _move_direction: Vector2) -> Vector2:
 	return aim_planar
 
 
@@ -3289,6 +3285,15 @@ func _mouse_aim_direction_planar() -> Vector2:
 	if t.length_squared() > 0.0001:
 		return t.normalized()
 	return Vector2.ZERO
+
+
+func _resolve_dodge_direction(move_direction: Vector2) -> Vector2:
+	if move_direction.length_squared() > 1e-6:
+		return move_direction.normalized()
+	var facing := _facing_planar.normalized()
+	if facing.length_squared() > 1e-6:
+		return facing
+	return Vector2(0.0, -1.0)
 
 
 func _wants_mouse_facing_while_blocking_or_attacking(defend_down: bool) -> bool:

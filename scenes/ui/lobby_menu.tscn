@@ -107,12 +107,22 @@ autowrap_mode = 3
 [node name="General" type="VBoxContainer" parent="Center/Margin/VBox/OptionsVBox/TabContainer" unique_id=1858758950]
 visible = false
 layout_mode = 2
+theme_override_constants/separation = 8
 metadata/_tab_index = 1
 
-[node name="GeneralPlaceholder" type="Label" parent="Center/Margin/VBox/OptionsVBox/TabContainer/General" unique_id=2045013191]
+[node name="ResolutionLabel" type="Label" parent="Center/Margin/VBox/OptionsVBox/TabContainer/General"]
 layout_mode = 2
-text = "More settings can go here later."
-autowrap_mode = 3
+text = "Resolution"
+
+[node name="ResolutionOption" type="OptionButton" parent="Center/Margin/VBox/OptionsVBox/TabContainer/General"]
+layout_mode = 2
+
+[node name="WindowModeLabel" type="Label" parent="Center/Margin/VBox/OptionsVBox/TabContainer/General"]
+layout_mode = 2
+text = "Window mode"
+
+[node name="WindowModeOption" type="OptionButton" parent="Center/Margin/VBox/OptionsVBox/TabContainer/General"]
+layout_mode = 2
 
 [node name="OptionsBackButton" type="Button" parent="Center/Margin/VBox/OptionsVBox" unique_id=467040195]
 layout_mode = 2

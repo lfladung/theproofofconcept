@@ -32,7 +32,8 @@ MetaProgressionStore="*res://scripts/meta_progression/meta_progression_store.gd"
 [display]
 
 window/size/viewport_width=1280
-window/size/viewport_height=960
+window/size/viewport_height=720
+window/size/resizable=false
 
 [editor_plugins]
 

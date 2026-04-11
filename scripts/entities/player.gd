@@ -271,9 +271,7 @@ func _physics_process(delta: float) -> void:
 	if _dodge_time_remaining > 0.0:
 		_dodge_time_remaining = maxf(0.0, _dodge_time_remaining - delta)
 	elif dodge_pressed and _dodge_cooldown_remaining <= 0.0 and not _is_defending:
-		_dodge_direction = _facing_planar.normalized()
-		if _dodge_direction.length_squared() <= 1e-6:
-			_dodge_direction = Vector2(0.0, -1.0)
+		_dodge_direction = _resolve_dodge_direction(direction)
 		_dodge_time_remaining = dodge_duration
 		_dodge_cooldown_remaining = dodge_cooldown
 		if is_damage_authority():
