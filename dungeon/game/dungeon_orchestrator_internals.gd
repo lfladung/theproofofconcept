@@ -275,7 +275,7 @@ var _backdrop_offset_cam := Vector3.ZERO
 var _prev_backdrop_camera_ref := Vector3.ZERO
 @export_enum("legacy_grid", "authored_rooms") var floor_generation_mode := "authored_rooms"
 ## When true, each floor uses exactly 3 rooms (authored generator + legacy layout). Default false keeps 7–9 / 8–10.
-@export var floor_generation_compact_three_rooms := true
+@export var floor_generation_compact_three_rooms := false
 @export var show_combat_debug_overlay := false
 @export var show_fps_counter := true
 @export var combat_debug_update_interval := 0.25
@@ -401,9 +401,14 @@ func _next_enemy_network_id() -> int:
 	return _enemy_network_id_sequence
 
 
-func _pick_random_edge_family_scene() -> PackedScene:
-	var pool: Array[PackedScene] = [SKEWER_SCENE, GLAIVER_SCENE, RAZORFORM_SCENE]
-	return pool[randi() % pool.size()]
+func _pick_scene_from_pool(pool: Array[PackedScene]) -> PackedScene:
+	if pool.is_empty():
+		return FLOW_DASHER_SCENE
+	return pool[_rng.randi_range(0, pool.size() - 1)]
+
+
+func _pick_random_primary_family_scene() -> PackedScene:
+	return _pick_scene_from_pool(EnemySpawnByEnemyId.primary_family_scenes())
 
 
 func _enemy_scene_kind_from_scene(scene: PackedScene) -> int:
@@ -3581,7 +3586,7 @@ func _spawn_encounter_wave(encounter_id: StringName, total_count: int, speed_mul
 	if total_count >= 2:
 		planned_scenes.append(_pick_ranged_enemy_scene(encounter_id))
 	if total_count >= 3:
-		planned_scenes.append(_pick_random_edge_family_scene())
+		planned_scenes.append(_pick_random_primary_family_scene())
 	for i in range(planned_scenes.size(), total_count):
 		planned_scenes.append(_pick_enemy_scene(encounter_id))
 	planned_scenes.shuffle()
@@ -4135,22 +4140,22 @@ func _resolve_encounter_for_spawn(requested_encounter_id: StringName, spawn_pos:
 
 
 func _pick_enemy_scene(_encounter_id: StringName) -> PackedScene:
-	return _pick_random_edge_family_scene()
+	return _pick_random_primary_family_scene()
 
 
 func _pick_melee_enemy_scene(_encounter_id: StringName) -> PackedScene:
-	return _pick_random_edge_family_scene()
+	return _pick_random_primary_family_scene()
 
 
 func _pick_ranged_enemy_scene(_encounter_id: StringName) -> PackedScene:
-	return _pick_random_edge_family_scene()
+	return _pick_random_primary_family_scene()
 
 
 func _enemy_scene_from_id(enemy_id: StringName) -> PackedScene:
 	var resolved := EnemySpawnByEnemyId.scene_for_enemy_id(enemy_id)
 	if resolved != null:
 		return resolved
-	return _pick_random_edge_family_scene()
+	return _pick_random_primary_family_scene()
 
 
 func _room_name_for_encounter(encounter_id: StringName) -> StringName:

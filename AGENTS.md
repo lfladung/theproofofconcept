@@ -11,7 +11,8 @@
 
 Read the smallest relevant set before editing:
 
-- Multiplayer roadmap and status: `dungeon/MULTIPLAYER_MILESTONE_MAP.md`
+- Current roadmap: `ideas/MILESTONES_v2.md`
+- Completed/sunset multiplayer roadmap and status: `ideas/sunset/MULTIPLAYER_MILESTONE_MAP.md`
 - Dungeon architecture and room rulebook: `dungeon/README.md`
 - Common launch and verification commands: `tools/COMMANDS.md`
 - Asset and equipment pipeline snapshot: `tools/asset_pipeline/CODEX_THREAD_SUMMARY_2026-03-26.md`
@@ -33,9 +34,10 @@ Read the smallest relevant set before editing:
 
 ## Current Project Snapshot
 
-As of 2026-04-08 (bump this date when you materially change this section):
+As of 2026-04-11 (bump this date when you materially change this section):
 
-- Multiplayer milestones 1-9 are complete per `dungeon/MULTIPLAYER_MILESTONE_MAP.md`.
+- `ideas/MILESTONES_v2.md` is the active roadmap for hub, mission select, upgrade UI, gems/socketing, mini-hubs, authored encounter composition, reward-drop replacement, naming, and display polish.
+- Multiplayer milestones 1-9 are complete per `ideas/sunset/MULTIPLAYER_MILESTONE_MAP.md`.
 - Dedicated server: session boot, registry/session-code scaffold, and client join-by-code are in place (DS milestones 1-3); external matchmaker/allocator and reconnect-token run handoff remain future work (DS 4-5).
 - Melee already has owner-client request -> server validation -> replicated event flow.
 - Sword blocking now uses a server-authoritative directional stamina guard: front-blocked hostile hits drain stamina instead of HP, and stamina regen is delayed after use/break.
@@ -226,7 +228,7 @@ Do not keep a frozen file list here (it goes stale). When editing `AGENTS.md`, r
 Use these file groups as shortcuts:
 
 - Networking tasks:
-  - `dungeon/MULTIPLAYER_MILESTONE_MAP.md`
+  - `ideas/sunset/MULTIPLAYER_MILESTONE_MAP.md`
   - `scripts/network/network_session.gd`
   - `scripts/entities/player.gd`
   - `dungeon/game/dungeon_orchestrator_internals.gd`
@@ -278,7 +280,8 @@ Update this list when something materially ships; prefer pointers to docs and sc
 - Stat pillars: `dungeon/modules/gameplay/stat_pillar_2d.gd` applies server-authoritative runtime bonuses merged in `player.gd` (`_runtime_stat_bonuses`); extra stat keys live in `scripts/loadout/loadout_constants.gd` — affix item types (`affix_type` / `AFFIX_*`) and full combat wiring are still future work per `ideas/EQUIPMENT_UPGRADES.md`.
 - Room editor: main-screen **Room Editor** tab, sidecar `*.layout.tres`, generated roots under `Sockets/Zones/Gameplay/Visual3DProxy/GeneratedByRoomEditor`; enemy spawn markers carry `enemy_id` on `ZoneMarker2D`.
 - Authored outline starter kit: `dungeon/rooms/authored/outlines/` (nine rooms) with `tools/room_editor/generate_outline_rooms.gd` and `validate_outline_rooms.gd`.
-- Multiplayer: co-op milestones 1–9 complete; dedicated join-by-session-code through DS milestones 1–3; external matchmaker / reconnect-token handoff still open (`dungeon/MULTIPLAYER_MILESTONE_MAP.md`).
+- Roadmap: `ideas/MILESTONES_v2.md` is active; sunset milestone docs live under `ideas/sunset/`.
+- Multiplayer: co-op milestones 1–9 complete; dedicated join-by-session-code through DS milestones 1–3; external matchmaker / reconnect-token handoff still open (`ideas/sunset/MULTIPLAYER_MILESTONE_MAP.md`).
 - Enemy-family cleanup: `enemy_base.gd` now owns shared target-refresh cadence and single-scene visual-state helpers used by Flow/Edge/Mass enemy variants; keep future family work layered there first.
 - Edge family: `edge_family_base.gd` now owns committed line-attack facing, thin floor telegraphs, and precision line damage; `skewer_mob.gd`, `glaiver_mob.gd`, and `razorform_mob.gd` layer Skewer/Glaiver/Razorform behavior on top, with Razorform cut telegraphs managed by `edge_cut_line_hazard.gd`.
 - Meta-progression system: `MetaProgressionStore` autoload (gear instances, gems, materials, local JSON persistence); `GearItemData` / `GemItemData` resources; `TemperingManager` run-scoped RefCounted; `MetaProgressionConstants` (`class_name`). All stat multipliers flow through `LoadoutRepository._aggregate_stats_for_slots`. Item display names centralised in `LoadoutConstants.ITEM_DISPLAY_NAMES`. Design reference: `ideas/META_PROGRESSION.md`, `ideas/INVENTORY.md`.

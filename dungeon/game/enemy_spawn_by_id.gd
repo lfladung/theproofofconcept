@@ -27,6 +27,30 @@ const ECHO_SPLINTER_SCENE := preload("res://scenes/entities/echo_splinter.tscn")
 const ECHO_UNIT_SCENE := preload("res://scenes/entities/echo_unit.tscn")
 
 
+static func primary_family_scenes() -> Array[PackedScene]:
+	var scenes: Array[PackedScene] = [
+		SKEWER_SCENE,
+		GLAIVER_SCENE,
+		RAZORFORM_SCENE,
+		SCRAMBLER_SCENE,
+		FLOW_DASHER_SCENE,
+		FLOWFORM_SCENE,
+		STUMBLER_SCENE,
+		SHIELDWALL_SCENE,
+		WARDEN_SCENE,
+		SPLITTER_SCENE,
+		ECHOFORM_SCENE,
+		TRIAD_SCENE,
+		LURKER_SCENE,
+		LEECHER_SCENE,
+		BINDER_SCENE,
+		FIZZLER_SCENE,
+		BURSTER_SCENE,
+		DETONATOR_SCENE,
+	]
+	return scenes
+
+
 static func scene_for_enemy_id(enemy_id: StringName) -> PackedScene:
 	var key := String(enemy_id).strip_edges().to_lower()
 	match key:

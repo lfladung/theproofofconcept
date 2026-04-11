@@ -38,7 +38,7 @@ Useful current memory:
 - Main scene is `res://scenes/ui/lobby_menu.tscn`
 - Runtime world is `res://dungeon/game/dungeon_orchestrator.tscn`
 - Multiplayer is authoritative server model
-- Milestones 1-9 are done (see `dungeon/MULTIPLAYER_MILESTONE_MAP.md`)
+- Active roadmap is `ideas/MILESTONES_v2.md`; multiplayer milestones 1-9 are done (see `ideas/sunset/MULTIPLAYER_MILESTONE_MAP.md`)
 ```
 
 ## Thread Handoff Template

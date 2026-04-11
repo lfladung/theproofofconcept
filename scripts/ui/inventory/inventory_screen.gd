@@ -414,11 +414,13 @@ func _refresh_loadout_screen() -> void:
 		# Build item_rows — one for each owned gear piece in this slot.
 		var item_rows: Array = []
 		var all_slot_gear: Array[_GearItemData] = []
-		if equipped_gear != null:
-			all_slot_gear.append(equipped_gear)
-		for g_v in stash_gear:
+		var all_gear_v: Variant = meta_store.call(&"get_all_gear_instances", _player_id)
+		var all_gear: Array = all_gear_v as Array if all_gear_v is Array else []
+		for g_v in all_gear:
 			if g_v is _GearItemData:
-				all_slot_gear.append(g_v as _GearItemData)
+				var g := g_v as _GearItemData
+				if g.slot_id == slot_id:
+					all_slot_gear.append(g)
 
 		for gear in all_slot_gear:
 			item_rows.append({

@@ -12,7 +12,8 @@ Godot 4.6 project: 2–4 player authoritative co-op dungeon crawler.
 
 - Full project context: `AGENTS.md`
 - Room authoring rules and contract: `dungeon/README.md`
-- Multiplayer milestone status: `dungeon/MULTIPLAYER_MILESTONE_MAP.md`
+- Current roadmap: `ideas/MILESTONES_v2.md`
+- Completed/sunset multiplayer milestone status: `ideas/sunset/MULTIPLAYER_MILESTONE_MAP.md`
 - Verification commands: `tools/COMMANDS.md`
 - Asset/equipment pipeline: `tools/asset_pipeline/CODEX_THREAD_SUMMARY_2026-03-26.md`
 
@@ -59,7 +60,8 @@ Godot 4.6 project: 2–4 player authoritative co-op dungeon crawler.
 
 ## Current Status (as of 2026-04-10)
 
-- Multiplayer milestones 1–9 complete; dedicated join-by-session-code through DS milestones 1–3 (see `dungeon/MULTIPLAYER_MILESTONE_MAP.md`)
+- Active roadmap is `ideas/MILESTONES_v2.md`; sunset milestone docs live under `ideas/sunset/`
+- Multiplayer milestones 1–9 complete; dedicated join-by-session-code through DS milestones 1–3 (see `ideas/sunset/MULTIPLAYER_MILESTONE_MAP.md`)
 - Melee: owner-client request → server validation → replicated event
 - Sword blocking: server-authoritative directional stamina guard
 - Boss rooms: auto-stamped `floor_exit` marker placed by Room Editor, consumed at runtime by `room_query_service.gd`
