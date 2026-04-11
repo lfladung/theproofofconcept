@@ -5,7 +5,7 @@ const EnemyStateVisualScript = preload("res://scripts/visuals/enemy_state_visual
 const EchoSamplerScript = preload("res://scripts/entities/echo_behavior_sampler.gd")
 const EchoSpawnManagerScript = preload("res://scripts/entities/echo_spawn_manager.gd")
 const MODEL_SCENE := preload("res://art/characters/enemies/Triad.glb")
-const ECHO_UNIT_KIND := 24
+const ECHO_UNIT_KIND := 22
 
 @export var move_speed := 2.0
 @export var drift_change_interval := 1.2

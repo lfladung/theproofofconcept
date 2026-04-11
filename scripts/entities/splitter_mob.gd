@@ -4,7 +4,7 @@ extends EnemyBase
 const EnemyStateVisualScript = preload("res://scripts/visuals/enemy_state_visual.gd")
 const EchoSpawnManagerScript = preload("res://scripts/entities/echo_spawn_manager.gd")
 const MODEL_SCENE := preload("res://art/characters/enemies/Splitter.glb")
-const ECHO_SPLINTER_KIND := 23
+const ECHO_SPLINTER_KIND := 21
 
 @export var move_speed := 1.0
 @export var drift_change_interval := 1.6

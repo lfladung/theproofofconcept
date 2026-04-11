@@ -2,6 +2,7 @@ extends Node3D
 class_name EnemyStateVisual
 
 var mesh_ground_y := 0.0
+const VISUAL_VERTICAL_OFFSET_Y := 1.0
 var mesh_scale := Vector3.ONE
 var facing_yaw_offset_deg := 180.0
 var rotation_offset_degrees := Vector3.ZERO
@@ -82,7 +83,7 @@ func get_current_state() -> StringName:
 
 
 func sync_from_2d(world_position: Vector2, facing_direction: Vector2) -> void:
-	global_position = Vector3(world_position.x, mesh_ground_y, world_position.y)
+	global_position = Vector3(world_position.x, mesh_ground_y + VISUAL_VERTICAL_OFFSET_Y, world_position.y)
 	scale = mesh_scale
 	var yaw := deg_to_rad(_active_facing_yaw_offset_deg)
 	if facing_direction.length_squared() > 0.0001:

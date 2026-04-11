@@ -4,7 +4,7 @@ extends EnemyBase
 const EnemyStateVisualScript = preload("res://scripts/visuals/enemy_state_visual.gd")
 const SurgeExplosionHelperScript = preload("res://scripts/entities/surge_explosion_helper.gd")
 const MODEL_SCENE := preload("res://art/characters/enemies/Detonator.glb")
-const FIZZLER_KIND := 20
+const FIZZLER_KIND := 18
 
 enum State { ADVANCE, VENT_WINDOW, DEATH_SEQUENCE }
 
@@ -73,9 +73,12 @@ func apply_speed_multiplier(multiplier: float) -> void:
 
 
 func set_aggro_enabled(enabled: bool) -> void:
+	var was_aggro_enabled := _aggro_enabled
 	_aggro_enabled = enabled
 	if not enabled and _state != State.DEATH_SEQUENCE:
 		velocity = Vector2.ZERO
+	elif enabled and not was_aggro_enabled and _state != State.DEATH_SEQUENCE:
+		_spawn_time_remaining = 0.0
 
 
 func get_combat_planar_facing() -> Vector2:
@@ -89,11 +92,11 @@ func get_shadow_visual_root() -> Node3D:
 
 
 func surge_allows_incoming_damage(_packet: DamagePacket) -> bool:
-	return _state == State.VENT_WINDOW
+	return _state != State.DEATH_SEQUENCE
 
 
 func surge_damage_taken_multiplier(_packet: DamagePacket) -> float:
-	return vent_damage_multiplier if _state == State.VENT_WINDOW else 0.0
+	return vent_damage_multiplier if _state == State.VENT_WINDOW else 1.0
 
 
 func _ready() -> void:
@@ -107,7 +110,7 @@ func _ready() -> void:
 	var initial_dir := _spawn_target - _spawn_start
 	if initial_dir.length_squared() > 0.0001:
 		_planar_facing = initial_dir.normalized()
-	_spawn_time_remaining = spawn_interval
+	_spawn_time_remaining = 0.0 if _aggro_enabled else spawn_interval
 	_vent_cooldown_remaining = vent_interval
 	_collect_spawn_offsets()
 	_create_visuals()
