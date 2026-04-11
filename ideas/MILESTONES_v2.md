@@ -486,7 +486,7 @@ Deliverables:
 - Add a short note in docs that older sunset docs may still contain historical names.
 
 Done criteria:
-- `project.godot` no longer displays "Squash The Creeps".
+- `project.godot` displays "The Proof of Concept".
 - Main menu/lobby UI uses "The Proof of Concept" where a project title is shown.
 - Search finds no active user-facing stale starter-template names outside sunset/history docs.
 

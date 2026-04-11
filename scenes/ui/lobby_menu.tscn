@@ -44,7 +44,7 @@ theme_override_constants/separation = 10
 [node name="TitleLabel" type="Label" parent="Center/Margin/VBox/MainMenuVBox" unique_id=264230609]
 layout_mode = 2
 theme_override_font_sizes/font_size = 28
-text = "Dungeon Game"
+text = "The Proof of Concept"
 horizontal_alignment = 1
 
 [node name="SubtitleLabel" type="Label" parent="Center/Margin/VBox/MainMenuVBox" unique_id=1708829101]

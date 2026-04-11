@@ -5,7 +5,7 @@
 - Godot 4.6 project converting a prototype into a 2-4 player authoritative co-op dungeon crawler.
 - The active user flow starts in `res://scenes/ui/lobby_menu.tscn`, not the old singleplayer sample flow.
 - The main gameplay runtime is `res://dungeon/game/dungeon_orchestrator.tscn`.
-- `project.godot` still contains starter-template metadata (`Squash The Creeps`), so code and docs are the real source of truth for project identity.
+- `project.godot` now uses the current project identity (`The Proof of Concept`); code and docs remain the source of truth for gameplay direction.
 
 ## Read First
 
@@ -37,6 +37,7 @@ Read the smallest relevant set before editing:
 As of 2026-04-11 (bump this date when you materially change this section):
 
 - `ideas/MILESTONES_v2.md` is the active roadmap for hub, mission select, upgrade UI, gems/socketing, mini-hubs, authored encounter composition, reward-drop replacement, naming, and display polish.
+- Project identity metadata and the lobby title now use `The Proof of Concept`.
 - Multiplayer milestones 1-9 are complete per `ideas/sunset/MULTIPLAYER_MILESTONE_MAP.md`.
 - Dedicated server: session boot, registry/session-code scaffold, and client join-by-code are in place (DS milestones 1-3); external matchmaker/allocator and reconnect-token run handoff remain future work (DS 4-5).
 - Melee already has owner-client request -> server validation -> replicated event flow.

@@ -29,3 +29,7 @@ z_index = 30
 [node name="GeneratedByRoomEditor" type="Node2D" parent="Sockets" index="2" unique_id=1005469950]
 
 [node name="GeneratedByRoomEditor" type="Node2D" parent="Zones" index="5" unique_id=1455536099]
+
+[node name="Visual3DProxy" parent="." index="4"]
+visible = false
+metadata/_room_editor_suppressed_proxy_visible = true
