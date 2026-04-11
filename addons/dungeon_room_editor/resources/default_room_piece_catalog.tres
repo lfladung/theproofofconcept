@@ -1,199 +1,197 @@
-[gd_resource type="Resource" script_class="RoomPieceCatalog" format=3 uid="uid://byl0v2bn10au5"]
+[gd_resource type="Resource" script_class="RoomPieceCatalog" format=3]
 
-[ext_resource type="PackedScene" uid="uid://c0brfammuypyw" path="res://assets/structure/floors/floor_dirt_small_A.gltf" id="1_udupt"]
-[ext_resource type="Script" uid="uid://cv1132clnyk4" path="res://addons/dungeon_room_editor/resources/room_piece_definition.gd" id="2_xhngj"]
-[ext_resource type="PackedScene" uid="uid://cvtydkaomvpxx" path="res://assets/structure/walls/wall.gltf" id="3_x4owy"]
-[ext_resource type="PackedScene" path="res://dungeon/modules/connectivity/entrance_marker_2d.tscn" id="4b_entmk"]
-[ext_resource type="PackedScene" uid="uid://dem1aunwimaka" path="res://assets/structure/walls/wall_doorway.gltf" id="4_rbp7y"]
-[ext_resource type="PackedScene" path="res://dungeon/modules/connectivity/exit_marker_2d.tscn" id="5_oxrmj"]
-[ext_resource type="PackedScene" uid="uid://ccmakxy3sjnyp" path="res://assets/props/barrel_large.gltf" id="6_4g4yj"]
-[ext_resource type="PackedScene" uid="uid://blq1yfdhyrtvy" path="res://assets/structure/floors/floor_tile_big_spikes.gltf" id="7_5hg0s"]
-[ext_resource type="PackedScene" path="res://dungeon/modules/gameplay/trap_tile_2d.tscn" id="8_7qnbw"]
-[ext_resource type="PackedScene" uid="uid://bpdwh15b4ecdw" path="res://assets/props/chest.gltf" id="9_4rv86"]
-[ext_resource type="PackedScene" path="res://dungeon/modules/gameplay/infusion_pillar_2d.tscn" id="10c_infpill"]
-[ext_resource type="PackedScene" path="res://dungeon/modules/gameplay/treasure_chest_2d.tscn" id="10_cqpkk"]
-[ext_resource type="PackedScene" uid="uid://wa0rxfm7hrq5" path="res://assets/structure/floors/floor_dirt_large.gltf" id="11_ldvyi"]
-[ext_resource type="PackedScene" uid="uid://csfxrpodra3f5" path="res://assets/structure/floors/floor_dirt_large_rocky.gltf" id="12_hhpar"]
-[ext_resource type="PackedScene" uid="uid://d3o67fhurfy45" path="res://assets/structure/floors/floor_dirt_small_B.gltf" id="13_3tms3"]
-[ext_resource type="PackedScene" uid="uid://da0j8iefd4ux6" path="res://assets/structure/floors/floor_dirt_small_C.gltf" id="14_wyewr"]
-[ext_resource type="PackedScene" uid="uid://m8y1pybri630" path="res://assets/structure/floors/floor_dirt_small_D.gltf" id="15_5cc7v"]
-[ext_resource type="PackedScene" uid="uid://234yjjoj46t0" path="res://assets/structure/floors/floor_dirt_small_corner.gltf" id="16_svuup"]
-[ext_resource type="PackedScene" uid="uid://cu2ku6tf0uqqj" path="res://assets/structure/floors/floor_dirt_small_weeds.gltf" id="17_bj78g"]
-[ext_resource type="PackedScene" uid="uid://dj2q3a5k0pube" path="res://assets/structure/floors/floor_foundation_allsides.gltf" id="18_8dl1r"]
-[ext_resource type="PackedScene" uid="uid://dba54u85jksxk" path="res://assets/structure/floors/floor_foundation_corner.gltf" id="19_6mqvb"]
-[ext_resource type="PackedScene" uid="uid://bm0e0ak5fu67c" path="res://assets/structure/floors/floor_foundation_diagonal_corner.gltf" id="20_jfikj"]
-[ext_resource type="PackedScene" uid="uid://ctfnqc2ffsmg5" path="res://assets/structure/floors/floor_foundation_front.gltf" id="21_56ecp"]
-[ext_resource type="PackedScene" uid="uid://bfcgfi17uehpl" path="res://assets/structure/floors/floor_foundation_front_and_back.gltf" id="22_1p0hi"]
-[ext_resource type="PackedScene" uid="uid://vbasesmtut0e" path="res://assets/structure/floors/floor_foundation_front_and_sides.gltf" id="23_nts6x"]
-[ext_resource type="PackedScene" uid="uid://04t6bunk2oe0" path="res://assets/structure/floors/floor_tile_big_grate.gltf" id="24_gteeb"]
-[ext_resource type="PackedScene" uid="uid://b3rwp7jxy1fya" path="res://assets/structure/floors/floor_tile_big_grate_open.gltf" id="25_i5ng6"]
-[ext_resource type="PackedScene" uid="uid://cc5nocoffoil7" path="res://assets/structure/floors/floor_tile_extralarge_grates.gltf" id="26_dwnpt"]
-[ext_resource type="PackedScene" uid="uid://bjih4w0poj6m8" path="res://assets/structure/floors/floor_tile_extralarge_grates_open.gltf" id="27_a21ff"]
-[ext_resource type="PackedScene" uid="uid://xesjkq6xxgat" path="res://assets/structure/floors/floor_tile_grate.gltf" id="28_c7kqe"]
-[ext_resource type="PackedScene" uid="uid://diht763lcosly" path="res://assets/structure/floors/floor_tile_grate_open.gltf" id="29_oy8qk"]
-[ext_resource type="PackedScene" uid="uid://dxyd2fb8t0pbv" path="res://assets/structure/floors/floor_tile_large.gltf" id="30_bu6oh"]
-[ext_resource type="PackedScene" uid="uid://bcj1w0mqee6y7" path="res://assets/structure/floors/floor_tile_large_rocks.gltf" id="31_pf870"]
-[ext_resource type="PackedScene" uid="uid://d3phhrpsbobbr" path="res://assets/structure/floors/floor_tile_small.gltf" id="32_stvxw"]
-[ext_resource type="PackedScene" uid="uid://db63853e7suv1" path="res://assets/structure/floors/floor_tile_small_broken_A.gltf" id="33_g8q1r"]
-[ext_resource type="PackedScene" uid="uid://cousouu0l4m6q" path="res://assets/structure/floors/floor_tile_small_broken_B.gltf" id="34_pkw5p"]
-[ext_resource type="PackedScene" uid="uid://dkgp0gadugrfh" path="res://assets/structure/floors/floor_tile_small_corner.gltf" id="35_mspgq"]
-[ext_resource type="PackedScene" uid="uid://b33he3dmel3f1" path="res://assets/structure/floors/floor_tile_small_decorated.gltf" id="36_3enti"]
-[ext_resource type="PackedScene" uid="uid://cdjqiqvlmrwvf" path="res://assets/structure/floors/floor_tile_small_weeds_A.gltf" id="37_kvsx6"]
-[ext_resource type="PackedScene" uid="uid://88gtuil560l3" path="res://assets/structure/floors/floor_tile_small_weeds_B.gltf" id="38_qkig2"]
-[ext_resource type="PackedScene" uid="uid://bfs0bupi1udqk" path="res://assets/structure/floors/floor_wood_large.gltf" id="39_y1ej2"]
-[ext_resource type="PackedScene" uid="uid://uhbw0c0qvbwn" path="res://assets/structure/floors/floor_wood_large_dark.gltf" id="40_habwb"]
-[ext_resource type="PackedScene" uid="uid://lg4kloxykyj0" path="res://assets/structure/floors/floor_wood_small.gltf" id="41_skbhr"]
-[ext_resource type="PackedScene" uid="uid://dvt0kf3r63v8d" path="res://assets/structure/floors/floor_wood_small_dark.gltf" id="42_65ngj"]
-[ext_resource type="PackedScene" uid="uid://dixr0ly765648" path="res://assets/structure/walls/wall_Tsplit.gltf" id="43_03mue"]
-[ext_resource type="PackedScene" uid="uid://civw5nubdol67" path="res://assets/structure/walls/wall_Tsplit_sloped.gltf" id="44_x6jvq"]
-[ext_resource type="PackedScene" uid="uid://v3hnf4vcpt6k" path="res://assets/structure/walls/wall_arched.gltf" id="45_hf2xm"]
-[ext_resource type="PackedScene" uid="uid://dcufmo6kdbpiy" path="res://assets/structure/walls/wall_archedwindow_gated.gltf" id="46_3jlvp"]
-[ext_resource type="PackedScene" uid="uid://cmxgr2gaj2aka" path="res://assets/structure/walls/wall_archedwindow_gated_scaffold.gltf" id="47_70pdl"]
-[ext_resource type="PackedScene" uid="uid://svw2td2g8hpx" path="res://assets/structure/walls/wall_archedwindow_open.gltf" id="48_ntsdh"]
-[ext_resource type="PackedScene" uid="uid://bqy3bougph70s" path="res://assets/structure/walls/wall_broken.gltf" id="49_wl56w"]
-[ext_resource type="PackedScene" uid="uid://ol2jx6mxgoag" path="res://assets/structure/walls/wall_corner.gltf" id="50_ogv2n"]
-[ext_resource type="PackedScene" uid="uid://basr4kyd5vxkr" path="res://assets/structure/walls/wall_corner_gated.gltf" id="51_lwgqh"]
-[ext_resource type="PackedScene" uid="uid://3wv2an2kjg40" path="res://assets/structure/walls/wall_corner_scaffold.gltf" id="52_417xh"]
-[ext_resource type="PackedScene" uid="uid://bojjw6cilmpj0" path="res://assets/structure/walls/wall_corner_small.gltf" id="53_euc0w"]
-[ext_resource type="PackedScene" uid="uid://cskn5ws7u6q8j" path="res://assets/structure/walls/wall_cracked.gltf" id="54_xm1ly"]
-[ext_resource type="PackedScene" uid="uid://cyhhs8mp84aou" path="res://assets/structure/walls/wall_crossing.gltf" id="55_n6i7x"]
-[ext_resource type="PackedScene" uid="uid://borumouoeoya6" path="res://assets/structure/walls/wall_doorway_Tsplit.gltf" id="56_a3kx5"]
-[ext_resource type="PackedScene" uid="uid://cfb61db887wm1" path="res://assets/structure/walls/wall_doorway_scaffold.gltf" id="57_15iht"]
-[ext_resource type="PackedScene" uid="uid://dys7l634glmjl" path="res://assets/structure/walls/wall_doorway_sides.gltf" id="58_ybd3x"]
-[ext_resource type="PackedScene" uid="uid://c7c7ndo7lac1q" path="res://assets/structure/walls/wall_endcap.gltf" id="59_7fa5w"]
-[ext_resource type="PackedScene" uid="uid://c4f4bmkbu8b2e" path="res://assets/structure/walls/wall_gated.gltf" id="60_xk73o"]
-[ext_resource type="PackedScene" uid="uid://bhhfm0hn6hhtc" path="res://assets/structure/walls/wall_half.gltf" id="61_ya6v8"]
-[ext_resource type="PackedScene" uid="uid://b0tswe72pli77" path="res://assets/structure/walls/wall_half_endcap.gltf" id="62_rmmva"]
-[ext_resource type="PackedScene" uid="uid://bjhehd1ogug6k" path="res://assets/structure/walls/wall_half_endcap_sloped.gltf" id="63_das6s"]
-[ext_resource type="PackedScene" uid="uid://c3y70fg8453ac" path="res://assets/structure/walls/wall_open_scaffold.gltf" id="64_dwmse"]
-[ext_resource type="PackedScene" uid="uid://b64vciinhmumm" path="res://assets/structure/walls/wall_pillar.gltf" id="65_1wel7"]
-[ext_resource type="PackedScene" uid="uid://cijvcrabkwvg5" path="res://assets/structure/walls/wall_scaffold.gltf" id="66_d0l0u"]
-[ext_resource type="PackedScene" uid="uid://cv3n25q54d5pv" path="res://assets/structure/walls/wall_shelves.gltf" id="67_tssa5"]
-[ext_resource type="PackedScene" uid="uid://rky556nx0j30" path="res://assets/structure/walls/wall_sloped.gltf" id="68_polmu"]
-[ext_resource type="PackedScene" uid="uid://bh786ytfsf0ls" path="res://assets/structure/walls/wall_window_closed.gltf" id="69_xcvw0"]
-[ext_resource type="PackedScene" uid="uid://bi1ajgheiqods" path="res://assets/structure/walls/wall_window_closed_scaffold.gltf" id="70_1bven"]
-[ext_resource type="PackedScene" uid="uid://diycwjs7byju3" path="res://assets/structure/walls/wall_window_open.gltf" id="71_jtdxj"]
-[ext_resource type="PackedScene" uid="uid://bbty56xmagt5t" path="res://assets/structure/walls/wall_window_open_scaffold.gltf" id="72_mc5d1"]
-[ext_resource type="PackedScene" uid="uid://b6f63na2678xa" path="res://assets/props/banner_blue.gltf" id="73_lu0ug"]
-[ext_resource type="PackedScene" uid="uid://blb6u6k1rmsd" path="res://assets/props/banner_brown.gltf" id="74_rmrm1"]
-[ext_resource type="PackedScene" uid="uid://rxwadescdahh" path="res://assets/props/banner_green.gltf" id="75_yg1bx"]
-[ext_resource type="PackedScene" uid="uid://bg1r2dybaquy3" path="res://assets/props/banner_patternA_blue.gltf" id="76_i0wlr"]
-[ext_resource type="PackedScene" uid="uid://c4ds0dakwen8w" path="res://assets/props/banner_patternA_brown.gltf" id="77_wlsr8"]
-[ext_resource type="PackedScene" uid="uid://c4kgcjahjspqg" path="res://assets/props/banner_patternA_green.gltf" id="78_ao4yu"]
-[ext_resource type="PackedScene" uid="uid://c8bnu64v6wju0" path="res://assets/props/banner_patternA_red.gltf" id="79_iie2m"]
-[ext_resource type="PackedScene" uid="uid://dat6aybfepicx" path="res://assets/props/banner_patternA_white.gltf" id="80_u1x7x"]
-[ext_resource type="PackedScene" uid="uid://oxih3y24ecqr" path="res://assets/props/banner_patternA_yellow.gltf" id="81_gbw1x"]
-[ext_resource type="PackedScene" uid="uid://dt18bqpp336m1" path="res://assets/props/banner_patternB_blue.gltf" id="82_vb0jl"]
-[ext_resource type="PackedScene" uid="uid://b31thfrdfw18p" path="res://assets/props/banner_patternB_brown.gltf" id="83_jhhk8"]
-[ext_resource type="PackedScene" uid="uid://er34stdi6sh4" path="res://assets/props/banner_patternB_green.gltf" id="84_8ukry"]
-[ext_resource type="PackedScene" uid="uid://br6acuwxb8d8j" path="res://assets/props/banner_patternB_red.gltf" id="85_r5cx3"]
-[ext_resource type="PackedScene" uid="uid://cg0lnpft10cbx" path="res://assets/props/banner_patternB_white.gltf" id="86_aqo3c"]
-[ext_resource type="PackedScene" uid="uid://bojn53e7lrs4t" path="res://assets/props/banner_patternB_yellow.gltf" id="87_m6puc"]
-[ext_resource type="PackedScene" uid="uid://bygyo1xu4cd33" path="res://assets/props/banner_patternC_blue.gltf" id="88_rco7g"]
-[ext_resource type="PackedScene" uid="uid://cob4jnjlkx2ks" path="res://assets/props/banner_patternC_brown.gltf" id="89_yljrn"]
-[ext_resource type="PackedScene" uid="uid://3dokb4n7gme" path="res://assets/props/banner_patternC_green.gltf" id="90_f5qsb"]
-[ext_resource type="PackedScene" uid="uid://bgq8xe0hqufc7" path="res://assets/props/banner_patternC_red.gltf" id="91_mvvko"]
-[ext_resource type="PackedScene" uid="uid://bj5n488emynx3" path="res://assets/props/banner_patternC_white.gltf" id="92_7ba0f"]
-[ext_resource type="PackedScene" uid="uid://blgckgql2wqy0" path="res://assets/props/banner_patternC_yellow.gltf" id="93_pehhq"]
-[ext_resource type="PackedScene" uid="uid://bvc77mwtcru4i" path="res://assets/props/banner_red.gltf" id="94_myv4s"]
-[ext_resource type="PackedScene" uid="uid://fo0wrk4jmeiq" path="res://assets/props/banner_shield_blue.gltf" id="95_3jlps"]
-[ext_resource type="PackedScene" uid="uid://ce5ykmmtt3lxh" path="res://assets/props/banner_shield_brown.gltf" id="96_o1his"]
-[ext_resource type="PackedScene" uid="uid://4bolx8u13h7e" path="res://assets/props/banner_shield_green.gltf" id="97_kc23l"]
-[ext_resource type="PackedScene" uid="uid://cdf2w7ofubv31" path="res://assets/props/banner_shield_red.gltf" id="98_lpnej"]
-[ext_resource type="PackedScene" uid="uid://bmbqck2hwkb8n" path="res://assets/props/banner_shield_white.gltf" id="99_u2o2v"]
-[ext_resource type="PackedScene" uid="uid://bf0n57t062ge6" path="res://assets/props/banner_shield_yellow.gltf" id="100_ohfff"]
-[ext_resource type="PackedScene" uid="uid://slcs32ek7wx8" path="res://assets/props/banner_thin_blue.gltf" id="101_bm0l0"]
-[ext_resource type="PackedScene" uid="uid://db7inrw1hpqnl" path="res://assets/props/banner_thin_brown.gltf" id="102_wfqnv"]
-[ext_resource type="PackedScene" uid="uid://dq2yrxlcf2wry" path="res://assets/props/banner_thin_green.gltf" id="103_8asds"]
-[ext_resource type="PackedScene" uid="uid://cdj0vxc2jwwtr" path="res://assets/props/banner_thin_red.gltf" id="104_dt485"]
-[ext_resource type="PackedScene" uid="uid://b0gioaq4y1d2j" path="res://assets/props/banner_thin_white.gltf" id="105_xaeeo"]
-[ext_resource type="PackedScene" uid="uid://810utav28yj2" path="res://assets/props/banner_thin_yellow.gltf" id="106_2mep6"]
-[ext_resource type="PackedScene" uid="uid://d30mox2l0rhi0" path="res://assets/props/banner_triple_blue.gltf" id="107_i8c5o"]
-[ext_resource type="PackedScene" uid="uid://deipx861odid2" path="res://assets/props/banner_triple_brown.gltf" id="108_h2hux"]
-[ext_resource type="PackedScene" uid="uid://d1gai1h4hf4lm" path="res://assets/props/banner_triple_green.gltf" id="109_gfidh"]
-[ext_resource type="PackedScene" uid="uid://cqh64a5284xwc" path="res://assets/props/banner_triple_red.gltf" id="110_3mhmr"]
-[ext_resource type="PackedScene" uid="uid://cm764gc6nypni" path="res://assets/props/banner_triple_white.gltf" id="111_b0yb8"]
-[ext_resource type="PackedScene" uid="uid://bxnnyaa67qg6s" path="res://assets/props/banner_triple_yellow.gltf" id="112_6la8g"]
-[ext_resource type="PackedScene" uid="uid://cc1g3jm8v3vpl" path="res://assets/props/banner_white.gltf" id="113_vheau"]
-[ext_resource type="PackedScene" uid="uid://csiqrxixtvp8h" path="res://assets/props/banner_yellow.gltf" id="114_tmfvm"]
-[ext_resource type="PackedScene" uid="uid://cuf8m6sfb576o" path="res://assets/props/barrel_large_decorated.gltf" id="115_0ipa6"]
-[ext_resource type="PackedScene" uid="uid://dxjcrtpes52oq" path="res://assets/props/barrel_small.gltf" id="116_my1sb"]
-[ext_resource type="PackedScene" uid="uid://cfr5gjl1uc23i" path="res://assets/props/barrel_small_stack.gltf" id="117_30sdn"]
-[ext_resource type="PackedScene" uid="uid://cde22m70bielr" path="res://assets/props/bed_decorated.gltf" id="118_mtcu6"]
-[ext_resource type="PackedScene" uid="uid://bjql33nnsaem8" path="res://assets/props/bed_floor.gltf" id="119_rw10m"]
-[ext_resource type="PackedScene" uid="uid://qirs40mvrd18" path="res://assets/props/bed_frame.gltf" id="120_2mnrg"]
-[ext_resource type="PackedScene" uid="uid://cagnifb25jqm5" path="res://assets/props/bottle_A_brown.gltf" id="121_fgurj"]
-[ext_resource type="PackedScene" uid="uid://bbydyeo66rw43" path="res://assets/props/bottle_A_green.gltf" id="122_5t7uk"]
-[ext_resource type="PackedScene" uid="uid://c6mgepq83ek7w" path="res://assets/props/bottle_A_labeled_brown.gltf" id="123_45hwu"]
-[ext_resource type="PackedScene" uid="uid://lrm0888dcv0e" path="res://assets/props/bottle_A_labeled_green.gltf" id="124_egvwf"]
-[ext_resource type="PackedScene" uid="uid://ckjl0kmybfhaa" path="res://assets/props/bottle_B_brown.gltf" id="125_txiym"]
-[ext_resource type="PackedScene" uid="uid://b3wvtslauhphg" path="res://assets/props/bottle_B_green.gltf" id="126_qyvvl"]
-[ext_resource type="PackedScene" uid="uid://k6fm7kt1dmku" path="res://assets/props/bottle_C_brown.gltf" id="127_hrafu"]
-[ext_resource type="PackedScene" uid="uid://b67jby57ylu41" path="res://assets/props/bottle_C_green.gltf" id="128_ukcx5"]
-[ext_resource type="PackedScene" uid="uid://c0lfb2gb32bq0" path="res://assets/props/box_large.gltf" id="129_14kdj"]
-[ext_resource type="PackedScene" uid="uid://ds1klpllyqonb" path="res://assets/props/box_small.gltf" id="130_dacc7"]
-[ext_resource type="PackedScene" uid="uid://dkv175t3auv2m" path="res://assets/props/box_small_decorated.gltf" id="131_6qr2t"]
-[ext_resource type="PackedScene" uid="uid://6swl8qyh12pf" path="res://assets/props/box_stacked.gltf" id="132_ptxvh"]
-[ext_resource type="PackedScene" uid="uid://dshff6uehhc6h" path="res://assets/props/candle.gltf" id="133_chucc"]
-[ext_resource type="PackedScene" uid="uid://c2iis354pa578" path="res://assets/props/candle_lit.gltf" id="134_800al"]
-[ext_resource type="PackedScene" uid="uid://btunjxobumtuf" path="res://assets/props/candle_melted.gltf" id="135_k134t"]
-[ext_resource type="PackedScene" uid="uid://bx6k2rme6lkjy" path="res://assets/props/candle_thin.gltf" id="136_vthia"]
-[ext_resource type="PackedScene" uid="uid://cr0rr2050xepd" path="res://assets/props/candle_thin_lit.gltf" id="137_87y8o"]
-[ext_resource type="PackedScene" uid="uid://byxe015so2ijp" path="res://assets/props/candle_triple.gltf" id="138_1ghbo"]
-[ext_resource type="PackedScene" uid="uid://7mfa2ye7xf64" path="res://assets/props/chair.gltf" id="139_ybckm"]
-[ext_resource type="PackedScene" uid="uid://bhtf7i3gh0i5f" path="res://assets/props/chest_gold.gltf" id="140_julvh"]
-[ext_resource type="PackedScene" uid="uid://cle75lwuq1k0u" path="res://assets/props/coin.gltf" id="141_l02xe"]
-[ext_resource type="PackedScene" uid="uid://8qaw3iodn7a0" path="res://assets/props/coin_stack_large.gltf" id="142_82c5h"]
-[ext_resource type="PackedScene" uid="uid://d2eqcnamvr1po" path="res://assets/props/coin_stack_medium.gltf" id="143_w4hsm"]
-[ext_resource type="PackedScene" uid="uid://boa6vxpyyt3fn" path="res://assets/props/coin_stack_small.gltf" id="144_mu5ly"]
-[ext_resource type="PackedScene" uid="uid://d3l8ah80s0ba3" path="res://assets/props/crates_stacked.gltf" id="145_84skh"]
-[ext_resource type="PackedScene" uid="uid://clsfr5htejmce" path="res://assets/props/keg.gltf" id="146_mvjjj"]
-[ext_resource type="PackedScene" uid="uid://fagwyj0i8vxu" path="res://assets/props/keg_decorated.gltf" id="147_kqaa5"]
-[ext_resource type="PackedScene" uid="uid://vbxy08xvqjsi" path="res://assets/props/key.gltf" id="148_u7c4a"]
-[ext_resource type="PackedScene" uid="uid://ci8l5f47krupe" path="res://assets/props/keyring.gltf" id="149_5pep2"]
-[ext_resource type="PackedScene" uid="uid://cdr1xg7nyor4" path="res://assets/props/keyring_hanging.gltf" id="150_hysmn"]
-[ext_resource type="PackedScene" uid="uid://bmtnfw3nnlv0f" path="res://assets/props/plate.gltf" id="151_is2vh"]
-[ext_resource type="PackedScene" uid="uid://6hoeah6h2d77" path="res://assets/props/plate_food_A.gltf" id="152_gr5ar"]
-[ext_resource type="PackedScene" uid="uid://cxrb0ux4q7mje" path="res://assets/props/plate_food_B.gltf" id="153_8c05t"]
-[ext_resource type="PackedScene" uid="uid://mgr18xj5rsg2" path="res://assets/props/plate_small.gltf" id="154_6kljm"]
-[ext_resource type="PackedScene" uid="uid://bnolrbx5a584r" path="res://assets/props/plate_stack.gltf" id="155_7o848"]
-[ext_resource type="PackedScene" uid="uid://8815a5dfnwqr" path="res://assets/props/rubble_half.gltf" id="156_vw1sf"]
-[ext_resource type="PackedScene" uid="uid://df3y7n73qrf0l" path="res://assets/props/rubble_large.gltf" id="157_5iqy6"]
-[ext_resource type="PackedScene" uid="uid://d10htvy06213f" path="res://assets/props/shelf_large.gltf" id="158_dwsah"]
-[ext_resource type="PackedScene" uid="uid://b6jcj475amwqt" path="res://assets/props/shelf_small.gltf" id="159_ehcgn"]
-[ext_resource type="PackedScene" uid="uid://tqt82yrcgrvl" path="res://assets/props/shelf_small_candles.gltf" id="160_c4w5x"]
-[ext_resource type="PackedScene" uid="uid://7b578q1pamlf" path="res://assets/props/shelves.gltf" id="161_jra1k"]
-[ext_resource type="PackedScene" uid="uid://bxlr6oorhk0fa" path="res://assets/props/stool.gltf" id="162_yatay"]
-[ext_resource type="PackedScene" uid="uid://bekaig8caanyb" path="res://assets/props/sword_shield.gltf" id="163_mfy83"]
-[ext_resource type="PackedScene" uid="uid://co3c10tf0l2nh" path="res://assets/props/sword_shield_broken.gltf" id="164_ldcnp"]
-[ext_resource type="PackedScene" uid="uid://bc2edim2k10d" path="res://assets/props/sword_shield_gold.gltf" id="165_frcwb"]
-[ext_resource type="PackedScene" uid="uid://p0pjebfwwtt6" path="res://assets/props/table_long.gltf" id="166_miofj"]
-[ext_resource type="PackedScene" uid="uid://d0x1p6mfxmqun" path="res://assets/props/table_long_broken.gltf" id="167_7a3yo"]
-[ext_resource type="PackedScene" uid="uid://btwihe72fu03b" path="res://assets/props/table_long_decorated_A.gltf" id="168_6wa58"]
-[ext_resource type="PackedScene" uid="uid://c70vj1l5dwhwi" path="res://assets/props/table_long_decorated_C.gltf" id="169_fja0x"]
-[ext_resource type="PackedScene" uid="uid://dyrm3mqq126s5" path="res://assets/props/table_long_tablecloth.gltf" id="170_cyrwp"]
-[ext_resource type="PackedScene" uid="uid://0nth181hibnt" path="res://assets/props/table_long_tablecloth_decorated_A.gltf" id="171_l1dy7"]
-[ext_resource type="PackedScene" uid="uid://cdturhwhfi1uu" path="res://assets/props/table_medium.gltf" id="172_xv3mq"]
-[ext_resource type="PackedScene" uid="uid://80xby08rt5cj" path="res://assets/props/table_medium_broken.gltf" id="173_8b6e2"]
-[ext_resource type="PackedScene" uid="uid://bbpwams3kdu7t" path="res://assets/props/table_medium_decorated_A.gltf" id="174_4qfo1"]
-[ext_resource type="PackedScene" uid="uid://cc11tvept6ck2" path="res://assets/props/table_medium_tablecloth.gltf" id="175_wx758"]
-[ext_resource type="PackedScene" uid="uid://c0xeauydr0138" path="res://assets/props/table_medium_tablecloth_decorated_B.gltf" id="176_7qx0x"]
-[ext_resource type="PackedScene" uid="uid://ddlggh2bkpb46" path="res://assets/props/table_small.gltf" id="177_53sqr"]
-[ext_resource type="PackedScene" uid="uid://wjhehlv02gk5" path="res://assets/props/table_small_decorated_A.gltf" id="178_ljwn5"]
-[ext_resource type="PackedScene" uid="uid://d02pbnsnqx2ww" path="res://assets/props/table_small_decorated_B.gltf" id="179_b3swc"]
-[ext_resource type="PackedScene" uid="uid://cs77ejntr8511" path="res://assets/props/torch.gltf" id="180_ilrto"]
-[ext_resource type="PackedScene" uid="uid://d37hjc4mjfji3" path="res://assets/props/torch_lit.gltf" id="181_3psr1"]
-[ext_resource type="PackedScene" uid="uid://ccncdxeopnkvm" path="res://assets/props/torch_mounted.gltf" id="182_ibh71"]
-[ext_resource type="PackedScene" uid="uid://dl0xk8y1as6np" path="res://assets/props/trunk_large_A.gltf" id="183_toaj1"]
-[ext_resource type="PackedScene" uid="uid://coyep3tek1u63" path="res://assets/props/trunk_large_B.gltf" id="184_vg14q"]
-[ext_resource type="PackedScene" uid="uid://bfftuga8cx7bh" path="res://assets/props/trunk_large_C.gltf" id="185_bh2qk"]
-[ext_resource type="PackedScene" uid="uid://cq778pjwxw7jy" path="res://assets/props/trunk_medium_A.gltf" id="186_cqkan"]
-[ext_resource type="PackedScene" uid="uid://du1o0knpsds42" path="res://assets/props/trunk_medium_B.gltf" id="187_44vsc"]
-[ext_resource type="PackedScene" uid="uid://btimb165jvur6" path="res://assets/props/trunk_medium_C.gltf" id="188_vvwvr"]
-[ext_resource type="PackedScene" uid="uid://cscidg6d3lno2" path="res://assets/props/trunk_small_A.gltf" id="189_0sne0"]
-[ext_resource type="PackedScene" uid="uid://hvvmx2rbjv0u" path="res://assets/props/trunk_small_B.gltf" id="190_p1uv1"]
-[ext_resource type="PackedScene" uid="uid://di5kvr63o8ypa" path="res://assets/props/trunk_small_C.gltf" id="191_n7lgv"]
-[ext_resource type="Script" uid="uid://ctant7ac8vwy" path="res://addons/dungeon_room_editor/resources/room_piece_catalog.gd" id="192_87dko"]
+[ext_resource type="PackedScene" path="res://assets/structure/floors/floor_dirt_small_A.gltf" id="1_udupt"]
+[ext_resource type="Script" path="res://addons/dungeon_room_editor/resources/room_piece_definition.gd" id="2_xhngj"]
+[ext_resource type="PackedScene" path="res://assets/structure/walls/wall.gltf" id="3_x4owy"]
+[ext_resource type="PackedScene" path="res://assets/structure/walls/wall_doorway.gltf" id="4_rbp7y"]
+[ext_resource type="PackedScene" path="res://assets/props/barrel_large.gltf" id="5_oxrmj"]
+[ext_resource type="PackedScene" path="res://assets/structure/floors/floor_tile_big_spikes.gltf" id="6_4g4yj"]
+[ext_resource type="PackedScene" path="res://dungeon/modules/gameplay/trap_tile_2d.tscn" id="7_5hg0s"]
+[ext_resource type="PackedScene" path="res://assets/props/chest.gltf" id="8_7qnbw"]
+[ext_resource type="PackedScene" path="res://dungeon/modules/gameplay/treasure_chest_2d.tscn" id="9_4rv86"]
+[ext_resource type="PackedScene" path="res://assets/props/banner_shield_blue.gltf" id="10_cqpkk"]
+[ext_resource type="PackedScene" path="res://assets/props/table_long_decorated_A.gltf" id="11_ldvyi"]
+[ext_resource type="PackedScene" path="res://assets/structure/walls/wall_pillar.gltf" id="12_hhpar"]
+[ext_resource type="PackedScene" path="res://dungeon/modules/gameplay/infusion_pillar_2d.tscn" id="13_3tms3"]
+[ext_resource type="PackedScene" path="res://assets/structure/floors/floor_dirt_large.gltf" id="14_wyewr"]
+[ext_resource type="PackedScene" path="res://assets/structure/floors/floor_dirt_large_rocky.gltf" id="15_5cc7v"]
+[ext_resource type="PackedScene" path="res://assets/structure/floors/floor_dirt_small_B.gltf" id="16_svuup"]
+[ext_resource type="PackedScene" path="res://assets/structure/floors/floor_dirt_small_C.gltf" id="17_bj78g"]
+[ext_resource type="PackedScene" path="res://assets/structure/floors/floor_dirt_small_D.gltf" id="18_8dl1r"]
+[ext_resource type="PackedScene" path="res://assets/structure/floors/floor_dirt_small_corner.gltf" id="19_6mqvb"]
+[ext_resource type="PackedScene" path="res://assets/structure/floors/floor_dirt_small_weeds.gltf" id="20_jfikj"]
+[ext_resource type="PackedScene" path="res://assets/structure/floors/floor_foundation_allsides.gltf" id="21_56ecp"]
+[ext_resource type="PackedScene" path="res://assets/structure/floors/floor_foundation_corner.gltf" id="22_1p0hi"]
+[ext_resource type="PackedScene" path="res://assets/structure/floors/floor_foundation_diagonal_corner.gltf" id="23_nts6x"]
+[ext_resource type="PackedScene" path="res://assets/structure/floors/floor_foundation_front.gltf" id="24_gteeb"]
+[ext_resource type="PackedScene" path="res://assets/structure/floors/floor_foundation_front_and_back.gltf" id="25_i5ng6"]
+[ext_resource type="PackedScene" path="res://assets/structure/floors/floor_foundation_front_and_sides.gltf" id="26_dwnpt"]
+[ext_resource type="PackedScene" path="res://assets/structure/floors/floor_tile_big_grate.gltf" id="27_a21ff"]
+[ext_resource type="PackedScene" path="res://assets/structure/floors/floor_tile_big_grate_open.gltf" id="28_c7kqe"]
+[ext_resource type="PackedScene" path="res://assets/structure/floors/floor_tile_extralarge_grates.gltf" id="29_oy8qk"]
+[ext_resource type="PackedScene" path="res://assets/structure/floors/floor_tile_extralarge_grates_open.gltf" id="30_bu6oh"]
+[ext_resource type="PackedScene" path="res://assets/structure/floors/floor_tile_grate.gltf" id="31_pf870"]
+[ext_resource type="PackedScene" path="res://assets/structure/floors/floor_tile_grate_open.gltf" id="32_stvxw"]
+[ext_resource type="PackedScene" path="res://assets/structure/floors/floor_tile_large.gltf" id="33_g8q1r"]
+[ext_resource type="PackedScene" path="res://assets/structure/floors/floor_tile_large_rocks.gltf" id="34_pkw5p"]
+[ext_resource type="PackedScene" path="res://assets/structure/floors/floor_tile_small.gltf" id="35_mspgq"]
+[ext_resource type="PackedScene" path="res://assets/structure/floors/floor_tile_small_broken_A.gltf" id="36_3enti"]
+[ext_resource type="PackedScene" path="res://assets/structure/floors/floor_tile_small_broken_B.gltf" id="37_kvsx6"]
+[ext_resource type="PackedScene" path="res://assets/structure/floors/floor_tile_small_corner.gltf" id="38_qkig2"]
+[ext_resource type="PackedScene" path="res://assets/structure/floors/floor_tile_small_decorated.gltf" id="39_y1ej2"]
+[ext_resource type="PackedScene" path="res://assets/structure/floors/floor_tile_small_weeds_A.gltf" id="40_habwb"]
+[ext_resource type="PackedScene" path="res://assets/structure/floors/floor_tile_small_weeds_B.gltf" id="41_skbhr"]
+[ext_resource type="PackedScene" path="res://assets/structure/floors/floor_wood_large.gltf" id="42_65ngj"]
+[ext_resource type="PackedScene" path="res://assets/structure/floors/floor_wood_large_dark.gltf" id="43_03mue"]
+[ext_resource type="PackedScene" path="res://assets/structure/floors/floor_wood_small.gltf" id="44_x6jvq"]
+[ext_resource type="PackedScene" path="res://assets/structure/floors/floor_wood_small_dark.gltf" id="45_hf2xm"]
+[ext_resource type="PackedScene" path="res://assets/structure/walls/wall_Tsplit.gltf" id="46_3jlvp"]
+[ext_resource type="PackedScene" path="res://assets/structure/walls/wall_Tsplit_sloped.gltf" id="47_70pdl"]
+[ext_resource type="PackedScene" path="res://assets/structure/walls/wall_arched.gltf" id="48_ntsdh"]
+[ext_resource type="PackedScene" path="res://assets/structure/walls/wall_archedwindow_gated.gltf" id="49_wl56w"]
+[ext_resource type="PackedScene" path="res://assets/structure/walls/wall_archedwindow_gated_scaffold.gltf" id="50_ogv2n"]
+[ext_resource type="PackedScene" path="res://assets/structure/walls/wall_archedwindow_open.gltf" id="51_lwgqh"]
+[ext_resource type="PackedScene" path="res://assets/structure/walls/wall_broken.gltf" id="52_417xh"]
+[ext_resource type="PackedScene" path="res://assets/structure/walls/wall_corner.gltf" id="53_euc0w"]
+[ext_resource type="PackedScene" path="res://assets/structure/walls/wall_corner_gated.gltf" id="54_xm1ly"]
+[ext_resource type="PackedScene" path="res://assets/structure/walls/wall_corner_scaffold.gltf" id="55_n6i7x"]
+[ext_resource type="PackedScene" path="res://assets/structure/walls/wall_corner_small.gltf" id="56_a3kx5"]
+[ext_resource type="PackedScene" path="res://assets/structure/walls/wall_cracked.gltf" id="57_15iht"]
+[ext_resource type="PackedScene" path="res://assets/structure/walls/wall_crossing.gltf" id="58_ybd3x"]
+[ext_resource type="PackedScene" path="res://assets/structure/walls/wall_doorway_Tsplit.gltf" id="59_7fa5w"]
+[ext_resource type="PackedScene" path="res://assets/structure/walls/wall_doorway_scaffold.gltf" id="60_xk73o"]
+[ext_resource type="PackedScene" path="res://assets/structure/walls/wall_doorway_sides.gltf" id="61_ya6v8"]
+[ext_resource type="PackedScene" path="res://assets/structure/walls/wall_endcap.gltf" id="62_rmmva"]
+[ext_resource type="PackedScene" path="res://assets/structure/walls/wall_gated.gltf" id="63_das6s"]
+[ext_resource type="PackedScene" path="res://assets/structure/walls/wall_half.gltf" id="64_dwmse"]
+[ext_resource type="PackedScene" path="res://assets/structure/walls/wall_half_endcap.gltf" id="65_1wel7"]
+[ext_resource type="PackedScene" path="res://assets/structure/walls/wall_half_endcap_sloped.gltf" id="66_d0l0u"]
+[ext_resource type="PackedScene" path="res://assets/structure/walls/wall_open_scaffold.gltf" id="67_tssa5"]
+[ext_resource type="PackedScene" path="res://assets/structure/walls/wall_scaffold.gltf" id="68_polmu"]
+[ext_resource type="PackedScene" path="res://assets/structure/walls/wall_shelves.gltf" id="69_xcvw0"]
+[ext_resource type="PackedScene" path="res://assets/structure/walls/wall_sloped.gltf" id="70_1bven"]
+[ext_resource type="PackedScene" path="res://assets/structure/walls/wall_window_closed.gltf" id="71_jtdxj"]
+[ext_resource type="PackedScene" path="res://assets/structure/walls/wall_window_closed_scaffold.gltf" id="72_mc5d1"]
+[ext_resource type="PackedScene" path="res://assets/structure/walls/wall_window_open.gltf" id="73_lu0ug"]
+[ext_resource type="PackedScene" path="res://assets/structure/walls/wall_window_open_scaffold.gltf" id="74_rmrm1"]
+[ext_resource type="PackedScene" path="res://assets/props/banner_blue.gltf" id="75_yg1bx"]
+[ext_resource type="PackedScene" path="res://assets/props/banner_brown.gltf" id="76_i0wlr"]
+[ext_resource type="PackedScene" path="res://assets/props/banner_green.gltf" id="77_wlsr8"]
+[ext_resource type="PackedScene" path="res://assets/props/banner_patternA_blue.gltf" id="78_ao4yu"]
+[ext_resource type="PackedScene" path="res://assets/props/banner_patternA_brown.gltf" id="79_iie2m"]
+[ext_resource type="PackedScene" path="res://assets/props/banner_patternA_green.gltf" id="80_u1x7x"]
+[ext_resource type="PackedScene" path="res://assets/props/banner_patternA_red.gltf" id="81_gbw1x"]
+[ext_resource type="PackedScene" path="res://assets/props/banner_patternA_white.gltf" id="82_vb0jl"]
+[ext_resource type="PackedScene" path="res://assets/props/banner_patternA_yellow.gltf" id="83_jhhk8"]
+[ext_resource type="PackedScene" path="res://assets/props/banner_patternB_blue.gltf" id="84_8ukry"]
+[ext_resource type="PackedScene" path="res://assets/props/banner_patternB_brown.gltf" id="85_r5cx3"]
+[ext_resource type="PackedScene" path="res://assets/props/banner_patternB_green.gltf" id="86_aqo3c"]
+[ext_resource type="PackedScene" path="res://assets/props/banner_patternB_red.gltf" id="87_m6puc"]
+[ext_resource type="PackedScene" path="res://assets/props/banner_patternB_white.gltf" id="88_rco7g"]
+[ext_resource type="PackedScene" path="res://assets/props/banner_patternB_yellow.gltf" id="89_yljrn"]
+[ext_resource type="PackedScene" path="res://assets/props/banner_patternC_blue.gltf" id="90_f5qsb"]
+[ext_resource type="PackedScene" path="res://assets/props/banner_patternC_brown.gltf" id="91_mvvko"]
+[ext_resource type="PackedScene" path="res://assets/props/banner_patternC_green.gltf" id="92_7ba0f"]
+[ext_resource type="PackedScene" path="res://assets/props/banner_patternC_red.gltf" id="93_pehhq"]
+[ext_resource type="PackedScene" path="res://assets/props/banner_patternC_white.gltf" id="94_myv4s"]
+[ext_resource type="PackedScene" path="res://assets/props/banner_patternC_yellow.gltf" id="95_3jlps"]
+[ext_resource type="PackedScene" path="res://assets/props/banner_red.gltf" id="96_o1his"]
+[ext_resource type="PackedScene" path="res://assets/props/banner_shield_brown.gltf" id="97_kc23l"]
+[ext_resource type="PackedScene" path="res://assets/props/banner_shield_green.gltf" id="98_lpnej"]
+[ext_resource type="PackedScene" path="res://assets/props/banner_shield_red.gltf" id="99_u2o2v"]
+[ext_resource type="PackedScene" path="res://assets/props/banner_shield_white.gltf" id="100_ohfff"]
+[ext_resource type="PackedScene" path="res://assets/props/banner_shield_yellow.gltf" id="101_bm0l0"]
+[ext_resource type="PackedScene" path="res://assets/props/banner_thin_blue.gltf" id="102_wfqnv"]
+[ext_resource type="PackedScene" path="res://assets/props/banner_thin_brown.gltf" id="103_8asds"]
+[ext_resource type="PackedScene" path="res://assets/props/banner_thin_green.gltf" id="104_dt485"]
+[ext_resource type="PackedScene" path="res://assets/props/banner_thin_red.gltf" id="105_xaeeo"]
+[ext_resource type="PackedScene" path="res://assets/props/banner_thin_white.gltf" id="106_2mep6"]
+[ext_resource type="PackedScene" path="res://assets/props/banner_thin_yellow.gltf" id="107_i8c5o"]
+[ext_resource type="PackedScene" path="res://assets/props/banner_triple_blue.gltf" id="108_h2hux"]
+[ext_resource type="PackedScene" path="res://assets/props/banner_triple_brown.gltf" id="109_gfidh"]
+[ext_resource type="PackedScene" path="res://assets/props/banner_triple_green.gltf" id="110_3mhmr"]
+[ext_resource type="PackedScene" path="res://assets/props/banner_triple_red.gltf" id="111_b0yb8"]
+[ext_resource type="PackedScene" path="res://assets/props/banner_triple_white.gltf" id="112_6la8g"]
+[ext_resource type="PackedScene" path="res://assets/props/banner_triple_yellow.gltf" id="113_vheau"]
+[ext_resource type="PackedScene" path="res://assets/props/banner_white.gltf" id="114_tmfvm"]
+[ext_resource type="PackedScene" path="res://assets/props/banner_yellow.gltf" id="115_0ipa6"]
+[ext_resource type="PackedScene" path="res://assets/props/barrel_large_decorated.gltf" id="116_my1sb"]
+[ext_resource type="PackedScene" path="res://assets/props/barrel_small.gltf" id="117_30sdn"]
+[ext_resource type="PackedScene" path="res://assets/props/barrel_small_stack.gltf" id="118_mtcu6"]
+[ext_resource type="PackedScene" path="res://assets/props/bed_decorated.gltf" id="119_rw10m"]
+[ext_resource type="PackedScene" path="res://assets/props/bed_floor.gltf" id="120_2mnrg"]
+[ext_resource type="PackedScene" path="res://assets/props/bed_frame.gltf" id="121_fgurj"]
+[ext_resource type="PackedScene" path="res://assets/props/bottle_A_brown.gltf" id="122_5t7uk"]
+[ext_resource type="PackedScene" path="res://assets/props/bottle_A_green.gltf" id="123_45hwu"]
+[ext_resource type="PackedScene" path="res://assets/props/bottle_A_labeled_brown.gltf" id="124_egvwf"]
+[ext_resource type="PackedScene" path="res://assets/props/bottle_A_labeled_green.gltf" id="125_txiym"]
+[ext_resource type="PackedScene" path="res://assets/props/bottle_B_brown.gltf" id="126_qyvvl"]
+[ext_resource type="PackedScene" path="res://assets/props/bottle_B_green.gltf" id="127_hrafu"]
+[ext_resource type="PackedScene" path="res://assets/props/bottle_C_brown.gltf" id="128_ukcx5"]
+[ext_resource type="PackedScene" path="res://assets/props/bottle_C_green.gltf" id="129_14kdj"]
+[ext_resource type="PackedScene" path="res://assets/props/box_large.gltf" id="130_dacc7"]
+[ext_resource type="PackedScene" path="res://assets/props/box_small.gltf" id="131_6qr2t"]
+[ext_resource type="PackedScene" path="res://assets/props/box_small_decorated.gltf" id="132_ptxvh"]
+[ext_resource type="PackedScene" path="res://assets/props/box_stacked.gltf" id="133_chucc"]
+[ext_resource type="PackedScene" path="res://assets/props/candle.gltf" id="134_800al"]
+[ext_resource type="PackedScene" path="res://assets/props/candle_lit.gltf" id="135_k134t"]
+[ext_resource type="PackedScene" path="res://assets/props/candle_melted.gltf" id="136_vthia"]
+[ext_resource type="PackedScene" path="res://assets/props/candle_thin.gltf" id="137_87y8o"]
+[ext_resource type="PackedScene" path="res://assets/props/candle_thin_lit.gltf" id="138_1ghbo"]
+[ext_resource type="PackedScene" path="res://assets/props/candle_triple.gltf" id="139_ybckm"]
+[ext_resource type="PackedScene" path="res://assets/props/chair.gltf" id="140_julvh"]
+[ext_resource type="PackedScene" path="res://assets/props/chest_gold.gltf" id="141_l02xe"]
+[ext_resource type="PackedScene" path="res://assets/props/coin.gltf" id="142_82c5h"]
+[ext_resource type="PackedScene" path="res://assets/props/coin_stack_large.gltf" id="143_w4hsm"]
+[ext_resource type="PackedScene" path="res://assets/props/coin_stack_medium.gltf" id="144_mu5ly"]
+[ext_resource type="PackedScene" path="res://assets/props/coin_stack_small.gltf" id="145_84skh"]
+[ext_resource type="PackedScene" path="res://assets/props/crates_stacked.gltf" id="146_mvjjj"]
+[ext_resource type="PackedScene" path="res://assets/props/keg.gltf" id="147_kqaa5"]
+[ext_resource type="PackedScene" path="res://assets/props/keg_decorated.gltf" id="148_u7c4a"]
+[ext_resource type="PackedScene" path="res://assets/props/key.gltf" id="149_5pep2"]
+[ext_resource type="PackedScene" path="res://assets/props/keyring.gltf" id="150_hysmn"]
+[ext_resource type="PackedScene" path="res://assets/props/keyring_hanging.gltf" id="151_is2vh"]
+[ext_resource type="PackedScene" path="res://assets/props/plate.gltf" id="152_gr5ar"]
+[ext_resource type="PackedScene" path="res://assets/props/plate_food_A.gltf" id="153_8c05t"]
+[ext_resource type="PackedScene" path="res://assets/props/plate_food_B.gltf" id="154_6kljm"]
+[ext_resource type="PackedScene" path="res://assets/props/plate_small.gltf" id="155_7o848"]
+[ext_resource type="PackedScene" path="res://assets/props/plate_stack.gltf" id="156_vw1sf"]
+[ext_resource type="PackedScene" path="res://assets/props/rubble_half.gltf" id="157_5iqy6"]
+[ext_resource type="PackedScene" path="res://assets/props/rubble_large.gltf" id="158_dwsah"]
+[ext_resource type="PackedScene" path="res://assets/props/shelf_large.gltf" id="159_ehcgn"]
+[ext_resource type="PackedScene" path="res://assets/props/shelf_small.gltf" id="160_c4w5x"]
+[ext_resource type="PackedScene" path="res://assets/props/shelf_small_candles.gltf" id="161_jra1k"]
+[ext_resource type="PackedScene" path="res://assets/props/shelves.gltf" id="162_yatay"]
+[ext_resource type="PackedScene" path="res://assets/props/stool.gltf" id="163_mfy83"]
+[ext_resource type="PackedScene" path="res://assets/props/sword_shield.gltf" id="164_ldcnp"]
+[ext_resource type="PackedScene" path="res://assets/props/sword_shield_broken.gltf" id="165_frcwb"]
+[ext_resource type="PackedScene" path="res://assets/props/sword_shield_gold.gltf" id="166_miofj"]
+[ext_resource type="PackedScene" path="res://assets/props/table_long.gltf" id="167_7a3yo"]
+[ext_resource type="PackedScene" path="res://assets/props/table_long_broken.gltf" id="168_6wa58"]
+[ext_resource type="PackedScene" path="res://assets/props/table_long_decorated_C.gltf" id="169_fja0x"]
+[ext_resource type="PackedScene" path="res://assets/props/table_long_tablecloth.gltf" id="170_cyrwp"]
+[ext_resource type="PackedScene" path="res://assets/props/table_long_tablecloth_decorated_A.gltf" id="171_l1dy7"]
+[ext_resource type="PackedScene" path="res://assets/props/table_medium.gltf" id="172_xv3mq"]
+[ext_resource type="PackedScene" path="res://assets/props/table_medium_broken.gltf" id="173_8b6e2"]
+[ext_resource type="PackedScene" path="res://assets/props/table_medium_decorated_A.gltf" id="174_4qfo1"]
+[ext_resource type="PackedScene" path="res://assets/props/table_medium_tablecloth.gltf" id="175_wx758"]
+[ext_resource type="PackedScene" path="res://assets/props/table_medium_tablecloth_decorated_B.gltf" id="176_7qx0x"]
+[ext_resource type="PackedScene" path="res://assets/props/table_small.gltf" id="177_53sqr"]
+[ext_resource type="PackedScene" path="res://assets/props/table_small_decorated_A.gltf" id="178_ljwn5"]
+[ext_resource type="PackedScene" path="res://assets/props/table_small_decorated_B.gltf" id="179_b3swc"]
+[ext_resource type="PackedScene" path="res://assets/props/torch.gltf" id="180_ilrto"]
+[ext_resource type="PackedScene" path="res://assets/props/torch_lit.gltf" id="181_3psr1"]
+[ext_resource type="PackedScene" path="res://assets/props/torch_mounted.gltf" id="182_ibh71"]
+[ext_resource type="PackedScene" path="res://assets/props/trunk_large_A.gltf" id="183_toaj1"]
+[ext_resource type="PackedScene" path="res://assets/props/trunk_large_B.gltf" id="184_vg14q"]
+[ext_resource type="PackedScene" path="res://assets/props/trunk_large_C.gltf" id="185_bh2qk"]
+[ext_resource type="PackedScene" path="res://assets/props/trunk_medium_A.gltf" id="186_cqkan"]
+[ext_resource type="PackedScene" path="res://assets/props/trunk_medium_B.gltf" id="187_44vsc"]
+[ext_resource type="PackedScene" path="res://assets/props/trunk_medium_C.gltf" id="188_vvwvr"]
+[ext_resource type="PackedScene" path="res://assets/props/trunk_small_A.gltf" id="189_0sne0"]
+[ext_resource type="PackedScene" path="res://assets/props/trunk_small_B.gltf" id="190_p1uv1"]
+[ext_resource type="PackedScene" path="res://assets/props/trunk_small_C.gltf" id="191_n7lgv"]
+[ext_resource type="Script" path="res://addons/dungeon_room_editor/resources/room_piece_catalog.gd" id="192_87dko"]
 
 [sub_resource type="Resource" id="Resource_xvrpp"]
 script = ExtResource("2_xhngj")
@@ -204,38 +202,6 @@ preview_scene = ExtResource("1_udupt")
 allow_cell_overlap = true
 placement_layer = &"ground"
 default_tags = PackedStringArray("floor")
-
-[sub_resource type="Resource" id="Resource_floor_mask_small"]
-script = ExtResource("2_xhngj")
-piece_id = &"floor_mask_small"
-display_name = "Floor Mask Small"
-category = &"floor"
-preview_scene = ExtResource("1_udupt")
-supports_rotation = false
-placement_layer = &"ground"
-default_tags = PackedStringArray("floor", "runtime_mask")
-
-[sub_resource type="Resource" id="Resource_floor_mask_large"]
-script = ExtResource("2_xhngj")
-piece_id = &"floor_mask_large"
-display_name = "Floor Mask Large"
-category = &"floor"
-preview_scene = ExtResource("11_ldvyi")
-footprint = Vector2i(2, 2)
-supports_rotation = false
-placement_layer = &"ground"
-default_tags = PackedStringArray("floor", "runtime_mask")
-
-[sub_resource type="Resource" id="Resource_floor_mask_extra_large"]
-script = ExtResource("2_xhngj")
-piece_id = &"floor_mask_extra_large"
-display_name = "Floor Mask Extra Large"
-category = &"floor"
-preview_scene = ExtResource("11_ldvyi")
-footprint = Vector2i(3, 3)
-supports_rotation = false
-placement_layer = &"ground"
-default_tags = PackedStringArray("floor", "runtime_mask")
 
 [sub_resource type="Resource" id="Resource_v1n83"]
 script = ExtResource("2_xhngj")
@@ -260,10 +226,42 @@ default_tags = PackedStringArray("door")
 
 [sub_resource type="Resource" id="Resource_ixrym"]
 script = ExtResource("2_xhngj")
+piece_id = &"entrance_marker"
+display_name = "Entrance Marker"
+category = &"entrance"
+mapping_kind = &"connection_marker"
+allow_cell_overlap = true
+placement_layer = &"overlay"
+default_tags = PackedStringArray("entrance")
+
+[sub_resource type="Resource" id="Resource_a246h"]
+script = ExtResource("2_xhngj")
+piece_id = &"exit_marker"
+display_name = "Exit Marker"
+category = &"exit"
+mapping_kind = &"connection_marker"
+allow_cell_overlap = true
+placement_layer = &"overlay"
+default_tags = PackedStringArray("exit")
+marker_kind = "exit"
+
+[sub_resource type="Resource" id="Resource_7pl1k"]
+script = ExtResource("2_xhngj")
+piece_id = &"spawn_player_marker"
+display_name = "Spawn Player Marker"
+category = &"spawn"
+mapping_kind = &"zone_marker"
+allow_cell_overlap = true
+placement_layer = &"overlay"
+default_tags = PackedStringArray("spawn", "player")
+zone_type = "spawn_player"
+zone_role = &"player"
+
+[sub_resource type="Resource" id="Resource_famxe"]
+script = ExtResource("2_xhngj")
 piece_id = &"spawn_melee_marker"
 display_name = "Spawn Melee Marker"
 category = &"spawn"
-palette_subfolder = &"general"
 mapping_kind = &"zone_marker"
 allow_cell_overlap = true
 placement_layer = &"overlay"
@@ -271,20 +269,53 @@ default_tags = PackedStringArray("spawn")
 zone_type = "enemy_spawn"
 zone_role = &"melee"
 
-[sub_resource type="Resource" id="Resource_spawn_player_marker"]
+[sub_resource type="Resource" id="Resource_20j7i"]
 script = ExtResource("2_xhngj")
-piece_id = &"spawn_player_marker"
-display_name = "Spawn Player Marker"
-category = &"spawn"
-palette_subfolder = &"general"
+piece_id = &"spawn_exit_marker"
+display_name = "Spawn Exit Marker"
+category = &"marker"
 mapping_kind = &"zone_marker"
 allow_cell_overlap = true
 placement_layer = &"overlay"
-default_tags = PackedStringArray("spawn", "player")
-zone_type = "spawn_player"
-zone_role = &"floor_start"
+default_tags = PackedStringArray("marker", "spawn", "spawn_exit")
+zone_type = "spawn_exit"
+zone_role = &"spawn_exit"
 
-[sub_resource type="Resource" id="Resource_floor_exit_marker"]
+[sub_resource type="Resource" id="Resource_74wme"]
+script = ExtResource("2_xhngj")
+piece_id = &"encounter_entry_marker"
+display_name = "Encounter Entry Marker"
+category = &"marker"
+mapping_kind = &"zone_marker"
+allow_cell_overlap = true
+placement_layer = &"overlay"
+default_tags = PackedStringArray("marker", "encounter", "entry")
+zone_type = "encounter_trigger"
+zone_role = &"entry"
+
+[sub_resource type="Resource" id="Resource_5g3f3"]
+script = ExtResource("2_xhngj")
+piece_id = &"prop_placement_marker"
+display_name = "Prop Placement Marker"
+category = &"marker"
+mapping_kind = &"zone_marker"
+allow_cell_overlap = true
+placement_layer = &"overlay"
+default_tags = PackedStringArray("marker", "prop")
+zone_type = "prop_placement"
+
+[sub_resource type="Resource" id="Resource_72fi8"]
+script = ExtResource("2_xhngj")
+piece_id = &"nav_boundary_marker"
+display_name = "Nav Boundary Marker"
+category = &"marker"
+mapping_kind = &"zone_marker"
+allow_cell_overlap = true
+placement_layer = &"overlay"
+default_tags = PackedStringArray("marker", "nav")
+zone_type = "nav_boundary"
+
+[sub_resource type="Resource" id="Resource_bbe5k"]
 script = ExtResource("2_xhngj")
 piece_id = &"floor_exit_marker"
 display_name = "Floor Exit Marker"
@@ -293,729 +324,418 @@ mapping_kind = &"zone_marker"
 footprint = Vector2i(3, 3)
 allow_cell_overlap = true
 placement_layer = &"overlay"
-default_tags = PackedStringArray("marker", "boss", "floor_exit")
+default_tags = PackedStringArray("marker", "floor_exit")
 zone_type = "floor_exit"
-zone_role = &"boss_corner"
 
-[sub_resource type="Resource" id="Resource_spawn_exit_marker"]
+[sub_resource type="Resource" id="Resource_rim4n"]
 script = ExtResource("2_xhngj")
-piece_id = &"spawn_exit_marker"
-display_name = "Spawn Exit Marker"
+piece_id = &"loot_marker"
+display_name = "Loot Marker"
 category = &"marker"
 mapping_kind = &"zone_marker"
-footprint = Vector2i(3, 3)
 allow_cell_overlap = true
 placement_layer = &"overlay"
-default_tags = PackedStringArray("marker", "spawn", "spawn_exit")
-zone_type = "spawn_exit"
-zone_role = &"floor_return"
+default_tags = PackedStringArray("marker", "loot")
+zone_type = "loot"
 
-[sub_resource type="Resource" id="Resource_entrance_marker"]
-script = ExtResource("2_xhngj")
-piece_id = &"entrance_marker"
-display_name = "Entrance Marker"
-category = &"exit"
-runtime_scene = ExtResource("4b_entmk")
-mapping_kind = &"connection_marker"
-footprint = Vector2i(3, 1)
-allow_cell_overlap = true
-placement_layer = &"overlay"
-default_tags = PackedStringArray("entrance", "connector")
-
-[sub_resource type="Resource" id="Resource_spawn_dasher"]
-script = ExtResource("2_xhngj")
-piece_id = &"spawn_dasher_marker"
-display_name = "Spawn Dasher Marker"
-category = &"spawn"
-palette_subfolder = &"general"
-mapping_kind = &"zone_marker"
-allow_cell_overlap = true
-placement_layer = &"overlay"
-default_tags = PackedStringArray("spawn", "dasher")
-zone_type = "enemy_spawn"
-zone_role = &"dasher"
-enemy_id = &"dasher"
-
-[sub_resource type="Resource" id="Resource_spawn_arrow_tower"]
-script = ExtResource("2_xhngj")
-piece_id = &"spawn_arrow_tower_marker"
-display_name = "Spawn Arrow Tower Marker"
-category = &"spawn"
-palette_subfolder = &"general"
-mapping_kind = &"zone_marker"
-allow_cell_overlap = true
-placement_layer = &"overlay"
-default_tags = PackedStringArray("spawn", "arrow_tower")
-zone_type = "enemy_spawn"
-zone_role = &"arrow_tower"
-enemy_id = &"arrow_tower"
-
-[sub_resource type="Resource" id="Resource_spawn_skewer"]
-script = ExtResource("2_xhngj")
-piece_id = &"spawn_skewer_marker"
-display_name = "Spawn Skewer Marker"
-category = &"spawn"
-palette_subfolder = &"edge"
-mapping_kind = &"zone_marker"
-allow_cell_overlap = true
-placement_layer = &"overlay"
-default_tags = PackedStringArray("spawn", "skewer", "edge")
-zone_type = "enemy_spawn"
-zone_role = &"skewer"
-enemy_id = &"skewer"
-
-[sub_resource type="Resource" id="Resource_spawn_glaiver"]
-script = ExtResource("2_xhngj")
-piece_id = &"spawn_glaiver_marker"
-display_name = "Spawn Glaiver Marker"
-category = &"spawn"
-palette_subfolder = &"edge"
-mapping_kind = &"zone_marker"
-allow_cell_overlap = true
-placement_layer = &"overlay"
-default_tags = PackedStringArray("spawn", "glaiver", "edge")
-zone_type = "enemy_spawn"
-zone_role = &"glaiver"
-enemy_id = &"glaiver"
-
-[sub_resource type="Resource" id="Resource_spawn_razorform"]
-script = ExtResource("2_xhngj")
-piece_id = &"spawn_razorform_marker"
-display_name = "Spawn Razorform Marker"
-category = &"spawn"
-palette_subfolder = &"edge"
-mapping_kind = &"zone_marker"
-allow_cell_overlap = true
-placement_layer = &"overlay"
-default_tags = PackedStringArray("spawn", "razorform", "edge")
-zone_type = "enemy_spawn"
-zone_role = &"razorform"
-enemy_id = &"razorform"
-
-[sub_resource type="Resource" id="Resource_spawn_scrambler"]
-script = ExtResource("2_xhngj")
-piece_id = &"spawn_scrambler_marker"
-display_name = "Spawn Scrambler Marker"
-category = &"spawn"
-palette_subfolder = &"flow"
-mapping_kind = &"zone_marker"
-allow_cell_overlap = true
-placement_layer = &"overlay"
-default_tags = PackedStringArray("spawn", "scrambler", "flow")
-zone_type = "enemy_spawn"
-zone_role = &"scrambler"
-enemy_id = &"scrambler"
-
-[sub_resource type="Resource" id="Resource_spawn_flow_dasher"]
-script = ExtResource("2_xhngj")
-piece_id = &"spawn_flow_dasher_marker"
-display_name = "Spawn Flow Dasher Marker"
-category = &"spawn"
-palette_subfolder = &"flow"
-mapping_kind = &"zone_marker"
-allow_cell_overlap = true
-placement_layer = &"overlay"
-default_tags = PackedStringArray("spawn", "flow_dasher", "flow")
-zone_type = "enemy_spawn"
-zone_role = &"flow_dasher"
-enemy_id = &"flow_dasher"
-
-[sub_resource type="Resource" id="Resource_spawn_flowform"]
-script = ExtResource("2_xhngj")
-piece_id = &"spawn_flowform_marker"
-display_name = "Spawn Flowform Marker"
-category = &"spawn"
-palette_subfolder = &"flow"
-mapping_kind = &"zone_marker"
-allow_cell_overlap = true
-placement_layer = &"overlay"
-default_tags = PackedStringArray("spawn", "flowform", "flow")
-zone_type = "enemy_spawn"
-zone_role = &"flowform"
-enemy_id = &"flowform"
-
-[sub_resource type="Resource" id="Resource_spawn_stumbler"]
-script = ExtResource("2_xhngj")
-piece_id = &"spawn_stumbler_marker"
-display_name = "Spawn Stumbler Marker"
-category = &"spawn"
-palette_subfolder = &"mass"
-mapping_kind = &"zone_marker"
-allow_cell_overlap = true
-placement_layer = &"overlay"
-default_tags = PackedStringArray("spawn", "stumbler", "mass")
-zone_type = "enemy_spawn"
-zone_role = &"stumbler"
-enemy_id = &"stumbler"
-
-[sub_resource type="Resource" id="Resource_spawn_shieldwall"]
-script = ExtResource("2_xhngj")
-piece_id = &"spawn_shieldwall_marker"
-display_name = "Spawn Shieldwall Marker"
-category = &"spawn"
-palette_subfolder = &"mass"
-mapping_kind = &"zone_marker"
-allow_cell_overlap = true
-placement_layer = &"overlay"
-default_tags = PackedStringArray("spawn", "shieldwall", "mass")
-zone_type = "enemy_spawn"
-zone_role = &"shieldwall"
-enemy_id = &"shieldwall"
-
-[sub_resource type="Resource" id="Resource_spawn_warden"]
-script = ExtResource("2_xhngj")
-piece_id = &"spawn_warden_marker"
-display_name = "Spawn Warden Marker"
-category = &"spawn"
-palette_subfolder = &"mass"
-mapping_kind = &"zone_marker"
-allow_cell_overlap = true
-placement_layer = &"overlay"
-default_tags = PackedStringArray("spawn", "warden", "mass")
-zone_type = "enemy_spawn"
-zone_role = &"warden"
-enemy_id = &"warden"
-
-[sub_resource type="Resource" id="Resource_spawn_splitter"]
-script = ExtResource("2_xhngj")
-piece_id = &"spawn_splitter_marker"
-display_name = "Spawn Splitter Marker"
-category = &"spawn"
-palette_subfolder = &"echo"
-mapping_kind = &"zone_marker"
-allow_cell_overlap = true
-placement_layer = &"overlay"
-default_tags = PackedStringArray("spawn", "splitter", "echo")
-zone_type = "enemy_spawn"
-zone_role = &"splitter"
-enemy_id = &"splitter"
-
-[sub_resource type="Resource" id="Resource_spawn_echoform"]
-script = ExtResource("2_xhngj")
-piece_id = &"spawn_echoform_marker"
-display_name = "Spawn Echoform Marker"
-category = &"spawn"
-palette_subfolder = &"echo"
-mapping_kind = &"zone_marker"
-allow_cell_overlap = true
-placement_layer = &"overlay"
-default_tags = PackedStringArray("spawn", "echoform", "echo")
-zone_type = "enemy_spawn"
-zone_role = &"echoform"
-enemy_id = &"echoform"
-
-[sub_resource type="Resource" id="Resource_spawn_triad"]
-script = ExtResource("2_xhngj")
-piece_id = &"spawn_triad_marker"
-display_name = "Spawn Triad Marker"
-category = &"spawn"
-palette_subfolder = &"echo"
-mapping_kind = &"zone_marker"
-allow_cell_overlap = true
-placement_layer = &"overlay"
-default_tags = PackedStringArray("spawn", "triad", "echo")
-zone_type = "enemy_spawn"
-zone_role = &"triad"
-enemy_id = &"triad"
-
-[sub_resource type="Resource" id="Resource_spawn_lurker"]
-script = ExtResource("2_xhngj")
-piece_id = &"spawn_lurker_marker"
-display_name = "Spawn Lurker Marker"
-category = &"spawn"
-palette_subfolder = &"phase"
-mapping_kind = &"zone_marker"
-allow_cell_overlap = true
-placement_layer = &"overlay"
-default_tags = PackedStringArray("spawn", "lurker", "phase")
-zone_type = "enemy_spawn"
-zone_role = &"lurker"
-enemy_id = &"lurker"
-
-[sub_resource type="Resource" id="Resource_spawn_leecher"]
-script = ExtResource("2_xhngj")
-piece_id = &"spawn_leecher_marker"
-display_name = "Spawn Leecher Marker"
-category = &"spawn"
-palette_subfolder = &"phase"
-mapping_kind = &"zone_marker"
-allow_cell_overlap = true
-placement_layer = &"overlay"
-default_tags = PackedStringArray("spawn", "leecher", "phase")
-zone_type = "enemy_spawn"
-zone_role = &"leecher"
-enemy_id = &"leecher"
-
-[sub_resource type="Resource" id="Resource_spawn_binder"]
-script = ExtResource("2_xhngj")
-piece_id = &"spawn_binder_marker"
-display_name = "Spawn Binder Marker"
-category = &"spawn"
-palette_subfolder = &"phase"
-mapping_kind = &"zone_marker"
-allow_cell_overlap = true
-placement_layer = &"overlay"
-default_tags = PackedStringArray("spawn", "binder", "phase")
-zone_type = "enemy_spawn"
-zone_role = &"binder"
-enemy_id = &"binder"
-
-[sub_resource type="Resource" id="Resource_spawn_fizzler"]
-script = ExtResource("2_xhngj")
-piece_id = &"spawn_fizzler_marker"
-display_name = "Spawn Fizzler Marker"
-category = &"spawn"
-palette_subfolder = &"surge"
-mapping_kind = &"zone_marker"
-allow_cell_overlap = true
-placement_layer = &"overlay"
-default_tags = PackedStringArray("spawn", "fizzler", "surge")
-zone_type = "enemy_spawn"
-zone_role = &"fizzler"
-enemy_id = &"fizzler"
-
-[sub_resource type="Resource" id="Resource_spawn_burster"]
-script = ExtResource("2_xhngj")
-piece_id = &"spawn_burster_marker"
-display_name = "Spawn Burster Marker"
-category = &"spawn"
-palette_subfolder = &"surge"
-mapping_kind = &"zone_marker"
-allow_cell_overlap = true
-placement_layer = &"overlay"
-default_tags = PackedStringArray("spawn", "burster", "surge")
-zone_type = "enemy_spawn"
-zone_role = &"burster"
-enemy_id = &"burster"
-
-[sub_resource type="Resource" id="Resource_spawn_detonator"]
-script = ExtResource("2_xhngj")
-piece_id = &"spawn_detonator_marker"
-display_name = "Spawn Detonator Marker"
-category = &"spawn"
-palette_subfolder = &"surge"
-mapping_kind = &"zone_marker"
-allow_cell_overlap = true
-placement_layer = &"overlay"
-default_tags = PackedStringArray("spawn", "detonator", "surge")
-zone_type = "enemy_spawn"
-zone_role = &"detonator"
-enemy_id = &"detonator"
-
-[sub_resource type="Resource" id="Resource_a246h"]
-script = ExtResource("2_xhngj")
-piece_id = &"exit_marker"
-display_name = "Exit Marker"
-category = &"exit"
-runtime_scene = ExtResource("5_oxrmj")
-mapping_kind = &"connection_marker"
-footprint = Vector2i(3, 1)
-allow_cell_overlap = true
-placement_layer = &"overlay"
-default_tags = PackedStringArray("exit")
-marker_kind = "exit"
-
-[sub_resource type="Resource" id="Resource_7pl1k"]
+[sub_resource type="Resource" id="Resource_54dkr"]
 script = ExtResource("2_xhngj")
 piece_id = &"barrel_blocker"
 display_name = "Barrel Blocker"
 category = &"prop"
-preview_scene = ExtResource("6_4g4yj")
+preview_scene = ExtResource("5_oxrmj")
 placement_layer = &"overlay"
 blocks_movement = true
 default_tags = PackedStringArray("prop", "blocker")
 
-[sub_resource type="Resource" id="Resource_famxe"]
+[sub_resource type="Resource" id="Resource_h5370"]
 script = ExtResource("2_xhngj")
 piece_id = &"trap_spike_tile"
 display_name = "Trap Spike Tile"
 category = &"trap"
-preview_scene = ExtResource("7_5hg0s")
-runtime_scene = ExtResource("8_7qnbw")
+preview_scene = ExtResource("6_4g4yj")
+runtime_scene = ExtResource("7_5hg0s")
 mapping_kind = &"runtime_scene"
 allow_cell_overlap = true
 placement_layer = &"overlay"
 default_tags = PackedStringArray("trap")
 
-[sub_resource type="Resource" id="Resource_20j7i"]
+[sub_resource type="Resource" id="Resource_e5x0j"]
 script = ExtResource("2_xhngj")
 piece_id = &"treasure_chest"
 display_name = "Treasure Chest"
 category = &"treasure"
-preview_scene = ExtResource("9_4rv86")
-runtime_scene = ExtResource("10_cqpkk")
+preview_scene = ExtResource("8_7qnbw")
+runtime_scene = ExtResource("9_4rv86")
 mapping_kind = &"runtime_scene"
 allow_cell_overlap = true
 placement_layer = &"overlay"
 default_tags = PackedStringArray("treasure")
 
-[sub_resource type="Resource" id="Resource_74wme"]
+[sub_resource type="Resource" id="Resource_dfn0e"]
+script = ExtResource("2_xhngj")
+piece_id = &"hub_mission_interface"
+display_name = "Mission Interface"
+category = &"Hub"
+preview_scene = ExtResource("10_cqpkk")
+placement_layer = &"overlay"
+default_tags = PackedStringArray("hub", "mission_interface")
+
+[sub_resource type="Resource" id="Resource_3tv25"]
+script = ExtResource("2_xhngj")
+piece_id = &"hub_upgrade_area"
+display_name = "Upgrade Area"
+category = &"Hub"
+preview_scene = ExtResource("11_ldvyi")
+placement_layer = &"overlay"
+default_tags = PackedStringArray("hub", "upgrade_area")
+
+[sub_resource type="Resource" id="Resource_2ijq3"]
+script = ExtResource("2_xhngj")
+piece_id = &"infusion_pillar_marker"
+display_name = "Infusion Pillar Marker"
+category = &"marker"
+preview_scene = ExtResource("12_hhpar")
+runtime_scene = ExtResource("13_3tms3")
+mapping_kind = &"runtime_scene"
+allow_cell_overlap = true
+placement_layer = &"overlay"
+default_tags = PackedStringArray("marker", "infusion", "pillar")
+
+[sub_resource type="Resource" id="Resource_hsa57"]
 script = ExtResource("2_xhngj")
 piece_id = &"floor_dirt_large"
 display_name = "Floor Dirt Large"
-category = &"floor"
-preview_scene = ExtResource("11_ldvyi")
-allow_cell_overlap = true
-placement_layer = &"ground"
-default_tags = PackedStringArray("floor")
-
-[sub_resource type="Resource" id="Resource_5g3f3"]
-script = ExtResource("2_xhngj")
-piece_id = &"floor_dirt_large_rocky"
-display_name = "Floor Dirt Large Rocky"
-category = &"floor"
-preview_scene = ExtResource("12_hhpar")
-allow_cell_overlap = true
-placement_layer = &"ground"
-default_tags = PackedStringArray("floor")
-
-[sub_resource type="Resource" id="Resource_72fi8"]
-script = ExtResource("2_xhngj")
-piece_id = &"floor_dirt_small_b"
-display_name = "Floor Dirt Small B"
-category = &"floor"
-preview_scene = ExtResource("13_3tms3")
-allow_cell_overlap = true
-placement_layer = &"ground"
-default_tags = PackedStringArray("floor")
-
-[sub_resource type="Resource" id="Resource_bbe5k"]
-script = ExtResource("2_xhngj")
-piece_id = &"floor_dirt_small_c"
-display_name = "Floor Dirt Small C"
 category = &"floor"
 preview_scene = ExtResource("14_wyewr")
 allow_cell_overlap = true
 placement_layer = &"ground"
 default_tags = PackedStringArray("floor")
 
-[sub_resource type="Resource" id="Resource_rim4n"]
+[sub_resource type="Resource" id="Resource_2v74e"]
 script = ExtResource("2_xhngj")
-piece_id = &"floor_dirt_small_d"
-display_name = "Floor Dirt Small D"
+piece_id = &"floor_dirt_large_rocky"
+display_name = "Floor Dirt Large Rocky"
 category = &"floor"
 preview_scene = ExtResource("15_5cc7v")
 allow_cell_overlap = true
 placement_layer = &"ground"
 default_tags = PackedStringArray("floor")
 
-[sub_resource type="Resource" id="Resource_54dkr"]
+[sub_resource type="Resource" id="Resource_5s8ia"]
 script = ExtResource("2_xhngj")
-piece_id = &"floor_dirt_small_corner"
-display_name = "Floor Dirt Small Corner"
+piece_id = &"floor_dirt_small_b"
+display_name = "Floor Dirt Small B"
 category = &"floor"
 preview_scene = ExtResource("16_svuup")
 allow_cell_overlap = true
 placement_layer = &"ground"
 default_tags = PackedStringArray("floor")
 
-[sub_resource type="Resource" id="Resource_h5370"]
+[sub_resource type="Resource" id="Resource_phjtw"]
 script = ExtResource("2_xhngj")
-piece_id = &"floor_dirt_small_weeds"
-display_name = "Floor Dirt Small Weeds"
+piece_id = &"floor_dirt_small_c"
+display_name = "Floor Dirt Small C"
 category = &"floor"
 preview_scene = ExtResource("17_bj78g")
 allow_cell_overlap = true
 placement_layer = &"ground"
 default_tags = PackedStringArray("floor")
 
-[sub_resource type="Resource" id="Resource_e5x0j"]
+[sub_resource type="Resource" id="Resource_27cdj"]
 script = ExtResource("2_xhngj")
-piece_id = &"floor_foundation_allsides"
-display_name = "Floor Foundation Allsides"
+piece_id = &"floor_dirt_small_d"
+display_name = "Floor Dirt Small D"
 category = &"floor"
 preview_scene = ExtResource("18_8dl1r")
 allow_cell_overlap = true
 placement_layer = &"ground"
 default_tags = PackedStringArray("floor")
 
-[sub_resource type="Resource" id="Resource_dfn0e"]
+[sub_resource type="Resource" id="Resource_0nhuq"]
 script = ExtResource("2_xhngj")
-piece_id = &"floor_foundation_corner"
-display_name = "Floor Foundation Corner"
+piece_id = &"floor_dirt_small_corner"
+display_name = "Floor Dirt Small Corner"
 category = &"floor"
 preview_scene = ExtResource("19_6mqvb")
 allow_cell_overlap = true
 placement_layer = &"ground"
 default_tags = PackedStringArray("floor")
 
-[sub_resource type="Resource" id="Resource_3tv25"]
+[sub_resource type="Resource" id="Resource_l7ng5"]
 script = ExtResource("2_xhngj")
-piece_id = &"floor_foundation_diagonal_corner"
-display_name = "Floor Foundation Diagonal Corner"
+piece_id = &"floor_dirt_small_weeds"
+display_name = "Floor Dirt Small Weeds"
 category = &"floor"
 preview_scene = ExtResource("20_jfikj")
 allow_cell_overlap = true
 placement_layer = &"ground"
 default_tags = PackedStringArray("floor")
 
-[sub_resource type="Resource" id="Resource_2ijq3"]
+[sub_resource type="Resource" id="Resource_upbxi"]
 script = ExtResource("2_xhngj")
-piece_id = &"floor_foundation_front"
-display_name = "Floor Foundation Front"
+piece_id = &"floor_foundation_allsides"
+display_name = "Floor Foundation Allsides"
 category = &"floor"
 preview_scene = ExtResource("21_56ecp")
 allow_cell_overlap = true
 placement_layer = &"ground"
 default_tags = PackedStringArray("floor")
 
-[sub_resource type="Resource" id="Resource_hsa57"]
+[sub_resource type="Resource" id="Resource_rq72b"]
 script = ExtResource("2_xhngj")
-piece_id = &"floor_foundation_front_and_back"
-display_name = "Floor Foundation Front And Back"
+piece_id = &"floor_foundation_corner"
+display_name = "Floor Foundation Corner"
 category = &"floor"
 preview_scene = ExtResource("22_1p0hi")
 allow_cell_overlap = true
 placement_layer = &"ground"
 default_tags = PackedStringArray("floor")
 
-[sub_resource type="Resource" id="Resource_2v74e"]
+[sub_resource type="Resource" id="Resource_jkwaw"]
 script = ExtResource("2_xhngj")
-piece_id = &"floor_foundation_front_and_sides"
-display_name = "Floor Foundation Front And Sides"
+piece_id = &"floor_foundation_diagonal_corner"
+display_name = "Floor Foundation Diagonal Corner"
 category = &"floor"
 preview_scene = ExtResource("23_nts6x")
 allow_cell_overlap = true
 placement_layer = &"ground"
 default_tags = PackedStringArray("floor")
 
-[sub_resource type="Resource" id="Resource_5s8ia"]
+[sub_resource type="Resource" id="Resource_xgk6d"]
 script = ExtResource("2_xhngj")
-piece_id = &"floor_tile_big_grate"
-display_name = "Floor Tile Big Grate"
+piece_id = &"floor_foundation_front"
+display_name = "Floor Foundation Front"
 category = &"floor"
 preview_scene = ExtResource("24_gteeb")
 allow_cell_overlap = true
 placement_layer = &"ground"
 default_tags = PackedStringArray("floor")
 
-[sub_resource type="Resource" id="Resource_phjtw"]
+[sub_resource type="Resource" id="Resource_sm58t"]
 script = ExtResource("2_xhngj")
-piece_id = &"floor_tile_big_grate_open"
-display_name = "Floor Tile Big Grate Open"
+piece_id = &"floor_foundation_front_and_back"
+display_name = "Floor Foundation Front And Back"
 category = &"floor"
 preview_scene = ExtResource("25_i5ng6")
 allow_cell_overlap = true
 placement_layer = &"ground"
 default_tags = PackedStringArray("floor")
 
-[sub_resource type="Resource" id="Resource_27cdj"]
+[sub_resource type="Resource" id="Resource_vbmb7"]
 script = ExtResource("2_xhngj")
-piece_id = &"floor_tile_big_spikes"
-display_name = "Floor Tile Big Spikes"
-category = &"floor"
-preview_scene = ExtResource("7_5hg0s")
-allow_cell_overlap = true
-placement_layer = &"ground"
-default_tags = PackedStringArray("floor")
-
-[sub_resource type="Resource" id="Resource_0nhuq"]
-script = ExtResource("2_xhngj")
-piece_id = &"floor_tile_extralarge_grates"
-display_name = "Floor Tile Extralarge Grates"
+piece_id = &"floor_foundation_front_and_sides"
+display_name = "Floor Foundation Front And Sides"
 category = &"floor"
 preview_scene = ExtResource("26_dwnpt")
 allow_cell_overlap = true
 placement_layer = &"ground"
 default_tags = PackedStringArray("floor")
 
-[sub_resource type="Resource" id="Resource_l7ng5"]
+[sub_resource type="Resource" id="Resource_5lxdo"]
 script = ExtResource("2_xhngj")
-piece_id = &"floor_tile_extralarge_grates_open"
-display_name = "Floor Tile Extralarge Grates Open"
+piece_id = &"floor_tile_big_grate"
+display_name = "Floor Tile Big Grate"
 category = &"floor"
 preview_scene = ExtResource("27_a21ff")
 allow_cell_overlap = true
 placement_layer = &"ground"
 default_tags = PackedStringArray("floor")
 
-[sub_resource type="Resource" id="Resource_upbxi"]
+[sub_resource type="Resource" id="Resource_knnf3"]
 script = ExtResource("2_xhngj")
-piece_id = &"floor_tile_grate"
-display_name = "Floor Tile Grate"
+piece_id = &"floor_tile_big_grate_open"
+display_name = "Floor Tile Big Grate Open"
 category = &"floor"
 preview_scene = ExtResource("28_c7kqe")
 allow_cell_overlap = true
 placement_layer = &"ground"
 default_tags = PackedStringArray("floor")
 
-[sub_resource type="Resource" id="Resource_rq72b"]
-script = ExtResource("2_xhngj")
-piece_id = &"floor_tile_grate_open"
-display_name = "Floor Tile Grate Open"
-category = &"floor"
-preview_scene = ExtResource("29_oy8qk")
-allow_cell_overlap = true
-placement_layer = &"ground"
-default_tags = PackedStringArray("floor")
-
-[sub_resource type="Resource" id="Resource_jkwaw"]
-script = ExtResource("2_xhngj")
-piece_id = &"floor_tile_large"
-display_name = "Floor Tile Large"
-category = &"floor"
-preview_scene = ExtResource("30_bu6oh")
-allow_cell_overlap = true
-placement_layer = &"ground"
-default_tags = PackedStringArray("floor")
-
-[sub_resource type="Resource" id="Resource_xgk6d"]
-script = ExtResource("2_xhngj")
-piece_id = &"floor_tile_large_rocks"
-display_name = "Floor Tile Large Rocks"
-category = &"floor"
-preview_scene = ExtResource("31_pf870")
-allow_cell_overlap = true
-placement_layer = &"ground"
-default_tags = PackedStringArray("floor")
-
-[sub_resource type="Resource" id="Resource_sm58t"]
-script = ExtResource("2_xhngj")
-piece_id = &"floor_tile_small"
-display_name = "Floor Tile Small"
-category = &"floor"
-preview_scene = ExtResource("32_stvxw")
-allow_cell_overlap = true
-placement_layer = &"ground"
-default_tags = PackedStringArray("floor")
-
-[sub_resource type="Resource" id="Resource_vbmb7"]
-script = ExtResource("2_xhngj")
-piece_id = &"floor_tile_small_broken_a"
-display_name = "Floor Tile Small Broken A"
-category = &"floor"
-preview_scene = ExtResource("33_g8q1r")
-allow_cell_overlap = true
-placement_layer = &"ground"
-default_tags = PackedStringArray("floor")
-
-[sub_resource type="Resource" id="Resource_5lxdo"]
-script = ExtResource("2_xhngj")
-piece_id = &"floor_tile_small_broken_b"
-display_name = "Floor Tile Small Broken B"
-category = &"floor"
-preview_scene = ExtResource("34_pkw5p")
-allow_cell_overlap = true
-placement_layer = &"ground"
-default_tags = PackedStringArray("floor")
-
-[sub_resource type="Resource" id="Resource_knnf3"]
-script = ExtResource("2_xhngj")
-piece_id = &"floor_tile_small_corner"
-display_name = "Floor Tile Small Corner"
-category = &"floor"
-preview_scene = ExtResource("35_mspgq")
-allow_cell_overlap = true
-placement_layer = &"ground"
-default_tags = PackedStringArray("floor")
-
 [sub_resource type="Resource" id="Resource_boy17"]
 script = ExtResource("2_xhngj")
-piece_id = &"floor_tile_small_decorated"
-display_name = "Floor Tile Small Decorated"
+piece_id = &"floor_tile_big_spikes"
+display_name = "Floor Tile Big Spikes"
 category = &"floor"
-preview_scene = ExtResource("36_3enti")
+preview_scene = ExtResource("6_4g4yj")
 allow_cell_overlap = true
 placement_layer = &"ground"
 default_tags = PackedStringArray("floor")
 
 [sub_resource type="Resource" id="Resource_d6a2d"]
 script = ExtResource("2_xhngj")
-piece_id = &"floor_tile_small_weeds_a"
-display_name = "Floor Tile Small Weeds A"
+piece_id = &"floor_tile_extralarge_grates"
+display_name = "Floor Tile Extralarge Grates"
 category = &"floor"
-preview_scene = ExtResource("37_kvsx6")
+preview_scene = ExtResource("29_oy8qk")
 allow_cell_overlap = true
 placement_layer = &"ground"
 default_tags = PackedStringArray("floor")
 
 [sub_resource type="Resource" id="Resource_j3ufh"]
 script = ExtResource("2_xhngj")
-piece_id = &"floor_tile_small_weeds_b"
-display_name = "Floor Tile Small Weeds B"
+piece_id = &"floor_tile_extralarge_grates_open"
+display_name = "Floor Tile Extralarge Grates Open"
 category = &"floor"
-preview_scene = ExtResource("38_qkig2")
+preview_scene = ExtResource("30_bu6oh")
 allow_cell_overlap = true
 placement_layer = &"ground"
 default_tags = PackedStringArray("floor")
 
 [sub_resource type="Resource" id="Resource_y8b6u"]
 script = ExtResource("2_xhngj")
-piece_id = &"floor_wood_large"
-display_name = "Floor Wood Large"
+piece_id = &"floor_tile_grate"
+display_name = "Floor Tile Grate"
 category = &"floor"
-preview_scene = ExtResource("39_y1ej2")
+preview_scene = ExtResource("31_pf870")
 allow_cell_overlap = true
 placement_layer = &"ground"
 default_tags = PackedStringArray("floor")
 
 [sub_resource type="Resource" id="Resource_rtax0"]
 script = ExtResource("2_xhngj")
-piece_id = &"floor_wood_large_dark"
-display_name = "Floor Wood Large Dark"
+piece_id = &"floor_tile_grate_open"
+display_name = "Floor Tile Grate Open"
 category = &"floor"
-preview_scene = ExtResource("40_habwb")
+preview_scene = ExtResource("32_stvxw")
 allow_cell_overlap = true
 placement_layer = &"ground"
 default_tags = PackedStringArray("floor")
 
 [sub_resource type="Resource" id="Resource_mnp1s"]
 script = ExtResource("2_xhngj")
-piece_id = &"floor_wood_small"
-display_name = "Floor Wood Small"
+piece_id = &"floor_tile_large"
+display_name = "Floor Tile Large"
 category = &"floor"
-preview_scene = ExtResource("41_skbhr")
+preview_scene = ExtResource("33_g8q1r")
 allow_cell_overlap = true
 placement_layer = &"ground"
 default_tags = PackedStringArray("floor")
 
 [sub_resource type="Resource" id="Resource_tcmdh"]
 script = ExtResource("2_xhngj")
-piece_id = &"floor_wood_small_dark"
-display_name = "Floor Wood Small Dark"
+piece_id = &"floor_tile_large_rocks"
+display_name = "Floor Tile Large Rocks"
 category = &"floor"
-preview_scene = ExtResource("42_65ngj")
+preview_scene = ExtResource("34_pkw5p")
 allow_cell_overlap = true
 placement_layer = &"ground"
 default_tags = PackedStringArray("floor")
 
 [sub_resource type="Resource" id="Resource_yk7l2"]
 script = ExtResource("2_xhngj")
-piece_id = &"wall_tsplit"
-display_name = "Wall Tsplit"
-category = &"wall"
-preview_scene = ExtResource("43_03mue")
-placement_layer = &"overlay"
-blocks_movement = true
-blocks_projectiles = true
-default_tags = PackedStringArray("wall")
+piece_id = &"floor_tile_small"
+display_name = "Floor Tile Small"
+category = &"floor"
+preview_scene = ExtResource("35_mspgq")
+allow_cell_overlap = true
+placement_layer = &"ground"
+default_tags = PackedStringArray("floor")
 
 [sub_resource type="Resource" id="Resource_opjhv"]
 script = ExtResource("2_xhngj")
-piece_id = &"wall_tsplit_sloped"
-display_name = "Wall Tsplit Sloped"
-category = &"wall"
-preview_scene = ExtResource("44_x6jvq")
-placement_layer = &"overlay"
-blocks_movement = true
-blocks_projectiles = true
-default_tags = PackedStringArray("wall")
+piece_id = &"floor_tile_small_broken_a"
+display_name = "Floor Tile Small Broken A"
+category = &"floor"
+preview_scene = ExtResource("36_3enti")
+allow_cell_overlap = true
+placement_layer = &"ground"
+default_tags = PackedStringArray("floor")
 
 [sub_resource type="Resource" id="Resource_108ws"]
 script = ExtResource("2_xhngj")
-piece_id = &"wall_arched"
-display_name = "Wall Arched"
-category = &"wall"
-preview_scene = ExtResource("45_hf2xm")
-placement_layer = &"overlay"
-blocks_movement = true
-blocks_projectiles = true
-default_tags = PackedStringArray("wall")
+piece_id = &"floor_tile_small_broken_b"
+display_name = "Floor Tile Small Broken B"
+category = &"floor"
+preview_scene = ExtResource("37_kvsx6")
+allow_cell_overlap = true
+placement_layer = &"ground"
+default_tags = PackedStringArray("floor")
 
 [sub_resource type="Resource" id="Resource_v76wo"]
 script = ExtResource("2_xhngj")
-piece_id = &"wall_archedwindow_gated"
-display_name = "Wall Archedwindow Gated"
+piece_id = &"floor_tile_small_corner"
+display_name = "Floor Tile Small Corner"
+category = &"floor"
+preview_scene = ExtResource("38_qkig2")
+allow_cell_overlap = true
+placement_layer = &"ground"
+default_tags = PackedStringArray("floor")
+
+[sub_resource type="Resource" id="Resource_bh1ec"]
+script = ExtResource("2_xhngj")
+piece_id = &"floor_tile_small_decorated"
+display_name = "Floor Tile Small Decorated"
+category = &"floor"
+preview_scene = ExtResource("39_y1ej2")
+allow_cell_overlap = true
+placement_layer = &"ground"
+default_tags = PackedStringArray("floor")
+
+[sub_resource type="Resource" id="Resource_fun0y"]
+script = ExtResource("2_xhngj")
+piece_id = &"floor_tile_small_weeds_a"
+display_name = "Floor Tile Small Weeds A"
+category = &"floor"
+preview_scene = ExtResource("40_habwb")
+allow_cell_overlap = true
+placement_layer = &"ground"
+default_tags = PackedStringArray("floor")
+
+[sub_resource type="Resource" id="Resource_nv8s7"]
+script = ExtResource("2_xhngj")
+piece_id = &"floor_tile_small_weeds_b"
+display_name = "Floor Tile Small Weeds B"
+category = &"floor"
+preview_scene = ExtResource("41_skbhr")
+allow_cell_overlap = true
+placement_layer = &"ground"
+default_tags = PackedStringArray("floor")
+
+[sub_resource type="Resource" id="Resource_dbe36"]
+script = ExtResource("2_xhngj")
+piece_id = &"floor_wood_large"
+display_name = "Floor Wood Large"
+category = &"floor"
+preview_scene = ExtResource("42_65ngj")
+allow_cell_overlap = true
+placement_layer = &"ground"
+default_tags = PackedStringArray("floor")
+
+[sub_resource type="Resource" id="Resource_l4312"]
+script = ExtResource("2_xhngj")
+piece_id = &"floor_wood_large_dark"
+display_name = "Floor Wood Large Dark"
+category = &"floor"
+preview_scene = ExtResource("43_03mue")
+allow_cell_overlap = true
+placement_layer = &"ground"
+default_tags = PackedStringArray("floor")
+
+[sub_resource type="Resource" id="Resource_b75n0"]
+script = ExtResource("2_xhngj")
+piece_id = &"floor_wood_small"
+display_name = "Floor Wood Small"
+category = &"floor"
+preview_scene = ExtResource("44_x6jvq")
+allow_cell_overlap = true
+placement_layer = &"ground"
+default_tags = PackedStringArray("floor")
+
+[sub_resource type="Resource" id="Resource_jpk4j"]
+script = ExtResource("2_xhngj")
+piece_id = &"floor_wood_small_dark"
+display_name = "Floor Wood Small Dark"
+category = &"floor"
+preview_scene = ExtResource("45_hf2xm")
+allow_cell_overlap = true
+placement_layer = &"ground"
+default_tags = PackedStringArray("floor")
+
+[sub_resource type="Resource" id="Resource_ei0n8"]
+script = ExtResource("2_xhngj")
+piece_id = &"wall_tsplit"
+display_name = "Wall Tsplit"
 category = &"wall"
 preview_scene = ExtResource("46_3jlvp")
 placement_layer = &"overlay"
@@ -1023,10 +743,10 @@ blocks_movement = true
 blocks_projectiles = true
 default_tags = PackedStringArray("wall")
 
-[sub_resource type="Resource" id="Resource_bh1ec"]
+[sub_resource type="Resource" id="Resource_1dd5h"]
 script = ExtResource("2_xhngj")
-piece_id = &"wall_archedwindow_gated_scaffold"
-display_name = "Wall Archedwindow Gated Scaffold"
+piece_id = &"wall_tsplit_sloped"
+display_name = "Wall Tsplit Sloped"
 category = &"wall"
 preview_scene = ExtResource("47_70pdl")
 placement_layer = &"overlay"
@@ -1034,10 +754,10 @@ blocks_movement = true
 blocks_projectiles = true
 default_tags = PackedStringArray("wall")
 
-[sub_resource type="Resource" id="Resource_fun0y"]
+[sub_resource type="Resource" id="Resource_d3u1m"]
 script = ExtResource("2_xhngj")
-piece_id = &"wall_archedwindow_open"
-display_name = "Wall Archedwindow Open"
+piece_id = &"wall_arched"
+display_name = "Wall Arched"
 category = &"wall"
 preview_scene = ExtResource("48_ntsdh")
 placement_layer = &"overlay"
@@ -1045,10 +765,10 @@ blocks_movement = true
 blocks_projectiles = true
 default_tags = PackedStringArray("wall")
 
-[sub_resource type="Resource" id="Resource_nv8s7"]
+[sub_resource type="Resource" id="Resource_40mih"]
 script = ExtResource("2_xhngj")
-piece_id = &"wall_broken"
-display_name = "Wall Broken"
+piece_id = &"wall_archedwindow_gated"
+display_name = "Wall Archedwindow Gated"
 category = &"wall"
 preview_scene = ExtResource("49_wl56w")
 placement_layer = &"overlay"
@@ -1056,10 +776,10 @@ blocks_movement = true
 blocks_projectiles = true
 default_tags = PackedStringArray("wall")
 
-[sub_resource type="Resource" id="Resource_dbe36"]
+[sub_resource type="Resource" id="Resource_ed3rt"]
 script = ExtResource("2_xhngj")
-piece_id = &"wall_corner"
-display_name = "Wall Corner"
+piece_id = &"wall_archedwindow_gated_scaffold"
+display_name = "Wall Archedwindow Gated Scaffold"
 category = &"wall"
 preview_scene = ExtResource("50_ogv2n")
 placement_layer = &"overlay"
@@ -1067,10 +787,10 @@ blocks_movement = true
 blocks_projectiles = true
 default_tags = PackedStringArray("wall")
 
-[sub_resource type="Resource" id="Resource_l4312"]
+[sub_resource type="Resource" id="Resource_u7g8n"]
 script = ExtResource("2_xhngj")
-piece_id = &"wall_corner_gated"
-display_name = "Wall Corner Gated"
+piece_id = &"wall_archedwindow_open"
+display_name = "Wall Archedwindow Open"
 category = &"wall"
 preview_scene = ExtResource("51_lwgqh")
 placement_layer = &"overlay"
@@ -1078,10 +798,10 @@ blocks_movement = true
 blocks_projectiles = true
 default_tags = PackedStringArray("wall")
 
-[sub_resource type="Resource" id="Resource_b75n0"]
+[sub_resource type="Resource" id="Resource_a2g4p"]
 script = ExtResource("2_xhngj")
-piece_id = &"wall_corner_scaffold"
-display_name = "Wall Corner Scaffold"
+piece_id = &"wall_broken"
+display_name = "Wall Broken"
 category = &"wall"
 preview_scene = ExtResource("52_417xh")
 placement_layer = &"overlay"
@@ -1089,10 +809,10 @@ blocks_movement = true
 blocks_projectiles = true
 default_tags = PackedStringArray("wall")
 
-[sub_resource type="Resource" id="Resource_jpk4j"]
+[sub_resource type="Resource" id="Resource_6oih5"]
 script = ExtResource("2_xhngj")
-piece_id = &"wall_corner_small"
-display_name = "Wall Corner Small"
+piece_id = &"wall_corner"
+display_name = "Wall Corner"
 category = &"wall"
 preview_scene = ExtResource("53_euc0w")
 placement_layer = &"overlay"
@@ -1100,10 +820,10 @@ blocks_movement = true
 blocks_projectiles = true
 default_tags = PackedStringArray("wall")
 
-[sub_resource type="Resource" id="Resource_ei0n8"]
+[sub_resource type="Resource" id="Resource_k8vah"]
 script = ExtResource("2_xhngj")
-piece_id = &"wall_cracked"
-display_name = "Wall Cracked"
+piece_id = &"wall_corner_gated"
+display_name = "Wall Corner Gated"
 category = &"wall"
 preview_scene = ExtResource("54_xm1ly")
 placement_layer = &"overlay"
@@ -1111,10 +831,10 @@ blocks_movement = true
 blocks_projectiles = true
 default_tags = PackedStringArray("wall")
 
-[sub_resource type="Resource" id="Resource_1dd5h"]
+[sub_resource type="Resource" id="Resource_dml1o"]
 script = ExtResource("2_xhngj")
-piece_id = &"wall_crossing"
-display_name = "Wall Crossing"
+piece_id = &"wall_corner_scaffold"
+display_name = "Wall Corner Scaffold"
 category = &"wall"
 preview_scene = ExtResource("55_n6i7x")
 placement_layer = &"overlay"
@@ -1122,7 +842,40 @@ blocks_movement = true
 blocks_projectiles = true
 default_tags = PackedStringArray("wall")
 
-[sub_resource type="Resource" id="Resource_d3u1m"]
+[sub_resource type="Resource" id="Resource_pii41"]
+script = ExtResource("2_xhngj")
+piece_id = &"wall_corner_small"
+display_name = "Wall Corner Small"
+category = &"wall"
+preview_scene = ExtResource("56_a3kx5")
+placement_layer = &"overlay"
+blocks_movement = true
+blocks_projectiles = true
+default_tags = PackedStringArray("wall")
+
+[sub_resource type="Resource" id="Resource_pbj7j"]
+script = ExtResource("2_xhngj")
+piece_id = &"wall_cracked"
+display_name = "Wall Cracked"
+category = &"wall"
+preview_scene = ExtResource("57_15iht")
+placement_layer = &"overlay"
+blocks_movement = true
+blocks_projectiles = true
+default_tags = PackedStringArray("wall")
+
+[sub_resource type="Resource" id="Resource_t0niw"]
+script = ExtResource("2_xhngj")
+piece_id = &"wall_crossing"
+display_name = "Wall Crossing"
+category = &"wall"
+preview_scene = ExtResource("58_ybd3x")
+placement_layer = &"overlay"
+blocks_movement = true
+blocks_projectiles = true
+default_tags = PackedStringArray("wall")
+
+[sub_resource type="Resource" id="Resource_vsrag"]
 script = ExtResource("2_xhngj")
 piece_id = &"wall_doorway"
 display_name = "Wall Doorway"
@@ -1133,43 +886,10 @@ blocks_movement = true
 blocks_projectiles = true
 default_tags = PackedStringArray("wall")
 
-[sub_resource type="Resource" id="Resource_40mih"]
+[sub_resource type="Resource" id="Resource_0xmvv"]
 script = ExtResource("2_xhngj")
 piece_id = &"wall_doorway_tsplit"
 display_name = "Wall Doorway Tsplit"
-category = &"wall"
-preview_scene = ExtResource("56_a3kx5")
-placement_layer = &"overlay"
-blocks_movement = true
-blocks_projectiles = true
-default_tags = PackedStringArray("wall")
-
-[sub_resource type="Resource" id="Resource_ed3rt"]
-script = ExtResource("2_xhngj")
-piece_id = &"wall_doorway_scaffold"
-display_name = "Wall Doorway Scaffold"
-category = &"wall"
-preview_scene = ExtResource("57_15iht")
-placement_layer = &"overlay"
-blocks_movement = true
-blocks_projectiles = true
-default_tags = PackedStringArray("wall")
-
-[sub_resource type="Resource" id="Resource_u7g8n"]
-script = ExtResource("2_xhngj")
-piece_id = &"wall_doorway_sides"
-display_name = "Wall Doorway Sides"
-category = &"wall"
-preview_scene = ExtResource("58_ybd3x")
-placement_layer = &"overlay"
-blocks_movement = true
-blocks_projectiles = true
-default_tags = PackedStringArray("wall")
-
-[sub_resource type="Resource" id="Resource_a2g4p"]
-script = ExtResource("2_xhngj")
-piece_id = &"wall_endcap"
-display_name = "Wall Endcap"
 category = &"wall"
 preview_scene = ExtResource("59_7fa5w")
 placement_layer = &"overlay"
@@ -1177,10 +897,10 @@ blocks_movement = true
 blocks_projectiles = true
 default_tags = PackedStringArray("wall")
 
-[sub_resource type="Resource" id="Resource_6oih5"]
+[sub_resource type="Resource" id="Resource_krhkn"]
 script = ExtResource("2_xhngj")
-piece_id = &"wall_gated"
-display_name = "Wall Gated"
+piece_id = &"wall_doorway_scaffold"
+display_name = "Wall Doorway Scaffold"
 category = &"wall"
 preview_scene = ExtResource("60_xk73o")
 placement_layer = &"overlay"
@@ -1188,10 +908,10 @@ blocks_movement = true
 blocks_projectiles = true
 default_tags = PackedStringArray("wall")
 
-[sub_resource type="Resource" id="Resource_k8vah"]
+[sub_resource type="Resource" id="Resource_ls1mf"]
 script = ExtResource("2_xhngj")
-piece_id = &"wall_half"
-display_name = "Wall Half"
+piece_id = &"wall_doorway_sides"
+display_name = "Wall Doorway Sides"
 category = &"wall"
 preview_scene = ExtResource("61_ya6v8")
 placement_layer = &"overlay"
@@ -1199,10 +919,10 @@ blocks_movement = true
 blocks_projectiles = true
 default_tags = PackedStringArray("wall")
 
-[sub_resource type="Resource" id="Resource_dml1o"]
+[sub_resource type="Resource" id="Resource_vfwm5"]
 script = ExtResource("2_xhngj")
-piece_id = &"wall_half_endcap"
-display_name = "Wall Half Endcap"
+piece_id = &"wall_endcap"
+display_name = "Wall Endcap"
 category = &"wall"
 preview_scene = ExtResource("62_rmmva")
 placement_layer = &"overlay"
@@ -1210,10 +930,10 @@ blocks_movement = true
 blocks_projectiles = true
 default_tags = PackedStringArray("wall")
 
-[sub_resource type="Resource" id="Resource_pii41"]
+[sub_resource type="Resource" id="Resource_dhwto"]
 script = ExtResource("2_xhngj")
-piece_id = &"wall_half_endcap_sloped"
-display_name = "Wall Half Endcap Sloped"
+piece_id = &"wall_gated"
+display_name = "Wall Gated"
 category = &"wall"
 preview_scene = ExtResource("63_das6s")
 placement_layer = &"overlay"
@@ -1221,10 +941,10 @@ blocks_movement = true
 blocks_projectiles = true
 default_tags = PackedStringArray("wall")
 
-[sub_resource type="Resource" id="Resource_pbj7j"]
+[sub_resource type="Resource" id="Resource_sneo1"]
 script = ExtResource("2_xhngj")
-piece_id = &"wall_open_scaffold"
-display_name = "Wall Open Scaffold"
+piece_id = &"wall_half"
+display_name = "Wall Half"
 category = &"wall"
 preview_scene = ExtResource("64_dwmse")
 placement_layer = &"overlay"
@@ -1232,10 +952,10 @@ blocks_movement = true
 blocks_projectiles = true
 default_tags = PackedStringArray("wall")
 
-[sub_resource type="Resource" id="Resource_t0niw"]
+[sub_resource type="Resource" id="Resource_2enmf"]
 script = ExtResource("2_xhngj")
-piece_id = &"wall_pillar"
-display_name = "Wall Pillar"
+piece_id = &"wall_half_endcap"
+display_name = "Wall Half Endcap"
 category = &"wall"
 preview_scene = ExtResource("65_1wel7")
 placement_layer = &"overlay"
@@ -1243,10 +963,10 @@ blocks_movement = true
 blocks_projectiles = true
 default_tags = PackedStringArray("wall")
 
-[sub_resource type="Resource" id="Resource_vsrag"]
+[sub_resource type="Resource" id="Resource_w2mmt"]
 script = ExtResource("2_xhngj")
-piece_id = &"wall_scaffold"
-display_name = "Wall Scaffold"
+piece_id = &"wall_half_endcap_sloped"
+display_name = "Wall Half Endcap Sloped"
 category = &"wall"
 preview_scene = ExtResource("66_d0l0u")
 placement_layer = &"overlay"
@@ -1254,10 +974,10 @@ blocks_movement = true
 blocks_projectiles = true
 default_tags = PackedStringArray("wall")
 
-[sub_resource type="Resource" id="Resource_0xmvv"]
+[sub_resource type="Resource" id="Resource_f420q"]
 script = ExtResource("2_xhngj")
-piece_id = &"wall_shelves"
-display_name = "Wall Shelves"
+piece_id = &"wall_open_scaffold"
+display_name = "Wall Open Scaffold"
 category = &"wall"
 preview_scene = ExtResource("67_tssa5")
 placement_layer = &"overlay"
@@ -1265,10 +985,21 @@ blocks_movement = true
 blocks_projectiles = true
 default_tags = PackedStringArray("wall")
 
-[sub_resource type="Resource" id="Resource_krhkn"]
+[sub_resource type="Resource" id="Resource_6e7hq"]
 script = ExtResource("2_xhngj")
-piece_id = &"wall_sloped"
-display_name = "Wall Sloped"
+piece_id = &"wall_pillar"
+display_name = "Wall Pillar"
+category = &"wall"
+preview_scene = ExtResource("12_hhpar")
+placement_layer = &"overlay"
+blocks_movement = true
+blocks_projectiles = true
+default_tags = PackedStringArray("wall")
+
+[sub_resource type="Resource" id="Resource_b8h0k"]
+script = ExtResource("2_xhngj")
+piece_id = &"wall_scaffold"
+display_name = "Wall Scaffold"
 category = &"wall"
 preview_scene = ExtResource("68_polmu")
 placement_layer = &"overlay"
@@ -1276,10 +1007,10 @@ blocks_movement = true
 blocks_projectiles = true
 default_tags = PackedStringArray("wall")
 
-[sub_resource type="Resource" id="Resource_ls1mf"]
+[sub_resource type="Resource" id="Resource_ukcov"]
 script = ExtResource("2_xhngj")
-piece_id = &"wall_window_closed"
-display_name = "Wall Window Closed"
+piece_id = &"wall_shelves"
+display_name = "Wall Shelves"
 category = &"wall"
 preview_scene = ExtResource("69_xcvw0")
 placement_layer = &"overlay"
@@ -1287,10 +1018,10 @@ blocks_movement = true
 blocks_projectiles = true
 default_tags = PackedStringArray("wall")
 
-[sub_resource type="Resource" id="Resource_vfwm5"]
+[sub_resource type="Resource" id="Resource_rj0en"]
 script = ExtResource("2_xhngj")
-piece_id = &"wall_window_closed_scaffold"
-display_name = "Wall Window Closed Scaffold"
+piece_id = &"wall_sloped"
+display_name = "Wall Sloped"
 category = &"wall"
 preview_scene = ExtResource("70_1bven")
 placement_layer = &"overlay"
@@ -1298,10 +1029,10 @@ blocks_movement = true
 blocks_projectiles = true
 default_tags = PackedStringArray("wall")
 
-[sub_resource type="Resource" id="Resource_dhwto"]
+[sub_resource type="Resource" id="Resource_3q6y1"]
 script = ExtResource("2_xhngj")
-piece_id = &"wall_window_open"
-display_name = "Wall Window Open"
+piece_id = &"wall_window_closed"
+display_name = "Wall Window Closed"
 category = &"wall"
 preview_scene = ExtResource("71_jtdxj")
 placement_layer = &"overlay"
@@ -1309,10 +1040,10 @@ blocks_movement = true
 blocks_projectiles = true
 default_tags = PackedStringArray("wall")
 
-[sub_resource type="Resource" id="Resource_sneo1"]
+[sub_resource type="Resource" id="Resource_21jt0"]
 script = ExtResource("2_xhngj")
-piece_id = &"wall_window_open_scaffold"
-display_name = "Wall Window Open Scaffold"
+piece_id = &"wall_window_closed_scaffold"
+display_name = "Wall Window Closed Scaffold"
 category = &"wall"
 preview_scene = ExtResource("72_mc5d1")
 placement_layer = &"overlay"
@@ -1320,889 +1051,911 @@ blocks_movement = true
 blocks_projectiles = true
 default_tags = PackedStringArray("wall")
 
-[sub_resource type="Resource" id="Resource_2enmf"]
+[sub_resource type="Resource" id="Resource_ld1bp"]
+script = ExtResource("2_xhngj")
+piece_id = &"wall_window_open"
+display_name = "Wall Window Open"
+category = &"wall"
+preview_scene = ExtResource("73_lu0ug")
+placement_layer = &"overlay"
+blocks_movement = true
+blocks_projectiles = true
+default_tags = PackedStringArray("wall")
+
+[sub_resource type="Resource" id="Resource_3v282"]
+script = ExtResource("2_xhngj")
+piece_id = &"wall_window_open_scaffold"
+display_name = "Wall Window Open Scaffold"
+category = &"wall"
+preview_scene = ExtResource("74_rmrm1")
+placement_layer = &"overlay"
+blocks_movement = true
+blocks_projectiles = true
+default_tags = PackedStringArray("wall")
+
+[sub_resource type="Resource" id="Resource_2hf3o"]
 script = ExtResource("2_xhngj")
 piece_id = &"banner_blue"
 display_name = "Banner Blue"
-category = &"prop"
-preview_scene = ExtResource("73_lu0ug")
-placement_layer = &"overlay"
-default_tags = PackedStringArray("prop")
-
-[sub_resource type="Resource" id="Resource_w2mmt"]
-script = ExtResource("2_xhngj")
-piece_id = &"banner_brown"
-display_name = "Banner Brown"
-category = &"prop"
-preview_scene = ExtResource("74_rmrm1")
-placement_layer = &"overlay"
-default_tags = PackedStringArray("prop")
-
-[sub_resource type="Resource" id="Resource_f420q"]
-script = ExtResource("2_xhngj")
-piece_id = &"banner_green"
-display_name = "Banner Green"
 category = &"prop"
 preview_scene = ExtResource("75_yg1bx")
 placement_layer = &"overlay"
 default_tags = PackedStringArray("prop")
 
-[sub_resource type="Resource" id="Resource_6e7hq"]
+[sub_resource type="Resource" id="Resource_7hlml"]
 script = ExtResource("2_xhngj")
-piece_id = &"banner_patterna_blue"
-display_name = "Banner Pattern A Blue"
+piece_id = &"banner_brown"
+display_name = "Banner Brown"
 category = &"prop"
 preview_scene = ExtResource("76_i0wlr")
 placement_layer = &"overlay"
 default_tags = PackedStringArray("prop")
 
-[sub_resource type="Resource" id="Resource_b8h0k"]
+[sub_resource type="Resource" id="Resource_qm6w4"]
 script = ExtResource("2_xhngj")
-piece_id = &"banner_patterna_brown"
-display_name = "Banner Pattern A Brown"
+piece_id = &"banner_green"
+display_name = "Banner Green"
 category = &"prop"
 preview_scene = ExtResource("77_wlsr8")
 placement_layer = &"overlay"
 default_tags = PackedStringArray("prop")
 
-[sub_resource type="Resource" id="Resource_ukcov"]
+[sub_resource type="Resource" id="Resource_3gjhk"]
 script = ExtResource("2_xhngj")
-piece_id = &"banner_patterna_green"
-display_name = "Banner Pattern A Green"
+piece_id = &"banner_patterna_blue"
+display_name = "Banner Pattern A Blue"
 category = &"prop"
 preview_scene = ExtResource("78_ao4yu")
 placement_layer = &"overlay"
 default_tags = PackedStringArray("prop")
 
-[sub_resource type="Resource" id="Resource_rj0en"]
+[sub_resource type="Resource" id="Resource_20wh7"]
 script = ExtResource("2_xhngj")
-piece_id = &"banner_patterna_red"
-display_name = "Banner Pattern A Red"
+piece_id = &"banner_patterna_brown"
+display_name = "Banner Pattern A Brown"
 category = &"prop"
 preview_scene = ExtResource("79_iie2m")
 placement_layer = &"overlay"
 default_tags = PackedStringArray("prop")
 
-[sub_resource type="Resource" id="Resource_3q6y1"]
+[sub_resource type="Resource" id="Resource_xraqf"]
 script = ExtResource("2_xhngj")
-piece_id = &"banner_patterna_white"
-display_name = "Banner Pattern A White"
+piece_id = &"banner_patterna_green"
+display_name = "Banner Pattern A Green"
 category = &"prop"
 preview_scene = ExtResource("80_u1x7x")
 placement_layer = &"overlay"
 default_tags = PackedStringArray("prop")
 
-[sub_resource type="Resource" id="Resource_21jt0"]
+[sub_resource type="Resource" id="Resource_j6giu"]
 script = ExtResource("2_xhngj")
-piece_id = &"banner_patterna_yellow"
-display_name = "Banner Pattern A Yellow"
+piece_id = &"banner_patterna_red"
+display_name = "Banner Pattern A Red"
 category = &"prop"
 preview_scene = ExtResource("81_gbw1x")
 placement_layer = &"overlay"
 default_tags = PackedStringArray("prop")
 
-[sub_resource type="Resource" id="Resource_ld1bp"]
+[sub_resource type="Resource" id="Resource_gbuep"]
 script = ExtResource("2_xhngj")
-piece_id = &"banner_patternb_blue"
-display_name = "Banner Pattern B Blue"
+piece_id = &"banner_patterna_white"
+display_name = "Banner Pattern A White"
 category = &"prop"
 preview_scene = ExtResource("82_vb0jl")
 placement_layer = &"overlay"
 default_tags = PackedStringArray("prop")
 
-[sub_resource type="Resource" id="Resource_3v282"]
+[sub_resource type="Resource" id="Resource_eewo4"]
 script = ExtResource("2_xhngj")
-piece_id = &"banner_patternb_brown"
-display_name = "Banner Pattern B Brown"
+piece_id = &"banner_patterna_yellow"
+display_name = "Banner Pattern A Yellow"
 category = &"prop"
 preview_scene = ExtResource("83_jhhk8")
 placement_layer = &"overlay"
 default_tags = PackedStringArray("prop")
 
-[sub_resource type="Resource" id="Resource_2hf3o"]
+[sub_resource type="Resource" id="Resource_cgkc8"]
 script = ExtResource("2_xhngj")
-piece_id = &"banner_patternb_green"
-display_name = "Banner Pattern B Green"
+piece_id = &"banner_patternb_blue"
+display_name = "Banner Pattern B Blue"
 category = &"prop"
 preview_scene = ExtResource("84_8ukry")
 placement_layer = &"overlay"
 default_tags = PackedStringArray("prop")
 
-[sub_resource type="Resource" id="Resource_7hlml"]
+[sub_resource type="Resource" id="Resource_0mka7"]
 script = ExtResource("2_xhngj")
-piece_id = &"banner_patternb_red"
-display_name = "Banner Pattern B Red"
+piece_id = &"banner_patternb_brown"
+display_name = "Banner Pattern B Brown"
 category = &"prop"
 preview_scene = ExtResource("85_r5cx3")
 placement_layer = &"overlay"
 default_tags = PackedStringArray("prop")
 
-[sub_resource type="Resource" id="Resource_qm6w4"]
+[sub_resource type="Resource" id="Resource_owar4"]
 script = ExtResource("2_xhngj")
-piece_id = &"banner_patternb_white"
-display_name = "Banner Pattern B White"
+piece_id = &"banner_patternb_green"
+display_name = "Banner Pattern B Green"
 category = &"prop"
 preview_scene = ExtResource("86_aqo3c")
 placement_layer = &"overlay"
 default_tags = PackedStringArray("prop")
 
-[sub_resource type="Resource" id="Resource_3gjhk"]
+[sub_resource type="Resource" id="Resource_ktnbm"]
 script = ExtResource("2_xhngj")
-piece_id = &"banner_patternb_yellow"
-display_name = "Banner Pattern B Yellow"
+piece_id = &"banner_patternb_red"
+display_name = "Banner Pattern B Red"
 category = &"prop"
 preview_scene = ExtResource("87_m6puc")
 placement_layer = &"overlay"
 default_tags = PackedStringArray("prop")
 
-[sub_resource type="Resource" id="Resource_20wh7"]
+[sub_resource type="Resource" id="Resource_w7o08"]
 script = ExtResource("2_xhngj")
-piece_id = &"banner_patternc_blue"
-display_name = "Banner Pattern C Blue"
+piece_id = &"banner_patternb_white"
+display_name = "Banner Pattern B White"
 category = &"prop"
 preview_scene = ExtResource("88_rco7g")
 placement_layer = &"overlay"
 default_tags = PackedStringArray("prop")
 
-[sub_resource type="Resource" id="Resource_xraqf"]
+[sub_resource type="Resource" id="Resource_so50g"]
 script = ExtResource("2_xhngj")
-piece_id = &"banner_patternc_brown"
-display_name = "Banner Pattern C Brown"
+piece_id = &"banner_patternb_yellow"
+display_name = "Banner Pattern B Yellow"
 category = &"prop"
 preview_scene = ExtResource("89_yljrn")
 placement_layer = &"overlay"
 default_tags = PackedStringArray("prop")
 
-[sub_resource type="Resource" id="Resource_j6giu"]
+[sub_resource type="Resource" id="Resource_ie17p"]
 script = ExtResource("2_xhngj")
-piece_id = &"banner_patternc_green"
-display_name = "Banner Pattern C Green"
+piece_id = &"banner_patternc_blue"
+display_name = "Banner Pattern C Blue"
 category = &"prop"
 preview_scene = ExtResource("90_f5qsb")
 placement_layer = &"overlay"
 default_tags = PackedStringArray("prop")
 
-[sub_resource type="Resource" id="Resource_gbuep"]
+[sub_resource type="Resource" id="Resource_nh37l"]
 script = ExtResource("2_xhngj")
-piece_id = &"banner_patternc_red"
-display_name = "Banner Pattern C Red"
+piece_id = &"banner_patternc_brown"
+display_name = "Banner Pattern C Brown"
 category = &"prop"
 preview_scene = ExtResource("91_mvvko")
 placement_layer = &"overlay"
 default_tags = PackedStringArray("prop")
 
-[sub_resource type="Resource" id="Resource_eewo4"]
+[sub_resource type="Resource" id="Resource_u6mmm"]
 script = ExtResource("2_xhngj")
-piece_id = &"banner_patternc_white"
-display_name = "Banner Pattern C White"
+piece_id = &"banner_patternc_green"
+display_name = "Banner Pattern C Green"
 category = &"prop"
 preview_scene = ExtResource("92_7ba0f")
 placement_layer = &"overlay"
 default_tags = PackedStringArray("prop")
 
-[sub_resource type="Resource" id="Resource_cgkc8"]
+[sub_resource type="Resource" id="Resource_pj0e5"]
 script = ExtResource("2_xhngj")
-piece_id = &"banner_patternc_yellow"
-display_name = "Banner Pattern C Yellow"
+piece_id = &"banner_patternc_red"
+display_name = "Banner Pattern C Red"
 category = &"prop"
 preview_scene = ExtResource("93_pehhq")
 placement_layer = &"overlay"
 default_tags = PackedStringArray("prop")
 
-[sub_resource type="Resource" id="Resource_0mka7"]
+[sub_resource type="Resource" id="Resource_xm3ij"]
 script = ExtResource("2_xhngj")
-piece_id = &"banner_red"
-display_name = "Banner Red"
+piece_id = &"banner_patternc_white"
+display_name = "Banner Pattern C White"
 category = &"prop"
 preview_scene = ExtResource("94_myv4s")
 placement_layer = &"overlay"
 default_tags = PackedStringArray("prop")
 
-[sub_resource type="Resource" id="Resource_owar4"]
+[sub_resource type="Resource" id="Resource_flifo"]
 script = ExtResource("2_xhngj")
-piece_id = &"banner_shield_blue"
-display_name = "Banner Shield Blue"
+piece_id = &"banner_patternc_yellow"
+display_name = "Banner Pattern C Yellow"
 category = &"prop"
 preview_scene = ExtResource("95_3jlps")
 placement_layer = &"overlay"
 default_tags = PackedStringArray("prop")
 
-[sub_resource type="Resource" id="Resource_ktnbm"]
+[sub_resource type="Resource" id="Resource_c0rxk"]
 script = ExtResource("2_xhngj")
-piece_id = &"banner_shield_brown"
-display_name = "Banner Shield Brown"
+piece_id = &"banner_red"
+display_name = "Banner Red"
 category = &"prop"
 preview_scene = ExtResource("96_o1his")
 placement_layer = &"overlay"
 default_tags = PackedStringArray("prop")
 
-[sub_resource type="Resource" id="Resource_w7o08"]
-script = ExtResource("2_xhngj")
-piece_id = &"banner_shield_green"
-display_name = "Banner Shield Green"
-category = &"prop"
-preview_scene = ExtResource("97_kc23l")
-placement_layer = &"overlay"
-default_tags = PackedStringArray("prop")
-
-[sub_resource type="Resource" id="Resource_so50g"]
-script = ExtResource("2_xhngj")
-piece_id = &"banner_shield_red"
-display_name = "Banner Shield Red"
-category = &"prop"
-preview_scene = ExtResource("98_lpnej")
-placement_layer = &"overlay"
-default_tags = PackedStringArray("prop")
-
-[sub_resource type="Resource" id="Resource_ie17p"]
-script = ExtResource("2_xhngj")
-piece_id = &"banner_shield_white"
-display_name = "Banner Shield White"
-category = &"prop"
-preview_scene = ExtResource("99_u2o2v")
-placement_layer = &"overlay"
-default_tags = PackedStringArray("prop")
-
-[sub_resource type="Resource" id="Resource_nh37l"]
-script = ExtResource("2_xhngj")
-piece_id = &"banner_shield_yellow"
-display_name = "Banner Shield Yellow"
-category = &"prop"
-preview_scene = ExtResource("100_ohfff")
-placement_layer = &"overlay"
-default_tags = PackedStringArray("prop")
-
-[sub_resource type="Resource" id="Resource_u6mmm"]
-script = ExtResource("2_xhngj")
-piece_id = &"banner_thin_blue"
-display_name = "Banner Thin Blue"
-category = &"prop"
-preview_scene = ExtResource("101_bm0l0")
-placement_layer = &"overlay"
-default_tags = PackedStringArray("prop")
-
-[sub_resource type="Resource" id="Resource_pj0e5"]
-script = ExtResource("2_xhngj")
-piece_id = &"banner_thin_brown"
-display_name = "Banner Thin Brown"
-category = &"prop"
-preview_scene = ExtResource("102_wfqnv")
-placement_layer = &"overlay"
-default_tags = PackedStringArray("prop")
-
-[sub_resource type="Resource" id="Resource_xm3ij"]
-script = ExtResource("2_xhngj")
-piece_id = &"banner_thin_green"
-display_name = "Banner Thin Green"
-category = &"prop"
-preview_scene = ExtResource("103_8asds")
-placement_layer = &"overlay"
-default_tags = PackedStringArray("prop")
-
-[sub_resource type="Resource" id="Resource_flifo"]
-script = ExtResource("2_xhngj")
-piece_id = &"banner_thin_red"
-display_name = "Banner Thin Red"
-category = &"prop"
-preview_scene = ExtResource("104_dt485")
-placement_layer = &"overlay"
-default_tags = PackedStringArray("prop")
-
-[sub_resource type="Resource" id="Resource_c0rxk"]
-script = ExtResource("2_xhngj")
-piece_id = &"banner_thin_white"
-display_name = "Banner Thin White"
-category = &"prop"
-preview_scene = ExtResource("105_xaeeo")
-placement_layer = &"overlay"
-default_tags = PackedStringArray("prop")
-
 [sub_resource type="Resource" id="Resource_0aeoc"]
 script = ExtResource("2_xhngj")
-piece_id = &"banner_thin_yellow"
-display_name = "Banner Thin Yellow"
+piece_id = &"banner_shield_blue"
+display_name = "Banner Shield Blue"
 category = &"prop"
-preview_scene = ExtResource("106_2mep6")
+preview_scene = ExtResource("10_cqpkk")
 placement_layer = &"overlay"
 default_tags = PackedStringArray("prop")
 
 [sub_resource type="Resource" id="Resource_rtbvq"]
 script = ExtResource("2_xhngj")
-piece_id = &"banner_triple_blue"
-display_name = "Banner Triple Blue"
+piece_id = &"banner_shield_brown"
+display_name = "Banner Shield Brown"
 category = &"prop"
-preview_scene = ExtResource("107_i8c5o")
+preview_scene = ExtResource("97_kc23l")
 placement_layer = &"overlay"
 default_tags = PackedStringArray("prop")
 
 [sub_resource type="Resource" id="Resource_jgby8"]
 script = ExtResource("2_xhngj")
-piece_id = &"banner_triple_brown"
-display_name = "Banner Triple Brown"
+piece_id = &"banner_shield_green"
+display_name = "Banner Shield Green"
 category = &"prop"
-preview_scene = ExtResource("108_h2hux")
+preview_scene = ExtResource("98_lpnej")
 placement_layer = &"overlay"
 default_tags = PackedStringArray("prop")
 
 [sub_resource type="Resource" id="Resource_woovj"]
 script = ExtResource("2_xhngj")
-piece_id = &"banner_triple_green"
-display_name = "Banner Triple Green"
+piece_id = &"banner_shield_red"
+display_name = "Banner Shield Red"
 category = &"prop"
-preview_scene = ExtResource("109_gfidh")
+preview_scene = ExtResource("99_u2o2v")
 placement_layer = &"overlay"
 default_tags = PackedStringArray("prop")
 
 [sub_resource type="Resource" id="Resource_33rff"]
 script = ExtResource("2_xhngj")
-piece_id = &"banner_triple_red"
-display_name = "Banner Triple Red"
+piece_id = &"banner_shield_white"
+display_name = "Banner Shield White"
 category = &"prop"
-preview_scene = ExtResource("110_3mhmr")
+preview_scene = ExtResource("100_ohfff")
 placement_layer = &"overlay"
 default_tags = PackedStringArray("prop")
 
 [sub_resource type="Resource" id="Resource_3w45x"]
 script = ExtResource("2_xhngj")
-piece_id = &"banner_triple_white"
-display_name = "Banner Triple White"
+piece_id = &"banner_shield_yellow"
+display_name = "Banner Shield Yellow"
 category = &"prop"
-preview_scene = ExtResource("111_b0yb8")
+preview_scene = ExtResource("101_bm0l0")
 placement_layer = &"overlay"
 default_tags = PackedStringArray("prop")
 
 [sub_resource type="Resource" id="Resource_b2jvr"]
 script = ExtResource("2_xhngj")
-piece_id = &"banner_triple_yellow"
-display_name = "Banner Triple Yellow"
+piece_id = &"banner_thin_blue"
+display_name = "Banner Thin Blue"
 category = &"prop"
-preview_scene = ExtResource("112_6la8g")
+preview_scene = ExtResource("102_wfqnv")
 placement_layer = &"overlay"
 default_tags = PackedStringArray("prop")
 
 [sub_resource type="Resource" id="Resource_tq2yc"]
 script = ExtResource("2_xhngj")
-piece_id = &"banner_white"
-display_name = "Banner White"
+piece_id = &"banner_thin_brown"
+display_name = "Banner Thin Brown"
 category = &"prop"
-preview_scene = ExtResource("113_vheau")
+preview_scene = ExtResource("103_8asds")
 placement_layer = &"overlay"
 default_tags = PackedStringArray("prop")
 
 [sub_resource type="Resource" id="Resource_3hqe2"]
 script = ExtResource("2_xhngj")
-piece_id = &"banner_yellow"
-display_name = "Banner Yellow"
+piece_id = &"banner_thin_green"
+display_name = "Banner Thin Green"
 category = &"prop"
-preview_scene = ExtResource("114_tmfvm")
+preview_scene = ExtResource("104_dt485")
 placement_layer = &"overlay"
 default_tags = PackedStringArray("prop")
 
 [sub_resource type="Resource" id="Resource_pvs8x"]
 script = ExtResource("2_xhngj")
-piece_id = &"barrel_large"
-display_name = "Barrel Large"
+piece_id = &"banner_thin_red"
+display_name = "Banner Thin Red"
 category = &"prop"
-preview_scene = ExtResource("6_4g4yj")
+preview_scene = ExtResource("105_xaeeo")
 placement_layer = &"overlay"
 default_tags = PackedStringArray("prop")
 
 [sub_resource type="Resource" id="Resource_0d22i"]
 script = ExtResource("2_xhngj")
-piece_id = &"barrel_large_decorated"
-display_name = "Barrel Large Decorated"
+piece_id = &"banner_thin_white"
+display_name = "Banner Thin White"
 category = &"prop"
-preview_scene = ExtResource("115_0ipa6")
+preview_scene = ExtResource("106_2mep6")
 placement_layer = &"overlay"
 default_tags = PackedStringArray("prop")
 
 [sub_resource type="Resource" id="Resource_uq74b"]
 script = ExtResource("2_xhngj")
-piece_id = &"barrel_small"
-display_name = "Barrel Small"
+piece_id = &"banner_thin_yellow"
+display_name = "Banner Thin Yellow"
 category = &"prop"
-preview_scene = ExtResource("116_my1sb")
+preview_scene = ExtResource("107_i8c5o")
 placement_layer = &"overlay"
 default_tags = PackedStringArray("prop")
 
 [sub_resource type="Resource" id="Resource_p7852"]
 script = ExtResource("2_xhngj")
-piece_id = &"barrel_small_stack"
-display_name = "Barrel Small Stack"
+piece_id = &"banner_triple_blue"
+display_name = "Banner Triple Blue"
 category = &"prop"
-preview_scene = ExtResource("117_30sdn")
+preview_scene = ExtResource("108_h2hux")
 placement_layer = &"overlay"
 default_tags = PackedStringArray("prop")
 
 [sub_resource type="Resource" id="Resource_u3b33"]
 script = ExtResource("2_xhngj")
-piece_id = &"bed_decorated"
-display_name = "Bed Decorated"
+piece_id = &"banner_triple_brown"
+display_name = "Banner Triple Brown"
 category = &"prop"
-preview_scene = ExtResource("118_mtcu6")
+preview_scene = ExtResource("109_gfidh")
 placement_layer = &"overlay"
 default_tags = PackedStringArray("prop")
 
 [sub_resource type="Resource" id="Resource_cgtdo"]
 script = ExtResource("2_xhngj")
-piece_id = &"bed_floor"
-display_name = "Bed Floor"
+piece_id = &"banner_triple_green"
+display_name = "Banner Triple Green"
 category = &"prop"
-preview_scene = ExtResource("119_rw10m")
+preview_scene = ExtResource("110_3mhmr")
 placement_layer = &"overlay"
 default_tags = PackedStringArray("prop")
 
 [sub_resource type="Resource" id="Resource_jjcf5"]
 script = ExtResource("2_xhngj")
-piece_id = &"bed_frame"
-display_name = "Bed Frame"
+piece_id = &"banner_triple_red"
+display_name = "Banner Triple Red"
 category = &"prop"
-preview_scene = ExtResource("120_2mnrg")
+preview_scene = ExtResource("111_b0yb8")
 placement_layer = &"overlay"
 default_tags = PackedStringArray("prop")
 
 [sub_resource type="Resource" id="Resource_v2dgw"]
 script = ExtResource("2_xhngj")
-piece_id = &"bottle_a_brown"
-display_name = "Bottle A Brown"
+piece_id = &"banner_triple_white"
+display_name = "Banner Triple White"
 category = &"prop"
-preview_scene = ExtResource("121_fgurj")
+preview_scene = ExtResource("112_6la8g")
 placement_layer = &"overlay"
 default_tags = PackedStringArray("prop")
 
 [sub_resource type="Resource" id="Resource_fsklr"]
 script = ExtResource("2_xhngj")
-piece_id = &"bottle_a_green"
-display_name = "Bottle A Green"
+piece_id = &"banner_triple_yellow"
+display_name = "Banner Triple Yellow"
 category = &"prop"
-preview_scene = ExtResource("122_5t7uk")
+preview_scene = ExtResource("113_vheau")
 placement_layer = &"overlay"
 default_tags = PackedStringArray("prop")
 
 [sub_resource type="Resource" id="Resource_k8ejr"]
 script = ExtResource("2_xhngj")
-piece_id = &"bottle_a_labeled_brown"
-display_name = "Bottle A Labeled Brown"
+piece_id = &"banner_white"
+display_name = "Banner White"
 category = &"prop"
-preview_scene = ExtResource("123_45hwu")
+preview_scene = ExtResource("114_tmfvm")
 placement_layer = &"overlay"
 default_tags = PackedStringArray("prop")
 
 [sub_resource type="Resource" id="Resource_3s0py"]
 script = ExtResource("2_xhngj")
-piece_id = &"bottle_a_labeled_green"
-display_name = "Bottle A Labeled Green"
+piece_id = &"banner_yellow"
+display_name = "Banner Yellow"
 category = &"prop"
-preview_scene = ExtResource("124_egvwf")
+preview_scene = ExtResource("115_0ipa6")
 placement_layer = &"overlay"
 default_tags = PackedStringArray("prop")
 
 [sub_resource type="Resource" id="Resource_3rroe"]
 script = ExtResource("2_xhngj")
-piece_id = &"bottle_b_brown"
-display_name = "Bottle B Brown"
+piece_id = &"barrel_large"
+display_name = "Barrel Large"
 category = &"prop"
-preview_scene = ExtResource("125_txiym")
+preview_scene = ExtResource("5_oxrmj")
 placement_layer = &"overlay"
 default_tags = PackedStringArray("prop")
 
 [sub_resource type="Resource" id="Resource_ntdm2"]
 script = ExtResource("2_xhngj")
-piece_id = &"bottle_b_green"
-display_name = "Bottle B Green"
+piece_id = &"barrel_large_decorated"
+display_name = "Barrel Large Decorated"
 category = &"prop"
-preview_scene = ExtResource("126_qyvvl")
+preview_scene = ExtResource("116_my1sb")
 placement_layer = &"overlay"
 default_tags = PackedStringArray("prop")
 
 [sub_resource type="Resource" id="Resource_xq8ky"]
 script = ExtResource("2_xhngj")
-piece_id = &"bottle_c_brown"
-display_name = "Bottle C Brown"
+piece_id = &"barrel_small"
+display_name = "Barrel Small"
 category = &"prop"
-preview_scene = ExtResource("127_hrafu")
+preview_scene = ExtResource("117_30sdn")
 placement_layer = &"overlay"
 default_tags = PackedStringArray("prop")
 
 [sub_resource type="Resource" id="Resource_uqt5r"]
 script = ExtResource("2_xhngj")
-piece_id = &"bottle_c_green"
-display_name = "Bottle C Green"
+piece_id = &"barrel_small_stack"
+display_name = "Barrel Small Stack"
 category = &"prop"
-preview_scene = ExtResource("128_ukcx5")
+preview_scene = ExtResource("118_mtcu6")
 placement_layer = &"overlay"
 default_tags = PackedStringArray("prop")
 
 [sub_resource type="Resource" id="Resource_cccei"]
 script = ExtResource("2_xhngj")
-piece_id = &"box_large"
-display_name = "Box Large"
+piece_id = &"bed_decorated"
+display_name = "Bed Decorated"
 category = &"prop"
-preview_scene = ExtResource("129_14kdj")
+preview_scene = ExtResource("119_rw10m")
 placement_layer = &"overlay"
 default_tags = PackedStringArray("prop")
 
 [sub_resource type="Resource" id="Resource_cdvjd"]
 script = ExtResource("2_xhngj")
-piece_id = &"box_small"
-display_name = "Box Small"
+piece_id = &"bed_floor"
+display_name = "Bed Floor"
 category = &"prop"
-preview_scene = ExtResource("130_dacc7")
+preview_scene = ExtResource("120_2mnrg")
 placement_layer = &"overlay"
 default_tags = PackedStringArray("prop")
 
 [sub_resource type="Resource" id="Resource_mv2vq"]
 script = ExtResource("2_xhngj")
-piece_id = &"box_small_decorated"
-display_name = "Box Small Decorated"
+piece_id = &"bed_frame"
+display_name = "Bed Frame"
 category = &"prop"
-preview_scene = ExtResource("131_6qr2t")
+preview_scene = ExtResource("121_fgurj")
 placement_layer = &"overlay"
 default_tags = PackedStringArray("prop")
 
 [sub_resource type="Resource" id="Resource_bvjfj"]
 script = ExtResource("2_xhngj")
-piece_id = &"box_stacked"
-display_name = "Box Stacked"
+piece_id = &"bottle_a_brown"
+display_name = "Bottle A Brown"
 category = &"prop"
-preview_scene = ExtResource("132_ptxvh")
+preview_scene = ExtResource("122_5t7uk")
 placement_layer = &"overlay"
 default_tags = PackedStringArray("prop")
 
 [sub_resource type="Resource" id="Resource_6u64m"]
 script = ExtResource("2_xhngj")
-piece_id = &"candle"
-display_name = "Candle"
+piece_id = &"bottle_a_green"
+display_name = "Bottle A Green"
 category = &"prop"
-preview_scene = ExtResource("133_chucc")
+preview_scene = ExtResource("123_45hwu")
 placement_layer = &"overlay"
 default_tags = PackedStringArray("prop")
 
 [sub_resource type="Resource" id="Resource_w5gh6"]
 script = ExtResource("2_xhngj")
-piece_id = &"candle_lit"
-display_name = "Candle Lit"
+piece_id = &"bottle_a_labeled_brown"
+display_name = "Bottle A Labeled Brown"
 category = &"prop"
-preview_scene = ExtResource("134_800al")
+preview_scene = ExtResource("124_egvwf")
 placement_layer = &"overlay"
 default_tags = PackedStringArray("prop")
 
 [sub_resource type="Resource" id="Resource_uvobj"]
 script = ExtResource("2_xhngj")
-piece_id = &"candle_melted"
-display_name = "Candle Melted"
+piece_id = &"bottle_a_labeled_green"
+display_name = "Bottle A Labeled Green"
 category = &"prop"
-preview_scene = ExtResource("135_k134t")
+preview_scene = ExtResource("125_txiym")
 placement_layer = &"overlay"
 default_tags = PackedStringArray("prop")
 
 [sub_resource type="Resource" id="Resource_0ni7s"]
 script = ExtResource("2_xhngj")
-piece_id = &"candle_thin"
-display_name = "Candle Thin"
+piece_id = &"bottle_b_brown"
+display_name = "Bottle B Brown"
 category = &"prop"
-preview_scene = ExtResource("136_vthia")
+preview_scene = ExtResource("126_qyvvl")
 placement_layer = &"overlay"
 default_tags = PackedStringArray("prop")
 
 [sub_resource type="Resource" id="Resource_j5aod"]
 script = ExtResource("2_xhngj")
-piece_id = &"candle_thin_lit"
-display_name = "Candle Thin Lit"
+piece_id = &"bottle_b_green"
+display_name = "Bottle B Green"
 category = &"prop"
-preview_scene = ExtResource("137_87y8o")
+preview_scene = ExtResource("127_hrafu")
 placement_layer = &"overlay"
 default_tags = PackedStringArray("prop")
 
 [sub_resource type="Resource" id="Resource_gcjdh"]
 script = ExtResource("2_xhngj")
-piece_id = &"candle_triple"
-display_name = "Candle Triple"
+piece_id = &"bottle_c_brown"
+display_name = "Bottle C Brown"
 category = &"prop"
-preview_scene = ExtResource("138_1ghbo")
+preview_scene = ExtResource("128_ukcx5")
 placement_layer = &"overlay"
 default_tags = PackedStringArray("prop")
 
 [sub_resource type="Resource" id="Resource_500wu"]
 script = ExtResource("2_xhngj")
-piece_id = &"chair"
-display_name = "Chair"
+piece_id = &"bottle_c_green"
+display_name = "Bottle C Green"
 category = &"prop"
-preview_scene = ExtResource("139_ybckm")
+preview_scene = ExtResource("129_14kdj")
 placement_layer = &"overlay"
 default_tags = PackedStringArray("prop")
 
 [sub_resource type="Resource" id="Resource_86uoy"]
 script = ExtResource("2_xhngj")
-piece_id = &"chest"
-display_name = "Chest"
+piece_id = &"box_large"
+display_name = "Box Large"
 category = &"prop"
-preview_scene = ExtResource("9_4rv86")
+preview_scene = ExtResource("130_dacc7")
 placement_layer = &"overlay"
 default_tags = PackedStringArray("prop")
 
 [sub_resource type="Resource" id="Resource_r2v7j"]
 script = ExtResource("2_xhngj")
-piece_id = &"chest_gold"
-display_name = "Chest Gold"
+piece_id = &"box_small"
+display_name = "Box Small"
 category = &"prop"
-preview_scene = ExtResource("140_julvh")
+preview_scene = ExtResource("131_6qr2t")
 placement_layer = &"overlay"
 default_tags = PackedStringArray("prop")
 
 [sub_resource type="Resource" id="Resource_s4tcp"]
 script = ExtResource("2_xhngj")
-piece_id = &"coin"
-display_name = "Coin"
+piece_id = &"box_small_decorated"
+display_name = "Box Small Decorated"
 category = &"prop"
-preview_scene = ExtResource("141_l02xe")
+preview_scene = ExtResource("132_ptxvh")
 placement_layer = &"overlay"
 default_tags = PackedStringArray("prop")
 
 [sub_resource type="Resource" id="Resource_78thl"]
 script = ExtResource("2_xhngj")
-piece_id = &"coin_stack_large"
-display_name = "Coin Stack Large"
+piece_id = &"box_stacked"
+display_name = "Box Stacked"
 category = &"prop"
-preview_scene = ExtResource("142_82c5h")
+preview_scene = ExtResource("133_chucc")
 placement_layer = &"overlay"
 default_tags = PackedStringArray("prop")
 
 [sub_resource type="Resource" id="Resource_ayfb1"]
 script = ExtResource("2_xhngj")
-piece_id = &"coin_stack_medium"
-display_name = "Coin Stack Medium"
+piece_id = &"candle"
+display_name = "Candle"
 category = &"prop"
-preview_scene = ExtResource("143_w4hsm")
+preview_scene = ExtResource("134_800al")
 placement_layer = &"overlay"
 default_tags = PackedStringArray("prop")
 
 [sub_resource type="Resource" id="Resource_wcla7"]
 script = ExtResource("2_xhngj")
-piece_id = &"coin_stack_small"
-display_name = "Coin Stack Small"
+piece_id = &"candle_lit"
+display_name = "Candle Lit"
 category = &"prop"
-preview_scene = ExtResource("144_mu5ly")
+preview_scene = ExtResource("135_k134t")
 placement_layer = &"overlay"
 default_tags = PackedStringArray("prop")
 
 [sub_resource type="Resource" id="Resource_yn77o"]
 script = ExtResource("2_xhngj")
-piece_id = &"crates_stacked"
-display_name = "Crates Stacked"
+piece_id = &"candle_melted"
+display_name = "Candle Melted"
 category = &"prop"
-preview_scene = ExtResource("145_84skh")
+preview_scene = ExtResource("136_vthia")
 placement_layer = &"overlay"
 default_tags = PackedStringArray("prop")
 
 [sub_resource type="Resource" id="Resource_5shy1"]
 script = ExtResource("2_xhngj")
-piece_id = &"keg"
-display_name = "Keg"
+piece_id = &"candle_thin"
+display_name = "Candle Thin"
 category = &"prop"
-preview_scene = ExtResource("146_mvjjj")
+preview_scene = ExtResource("137_87y8o")
 placement_layer = &"overlay"
 default_tags = PackedStringArray("prop")
 
 [sub_resource type="Resource" id="Resource_kwfd6"]
 script = ExtResource("2_xhngj")
-piece_id = &"keg_decorated"
-display_name = "Keg Decorated"
+piece_id = &"candle_thin_lit"
+display_name = "Candle Thin Lit"
 category = &"prop"
-preview_scene = ExtResource("147_kqaa5")
+preview_scene = ExtResource("138_1ghbo")
 placement_layer = &"overlay"
 default_tags = PackedStringArray("prop")
 
 [sub_resource type="Resource" id="Resource_s05ib"]
 script = ExtResource("2_xhngj")
-piece_id = &"key"
-display_name = "Key"
+piece_id = &"candle_triple"
+display_name = "Candle Triple"
 category = &"prop"
-preview_scene = ExtResource("148_u7c4a")
+preview_scene = ExtResource("139_ybckm")
 placement_layer = &"overlay"
 default_tags = PackedStringArray("prop")
 
 [sub_resource type="Resource" id="Resource_0lqdo"]
 script = ExtResource("2_xhngj")
-piece_id = &"keyring"
-display_name = "Keyring"
+piece_id = &"chair"
+display_name = "Chair"
 category = &"prop"
-preview_scene = ExtResource("149_5pep2")
+preview_scene = ExtResource("140_julvh")
 placement_layer = &"overlay"
 default_tags = PackedStringArray("prop")
 
 [sub_resource type="Resource" id="Resource_5d2gf"]
 script = ExtResource("2_xhngj")
-piece_id = &"keyring_hanging"
-display_name = "Keyring Hanging"
+piece_id = &"chest"
+display_name = "Chest"
 category = &"prop"
-preview_scene = ExtResource("150_hysmn")
+preview_scene = ExtResource("8_7qnbw")
 placement_layer = &"overlay"
 default_tags = PackedStringArray("prop")
 
 [sub_resource type="Resource" id="Resource_fnro4"]
 script = ExtResource("2_xhngj")
-piece_id = &"plate"
-display_name = "Plate"
+piece_id = &"chest_gold"
+display_name = "Chest Gold"
 category = &"prop"
-preview_scene = ExtResource("151_is2vh")
+preview_scene = ExtResource("141_l02xe")
 placement_layer = &"overlay"
 default_tags = PackedStringArray("prop")
 
 [sub_resource type="Resource" id="Resource_2dj8e"]
 script = ExtResource("2_xhngj")
-piece_id = &"plate_food_a"
-display_name = "Plate Food A"
+piece_id = &"coin"
+display_name = "Coin"
 category = &"prop"
-preview_scene = ExtResource("152_gr5ar")
+preview_scene = ExtResource("142_82c5h")
 placement_layer = &"overlay"
 default_tags = PackedStringArray("prop")
 
 [sub_resource type="Resource" id="Resource_071jr"]
 script = ExtResource("2_xhngj")
-piece_id = &"plate_food_b"
-display_name = "Plate Food B"
+piece_id = &"coin_stack_large"
+display_name = "Coin Stack Large"
 category = &"prop"
-preview_scene = ExtResource("153_8c05t")
+preview_scene = ExtResource("143_w4hsm")
 placement_layer = &"overlay"
 default_tags = PackedStringArray("prop")
 
 [sub_resource type="Resource" id="Resource_ps220"]
 script = ExtResource("2_xhngj")
-piece_id = &"plate_small"
-display_name = "Plate Small"
+piece_id = &"coin_stack_medium"
+display_name = "Coin Stack Medium"
 category = &"prop"
-preview_scene = ExtResource("154_6kljm")
+preview_scene = ExtResource("144_mu5ly")
 placement_layer = &"overlay"
 default_tags = PackedStringArray("prop")
 
 [sub_resource type="Resource" id="Resource_c71tp"]
 script = ExtResource("2_xhngj")
-piece_id = &"plate_stack"
-display_name = "Plate Stack"
+piece_id = &"coin_stack_small"
+display_name = "Coin Stack Small"
 category = &"prop"
-preview_scene = ExtResource("155_7o848")
+preview_scene = ExtResource("145_84skh")
 placement_layer = &"overlay"
 default_tags = PackedStringArray("prop")
 
 [sub_resource type="Resource" id="Resource_clq5j"]
 script = ExtResource("2_xhngj")
-piece_id = &"rubble_half"
-display_name = "Rubble Half"
+piece_id = &"crates_stacked"
+display_name = "Crates Stacked"
 category = &"prop"
-preview_scene = ExtResource("156_vw1sf")
+preview_scene = ExtResource("146_mvjjj")
 placement_layer = &"overlay"
 default_tags = PackedStringArray("prop")
 
 [sub_resource type="Resource" id="Resource_y8585"]
 script = ExtResource("2_xhngj")
-piece_id = &"rubble_large"
-display_name = "Rubble Large"
+piece_id = &"keg"
+display_name = "Keg"
 category = &"prop"
-preview_scene = ExtResource("157_5iqy6")
+preview_scene = ExtResource("147_kqaa5")
 placement_layer = &"overlay"
 default_tags = PackedStringArray("prop")
 
 [sub_resource type="Resource" id="Resource_fsvbq"]
 script = ExtResource("2_xhngj")
-piece_id = &"shelf_large"
-display_name = "Shelf Large"
+piece_id = &"keg_decorated"
+display_name = "Keg Decorated"
 category = &"prop"
-preview_scene = ExtResource("158_dwsah")
+preview_scene = ExtResource("148_u7c4a")
 placement_layer = &"overlay"
 default_tags = PackedStringArray("prop")
 
 [sub_resource type="Resource" id="Resource_bh3ec"]
 script = ExtResource("2_xhngj")
-piece_id = &"shelf_small"
-display_name = "Shelf Small"
+piece_id = &"key"
+display_name = "Key"
 category = &"prop"
-preview_scene = ExtResource("159_ehcgn")
+preview_scene = ExtResource("149_5pep2")
 placement_layer = &"overlay"
 default_tags = PackedStringArray("prop")
 
 [sub_resource type="Resource" id="Resource_twqbf"]
 script = ExtResource("2_xhngj")
-piece_id = &"shelf_small_candles"
-display_name = "Shelf Small Candles"
+piece_id = &"keyring"
+display_name = "Keyring"
 category = &"prop"
-preview_scene = ExtResource("160_c4w5x")
+preview_scene = ExtResource("150_hysmn")
 placement_layer = &"overlay"
 default_tags = PackedStringArray("prop")
 
 [sub_resource type="Resource" id="Resource_ad36n"]
 script = ExtResource("2_xhngj")
-piece_id = &"shelves"
-display_name = "Shelves"
+piece_id = &"keyring_hanging"
+display_name = "Keyring Hanging"
 category = &"prop"
-preview_scene = ExtResource("161_jra1k")
+preview_scene = ExtResource("151_is2vh")
 placement_layer = &"overlay"
 default_tags = PackedStringArray("prop")
 
 [sub_resource type="Resource" id="Resource_ag4ig"]
 script = ExtResource("2_xhngj")
-piece_id = &"stool"
-display_name = "Stool"
+piece_id = &"plate"
+display_name = "Plate"
 category = &"prop"
-preview_scene = ExtResource("162_yatay")
+preview_scene = ExtResource("152_gr5ar")
 placement_layer = &"overlay"
 default_tags = PackedStringArray("prop")
 
 [sub_resource type="Resource" id="Resource_c2bmv"]
 script = ExtResource("2_xhngj")
-piece_id = &"sword_shield"
-display_name = "Sword Shield"
+piece_id = &"plate_food_a"
+display_name = "Plate Food A"
 category = &"prop"
-preview_scene = ExtResource("163_mfy83")
+preview_scene = ExtResource("153_8c05t")
 placement_layer = &"overlay"
 default_tags = PackedStringArray("prop")
 
 [sub_resource type="Resource" id="Resource_a5hy4"]
 script = ExtResource("2_xhngj")
-piece_id = &"sword_shield_broken"
-display_name = "Sword Shield Broken"
+piece_id = &"plate_food_b"
+display_name = "Plate Food B"
 category = &"prop"
-preview_scene = ExtResource("164_ldcnp")
+preview_scene = ExtResource("154_6kljm")
 placement_layer = &"overlay"
 default_tags = PackedStringArray("prop")
 
 [sub_resource type="Resource" id="Resource_k3nu5"]
 script = ExtResource("2_xhngj")
-piece_id = &"sword_shield_gold"
-display_name = "Sword Shield Gold"
+piece_id = &"plate_small"
+display_name = "Plate Small"
 category = &"prop"
-preview_scene = ExtResource("165_frcwb")
+preview_scene = ExtResource("155_7o848")
 placement_layer = &"overlay"
 default_tags = PackedStringArray("prop")
 
 [sub_resource type="Resource" id="Resource_27s3n"]
 script = ExtResource("2_xhngj")
-piece_id = &"table_long"
-display_name = "Table Long"
+piece_id = &"plate_stack"
+display_name = "Plate Stack"
 category = &"prop"
-preview_scene = ExtResource("166_miofj")
+preview_scene = ExtResource("156_vw1sf")
 placement_layer = &"overlay"
 default_tags = PackedStringArray("prop")
 
 [sub_resource type="Resource" id="Resource_x556c"]
 script = ExtResource("2_xhngj")
-piece_id = &"table_long_broken"
-display_name = "Table Long Broken"
+piece_id = &"rubble_half"
+display_name = "Rubble Half"
 category = &"prop"
-preview_scene = ExtResource("167_7a3yo")
+preview_scene = ExtResource("157_5iqy6")
 placement_layer = &"overlay"
 default_tags = PackedStringArray("prop")
 
 [sub_resource type="Resource" id="Resource_lhp21"]
 script = ExtResource("2_xhngj")
-piece_id = &"table_long_decorated_a"
-display_name = "Table Long Decorated A"
+piece_id = &"rubble_large"
+display_name = "Rubble Large"
+category = &"prop"
+preview_scene = ExtResource("158_dwsah")
+placement_layer = &"overlay"
+default_tags = PackedStringArray("prop")
+
+[sub_resource type="Resource" id="Resource_p0m1g"]
+script = ExtResource("2_xhngj")
+piece_id = &"shelf_large"
+display_name = "Shelf Large"
+category = &"prop"
+preview_scene = ExtResource("159_ehcgn")
+placement_layer = &"overlay"
+default_tags = PackedStringArray("prop")
+
+[sub_resource type="Resource" id="Resource_w6e7c"]
+script = ExtResource("2_xhngj")
+piece_id = &"shelf_small"
+display_name = "Shelf Small"
+category = &"prop"
+preview_scene = ExtResource("160_c4w5x")
+placement_layer = &"overlay"
+default_tags = PackedStringArray("prop")
+
+[sub_resource type="Resource" id="Resource_mvl7t"]
+script = ExtResource("2_xhngj")
+piece_id = &"shelf_small_candles"
+display_name = "Shelf Small Candles"
+category = &"prop"
+preview_scene = ExtResource("161_jra1k")
+placement_layer = &"overlay"
+default_tags = PackedStringArray("prop")
+
+[sub_resource type="Resource" id="Resource_4q2ne"]
+script = ExtResource("2_xhngj")
+piece_id = &"shelves"
+display_name = "Shelves"
+category = &"prop"
+preview_scene = ExtResource("162_yatay")
+placement_layer = &"overlay"
+default_tags = PackedStringArray("prop")
+
+[sub_resource type="Resource" id="Resource_pec4d"]
+script = ExtResource("2_xhngj")
+piece_id = &"stool"
+display_name = "Stool"
+category = &"prop"
+preview_scene = ExtResource("163_mfy83")
+placement_layer = &"overlay"
+default_tags = PackedStringArray("prop")
+
+[sub_resource type="Resource" id="Resource_fr8mh"]
+script = ExtResource("2_xhngj")
+piece_id = &"sword_shield"
+display_name = "Sword Shield"
+category = &"prop"
+preview_scene = ExtResource("164_ldcnp")
+placement_layer = &"overlay"
+default_tags = PackedStringArray("prop")
+
+[sub_resource type="Resource" id="Resource_cgcvo"]
+script = ExtResource("2_xhngj")
+piece_id = &"sword_shield_broken"
+display_name = "Sword Shield Broken"
+category = &"prop"
+preview_scene = ExtResource("165_frcwb")
+placement_layer = &"overlay"
+default_tags = PackedStringArray("prop")
+
+[sub_resource type="Resource" id="Resource_24303"]
+script = ExtResource("2_xhngj")
+piece_id = &"sword_shield_gold"
+display_name = "Sword Shield Gold"
+category = &"prop"
+preview_scene = ExtResource("166_miofj")
+placement_layer = &"overlay"
+default_tags = PackedStringArray("prop")
+
+[sub_resource type="Resource" id="Resource_ooy1a"]
+script = ExtResource("2_xhngj")
+piece_id = &"table_long"
+display_name = "Table Long"
+category = &"prop"
+preview_scene = ExtResource("167_7a3yo")
+placement_layer = &"overlay"
+default_tags = PackedStringArray("prop")
+
+[sub_resource type="Resource" id="Resource_2ke36"]
+script = ExtResource("2_xhngj")
+piece_id = &"table_long_broken"
+display_name = "Table Long Broken"
 category = &"prop"
 preview_scene = ExtResource("168_6wa58")
 placement_layer = &"overlay"
 default_tags = PackedStringArray("prop")
 
-[sub_resource type="Resource" id="Resource_p0m1g"]
+[sub_resource type="Resource" id="Resource_sov81"]
+script = ExtResource("2_xhngj")
+piece_id = &"table_long_decorated_a"
+display_name = "Table Long Decorated A"
+category = &"prop"
+preview_scene = ExtResource("11_ldvyi")
+placement_layer = &"overlay"
+default_tags = PackedStringArray("prop")
+
+[sub_resource type="Resource" id="Resource_jev1n"]
 script = ExtResource("2_xhngj")
 piece_id = &"table_long_decorated_c"
 display_name = "Table Long Decorated C"
@@ -2211,7 +1964,7 @@ preview_scene = ExtResource("169_fja0x")
 placement_layer = &"overlay"
 default_tags = PackedStringArray("prop")
 
-[sub_resource type="Resource" id="Resource_w6e7c"]
+[sub_resource type="Resource" id="Resource_1v2oe"]
 script = ExtResource("2_xhngj")
 piece_id = &"table_long_tablecloth"
 display_name = "Table Long Tablecloth"
@@ -2220,7 +1973,7 @@ preview_scene = ExtResource("170_cyrwp")
 placement_layer = &"overlay"
 default_tags = PackedStringArray("prop")
 
-[sub_resource type="Resource" id="Resource_mvl7t"]
+[sub_resource type="Resource" id="Resource_vvb33"]
 script = ExtResource("2_xhngj")
 piece_id = &"table_long_tablecloth_decorated_a"
 display_name = "Table Long Tablecloth Decorated A"
@@ -2229,7 +1982,7 @@ preview_scene = ExtResource("171_l1dy7")
 placement_layer = &"overlay"
 default_tags = PackedStringArray("prop")
 
-[sub_resource type="Resource" id="Resource_4q2ne"]
+[sub_resource type="Resource" id="Resource_v6pjy"]
 script = ExtResource("2_xhngj")
 piece_id = &"table_medium"
 display_name = "Table Medium"
@@ -2238,7 +1991,7 @@ preview_scene = ExtResource("172_xv3mq")
 placement_layer = &"overlay"
 default_tags = PackedStringArray("prop")
 
-[sub_resource type="Resource" id="Resource_pec4d"]
+[sub_resource type="Resource" id="Resource_yhkor"]
 script = ExtResource("2_xhngj")
 piece_id = &"table_medium_broken"
 display_name = "Table Medium Broken"
@@ -2247,7 +2000,7 @@ preview_scene = ExtResource("173_8b6e2")
 placement_layer = &"overlay"
 default_tags = PackedStringArray("prop")
 
-[sub_resource type="Resource" id="Resource_fr8mh"]
+[sub_resource type="Resource" id="Resource_hfdhl"]
 script = ExtResource("2_xhngj")
 piece_id = &"table_medium_decorated_a"
 display_name = "Table Medium Decorated A"
@@ -2256,7 +2009,7 @@ preview_scene = ExtResource("174_4qfo1")
 placement_layer = &"overlay"
 default_tags = PackedStringArray("prop")
 
-[sub_resource type="Resource" id="Resource_cgcvo"]
+[sub_resource type="Resource" id="Resource_3xkay"]
 script = ExtResource("2_xhngj")
 piece_id = &"table_medium_tablecloth"
 display_name = "Table Medium Tablecloth"
@@ -2265,7 +2018,7 @@ preview_scene = ExtResource("175_wx758")
 placement_layer = &"overlay"
 default_tags = PackedStringArray("prop")
 
-[sub_resource type="Resource" id="Resource_24303"]
+[sub_resource type="Resource" id="Resource_4v40x"]
 script = ExtResource("2_xhngj")
 piece_id = &"table_medium_tablecloth_decorated_b"
 display_name = "Table Medium Tablecloth Decorated B"
@@ -2274,7 +2027,7 @@ preview_scene = ExtResource("176_7qx0x")
 placement_layer = &"overlay"
 default_tags = PackedStringArray("prop")
 
-[sub_resource type="Resource" id="Resource_ooy1a"]
+[sub_resource type="Resource" id="Resource_gmb54"]
 script = ExtResource("2_xhngj")
 piece_id = &"table_small"
 display_name = "Table Small"
@@ -2283,7 +2036,7 @@ preview_scene = ExtResource("177_53sqr")
 placement_layer = &"overlay"
 default_tags = PackedStringArray("prop")
 
-[sub_resource type="Resource" id="Resource_2ke36"]
+[sub_resource type="Resource" id="Resource_7upwm"]
 script = ExtResource("2_xhngj")
 piece_id = &"table_small_decorated_a"
 display_name = "Table Small Decorated A"
@@ -2292,7 +2045,7 @@ preview_scene = ExtResource("178_ljwn5")
 placement_layer = &"overlay"
 default_tags = PackedStringArray("prop")
 
-[sub_resource type="Resource" id="Resource_sov81"]
+[sub_resource type="Resource" id="Resource_my8jg"]
 script = ExtResource("2_xhngj")
 piece_id = &"table_small_decorated_b"
 display_name = "Table Small Decorated B"
@@ -2301,7 +2054,7 @@ preview_scene = ExtResource("179_b3swc")
 placement_layer = &"overlay"
 default_tags = PackedStringArray("prop")
 
-[sub_resource type="Resource" id="Resource_jev1n"]
+[sub_resource type="Resource" id="Resource_q1gaw"]
 script = ExtResource("2_xhngj")
 piece_id = &"torch"
 display_name = "Torch"
@@ -2310,7 +2063,7 @@ preview_scene = ExtResource("180_ilrto")
 placement_layer = &"overlay"
 default_tags = PackedStringArray("prop")
 
-[sub_resource type="Resource" id="Resource_1v2oe"]
+[sub_resource type="Resource" id="Resource_v8v1n"]
 script = ExtResource("2_xhngj")
 piece_id = &"torch_lit"
 display_name = "Torch Lit"
@@ -2319,7 +2072,7 @@ preview_scene = ExtResource("181_3psr1")
 placement_layer = &"overlay"
 default_tags = PackedStringArray("prop")
 
-[sub_resource type="Resource" id="Resource_vvb33"]
+[sub_resource type="Resource" id="Resource_fh5wl"]
 script = ExtResource("2_xhngj")
 piece_id = &"torch_mounted"
 display_name = "Torch Mounted"
@@ -2328,7 +2081,7 @@ preview_scene = ExtResource("182_ibh71")
 placement_layer = &"overlay"
 default_tags = PackedStringArray("prop")
 
-[sub_resource type="Resource" id="Resource_v6pjy"]
+[sub_resource type="Resource" id="Resource_c1784"]
 script = ExtResource("2_xhngj")
 piece_id = &"trunk_large_a"
 display_name = "Trunk Large A"
@@ -2337,7 +2090,7 @@ preview_scene = ExtResource("183_toaj1")
 placement_layer = &"overlay"
 default_tags = PackedStringArray("prop")
 
-[sub_resource type="Resource" id="Resource_yhkor"]
+[sub_resource type="Resource" id="Resource_8gldy"]
 script = ExtResource("2_xhngj")
 piece_id = &"trunk_large_b"
 display_name = "Trunk Large B"
@@ -2346,7 +2099,7 @@ preview_scene = ExtResource("184_vg14q")
 placement_layer = &"overlay"
 default_tags = PackedStringArray("prop")
 
-[sub_resource type="Resource" id="Resource_hfdhl"]
+[sub_resource type="Resource" id="Resource_dp5pf"]
 script = ExtResource("2_xhngj")
 piece_id = &"trunk_large_c"
 display_name = "Trunk Large C"
@@ -2355,7 +2108,7 @@ preview_scene = ExtResource("185_bh2qk")
 placement_layer = &"overlay"
 default_tags = PackedStringArray("prop")
 
-[sub_resource type="Resource" id="Resource_3xkay"]
+[sub_resource type="Resource" id="Resource_cg0ds"]
 script = ExtResource("2_xhngj")
 piece_id = &"trunk_medium_a"
 display_name = "Trunk Medium A"
@@ -2364,7 +2117,7 @@ preview_scene = ExtResource("186_cqkan")
 placement_layer = &"overlay"
 default_tags = PackedStringArray("prop")
 
-[sub_resource type="Resource" id="Resource_4v40x"]
+[sub_resource type="Resource" id="Resource_x0ddx"]
 script = ExtResource("2_xhngj")
 piece_id = &"trunk_medium_b"
 display_name = "Trunk Medium B"
@@ -2373,7 +2126,7 @@ preview_scene = ExtResource("187_44vsc")
 placement_layer = &"overlay"
 default_tags = PackedStringArray("prop")
 
-[sub_resource type="Resource" id="Resource_gmb54"]
+[sub_resource type="Resource" id="Resource_flkfe"]
 script = ExtResource("2_xhngj")
 piece_id = &"trunk_medium_c"
 display_name = "Trunk Medium C"
@@ -2382,7 +2135,7 @@ preview_scene = ExtResource("188_vvwvr")
 placement_layer = &"overlay"
 default_tags = PackedStringArray("prop")
 
-[sub_resource type="Resource" id="Resource_7upwm"]
+[sub_resource type="Resource" id="Resource_bk4vh"]
 script = ExtResource("2_xhngj")
 piece_id = &"trunk_small_a"
 display_name = "Trunk Small A"
@@ -2391,7 +2144,7 @@ preview_scene = ExtResource("189_0sne0")
 placement_layer = &"overlay"
 default_tags = PackedStringArray("prop")
 
-[sub_resource type="Resource" id="Resource_my8jg"]
+[sub_resource type="Resource" id="Resource_imqpp"]
 script = ExtResource("2_xhngj")
 piece_id = &"trunk_small_b"
 display_name = "Trunk Small B"
@@ -2400,7 +2153,7 @@ preview_scene = ExtResource("190_p1uv1")
 placement_layer = &"overlay"
 default_tags = PackedStringArray("prop")
 
-[sub_resource type="Resource" id="Resource_q1gaw"]
+[sub_resource type="Resource" id="Resource_6vraq"]
 script = ExtResource("2_xhngj")
 piece_id = &"trunk_small_c"
 display_name = "Trunk Small C"
@@ -2409,88 +2162,6 @@ preview_scene = ExtResource("191_n7lgv")
 placement_layer = &"overlay"
 default_tags = PackedStringArray("prop")
 
-[sub_resource type="Resource" id="Resource_entry_trigger_marker"]
-script = ExtResource("2_xhngj")
-piece_id = &"encounter_entry_marker"
-display_name = "Encounter Entry Marker"
-category = &"marker"
-mapping_kind = &"zone_marker"
-allow_cell_overlap = true
-placement_layer = &"overlay"
-default_tags = PackedStringArray("marker", "encounter")
-zone_type = "encounter_trigger"
-zone_role = &"entry"
-
-[sub_resource type="Resource" id="Resource_prop_placement_marker"]
-script = ExtResource("2_xhngj")
-piece_id = &"prop_placement_marker"
-display_name = "Prop Placement Marker"
-category = &"marker"
-mapping_kind = &"zone_marker"
-allow_cell_overlap = true
-placement_layer = &"overlay"
-default_tags = PackedStringArray("marker", "prop")
-zone_type = "prop_placement"
-zone_role = &"filler"
-
-[sub_resource type="Resource" id="Resource_nav_boundary_marker"]
-script = ExtResource("2_xhngj")
-piece_id = &"nav_boundary_marker"
-display_name = "Nav Boundary Marker"
-category = &"marker"
-mapping_kind = &"zone_marker"
-allow_cell_overlap = true
-placement_layer = &"overlay"
-default_tags = PackedStringArray("marker", "nav")
-zone_type = "nav_boundary"
-zone_role = &"room_walkable"
-
-[sub_resource type="Resource" id="Resource_loot_marker"]
-script = ExtResource("2_xhngj")
-piece_id = &"loot_marker"
-display_name = "Loot Marker"
-category = &"marker"
-mapping_kind = &"zone_marker"
-allow_cell_overlap = true
-placement_layer = &"overlay"
-default_tags = PackedStringArray("marker", "loot")
-zone_type = "loot_marker"
-zone_role = &"main"
-
-[sub_resource type="Resource" id="Resource_hall_socket_double"]
-script = ExtResource("2_xhngj")
-piece_id = &"hall_socket_double"
-display_name = "Hall Socket Double"
-category = &"door"
-preview_scene = ExtResource("4_rbp7y")
-mapping_kind = &"door_socket"
-footprint = Vector2i(2, 1)
-placement_layer = &"overlay"
-default_tags = PackedStringArray("door", "hall", "double")
-
-[sub_resource type="Resource" id="Resource_hall_socket_triple"]
-script = ExtResource("2_xhngj")
-piece_id = &"hall_socket_triple"
-display_name = "Hall Socket Triple"
-category = &"door"
-preview_scene = ExtResource("4_rbp7y")
-mapping_kind = &"door_socket"
-footprint = Vector2i(3, 1)
-placement_layer = &"overlay"
-default_tags = PackedStringArray("door", "hall", "triple")
-
-[sub_resource type="Resource" id="Resource_infusion_pillar_marker"]
-script = ExtResource("2_xhngj")
-piece_id = &"infusion_pillar_marker"
-display_name = "Infusion Pillar Marker"
-category = &"marker"
-preview_scene = ExtResource("65_1wel7")
-runtime_scene = ExtResource("10c_infpill")
-mapping_kind = &"runtime_scene"
-allow_cell_overlap = true
-placement_layer = &"overlay"
-default_tags = PackedStringArray("marker", "infusion", "pillar", "boss")
-
 [resource]
 script = ExtResource("192_87dko")
-pieces = Array[Resource]([SubResource("Resource_xvrpp"), SubResource("Resource_floor_mask_small"), SubResource("Resource_floor_mask_large"), SubResource("Resource_floor_mask_extra_large"), SubResource("Resource_v1n83"), SubResource("Resource_qejwo"), SubResource("Resource_ixrym"), SubResource("Resource_spawn_player_marker"), SubResource("Resource_floor_exit_marker"), SubResource("Resource_spawn_exit_marker"), SubResource("Resource_entrance_marker"), SubResource("Resource_spawn_dasher"), SubResource("Resource_spawn_arrow_tower"), SubResource("Resource_spawn_skewer"), SubResource("Resource_spawn_glaiver"), SubResource("Resource_spawn_razorform"), SubResource("Resource_spawn_scrambler"), SubResource("Resource_spawn_flow_dasher"), SubResource("Resource_spawn_flowform"), SubResource("Resource_spawn_stumbler"), SubResource("Resource_spawn_shieldwall"), SubResource("Resource_spawn_warden"), SubResource("Resource_spawn_splitter"), SubResource("Resource_spawn_echoform"), SubResource("Resource_spawn_triad"), SubResource("Resource_spawn_lurker"), SubResource("Resource_spawn_leecher"), SubResource("Resource_spawn_binder"), SubResource("Resource_spawn_fizzler"), SubResource("Resource_spawn_burster"), SubResource("Resource_spawn_detonator"), SubResource("Resource_a246h"), SubResource("Resource_7pl1k"), SubResource("Resource_famxe"), SubResource("Resource_20j7i"), SubResource("Resource_74wme"), SubResource("Resource_5g3f3"), SubResource("Resource_72fi8"), SubResource("Resource_bbe5k"), SubResource("Resource_rim4n"), SubResource("Resource_54dkr"), SubResource("Resource_h5370"), SubResource("Resource_e5x0j"), SubResource("Resource_dfn0e"), SubResource("Resource_3tv25"), SubResource("Resource_2ijq3"), SubResource("Resource_hsa57"), SubResource("Resource_2v74e"), SubResource("Resource_5s8ia"), SubResource("Resource_phjtw"), SubResource("Resource_27cdj"), SubResource("Resource_0nhuq"), SubResource("Resource_l7ng5"), SubResource("Resource_upbxi"), SubResource("Resource_rq72b"), SubResource("Resource_jkwaw"), SubResource("Resource_xgk6d"), SubResource("Resource_sm58t"), SubResource("Resource_vbmb7"), SubResource("Resource_5lxdo"), SubResource("Resource_knnf3"), SubResource("Resource_boy17"), SubResource("Resource_d6a2d"), SubResource("Resource_j3ufh"), SubResource("Resource_y8b6u"), SubResource("Resource_rtax0"), SubResource("Resource_mnp1s"), SubResource("Resource_tcmdh"), SubResource("Resource_yk7l2"), SubResource("Resource_opjhv"), SubResource("Resource_108ws"), SubResource("Resource_v76wo"), SubResource("Resource_bh1ec"), SubResource("Resource_fun0y"), SubResource("Resource_nv8s7"), SubResource("Resource_dbe36"), SubResource("Resource_l4312"), SubResource("Resource_b75n0"), SubResource("Resource_jpk4j"), SubResource("Resource_ei0n8"), SubResource("Resource_1dd5h"), SubResource("Resource_d3u1m"), SubResource("Resource_40mih"), SubResource("Resource_ed3rt"), SubResource("Resource_u7g8n"), SubResource("Resource_a2g4p"), SubResource("Resource_6oih5"), SubResource("Resource_k8vah"), SubResource("Resource_dml1o"), SubResource("Resource_pii41"), SubResource("Resource_pbj7j"), SubResource("Resource_t0niw"), SubResource("Resource_vsrag"), SubResource("Resource_0xmvv"), SubResource("Resource_krhkn"), SubResource("Resource_ls1mf"), SubResource("Resource_vfwm5"), SubResource("Resource_dhwto"), SubResource("Resource_sneo1"), SubResource("Resource_2enmf"), SubResource("Resource_w2mmt"), SubResource("Resource_f420q"), SubResource("Resource_6e7hq"), SubResource("Resource_b8h0k"), SubResource("Resource_ukcov"), SubResource("Resource_rj0en"), SubResource("Resource_3q6y1"), SubResource("Resource_21jt0"), SubResource("Resource_ld1bp"), SubResource("Resource_3v282"), SubResource("Resource_2hf3o"), SubResource("Resource_7hlml"), SubResource("Resource_qm6w4"), SubResource("Resource_3gjhk"), SubResource("Resource_20wh7"), SubResource("Resource_xraqf"), SubResource("Resource_j6giu"), SubResource("Resource_gbuep"), SubResource("Resource_eewo4"), SubResource("Resource_cgkc8"), SubResource("Resource_0mka7"), SubResource("Resource_owar4"), SubResource("Resource_ktnbm"), SubResource("Resource_w7o08"), SubResource("Resource_so50g"), SubResource("Resource_ie17p"), SubResource("Resource_nh37l"), SubResource("Resource_u6mmm"), SubResource("Resource_pj0e5"), SubResource("Resource_xm3ij"), SubResource("Resource_flifo"), SubResource("Resource_c0rxk"), SubResource("Resource_0aeoc"), SubResource("Resource_rtbvq"), SubResource("Resource_jgby8"), SubResource("Resource_woovj"), SubResource("Resource_33rff"), SubResource("Resource_3w45x"), SubResource("Resource_b2jvr"), SubResource("Resource_tq2yc"), SubResource("Resource_3hqe2"), SubResource("Resource_pvs8x"), SubResource("Resource_0d22i"), SubResource("Resource_uq74b"), SubResource("Resource_p7852"), SubResource("Resource_u3b33"), SubResource("Resource_cgtdo"), SubResource("Resource_jjcf5"), SubResource("Resource_v2dgw"), SubResource("Resource_fsklr"), SubResource("Resource_k8ejr"), SubResource("Resource_3s0py"), SubResource("Resource_3rroe"), SubResource("Resource_ntdm2"), SubResource("Resource_xq8ky"), SubResource("Resource_uqt5r"), SubResource("Resource_cccei"), SubResource("Resource_cdvjd"), SubResource("Resource_mv2vq"), SubResource("Resource_bvjfj"), SubResource("Resource_6u64m"), SubResource("Resource_w5gh6"), SubResource("Resource_uvobj"), SubResource("Resource_0ni7s"), SubResource("Resource_j5aod"), SubResource("Resource_gcjdh"), SubResource("Resource_500wu"), SubResource("Resource_86uoy"), SubResource("Resource_r2v7j"), SubResource("Resource_s4tcp"), SubResource("Resource_78thl"), SubResource("Resource_ayfb1"), SubResource("Resource_wcla7"), SubResource("Resource_yn77o"), SubResource("Resource_5shy1"), SubResource("Resource_kwfd6"), SubResource("Resource_s05ib"), SubResource("Resource_0lqdo"), SubResource("Resource_5d2gf"), SubResource("Resource_fnro4"), SubResource("Resource_2dj8e"), SubResource("Resource_071jr"), SubResource("Resource_ps220"), SubResource("Resource_c71tp"), SubResource("Resource_clq5j"), SubResource("Resource_y8585"), SubResource("Resource_fsvbq"), SubResource("Resource_bh3ec"), SubResource("Resource_twqbf"), SubResource("Resource_ad36n"), SubResource("Resource_ag4ig"), SubResource("Resource_c2bmv"), SubResource("Resource_a5hy4"), SubResource("Resource_k3nu5"), SubResource("Resource_27s3n"), SubResource("Resource_x556c"), SubResource("Resource_lhp21"), SubResource("Resource_p0m1g"), SubResource("Resource_w6e7c"), SubResource("Resource_mvl7t"), SubResource("Resource_4q2ne"), SubResource("Resource_pec4d"), SubResource("Resource_fr8mh"), SubResource("Resource_cgcvo"), SubResource("Resource_24303"), SubResource("Resource_ooy1a"), SubResource("Resource_2ke36"), SubResource("Resource_sov81"), SubResource("Resource_jev1n"), SubResource("Resource_1v2oe"), SubResource("Resource_vvb33"), SubResource("Resource_v6pjy"), SubResource("Resource_yhkor"), SubResource("Resource_hfdhl"), SubResource("Resource_3xkay"), SubResource("Resource_4v40x"), SubResource("Resource_gmb54"), SubResource("Resource_7upwm"), SubResource("Resource_my8jg"), SubResource("Resource_q1gaw"), SubResource("Resource_entry_trigger_marker"), SubResource("Resource_prop_placement_marker"), SubResource("Resource_nav_boundary_marker"), SubResource("Resource_loot_marker"), SubResource("Resource_hall_socket_double"), SubResource("Resource_hall_socket_triple"), SubResource("Resource_infusion_pillar_marker")])
+pieces = Array[Resource]([SubResource("Resource_xvrpp"), SubResource("Resource_v1n83"), SubResource("Resource_qejwo"), SubResource("Resource_ixrym"), SubResource("Resource_a246h"), SubResource("Resource_7pl1k"), SubResource("Resource_famxe"), SubResource("Resource_20j7i"), SubResource("Resource_74wme"), SubResource("Resource_5g3f3"), SubResource("Resource_72fi8"), SubResource("Resource_bbe5k"), SubResource("Resource_rim4n"), SubResource("Resource_54dkr"), SubResource("Resource_h5370"), SubResource("Resource_e5x0j"), SubResource("Resource_dfn0e"), SubResource("Resource_3tv25"), SubResource("Resource_2ijq3"), SubResource("Resource_hsa57"), SubResource("Resource_2v74e"), SubResource("Resource_5s8ia"), SubResource("Resource_phjtw"), SubResource("Resource_27cdj"), SubResource("Resource_0nhuq"), SubResource("Resource_l7ng5"), SubResource("Resource_upbxi"), SubResource("Resource_rq72b"), SubResource("Resource_jkwaw"), SubResource("Resource_xgk6d"), SubResource("Resource_sm58t"), SubResource("Resource_vbmb7"), SubResource("Resource_5lxdo"), SubResource("Resource_knnf3"), SubResource("Resource_boy17"), SubResource("Resource_d6a2d"), SubResource("Resource_j3ufh"), SubResource("Resource_y8b6u"), SubResource("Resource_rtax0"), SubResource("Resource_mnp1s"), SubResource("Resource_tcmdh"), SubResource("Resource_yk7l2"), SubResource("Resource_opjhv"), SubResource("Resource_108ws"), SubResource("Resource_v76wo"), SubResource("Resource_bh1ec"), SubResource("Resource_fun0y"), SubResource("Resource_nv8s7"), SubResource("Resource_dbe36"), SubResource("Resource_l4312"), SubResource("Resource_b75n0"), SubResource("Resource_jpk4j"), SubResource("Resource_ei0n8"), SubResource("Resource_1dd5h"), SubResource("Resource_d3u1m"), SubResource("Resource_40mih"), SubResource("Resource_ed3rt"), SubResource("Resource_u7g8n"), SubResource("Resource_a2g4p"), SubResource("Resource_6oih5"), SubResource("Resource_k8vah"), SubResource("Resource_dml1o"), SubResource("Resource_pii41"), SubResource("Resource_pbj7j"), SubResource("Resource_t0niw"), SubResource("Resource_vsrag"), SubResource("Resource_0xmvv"), SubResource("Resource_krhkn"), SubResource("Resource_ls1mf"), SubResource("Resource_vfwm5"), SubResource("Resource_dhwto"), SubResource("Resource_sneo1"), SubResource("Resource_2enmf"), SubResource("Resource_w2mmt"), SubResource("Resource_f420q"), SubResource("Resource_6e7hq"), SubResource("Resource_b8h0k"), SubResource("Resource_ukcov"), SubResource("Resource_rj0en"), SubResource("Resource_3q6y1"), SubResource("Resource_21jt0"), SubResource("Resource_ld1bp"), SubResource("Resource_3v282"), SubResource("Resource_2hf3o"), SubResource("Resource_7hlml"), SubResource("Resource_qm6w4"), SubResource("Resource_3gjhk"), SubResource("Resource_20wh7"), SubResource("Resource_xraqf"), SubResource("Resource_j6giu"), SubResource("Resource_gbuep"), SubResource("Resource_eewo4"), SubResource("Resource_cgkc8"), SubResource("Resource_0mka7"), SubResource("Resource_owar4"), SubResource("Resource_ktnbm"), SubResource("Resource_w7o08"), SubResource("Resource_so50g"), SubResource("Resource_ie17p"), SubResource("Resource_nh37l"), SubResource("Resource_u6mmm"), SubResource("Resource_pj0e5"), SubResource("Resource_xm3ij"), SubResource("Resource_flifo"), SubResource("Resource_c0rxk"), SubResource("Resource_0aeoc"), SubResource("Resource_rtbvq"), SubResource("Resource_jgby8"), SubResource("Resource_woovj"), SubResource("Resource_33rff"), SubResource("Resource_3w45x"), SubResource("Resource_b2jvr"), SubResource("Resource_tq2yc"), SubResource("Resource_3hqe2"), SubResource("Resource_pvs8x"), SubResource("Resource_0d22i"), SubResource("Resource_uq74b"), SubResource("Resource_p7852"), SubResource("Resource_u3b33"), SubResource("Resource_cgtdo"), SubResource("Resource_jjcf5"), SubResource("Resource_v2dgw"), SubResource("Resource_fsklr"), SubResource("Resource_k8ejr"), SubResource("Resource_3s0py"), SubResource("Resource_3rroe"), SubResource("Resource_ntdm2"), SubResource("Resource_xq8ky"), SubResource("Resource_uqt5r"), SubResource("Resource_cccei"), SubResource("Resource_cdvjd"), SubResource("Resource_mv2vq"), SubResource("Resource_bvjfj"), SubResource("Resource_6u64m"), SubResource("Resource_w5gh6"), SubResource("Resource_uvobj"), SubResource("Resource_0ni7s"), SubResource("Resource_j5aod"), SubResource("Resource_gcjdh"), SubResource("Resource_500wu"), SubResource("Resource_86uoy"), SubResource("Resource_r2v7j"), SubResource("Resource_s4tcp"), SubResource("Resource_78thl"), SubResource("Resource_ayfb1"), SubResource("Resource_wcla7"), SubResource("Resource_yn77o"), SubResource("Resource_5shy1"), SubResource("Resource_kwfd6"), SubResource("Resource_s05ib"), SubResource("Resource_0lqdo"), SubResource("Resource_5d2gf"), SubResource("Resource_fnro4"), SubResource("Resource_2dj8e"), SubResource("Resource_071jr"), SubResource("Resource_ps220"), SubResource("Resource_c71tp"), SubResource("Resource_clq5j"), SubResource("Resource_y8585"), SubResource("Resource_fsvbq"), SubResource("Resource_bh3ec"), SubResource("Resource_twqbf"), SubResource("Resource_ad36n"), SubResource("Resource_ag4ig"), SubResource("Resource_c2bmv"), SubResource("Resource_a5hy4"), SubResource("Resource_k3nu5"), SubResource("Resource_27s3n"), SubResource("Resource_x556c"), SubResource("Resource_lhp21"), SubResource("Resource_p0m1g"), SubResource("Resource_w6e7c"), SubResource("Resource_mvl7t"), SubResource("Resource_4q2ne"), SubResource("Resource_pec4d"), SubResource("Resource_fr8mh"), SubResource("Resource_cgcvo"), SubResource("Resource_24303"), SubResource("Resource_ooy1a"), SubResource("Resource_2ke36"), SubResource("Resource_sov81"), SubResource("Resource_jev1n"), SubResource("Resource_1v2oe"), SubResource("Resource_vvb33"), SubResource("Resource_v6pjy"), SubResource("Resource_yhkor"), SubResource("Resource_hfdhl"), SubResource("Resource_3xkay"), SubResource("Resource_4v40x"), SubResource("Resource_gmb54"), SubResource("Resource_7upwm"), SubResource("Resource_my8jg"), SubResource("Resource_q1gaw"), SubResource("Resource_v8v1n"), SubResource("Resource_fh5wl"), SubResource("Resource_c1784"), SubResource("Resource_8gldy"), SubResource("Resource_dp5pf"), SubResource("Resource_cg0ds"), SubResource("Resource_x0ddx"), SubResource("Resource_flkfe"), SubResource("Resource_bk4vh"), SubResource("Resource_imqpp"), SubResource("Resource_6vraq")])

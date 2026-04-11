@@ -149,6 +149,12 @@ layout_mode = 2
 editable = false
 select_all_on_focus = true
 
+[node name="MissionContextLabel" type="Label" parent="Center/Margin/VBox/MultiplayerVBox"]
+layout_mode = 2
+text = "Mission: none selected"
+horizontal_alignment = 1
+autowrap_mode = 3
+
 [node name="CodeRow" type="HBoxContainer" parent="Center/Margin/VBox/MultiplayerVBox" unique_id=1769996709]
 layout_mode = 2
 theme_override_constants/separation = 8

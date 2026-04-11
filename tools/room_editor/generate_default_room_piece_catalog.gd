@@ -118,6 +118,52 @@ func _add_manual_pieces(pieces: Array[Resource], used_piece_ids: Dictionary) -> 
 	door_piece.connector_type = &"standard"
 	_register_piece(pieces, used_piece_ids, door_piece)
 
+	var entrance_piece = _make_piece(
+		&"entrance_marker",
+		"Entrance Marker",
+		&"entrance",
+		"",
+		"",
+		&"connection_marker",
+		true,
+		&"overlay",
+		false,
+		false,
+		PackedStringArray(["entrance"])
+	)
+	entrance_piece.connector_type = &"standard"
+	entrance_piece.marker_kind = "entrance"
+	entrance_piece.marker_width_tiles = 3
+	_register_piece(pieces, used_piece_ids, entrance_piece)
+
+	var exit_piece = _make_piece(
+		&"exit_marker",
+		"Exit Marker",
+		&"exit",
+		"",
+		"",
+		&"connection_marker",
+		true,
+		&"overlay",
+		false,
+		false,
+		PackedStringArray(["exit"])
+	)
+	exit_piece.connector_type = &"standard"
+	exit_piece.marker_kind = "exit"
+	exit_piece.marker_width_tiles = 3
+	_register_piece(pieces, used_piece_ids, exit_piece)
+
+	var spawn_player_piece = _make_zone_marker_piece(
+		&"spawn_player_marker",
+		"Spawn Player Marker",
+		&"spawn",
+		"spawn_player",
+		&"player",
+		PackedStringArray(["spawn", "player"])
+	)
+	_register_piece(pieces, used_piece_ids, spawn_player_piece)
+
 	var spawn_piece = _make_piece(
 		&"spawn_melee_marker",
 		"Spawn Melee Marker",
@@ -135,20 +181,66 @@ func _add_manual_pieces(pieces: Array[Resource], used_piece_ids: Dictionary) -> 
 	spawn_piece.zone_role = &"melee"
 	_register_piece(pieces, used_piece_ids, spawn_piece)
 
-	var exit_piece = _make_piece(
-		&"exit_marker",
-		"Exit Marker",
-		&"exit",
-		"",
-		"res://dungeon/modules/connectivity/exit_marker_2d.tscn",
-		&"runtime_scene",
-		true,
-		&"overlay",
-		false,
-		false,
-		PackedStringArray(["exit"])
+	var spawn_exit_piece = _make_zone_marker_piece(
+		&"spawn_exit_marker",
+		"Spawn Exit Marker",
+		&"marker",
+		"spawn_exit",
+		&"spawn_exit",
+		PackedStringArray(["marker", "spawn", "spawn_exit"])
 	)
-	_register_piece(pieces, used_piece_ids, exit_piece)
+	_register_piece(pieces, used_piece_ids, spawn_exit_piece)
+
+	var encounter_entry_piece = _make_zone_marker_piece(
+		&"encounter_entry_marker",
+		"Encounter Entry Marker",
+		&"marker",
+		"encounter_trigger",
+		&"entry",
+		PackedStringArray(["marker", "encounter", "entry"])
+	)
+	_register_piece(pieces, used_piece_ids, encounter_entry_piece)
+
+	var prop_placement_piece = _make_zone_marker_piece(
+		&"prop_placement_marker",
+		"Prop Placement Marker",
+		&"marker",
+		"prop_placement",
+		&"default",
+		PackedStringArray(["marker", "prop"])
+	)
+	_register_piece(pieces, used_piece_ids, prop_placement_piece)
+
+	var nav_boundary_piece = _make_zone_marker_piece(
+		&"nav_boundary_marker",
+		"Nav Boundary Marker",
+		&"marker",
+		"nav_boundary",
+		&"default",
+		PackedStringArray(["marker", "nav"])
+	)
+	_register_piece(pieces, used_piece_ids, nav_boundary_piece)
+
+	var floor_exit_piece = _make_zone_marker_piece(
+		&"floor_exit_marker",
+		"Floor Exit Marker",
+		&"marker",
+		"floor_exit",
+		&"default",
+		PackedStringArray(["marker", "floor_exit"])
+	)
+	floor_exit_piece.footprint = Vector2i(3, 3)
+	_register_piece(pieces, used_piece_ids, floor_exit_piece)
+
+	var loot_piece = _make_zone_marker_piece(
+		&"loot_marker",
+		"Loot Marker",
+		&"marker",
+		"loot",
+		&"default",
+		PackedStringArray(["marker", "loot"])
+	)
+	_register_piece(pieces, used_piece_ids, loot_piece)
 
 	var blocker_piece = _make_piece(
 		&"barrel_blocker",
@@ -195,6 +287,36 @@ func _add_manual_pieces(pieces: Array[Resource], used_piece_ids: Dictionary) -> 
 	)
 	_register_piece(pieces, used_piece_ids, treasure_piece)
 
+	var mission_interface_piece = _make_piece(
+		&"hub_mission_interface",
+		"Mission Interface",
+		&"Hub",
+		"res://assets/props/banner_shield_blue.gltf",
+		"",
+		&"visual_only",
+		false,
+		&"overlay",
+		false,
+		false,
+		PackedStringArray(["hub", "mission_interface"])
+	)
+	_register_piece(pieces, used_piece_ids, mission_interface_piece)
+
+	var upgrade_area_piece = _make_piece(
+		&"hub_upgrade_area",
+		"Upgrade Area",
+		&"Hub",
+		"res://assets/props/table_long_decorated_A.gltf",
+		"",
+		&"visual_only",
+		false,
+		&"overlay",
+		false,
+		false,
+		PackedStringArray(["hub", "upgrade_area"])
+	)
+	_register_piece(pieces, used_piece_ids, upgrade_area_piece)
+
 	var infusion_pillar_piece = _make_piece(
 		&"infusion_pillar_marker",
 		"Infusion Pillar Marker",
@@ -209,6 +331,32 @@ func _add_manual_pieces(pieces: Array[Resource], used_piece_ids: Dictionary) -> 
 		PackedStringArray(["marker", "infusion", "pillar"])
 	)
 	_register_piece(pieces, used_piece_ids, infusion_pillar_piece)
+
+
+func _make_zone_marker_piece(
+	piece_id: StringName,
+	display_name: String,
+	category: StringName,
+	zone_type: String,
+	zone_role: StringName,
+	default_tags: PackedStringArray
+):
+	var piece = _make_piece(
+		piece_id,
+		display_name,
+		category,
+		"",
+		"",
+		&"zone_marker",
+		true,
+		&"overlay",
+		false,
+		false,
+		default_tags
+	)
+	piece.zone_type = zone_type
+	piece.zone_role = zone_role
+	return piece
 
 
 func _add_generated_visual_pieces(

@@ -8,6 +8,7 @@ signal transport_error(message: String)
 signal registry_lookup_result(success: bool, message: String)
 signal session_code_changed(session_code: String)
 signal lobby_ready_changed(ready_map: Dictionary)
+signal mission_state_changed(snapshot: Dictionary)
 
 enum SessionState {
 	OFFLINE,
@@ -23,12 +24,22 @@ enum SessionRole {
 	DEDICATED_SERVER,
 }
 
+enum MissionFlowPhase {
+	NONE,
+	HUB,
+	SELECT,
+	STAGING,
+}
+
 const DEFAULT_PORT := 7000
 const DEFAULT_MAX_PLAYERS := 4
 const LOBBY_CODE_LENGTH := 6
 const DEFAULT_REGISTRY_URL := "http://127.0.0.1:8787"
 const LOBBY_SCENE_PATH := "res://scenes/ui/lobby_menu.tscn"
+const HUB_SCENE_PATH := "res://scenes/hub/hub_world.tscn"
 const RUN_SCENE_PATH := "res://dungeon/game/dungeon_orchestrator.tscn"
+const MissionRegistryRef = preload("res://scripts/missions/mission_registry.gd")
+const MissionLaunchResolverRef = preload("res://scripts/missions/mission_launch_resolver.gd")
 
 var session_state: int = SessionState.OFFLINE
 var session_role: int = SessionRole.NONE
@@ -42,6 +53,8 @@ var _queued_scene_path := ""
 var _include_host_in_slots := true
 var _runtime_ready_peers: Dictionary = {}
 var _lobby_ready_peers: Dictionary = {}
+var _selected_mission_id: StringName = &""
+var _mission_flow_phase: int = MissionFlowPhase.NONE
 
 # Dedicated registry/session-directory support (optional).
 var _registry_enabled := false
@@ -115,7 +128,14 @@ func can_broadcast_world_replication() -> bool:
 	if session_role != SessionRole.HOST and session_role != SessionRole.DEDICATED_SERVER:
 		return true
 	if session_state != SessionState.IN_RUN:
-		return false
+		return (
+			session_state == SessionState.LOBBY
+			and _mission_flow_phase in [
+				MissionFlowPhase.HUB,
+				MissionFlowPhase.SELECT,
+				MissionFlowPhase.STAGING,
+			]
+		)
 	for key in _peer_slots.keys():
 		var peer_id := int(key)
 		if peer_id == host_peer_id:
@@ -165,8 +185,41 @@ func get_role_name() -> String:
 			return "NONE"
 
 
+func get_mission_flow_phase_name() -> String:
+	match _mission_flow_phase:
+		MissionFlowPhase.HUB:
+			return "HUB"
+		MissionFlowPhase.SELECT:
+			return "SELECT"
+		MissionFlowPhase.STAGING:
+			return "STAGING"
+		_:
+			return "NONE"
+
+
 func get_session_code() -> String:
 	return _session_code
+
+
+func get_selected_mission_id() -> StringName:
+	return _selected_mission_id
+
+
+func has_selected_mission() -> bool:
+	return _selected_mission_id != &"" and MissionRegistryRef.has_mission(_selected_mission_id)
+
+
+func get_selected_mission_payload() -> Dictionary:
+	return MissionRegistryRef.mission_payload(_selected_mission_id)
+
+
+func get_mission_state_snapshot() -> Dictionary:
+	return {
+		"mission_id": String(_selected_mission_id),
+		"mission": get_selected_mission_payload(),
+		"phase": _mission_flow_phase,
+		"phase_name": get_mission_flow_phase_name(),
+	}
 
 
 func get_lobby_ready_map() -> Dictionary:
@@ -273,15 +326,18 @@ func host_lobby(
 		_peer_slots[host_peer_id] = 0
 		_runtime_ready_peers[host_peer_id] = true
 		_lobby_ready_peers[host_peer_id] = false
+	_set_mission_state(&"", MissionFlowPhase.HUB, false)
 	_broadcast_slot_map_if_host()
 	_broadcast_session_code_if_host()
 	_broadcast_lobby_ready_if_host()
+	_broadcast_mission_state_if_host()
 	if as_dedicated_server:
 		_public_port = port
 		_enable_dedicated_diagnostics(port)
 	else:
 		_registry_configure_for_player_host(port, wanted_max_players)
 		_registry_register_instance()
+		_queue_scene_change(HUB_SCENE_PATH)
 	return true
 
 
@@ -302,6 +358,7 @@ func join_lobby(address: String, port: int = DEFAULT_PORT) -> bool:
 	_peer_slots.clear()
 	_runtime_ready_peers.clear()
 	_lobby_ready_peers.clear()
+	_set_mission_state(&"", MissionFlowPhase.NONE, false)
 	_session_code = ""
 	_emit_session_code_changed()
 	_emit_lobby_ready_changed()
@@ -345,11 +402,62 @@ func disconnect_from_session() -> void:
 	_peer_slots.clear()
 	_runtime_ready_peers.clear()
 	_lobby_ready_peers.clear()
+	_set_mission_state(&"", MissionFlowPhase.NONE, false)
 	_session_code = ""
 	_emit_session_code_changed()
 	_emit_lobby_ready_changed()
 	_emit_slot_map_changed()
 	_queue_scene_change(LOBBY_SCENE_PATH)
+
+
+func request_select_mission_from_local_peer(mission_id: StringName) -> void:
+	var normalized_id := StringName(String(mission_id))
+	if session_state != SessionState.LOBBY:
+		return
+	if session_role == SessionRole.HOST or session_role == SessionRole.DEDICATED_SERVER:
+		select_mission(normalized_id)
+		return
+	if session_role == SessionRole.CLIENT and has_active_peer():
+		_rpc_request_select_mission.rpc_id(host_peer_id, normalized_id)
+
+
+func select_mission(mission_id: StringName) -> bool:
+	if session_role != SessionRole.HOST and session_role != SessionRole.DEDICATED_SERVER:
+		_emit_transport_error("Only the server can select a mission.")
+		return false
+	if session_state != SessionState.LOBBY:
+		_emit_transport_error("Mission can only be selected from hub/lobby state.")
+		return false
+	var normalized_id := StringName(String(mission_id))
+	if not MissionRegistryRef.has_mission(normalized_id):
+		_emit_transport_error("Unknown mission '%s'." % [String(normalized_id)])
+		return false
+	_set_mission_state(normalized_id, MissionFlowPhase.SELECT, true)
+	return true
+
+
+func request_mission_staging_from_local_peer() -> void:
+	if session_state != SessionState.LOBBY:
+		return
+	if session_role == SessionRole.HOST or session_role == SessionRole.DEDICATED_SERVER:
+		proceed_to_mission_staging()
+		return
+	if session_role == SessionRole.CLIENT and has_active_peer():
+		_rpc_request_mission_staging.rpc_id(host_peer_id)
+
+
+func proceed_to_mission_staging() -> bool:
+	if session_role != SessionRole.HOST and session_role != SessionRole.DEDICATED_SERVER:
+		_emit_transport_error("Only the server can open mission staging.")
+		return false
+	if session_state != SessionState.LOBBY:
+		_emit_transport_error("Mission staging can only open from hub/lobby state.")
+		return false
+	if not has_selected_mission():
+		_emit_transport_error("Select a mission before opening staging.")
+		return false
+	_set_mission_state(_selected_mission_id, MissionFlowPhase.STAGING, true)
+	return true
 
 
 func start_run() -> bool:
@@ -359,12 +467,19 @@ func start_run() -> bool:
 	if session_state != SessionState.LOBBY:
 		_emit_transport_error("Run can only start from lobby state.")
 		return false
+	if not has_selected_mission():
+		_emit_transport_error("Select a mission before starting a run.")
+		return false
 	if not are_all_lobby_players_ready():
 		_emit_transport_error("All players must be ready before the run begins.")
 		return false
+	var run_scene_path := MissionLaunchResolverRef.resolve_scene_path(_selected_mission_id)
+	if run_scene_path.is_empty():
+		_emit_transport_error("Selected mission has no launch target.")
+		return false
 	_mark_all_remote_runtime_not_ready_for_run()
 	_rpc_set_session_state.rpc(SessionState.IN_RUN)
-	_rpc_change_scene.rpc(RUN_SCENE_PATH)
+	_rpc_change_scene.rpc(run_scene_path)
 	_registry_send_heartbeat()
 	return true
 
@@ -392,13 +507,18 @@ func start_offline_run() -> bool:
 
 
 func return_to_lobby() -> bool:
+	return return_to_hub()
+
+
+func return_to_hub() -> bool:
 	if session_role != SessionRole.HOST and session_role != SessionRole.DEDICATED_SERVER:
-		_emit_transport_error("Only the host/server can return everyone to lobby.")
+		_emit_transport_error("Only the host/server can return everyone to hub.")
 		return false
 	if session_state != SessionState.IN_RUN:
 		return false
 	_rpc_set_session_state.rpc(SessionState.LOBBY)
-	_rpc_change_scene.rpc(LOBBY_SCENE_PATH)
+	_set_mission_state(&"", MissionFlowPhase.HUB, true)
+	_rpc_change_scene.rpc(HUB_SCENE_PATH)
 	_runtime_ready_peers.clear()
 	if _include_host_in_slots:
 		_runtime_ready_peers[host_peer_id] = true
@@ -413,9 +533,11 @@ func request_leave_run_from_local_peer() -> void:
 	if session_state != SessionState.IN_RUN:
 		return
 	if session_role == SessionRole.HOST:
-		return_to_lobby()
+		return_to_hub()
 	elif session_role == SessionRole.DEDICATED_SERVER:
 		return
+	elif session_role == SessionRole.CLIENT and has_active_peer():
+		_rpc_request_return_to_hub.rpc_id(host_peer_id)
 	else:
 		disconnect_from_session()
 
@@ -455,6 +577,11 @@ func _rpc_sync_lobby_ready(ready_map: Dictionary) -> void:
 	_emit_lobby_ready_changed()
 
 
+@rpc("authority", "call_local", "reliable")
+func _rpc_sync_mission_state(mission_id: StringName, mission_flow_phase: int) -> void:
+	_set_mission_state(mission_id, mission_flow_phase, false)
+
+
 @rpc("any_peer", "call_remote", "reliable")
 func _rpc_request_set_lobby_ready(is_ready: bool) -> void:
 	if session_role != SessionRole.HOST and session_role != SessionRole.DEDICATED_SERVER:
@@ -467,6 +594,31 @@ func _rpc_request_set_lobby_ready(is_ready: bool) -> void:
 	_lobby_ready_peers[sender_peer] = is_ready
 	_broadcast_lobby_ready_if_host()
 
+
+@rpc("any_peer", "call_remote", "reliable")
+func _rpc_request_select_mission(mission_id: StringName) -> void:
+	if session_role != SessionRole.HOST and session_role != SessionRole.DEDICATED_SERVER:
+		return
+	if session_state != SessionState.LOBBY:
+		return
+	var sender_peer := multiplayer.get_remote_sender_id()
+	if not _is_known_request_peer(sender_peer):
+		return
+	select_mission(mission_id)
+
+
+@rpc("any_peer", "call_remote", "reliable")
+func _rpc_request_mission_staging() -> void:
+	if session_role != SessionRole.HOST and session_role != SessionRole.DEDICATED_SERVER:
+		return
+	if session_state != SessionState.LOBBY:
+		return
+	var sender_peer := multiplayer.get_remote_sender_id()
+	if not _is_known_request_peer(sender_peer):
+		return
+	proceed_to_mission_staging()
+
+
 @rpc("any_peer", "call_remote", "reliable")
 func _rpc_request_start_run() -> void:
 	if session_role != SessionRole.HOST and session_role != SessionRole.DEDICATED_SERVER:
@@ -477,6 +629,18 @@ func _rpc_request_start_run() -> void:
 	if sender_peer <= 0 or not _peer_slots.has(sender_peer):
 		return
 	start_run()
+
+
+@rpc("any_peer", "call_remote", "reliable")
+func _rpc_request_return_to_hub() -> void:
+	if session_role != SessionRole.HOST and session_role != SessionRole.DEDICATED_SERVER:
+		return
+	if session_state != SessionState.IN_RUN:
+		return
+	var sender_peer := multiplayer.get_remote_sender_id()
+	if not _is_known_request_peer(sender_peer):
+		return
+	return_to_hub()
 
 
 @rpc("any_peer", "call_remote", "reliable")
@@ -495,6 +659,7 @@ func _on_connected_to_server() -> void:
 	if session_role == SessionRole.CLIENT:
 		host_peer_id = 1
 		_lobby_ready_peers.clear()
+		_set_mission_state(&"", MissionFlowPhase.HUB, false)
 		_emit_lobby_ready_changed()
 		_set_state(SessionState.LOBBY)
 
@@ -507,6 +672,7 @@ func _on_connection_failed() -> void:
 	_peer_slots.clear()
 	_runtime_ready_peers.clear()
 	_lobby_ready_peers.clear()
+	_set_mission_state(&"", MissionFlowPhase.NONE, false)
 	_session_code = ""
 	_emit_session_code_changed()
 	_emit_lobby_ready_changed()
@@ -524,6 +690,7 @@ func _on_server_disconnected() -> void:
 	_peer_slots.clear()
 	_runtime_ready_peers.clear()
 	_lobby_ready_peers.clear()
+	_set_mission_state(&"", MissionFlowPhase.NONE, false)
 	_session_code = ""
 	_emit_session_code_changed()
 	_emit_lobby_ready_changed()
@@ -544,12 +711,20 @@ func _on_peer_connected(peer_id: int) -> void:
 	_broadcast_slot_map_if_host()
 	_broadcast_session_code_if_host()
 	_broadcast_lobby_ready_if_host()
+	if session_state == SessionState.LOBBY and _mission_flow_phase == MissionFlowPhase.NONE:
+		_set_mission_state(&"", MissionFlowPhase.HUB, false)
+	_broadcast_mission_state_if_host()
 	if session_state == SessionState.IN_RUN:
 		_rpc_set_session_state.rpc_id(peer_id, SessionState.IN_RUN)
-		_rpc_change_scene.rpc_id(peer_id, RUN_SCENE_PATH)
+		var run_scene_path := (
+			MissionLaunchResolverRef.resolve_scene_path(_selected_mission_id)
+			if has_selected_mission()
+			else RUN_SCENE_PATH
+		)
+		_rpc_change_scene.rpc_id(peer_id, run_scene_path)
 	else:
 		_rpc_set_session_state.rpc_id(peer_id, SessionState.LOBBY)
-		_rpc_change_scene.rpc_id(peer_id, LOBBY_SCENE_PATH)
+		_rpc_change_scene.rpc_id(peer_id, HUB_SCENE_PATH)
 	if dedicated_server_mode:
 		_dedicated_had_player = true
 		_cancel_dedicated_idle_shutdown("peer_connected=%s" % [peer_id])
@@ -622,6 +797,37 @@ func _broadcast_session_code_if_host() -> void:
 		return
 	_rpc_sync_session_code.rpc(_session_code)
 	_emit_session_code_changed()
+
+
+func _set_mission_state(mission_id: StringName, mission_flow_phase: int, broadcast_if_host: bool) -> void:
+	var normalized_id := StringName(String(mission_id))
+	if normalized_id != &"" and not MissionRegistryRef.has_mission(normalized_id):
+		normalized_id = &""
+	var normalized_phase := clampi(mission_flow_phase, MissionFlowPhase.NONE, MissionFlowPhase.STAGING)
+	if normalized_id == &"" and normalized_phase != MissionFlowPhase.HUB:
+		normalized_phase = MissionFlowPhase.NONE
+	var changed := normalized_id != _selected_mission_id or normalized_phase != _mission_flow_phase
+	_selected_mission_id = normalized_id
+	_mission_flow_phase = normalized_phase
+	if broadcast_if_host and (session_role == SessionRole.HOST or session_role == SessionRole.DEDICATED_SERVER):
+		_rpc_sync_mission_state.rpc(_selected_mission_id, _mission_flow_phase)
+	if changed:
+		_emit_mission_state_changed()
+
+
+func _emit_mission_state_changed() -> void:
+	mission_state_changed.emit(get_mission_state_snapshot())
+
+
+func _broadcast_mission_state_if_host() -> void:
+	if session_role != SessionRole.HOST and session_role != SessionRole.DEDICATED_SERVER:
+		return
+	_rpc_sync_mission_state.rpc(_selected_mission_id, _mission_flow_phase)
+	_emit_mission_state_changed()
+
+
+func _is_known_request_peer(peer_id: int) -> bool:
+	return peer_id > 0 and (peer_id == host_peer_id or _peer_slots.has(peer_id))
 
 
 func _try_auto_start_when_all_ready() -> void:
@@ -756,6 +962,8 @@ func _hard_reset_offline_boot_state() -> void:
 	_peer_slots.clear()
 	_runtime_ready_peers.clear()
 	_lobby_ready_peers.clear()
+	_selected_mission_id = &""
+	_mission_flow_phase = MissionFlowPhase.NONE
 	dedicated_server_mode = false
 	_include_host_in_slots = true
 	session_state = SessionState.OFFLINE

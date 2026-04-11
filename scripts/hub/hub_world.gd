@@ -1,0 +1,298 @@
+extends Node
+class_name HubWorld
+
+const PLAYER_SCENE := preload("res://scenes/entities/player.tscn")
+const HUB_ROOM_SCENE := preload("res://dungeon/rooms/authored/hub_room.tscn")
+const MISSION_INTERFACE_SCENE := preload("res://scenes/hub/mission_interface.tscn")
+const UPGRADE_AREA_SCENE := preload("res://scenes/hub/upgrade_area.tscn")
+const MISSION_SELECT_SCENE := preload("res://scenes/ui/mission_select_ui.tscn")
+const LOBBY_MENU_SCENE_PATH := "res://scenes/ui/lobby_menu.tscn"
+const MissionInterfaceScript = preload("res://scripts/hub/mission_interface.gd")
+const UpgradeAreaScript = preload("res://scripts/hub/upgrade_area.gd")
+const RoomEditorSceneSyncScript = preload("res://addons/dungeon_room_editor/core/scene_sync.gd")
+const ROOM_PIECE_CATALOG = preload("res://addons/dungeon_room_editor/resources/default_room_piece_catalog.tres")
+const MISSION_FLOW_PHASE_NONE := 0
+const MISSION_FLOW_PHASE_STAGING := 3
+const CAMERA_LERP_SPEED := 8.0
+const CAMERA_DIAG_PITCH_DEG := -38.0
+const CAMERA_DIAG_YAW_DEG := 180.0
+
+@onready var _game_world_2d: Node2D = $GameWorld2D
+@onready var _rooms_root: Node2D = $GameWorld2D/Rooms
+@onready var _interactables_root: Node2D = $GameWorld2D/Interactables
+@onready var _camera_pivot: Marker3D = $VisualWorld3D/CameraPivot
+@onready var _prompt_label: Label = $CanvasLayer/UI/PromptLabel
+@onready var _overlay_root: Control = $CanvasLayer/UI/OverlayRoot
+
+var _players_by_peer: Dictionary = {}
+var _local_player: CharacterBody2D
+var _focused_interactable: Node
+var _mission_select_ui: Control
+var _staging_ui: Control
+
+
+func _ready() -> void:
+	_camera_pivot.rotation_degrees = Vector3(CAMERA_DIAG_PITCH_DEG, CAMERA_DIAG_YAW_DEG, 0.0)
+	_spawn_hub_room()
+	_spawn_interactables()
+	_apply_player_roster_from_slot_map(_current_slot_map())
+	var session := _session()
+	if session != null and session.has_signal("peer_slot_map_changed"):
+		session.peer_slot_map_changed.connect(_on_peer_slot_map_changed)
+	if session != null and session.has_signal("mission_state_changed"):
+		session.mission_state_changed.connect(_on_mission_state_changed)
+	if session != null and session.has_method("get_mission_state_snapshot"):
+		_on_mission_state_changed(session.call("get_mission_state_snapshot") as Dictionary)
+	_prompt_label.visible = false
+
+
+func _exit_tree() -> void:
+	var session := _session()
+	if session != null and session.has_signal("peer_slot_map_changed"):
+		if session.peer_slot_map_changed.is_connected(_on_peer_slot_map_changed):
+			session.peer_slot_map_changed.disconnect(_on_peer_slot_map_changed)
+	if session != null and session.has_signal("mission_state_changed"):
+		if session.mission_state_changed.is_connected(_on_mission_state_changed):
+			session.mission_state_changed.disconnect(_on_mission_state_changed)
+
+
+func _process(delta: float) -> void:
+	_update_camera(delta)
+
+
+func _spawn_hub_room() -> void:
+	var room := HUB_ROOM_SCENE.instantiate() as RoomBase
+	if room == null:
+		return
+	room.name = "HubRoom"
+	room.room_id = "hub_room"
+	room.room_type = "safe"
+	room.room_tags = PackedStringArray(["safe", "hub"])
+	room.safe_room = true
+	_rooms_root.add_child(room)
+	if room.authored_layout != null:
+		var sync = RoomEditorSceneSyncScript.new()
+		sync.sync_room(room, room.authored_layout, ROOM_PIECE_CATALOG)
+
+
+func _spawn_interactables() -> void:
+	var mission = MISSION_INTERFACE_SCENE.instantiate()
+	if mission != null:
+		mission.name = "MissionInterface"
+		mission.position = Vector2(-9.0, -18.0)
+		_bind_interactable(mission)
+		_interactables_root.add_child(mission)
+	var upgrade = UPGRADE_AREA_SCENE.instantiate()
+	if upgrade != null:
+		upgrade.name = "UpgradeArea"
+		upgrade.position = Vector2(12.0, -18.0)
+		_bind_interactable(upgrade)
+		_interactables_root.add_child(upgrade)
+
+
+func _bind_interactable(interactable: Node) -> void:
+	interactable.local_focus_changed.connect(_on_interactable_focus_changed)
+	interactable.local_interacted.connect(_on_interactable_used)
+
+
+func _current_slot_map() -> Dictionary:
+	var session := _session()
+	if session != null and session.has_method("get_peer_slot_map"):
+		return session.call("get_peer_slot_map") as Dictionary
+	return {1: 0}
+
+
+func _on_peer_slot_map_changed(slot_map: Dictionary) -> void:
+	_apply_player_roster_from_slot_map(slot_map)
+
+
+func _apply_player_roster_from_slot_map(raw_slot_map: Dictionary) -> void:
+	var slot_map := _normalize_slot_map(raw_slot_map)
+	var session := _session()
+	var has_peer := session != null and session.has_method("has_active_peer") and bool(session.call("has_active_peer"))
+	if slot_map.is_empty() and not has_peer:
+		slot_map[1] = 0
+	var seen: Dictionary = {}
+	for peer_id in _peer_ids_sorted_by_slot(slot_map):
+		var player := _ensure_player_node_for_peer(peer_id)
+		if player == null:
+			continue
+		var slot := int(slot_map.get(peer_id, 0))
+		player.global_position = _spawn_position_for_slot(slot)
+		_players_by_peer[peer_id] = player
+		seen[peer_id] = true
+	for key in _players_by_peer.keys():
+		var peer_id := int(key)
+		if seen.has(peer_id):
+			continue
+		var stale := _players_by_peer[peer_id] as Node
+		if stale != null and is_instance_valid(stale):
+			stale.queue_free()
+		_players_by_peer.erase(peer_id)
+	_resolve_local_player()
+
+
+func _ensure_player_node_for_peer(peer_id: int) -> CharacterBody2D:
+	var existing := _players_by_peer.get(peer_id, null) as CharacterBody2D
+	if existing != null and is_instance_valid(existing):
+		_assign_player_authority(existing, peer_id)
+		return existing
+	var desired_name := "PlayerPeer_%s" % [peer_id]
+	var found := _game_world_2d.get_node_or_null(NodePath(desired_name)) as CharacterBody2D
+	if found != null:
+		_assign_player_authority(found, peer_id)
+		return found
+	var spawned := PLAYER_SCENE.instantiate() as CharacterBody2D
+	if spawned == null:
+		return null
+	spawned.name = desired_name
+	_game_world_2d.add_child(spawned)
+	_assign_player_authority(spawned, peer_id)
+	return spawned
+
+
+func _assign_player_authority(player: CharacterBody2D, peer_id: int) -> void:
+	player.set_multiplayer_authority(peer_id, true)
+	player.set_meta(&"peer_id", peer_id)
+	if player.has_method("set_network_owner_peer_id"):
+		player.call("set_network_owner_peer_id", peer_id)
+
+
+func _resolve_local_player() -> void:
+	var session := _session()
+	var local_peer := (
+		int(session.call("get_local_peer_id"))
+		if session != null and session.has_method("get_local_peer_id")
+		else 1
+	)
+	_local_player = _players_by_peer.get(local_peer, null) as CharacterBody2D
+
+
+func _spawn_position_for_slot(slot: int) -> Vector2:
+	var positions := [
+		Vector2(0.0, -30.0),
+		Vector2(-4.0, -26.0),
+		Vector2(4.0, -26.0),
+		Vector2(0.0, -22.0),
+	]
+	return positions[clampi(slot, 0, positions.size() - 1)]
+
+
+func _normalize_slot_map(slot_map: Dictionary) -> Dictionary:
+	var out := {}
+	for key in slot_map.keys():
+		out[int(key)] = int(slot_map[key])
+	return out
+
+
+func _peer_ids_sorted_by_slot(slot_map: Dictionary) -> Array[int]:
+	var keyed: Array[Dictionary] = []
+	for key in slot_map.keys():
+		var peer_id := int(key)
+		keyed.append({"peer_id": peer_id, "slot": int(slot_map[key])})
+	keyed.sort_custom(func(a: Dictionary, b: Dictionary) -> bool:
+		var slot_a := int(a.get("slot", 0))
+		var slot_b := int(b.get("slot", 0))
+		if slot_a == slot_b:
+			return int(a.get("peer_id", 0)) < int(b.get("peer_id", 0))
+		return slot_a < slot_b
+	)
+	var out: Array[int] = []
+	for entry in keyed:
+		out.append(int(entry.get("peer_id", 0)))
+	return out
+
+
+func _on_interactable_focus_changed(interactable: Node, focused: bool) -> void:
+	if focused:
+		if _focused_interactable != null and _focused_interactable != interactable:
+			if _focused_interactable.has_method("clear_local_focus"):
+				_focused_interactable.call("clear_local_focus")
+		_focused_interactable = interactable
+		_prompt_label.text = String(interactable.get("prompt_text"))
+		_prompt_label.visible = true
+		return
+	if _focused_interactable == interactable:
+		_focused_interactable = null
+		_prompt_label.visible = false
+
+
+func _on_interactable_used(interactable: Node) -> void:
+	if interactable.get_script() == MissionInterfaceScript:
+		_open_mission_select()
+	elif interactable.get_script() == UpgradeAreaScript:
+		_prompt_label.text = "Upgrades coming soon"
+		_prompt_label.visible = true
+
+
+func _open_mission_select() -> void:
+	if _mission_select_ui != null and is_instance_valid(_mission_select_ui):
+		_mission_select_ui.visible = true
+		_set_local_player_menu_blocked(true)
+		return
+	_mission_select_ui = MISSION_SELECT_SCENE.instantiate() as Control
+	if _mission_select_ui == null:
+		return
+	_overlay_root.add_child(_mission_select_ui)
+	if _mission_select_ui.has_signal("close_requested"):
+		_mission_select_ui.close_requested.connect(_close_mission_select)
+	_set_local_player_menu_blocked(true)
+
+
+func _close_mission_select() -> void:
+	if _mission_select_ui != null and is_instance_valid(_mission_select_ui):
+		_mission_select_ui.queue_free()
+	_mission_select_ui = null
+	if _staging_ui == null:
+		_set_local_player_menu_blocked(false)
+
+
+func _open_staging_ui() -> void:
+	_close_mission_select()
+	if _staging_ui != null and is_instance_valid(_staging_ui):
+		if _staging_ui.has_method("open_as_mission_staging"):
+			_staging_ui.call("open_as_mission_staging")
+		_set_local_player_menu_blocked(true)
+		return
+	var lobby_scene := load(LOBBY_MENU_SCENE_PATH) as PackedScene
+	if lobby_scene == null:
+		return
+	_staging_ui = lobby_scene.instantiate() as Control
+	if _staging_ui == null:
+		return
+	_staging_ui.set("start_in_mission_staging_mode", true)
+	_overlay_root.add_child(_staging_ui)
+	if _staging_ui.has_signal("staging_back_requested"):
+		_staging_ui.staging_back_requested.connect(_close_staging_ui)
+	if _staging_ui.has_method("open_as_mission_staging"):
+		_staging_ui.call("open_as_mission_staging")
+	_set_local_player_menu_blocked(true)
+
+
+func _close_staging_ui() -> void:
+	if _staging_ui != null and is_instance_valid(_staging_ui):
+		_staging_ui.queue_free()
+	_staging_ui = null
+	_set_local_player_menu_blocked(false)
+
+
+func _on_mission_state_changed(snapshot: Dictionary) -> void:
+	var phase := int(snapshot.get("phase", MISSION_FLOW_PHASE_NONE))
+	if phase == MISSION_FLOW_PHASE_STAGING:
+		_open_staging_ui()
+
+
+func _set_local_player_menu_blocked(blocked: bool) -> void:
+	if _local_player != null and is_instance_valid(_local_player) and _local_player.has_method("set_menu_input_blocked"):
+		_local_player.call("set_menu_input_blocked", blocked)
+
+
+func _update_camera(delta: float) -> void:
+	if _local_player == null or not is_instance_valid(_local_player):
+		return
+	var target := Vector3(_local_player.global_position.x, 0.0, _local_player.global_position.y)
+	_camera_pivot.position = _camera_pivot.position.lerp(target, clampf(delta * CAMERA_LERP_SPEED, 0.0, 1.0))
+
+
+func _session() -> Node:
+	return get_node_or_null("/root/NetworkSession")

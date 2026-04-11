@@ -1,6 +1,8 @@
 extends Control
 class_name LobbyMenu
 
+signal staging_back_requested
+
 @onready var _main_menu_vbox: VBoxContainer = $Center/Margin/VBox/MainMenuVBox
 @onready var _multiplayer_vbox: VBoxContainer = $Center/Margin/VBox/MultiplayerVBox
 @onready var _options_vbox: VBoxContainer = $Center/Margin/VBox/OptionsVBox
@@ -32,16 +34,21 @@ class_name LobbyMenu
 @onready var _disconnect_button: Button = $Center/Margin/VBox/MultiplayerVBox/ButtonRow/DisconnectButton
 @onready var _status_label: Label = $Center/Margin/VBox/MultiplayerVBox/StatusLabel
 @onready var _lobby_code_label: LineEdit = $Center/Margin/VBox/MultiplayerVBox/LobbyCodeLabel
+@onready var _mission_context_label: Label = $Center/Margin/VBox/MultiplayerVBox/MissionContextLabel
 @onready var _error_label: Label = $Center/Margin/VBox/MultiplayerVBox/ErrorLabel
 @onready var _peers_list: ItemList = $Center/Margin/VBox/MultiplayerVBox/PeersList
 
 const _InventoryScreenScene = preload("res://scripts/ui/inventory/inventory_screen.gd")
+const HUB_SCENE_PATH := "res://scenes/hub/hub_world.tscn"
+
+@export var start_in_mission_staging_mode := false
 
 var _showing_multiplayer_menu: bool = false
 var _showing_options: bool = false
 var _showing_inventory: bool = false
 var _inventory_screen: Control = null
 var _display_transition_curtain: ColorRect = null
+var _mission_staging_mode := false
 
 
 func _ready() -> void:
@@ -93,15 +100,30 @@ func _ready() -> void:
 	NetworkSession.registry_lookup_result.connect(_on_registry_lookup_result)
 	NetworkSession.session_code_changed.connect(_on_session_code_changed)
 	NetworkSession.lobby_ready_changed.connect(_on_lobby_ready_changed)
+	if NetworkSession.has_signal("mission_state_changed"):
+		NetworkSession.mission_state_changed.connect(_on_mission_state_changed)
 	GameSettings.display_settings_apply_started.connect(_on_display_settings_apply_started)
 	GameSettings.display_settings_apply_finished.connect(_on_display_settings_apply_finished)
 
+	if start_in_mission_staging_mode:
+		_mission_staging_mode = true
+		_showing_multiplayer_menu = true
 	_refresh_ui()
 	_rebuild_peer_list(NetworkSession.get_peer_slot_map())
-	_set_showing_multiplayer_menu(false)
+	_set_showing_multiplayer_menu(_mission_staging_mode)
 	_set_showing_options_menu(false)
 	_sync_control_scheme_option()
 	_sync_display_options()
+
+
+func open_as_mission_staging() -> void:
+	_mission_staging_mode = true
+	if _menu_background_vfx != null:
+		_menu_background_vfx.visible = false
+	_showing_inventory = false
+	_set_showing_options_menu(false)
+	_set_showing_multiplayer_menu(true)
+	_refresh_ui()
 
 
 func _build_display_transition_curtain() -> void:
@@ -134,8 +156,17 @@ func _unhandled_input(event: InputEvent) -> void:
 
 func _refresh_root_menu_visibility() -> void:
 	_options_vbox.visible = _showing_options and not _showing_inventory
-	_multiplayer_vbox.visible = _showing_multiplayer_menu and not _showing_options and not _showing_inventory
-	_main_menu_vbox.visible = not _showing_options and not _showing_multiplayer_menu and not _showing_inventory
+	_multiplayer_vbox.visible = (
+		(_mission_staging_mode or _showing_multiplayer_menu)
+		and not _showing_options
+		and not _showing_inventory
+	)
+	_main_menu_vbox.visible = (
+		not _mission_staging_mode
+		and not _showing_options
+		and not _showing_multiplayer_menu
+		and not _showing_inventory
+	)
 	if _inventory_screen != null:
 		_inventory_screen.visible = _showing_inventory
 	# Hide the center container entirely when inventory is up (it needs full screen).
@@ -259,7 +290,16 @@ func _on_singleplayer_pressed() -> void:
 
 func _on_multiplayer_pressed() -> void:
 	_error_label.text = ""
-	_set_showing_multiplayer_menu(true)
+	if not NetworkSession.has_active_peer():
+		if not NetworkSession.request_lobby_from_registry():
+			_refresh_ui()
+			return
+		_refresh_ui()
+		return
+	var err := get_tree().change_scene_to_file(HUB_SCENE_PATH)
+	if err != OK:
+		_error_label.text = "Failed to open hub (error %s)." % [err]
+		_refresh_ui()
 
 
 func _on_exit_pressed() -> void:
@@ -268,6 +308,9 @@ func _on_exit_pressed() -> void:
 
 func _on_back_pressed() -> void:
 	_error_label.text = ""
+	if _mission_staging_mode:
+		staging_back_requested.emit()
+		return
 	_set_showing_multiplayer_menu(false)
 
 
@@ -344,6 +387,10 @@ func _on_lobby_ready_changed(_ready_map: Dictionary) -> void:
 	_refresh_ui()
 
 
+func _on_mission_state_changed(_snapshot: Dictionary) -> void:
+	_refresh_ui()
+
+
 func _refresh_ui() -> void:
 	var has_peer: bool = NetworkSession.has_active_peer()
 	var is_lookup_pending: bool = NetworkSession.is_registry_lookup_in_progress()
@@ -357,6 +404,9 @@ func _refresh_ui() -> void:
 	var in_lobby: bool = NetworkSession.session_state == NetworkSession.SessionState.LOBBY
 	var is_connecting: bool = NetworkSession.session_state == NetworkSession.SessionState.CONNECTING
 	var local_ready := NetworkSession.is_local_peer_ready()
+	var has_selected_mission := (
+		NetworkSession.has_method("has_selected_mission") and NetworkSession.has_selected_mission()
+	)
 	var ready_map: Dictionary = NetworkSession.get_lobby_ready_map()
 	var slot_map: Dictionary = NetworkSession.get_peer_slot_map()
 	var ready_total := slot_map.size()
@@ -367,10 +417,16 @@ func _refresh_ui() -> void:
 
 	_singleplayer_button.disabled = has_peer or has_pending_request
 	_multiplayer_button.disabled = has_pending_request
+	_multiplayer_button.tooltip_text = (
+		"Enter the multiplayer hub."
+		if has_peer
+		else "Create or join a multiplayer session, then enter the hub."
+	)
 	_host_button.disabled = has_peer or has_pending_request
 	_join_code_button.disabled = has_peer or has_pending_request
 	_start_run_button.visible = has_peer and in_lobby and not is_dedicated
-	_start_run_button.disabled = not (has_peer and in_lobby and not is_dedicated)
+	_start_run_button.disabled = not (has_peer and in_lobby and not is_dedicated and has_selected_mission)
+	_start_run_button.text = "Start Selected Mission" if has_selected_mission else "Select Mission First"
 	_ready_button.visible = has_peer and in_lobby and not is_dedicated
 	_ready_button.disabled = not (has_peer and in_lobby and not is_dedicated)
 	_ready_button.text = "Unready" if local_ready else "Ready"
@@ -383,9 +439,25 @@ func _refresh_ui() -> void:
 	if is_host and not session_code.is_empty():
 		_session_code_input.text = session_code
 
+	if _mission_context_label != null:
+		var payload := (
+			NetworkSession.get_selected_mission_payload()
+			if has_selected_mission and NetworkSession.has_method("get_selected_mission_payload")
+			else {}
+		)
+		if payload.is_empty():
+			_mission_context_label.text = "Mission: none selected"
+		else:
+			_mission_context_label.text = "Mission: %s (%s)" % [
+				String(payload.get("display_name", "")),
+				String(payload.get("mission_id", "")),
+			]
+
 	var status := "State: %s | Role: %s" % [NetworkSession.get_state_name(), NetworkSession.get_role_name()]
 	if has_peer:
 		status += " | Local Peer: %s" % NetworkSession.get_local_peer_id()
+	if NetworkSession.has_method("get_mission_flow_phase_name"):
+		status += " | Mission Flow: %s" % NetworkSession.get_mission_flow_phase_name()
 	if in_lobby and ready_total > 0:
 		status += " | Ready: %s/%s" % [ready_count, ready_total]
 	if is_connecting:

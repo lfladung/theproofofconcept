@@ -1,0 +1,20 @@
+[gd_scene load_steps=4 format=3 uid="uid://b5j3h7nynclux"]
+
+[ext_resource type="Script" path="res://scripts/hub/upgrade_area.gd" id="1_script"]
+[ext_resource type="PackedScene" path="res://assets/props/table_long_decorated_A.gltf" id="2_prop"]
+
+[sub_resource type="CircleShape2D" id="CircleShape2D_interact"]
+radius = 4.0
+
+[node name="UpgradeArea" type="Area2D"]
+collision_layer = 0
+collision_mask = 1
+monitoring = true
+monitorable = false
+script = ExtResource("1_script")
+prompt_text = "Upgrades coming soon"
+visual_scene = ExtResource("2_prop")
+visual_rotation_y = 1.5708
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="."]
+shape = SubResource("CircleShape2D_interact")

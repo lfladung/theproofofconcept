@@ -4364,6 +4364,16 @@ func _deferred_advance_floor_after_portal() -> void:
 	_floor_transition_pending = false
 	_loading_overlay_call(&"show_loading")
 	await get_tree().process_frame
+	if _networked_run and _floor_index >= _selected_mission_floor_count():
+		_finalize_run_meta_progression()
+		var session := get_node_or_null("/root/NetworkSession")
+		if (
+			session != null
+			and session.has_method("return_to_hub")
+			and _is_authoritative_world()
+		):
+			session.call("return_to_hub")
+			return
 	for peer_id in _players_by_peer.keys():
 		var node: Variant = _players_by_peer[peer_id]
 		if node is CharacterBody2D and is_instance_valid(node):
@@ -4378,6 +4388,19 @@ func _deferred_advance_floor_after_portal() -> void:
 	await get_tree().process_frame
 	await get_tree().process_frame
 	_loading_overlay_call(&"hide_loading")
+
+
+func _selected_mission_floor_count() -> int:
+	var session := get_node_or_null("/root/NetworkSession")
+	if session == null or not session.has_method("get_selected_mission_payload"):
+		return 999999
+	var payload_v: Variant = session.call("get_selected_mission_payload")
+	if payload_v is not Dictionary:
+		return 999999
+	var payload := payload_v as Dictionary
+	if payload.is_empty():
+		return 999999
+	return maxi(1, int(payload.get("floor_count", 1)))
 
 
 func _on_player_hit() -> void:
