@@ -125,6 +125,7 @@ func _place_next_room(
 						current_spec.get("center_cell", Vector2i.ZERO) as Vector2i,
 						anchor_exit,
 						int(current_spec.get("rotation_deg", 0)),
+						current_room_data.tile_size,
 						candidate_entrance,
 						candidate_rotation,
 						candidate_room_data.tile_size

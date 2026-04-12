@@ -1651,7 +1651,7 @@ item_id = "floor_exit_marker_auto"
 piece_id = &"floor_exit_marker"
 category = &"marker"
 grid_position = Vector2i(11, -19)
-tags = PackedStringArray("marker", "boss", "floor_exit")
+tags = PackedStringArray("marker", "floor_exit")
 placement_layer = &"overlay"
 
 [sub_resource type="Resource" id="Resource_3242y"]

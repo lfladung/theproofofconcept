@@ -39,6 +39,7 @@ static func solve_candidate_center_cell(
 	anchor_center_cell: Vector2i,
 	anchor_exit_marker: Dictionary,
 	anchor_rotation: int,
+	anchor_tile_size: Vector2i,
 	candidate_entrance_marker: Dictionary,
 	candidate_rotation: int,
 	candidate_tile_size: Vector2i
@@ -51,7 +52,7 @@ static func solve_candidate_center_cell(
 		anchor_center_cell,
 		anchor_exit_marker.get("local_position", Vector2.ZERO) as Vector2,
 		anchor_rotation,
-		candidate_tile_size
+		anchor_tile_size
 	) + Vector2(_direction_cell_offset(anchor_dir) * candidate_tile_size)
 	return RoomTransformUtilsScript.solve_center_cell_from_marker_alignment(
 		target_world,

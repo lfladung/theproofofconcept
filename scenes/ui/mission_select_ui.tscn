@@ -64,6 +64,19 @@ text = "Authoritative mission: none selected"
 horizontal_alignment = 1
 autowrap_mode = 3
 
+[node name="LobbyCodeRow" type="HBoxContainer" parent="Panel/Margin/Rows"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="LobbyCodeInput" type="LineEdit" parent="Panel/Margin/Rows/LobbyCodeRow"]
+layout_mode = 2
+size_flags_horizontal = 3
+placeholder_text = "Lobby code"
+
+[node name="JoinLobbyButton" type="Button" parent="Panel/Margin/Rows/LobbyCodeRow"]
+layout_mode = 2
+text = "Join Lobby"
+
 [node name="Content" type="HBoxContainer" parent="Panel/Margin/Rows"]
 layout_mode = 2
 size_flags_vertical = 3
@@ -80,6 +93,39 @@ size_flags_horizontal = 3
 text = "Choose a mission."
 autowrap_mode = 3
 
+[node name="LobbyStageVBox" type="VBoxContainer" parent="Panel/Margin/Rows"]
+visible = false
+layout_mode = 2
+size_flags_vertical = 3
+theme_override_constants/separation = 10
+
+[node name="MissionContextLabel" type="Label" parent="Panel/Margin/Rows/LobbyStageVBox"]
+layout_mode = 2
+text = "Mission: none selected"
+horizontal_alignment = 1
+autowrap_mode = 3
+
+[node name="LobbyCodeDisplayLabel" type="LineEdit" parent="Panel/Margin/Rows/LobbyStageVBox"]
+layout_mode = 2
+text = "-"
+editable = false
+select_all_on_focus = true
+
+[node name="StatusLabel" type="Label" parent="Panel/Margin/Rows/LobbyStageVBox"]
+layout_mode = 2
+text = "State: OFFLINE | Role: NONE"
+horizontal_alignment = 1
+autowrap_mode = 3
+
+[node name="PeersLabel" type="Label" parent="Panel/Margin/Rows/LobbyStageVBox"]
+layout_mode = 2
+text = "Lobby Peers"
+
+[node name="PeersList" type="ItemList" parent="Panel/Margin/Rows/LobbyStageVBox"]
+custom_minimum_size = Vector2(620, 250)
+layout_mode = 2
+size_flags_vertical = 3
+
 [node name="ButtonRow" type="HBoxContainer" parent="Panel/Margin/Rows"]
 layout_mode = 2
 alignment = 2
@@ -88,6 +134,16 @@ theme_override_constants/separation = 8
 [node name="ProceedButton" type="Button" parent="Panel/Margin/Rows/ButtonRow"]
 layout_mode = 2
 text = "Proceed to Staging"
+
+[node name="StartRunButton" type="Button" parent="Panel/Margin/Rows/ButtonRow"]
+visible = false
+layout_mode = 2
+text = "Start Selected Mission"
+
+[node name="ReadyButton" type="Button" parent="Panel/Margin/Rows/ButtonRow"]
+visible = false
+layout_mode = 2
+text = "Ready"
 
 [node name="CloseButton" type="Button" parent="Panel/Margin/Rows/ButtonRow"]
 layout_mode = 2

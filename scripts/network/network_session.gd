@@ -393,7 +393,7 @@ func join_lobby_via_session_code(session_code: String, registry_url: String = ""
 	return true
 
 
-func disconnect_from_session() -> void:
+func disconnect_from_session(change_scene: bool = true) -> void:
 	_registry_unregister_best_effort()
 	_registry_enabled = false
 	_disconnect_local_peer()
@@ -407,7 +407,20 @@ func disconnect_from_session() -> void:
 	_emit_session_code_changed()
 	_emit_lobby_ready_changed()
 	_emit_slot_map_changed()
-	_queue_scene_change(LOBBY_SCENE_PATH)
+	if change_scene:
+		_queue_scene_change(LOBBY_SCENE_PATH)
+
+
+func close_lobby_from_host() -> void:
+	if session_role != SessionRole.HOST:
+		disconnect_from_session()
+		return
+	if not has_active_peer():
+		disconnect_from_session()
+		return
+	_registry_unregister_best_effort()
+	_rpc_lobby_closed_by_host.rpc("Host closed the lobby.")
+	call_deferred("_finish_lobby_shutdown_to_menu")
 
 
 func request_select_mission_from_local_peer(mission_id: StringName) -> void:
@@ -457,6 +470,27 @@ func proceed_to_mission_staging() -> bool:
 		_emit_transport_error("Select a mission before opening staging.")
 		return false
 	_set_mission_state(_selected_mission_id, MissionFlowPhase.STAGING, true)
+	return true
+
+
+func request_cancel_mission_staging_from_local_peer() -> void:
+	if session_state != SessionState.LOBBY:
+		return
+	if session_role == SessionRole.HOST or session_role == SessionRole.DEDICATED_SERVER:
+		cancel_mission_staging()
+		return
+	if session_role == SessionRole.CLIENT and has_active_peer():
+		_rpc_request_cancel_mission_staging.rpc_id(host_peer_id)
+
+
+func cancel_mission_staging() -> bool:
+	if session_role != SessionRole.HOST and session_role != SessionRole.DEDICATED_SERVER:
+		_emit_transport_error("Only the server can close mission staging.")
+		return false
+	if session_state != SessionState.LOBBY:
+		return false
+	var fallback_phase := MissionFlowPhase.SELECT if has_selected_mission() else MissionFlowPhase.HUB
+	_set_mission_state(_selected_mission_id, fallback_phase, true)
 	return true
 
 
@@ -564,6 +598,13 @@ func _rpc_change_scene(scene_path: String) -> void:
 	_queue_scene_change(scene_path)
 
 
+@rpc("authority", "call_remote", "reliable")
+func _rpc_lobby_closed_by_host(message: String = "") -> void:
+	_finish_lobby_shutdown_to_menu()
+	if not message.is_empty():
+		_emit_registry_lookup_result(false, message)
+
+
 @rpc("authority", "call_local", "reliable")
 func _rpc_sync_session_code(session_code: String) -> void:
 	_session_code = session_code.strip_edges().to_upper()
@@ -617,6 +658,18 @@ func _rpc_request_mission_staging() -> void:
 	if not _is_known_request_peer(sender_peer):
 		return
 	proceed_to_mission_staging()
+
+
+@rpc("any_peer", "call_remote", "reliable")
+func _rpc_request_cancel_mission_staging() -> void:
+	if session_role != SessionRole.HOST and session_role != SessionRole.DEDICATED_SERVER:
+		return
+	if session_state != SessionState.LOBBY:
+		return
+	var sender_peer := multiplayer.get_remote_sender_id()
+	if not _is_known_request_peer(sender_peer):
+		return
+	cancel_mission_staging()
 
 
 @rpc("any_peer", "call_remote", "reliable")
@@ -884,6 +937,22 @@ func _disconnect_local_peer() -> void:
 	_intended_disconnect = true
 	multiplayer.multiplayer_peer = null
 	call_deferred("_clear_intended_disconnect")
+
+
+func _finish_lobby_shutdown_to_menu() -> void:
+	_registry_enabled = false
+	_disconnect_local_peer()
+	_set_role(SessionRole.NONE)
+	_set_state(SessionState.OFFLINE)
+	_peer_slots.clear()
+	_runtime_ready_peers.clear()
+	_lobby_ready_peers.clear()
+	_set_mission_state(&"", MissionFlowPhase.NONE, false)
+	_session_code = ""
+	_emit_session_code_changed()
+	_emit_lobby_ready_changed()
+	_emit_slot_map_changed()
+	_queue_scene_change(LOBBY_SCENE_PATH)
 
 
 func _clear_intended_disconnect() -> void:

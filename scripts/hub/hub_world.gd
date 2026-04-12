@@ -3,12 +3,14 @@ class_name HubWorld
 
 const PLAYER_SCENE := preload("res://scenes/entities/player.tscn")
 const HUB_ROOM_SCENE := preload("res://dungeon/rooms/authored/hub_room.tscn")
+const HUB_ROOM_LAYOUT_PATH := "res://dungeon/rooms/authored/layouts/hub_room.layout.tres"
 const MISSION_INTERFACE_SCENE := preload("res://scenes/hub/mission_interface.tscn")
 const UPGRADE_AREA_SCENE := preload("res://scenes/hub/upgrade_area.tscn")
 const MISSION_SELECT_SCENE := preload("res://scenes/ui/mission_select_ui.tscn")
-const LOBBY_MENU_SCENE_PATH := "res://scenes/ui/lobby_menu.tscn"
 const MissionInterfaceScript = preload("res://scripts/hub/mission_interface.gd")
 const UpgradeAreaScript = preload("res://scripts/hub/upgrade_area.gd")
+const GridMath = preload("res://addons/dungeon_room_editor/core/grid_math.gd")
+const PreviewBuilderScript = preload("res://addons/dungeon_room_editor/preview/preview_builder.gd")
 const RoomEditorSceneSyncScript = preload("res://addons/dungeon_room_editor/core/scene_sync.gd")
 const ROOM_PIECE_CATALOG = preload("res://addons/dungeon_room_editor/resources/default_room_piece_catalog.tres")
 const MISSION_FLOW_PHASE_NONE := 0
@@ -20,15 +22,17 @@ const CAMERA_DIAG_YAW_DEG := 180.0
 @onready var _game_world_2d: Node2D = $GameWorld2D
 @onready var _rooms_root: Node2D = $GameWorld2D/Rooms
 @onready var _interactables_root: Node2D = $GameWorld2D/Interactables
+@onready var _room_visuals: Node3D = $VisualWorld3D/RoomVisuals
 @onready var _camera_pivot: Marker3D = $VisualWorld3D/CameraPivot
 @onready var _prompt_label: Label = $CanvasLayer/UI/PromptLabel
 @onready var _overlay_root: Control = $CanvasLayer/UI/OverlayRoot
 
+var _preview_builder = PreviewBuilderScript.new()
 var _players_by_peer: Dictionary = {}
 var _local_player: CharacterBody2D
 var _focused_interactable: Node
 var _mission_select_ui: Control
-var _staging_ui: Control
+var _hub_room: RoomBase
 
 
 func _ready() -> void:
@@ -69,25 +73,104 @@ func _spawn_hub_room() -> void:
 	room.room_type = "safe"
 	room.room_tags = PackedStringArray(["safe", "hub"])
 	room.safe_room = true
+	room.authored_layout = _load_hub_room_layout(room)
+	room.set_meta(&"runtime_floor_theme", "tile")
+	room.set_meta(&"runtime_floor_seed", 1)
 	_rooms_root.add_child(room)
 	if room.authored_layout != null:
 		var sync = RoomEditorSceneSyncScript.new()
 		sync.sync_room(room, room.authored_layout, ROOM_PIECE_CATALOG)
+		var visual_proxy := room.get_node_or_null(^"Visual3DProxy") as Node3D
+		if visual_proxy != null:
+			visual_proxy.visible = false
+		_rebuild_hub_room_visuals(room)
+	_hub_room = room
+
+
+func _load_hub_room_layout(room: RoomBase) -> Resource:
+	if ResourceLoader.exists(HUB_ROOM_LAYOUT_PATH):
+		var sidecar_layout := load(HUB_ROOM_LAYOUT_PATH) as Resource
+		if sidecar_layout != null:
+			return sidecar_layout
+	return room.authored_layout if room != null else null
 
 
 func _spawn_interactables() -> void:
-	var mission = MISSION_INTERFACE_SCENE.instantiate()
-	if mission != null:
-		mission.name = "MissionInterface"
-		mission.position = Vector2(-9.0, -18.0)
-		_bind_interactable(mission)
-		_interactables_root.add_child(mission)
-	var upgrade = UPGRADE_AREA_SCENE.instantiate()
-	if upgrade != null:
-		upgrade.name = "UpgradeArea"
-		upgrade.position = Vector2(12.0, -18.0)
-		_bind_interactable(upgrade)
-		_interactables_root.add_child(upgrade)
+	_spawn_interactable(
+		MISSION_INTERFACE_SCENE,
+		"MissionInterface",
+		&"hub_mission_interface",
+		"mission_interface",
+		Vector2(-9.0, -18.0)
+	)
+	_spawn_interactable(
+		UPGRADE_AREA_SCENE,
+		"UpgradeArea",
+		&"hub_upgrade_area",
+		"upgrade_area",
+		Vector2(12.0, -18.0)
+	)
+
+
+func _spawn_interactable(
+	scene: PackedScene,
+	node_name: String,
+	piece_id: StringName,
+	required_tag: String,
+	fallback_position: Vector2
+) -> void:
+	var interactable := scene.instantiate() as HubInteractable
+	if interactable == null:
+		return
+	var placement := _hub_authored_item_position(piece_id, required_tag)
+	interactable.name = node_name
+	interactable.position = placement.get("position", fallback_position) as Vector2
+	if bool(placement.get("authored_visual", false)):
+		interactable.visual_scene = null
+	_bind_interactable(interactable)
+	_interactables_root.add_child(interactable)
+
+
+func _hub_authored_item_position(piece_id: StringName, required_tag: String) -> Dictionary:
+	if _hub_room == null or _hub_room.authored_layout == null:
+		return {}
+	var items: Array = _hub_room.authored_layout.get("items")
+	for item in items:
+		if item == null:
+			continue
+		var item_piece_id := item.get("piece_id") as StringName
+		var tags := item.get("tags") as PackedStringArray
+		var grid_position := item.get("grid_position") as Vector2i
+		if item_piece_id != piece_id and not tags.has(required_tag):
+			continue
+		var local_position := GridMath.grid_to_local(grid_position, _hub_room.authored_layout, _hub_room)
+		return {
+			"position": _hub_room.to_global(local_position),
+			"authored_visual": true,
+		}
+	return {}
+
+
+func _rebuild_hub_room_visuals(room: RoomBase) -> void:
+	if room == null or room.authored_layout == null or _room_visuals == null:
+		return
+	for child in _room_visuals.get_children():
+		child.queue_free()
+	var container := Node3D.new()
+	container.name = "%s_VisualRoot" % String(room.name)
+	container.position = Vector3(room.global_position.x, 0.0, room.global_position.y)
+	_room_visuals.add_child(container)
+	_preview_builder.rebuild_preview(
+		container,
+		room,
+		room.authored_layout,
+		ROOM_PIECE_CATALOG,
+		&"all",
+		false,
+		true
+	)
+	if container.get_child_count() == 0:
+		container.queue_free()
 
 
 func _bind_interactable(interactable: Node) -> void:
@@ -108,10 +191,8 @@ func _on_peer_slot_map_changed(slot_map: Dictionary) -> void:
 
 func _apply_player_roster_from_slot_map(raw_slot_map: Dictionary) -> void:
 	var slot_map := _normalize_slot_map(raw_slot_map)
-	var session := _session()
-	var has_peer := session != null and session.has_method("has_active_peer") and bool(session.call("has_active_peer"))
-	if slot_map.is_empty() and not has_peer:
-		slot_map[1] = 0
+	if slot_map.is_empty():
+		slot_map[_local_peer_id()] = 0
 	var seen: Dictionary = {}
 	for peer_id in _peer_ids_sorted_by_slot(slot_map):
 		var player := _ensure_player_node_for_peer(peer_id)
@@ -159,13 +240,14 @@ func _assign_player_authority(player: CharacterBody2D, peer_id: int) -> void:
 
 
 func _resolve_local_player() -> void:
+	_local_player = _players_by_peer.get(_local_peer_id(), null) as CharacterBody2D
+
+
+func _local_peer_id() -> int:
 	var session := _session()
-	var local_peer := (
-		int(session.call("get_local_peer_id"))
-		if session != null and session.has_method("get_local_peer_id")
-		else 1
-	)
-	_local_player = _players_by_peer.get(local_peer, null) as CharacterBody2D
+	if session != null and session.has_method("get_local_peer_id"):
+		return int(session.call("get_local_peer_id"))
+	return 1
 
 
 func _spawn_position_for_slot(slot: int) -> Vector2:
@@ -243,36 +325,22 @@ func _close_mission_select() -> void:
 	if _mission_select_ui != null and is_instance_valid(_mission_select_ui):
 		_mission_select_ui.queue_free()
 	_mission_select_ui = null
-	if _staging_ui == null:
-		_set_local_player_menu_blocked(false)
+	_set_local_player_menu_blocked(false)
 
 
 func _open_staging_ui() -> void:
-	_close_mission_select()
-	if _staging_ui != null and is_instance_valid(_staging_ui):
-		if _staging_ui.has_method("open_as_mission_staging"):
-			_staging_ui.call("open_as_mission_staging")
-		_set_local_player_menu_blocked(true)
-		return
-	var lobby_scene := load(LOBBY_MENU_SCENE_PATH) as PackedScene
-	if lobby_scene == null:
-		return
-	_staging_ui = lobby_scene.instantiate() as Control
-	if _staging_ui == null:
-		return
-	_staging_ui.set("start_in_mission_staging_mode", true)
-	_overlay_root.add_child(_staging_ui)
-	if _staging_ui.has_signal("staging_back_requested"):
-		_staging_ui.staging_back_requested.connect(_close_staging_ui)
-	if _staging_ui.has_method("open_as_mission_staging"):
-		_staging_ui.call("open_as_mission_staging")
+	_open_mission_select()
+	if _mission_select_ui != null and _mission_select_ui.has_method("open_multiplayer_lobby_stage"):
+		_mission_select_ui.call("open_multiplayer_lobby_stage")
 	_set_local_player_menu_blocked(true)
 
 
 func _close_staging_ui() -> void:
-	if _staging_ui != null and is_instance_valid(_staging_ui):
-		_staging_ui.queue_free()
-	_staging_ui = null
+	if _mission_select_ui != null and is_instance_valid(_mission_select_ui):
+		if _mission_select_ui.has_method("open_mission_select_stage"):
+			_mission_select_ui.call("open_mission_select_stage")
+		_set_local_player_menu_blocked(true)
+		return
 	_set_local_player_menu_blocked(false)
 
 
@@ -280,6 +348,8 @@ func _on_mission_state_changed(snapshot: Dictionary) -> void:
 	var phase := int(snapshot.get("phase", MISSION_FLOW_PHASE_NONE))
 	if phase == MISSION_FLOW_PHASE_STAGING:
 		_open_staging_ui()
+	elif _mission_select_ui != null:
+		_close_staging_ui()
 
 
 func _set_local_player_menu_blocked(blocked: bool) -> void:

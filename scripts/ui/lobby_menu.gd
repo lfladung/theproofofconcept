@@ -28,10 +28,8 @@ signal staging_back_requested
 @onready var _back_button: Button = $Center/Margin/VBox/MultiplayerVBox/ButtonRow/BackButton
 @onready var _session_code_input: LineEdit = $Center/Margin/VBox/MultiplayerVBox/CodeRow/SessionCodeInput
 @onready var _join_code_button: Button = $Center/Margin/VBox/MultiplayerVBox/CodeRow/JoinCodeButton
-@onready var _host_button: Button = $Center/Margin/VBox/MultiplayerVBox/ButtonRow/HostButton
 @onready var _start_run_button: Button = $Center/Margin/VBox/MultiplayerVBox/ButtonRow/StartRunButton
 @onready var _ready_button: Button = $Center/Margin/VBox/MultiplayerVBox/ButtonRow/ReadyButton
-@onready var _disconnect_button: Button = $Center/Margin/VBox/MultiplayerVBox/ButtonRow/DisconnectButton
 @onready var _status_label: Label = $Center/Margin/VBox/MultiplayerVBox/StatusLabel
 @onready var _lobby_code_label: LineEdit = $Center/Margin/VBox/MultiplayerVBox/LobbyCodeLabel
 @onready var _mission_context_label: Label = $Center/Margin/VBox/MultiplayerVBox/MissionContextLabel
@@ -87,11 +85,9 @@ func _ready() -> void:
 	_inventory_screen.back_pressed.connect(_on_inventory_back_pressed)
 	_options_back_button.pressed.connect(_on_options_back_pressed)
 	_back_button.pressed.connect(_on_back_pressed)
-	_host_button.pressed.connect(_on_host_pressed)
 	_join_code_button.pressed.connect(_on_join_code_pressed)
 	_ready_button.pressed.connect(_on_ready_pressed)
 	_start_run_button.pressed.connect(_on_start_run_pressed)
-	_disconnect_button.pressed.connect(_on_disconnect_pressed)
 
 	NetworkSession.state_changed.connect(_on_session_state_changed)
 	NetworkSession.role_changed.connect(_on_session_role_changed)
@@ -309,16 +305,20 @@ func _on_exit_pressed() -> void:
 func _on_back_pressed() -> void:
 	_error_label.text = ""
 	if _mission_staging_mode:
+		if NetworkSession.has_method("request_cancel_mission_staging_from_local_peer"):
+			NetworkSession.call("request_cancel_mission_staging_from_local_peer")
 		staging_back_requested.emit()
 		return
+	if NetworkSession.has_active_peer():
+		if NetworkSession.session_role == NetworkSession.SessionRole.HOST:
+			if NetworkSession.has_method("close_lobby_from_host"):
+				NetworkSession.call("close_lobby_from_host")
+			else:
+				NetworkSession.disconnect_from_session()
+		else:
+			NetworkSession.disconnect_from_session()
+		return
 	_set_showing_multiplayer_menu(false)
-
-
-func _on_host_pressed() -> void:
-	_error_label.text = ""
-	if not NetworkSession.request_lobby_from_registry():
-		_refresh_ui()
-	_refresh_ui()
 
 
 func _on_join_code_pressed() -> void:
@@ -339,11 +339,6 @@ func _on_ready_pressed() -> void:
 func _on_start_run_pressed() -> void:
 	_error_label.text = ""
 	NetworkSession.request_start_run_from_local_peer()
-
-
-func _on_disconnect_pressed() -> void:
-	_error_label.text = ""
-	NetworkSession.disconnect_from_session()
 
 
 func _on_transport_error(message: String) -> void:
@@ -422,7 +417,6 @@ func _refresh_ui() -> void:
 		if has_peer
 		else "Create or join a multiplayer session, then enter the hub."
 	)
-	_host_button.disabled = has_peer or has_pending_request
 	_join_code_button.disabled = has_peer or has_pending_request
 	_start_run_button.visible = has_peer and in_lobby and not is_dedicated
 	_start_run_button.disabled = not (has_peer and in_lobby and not is_dedicated and has_selected_mission)
@@ -430,7 +424,6 @@ func _refresh_ui() -> void:
 	_ready_button.visible = has_peer and in_lobby and not is_dedicated
 	_ready_button.disabled = not (has_peer and in_lobby and not is_dedicated)
 	_ready_button.text = "Unready" if local_ready else "Ready"
-	_disconnect_button.disabled = not has_peer
 	_back_button.disabled = has_pending_request
 	_session_code_input.editable = not (has_peer or has_pending_request)
 
@@ -454,8 +447,6 @@ func _refresh_ui() -> void:
 			]
 
 	var status := "State: %s | Role: %s" % [NetworkSession.get_state_name(), NetworkSession.get_role_name()]
-	if has_peer:
-		status += " | Local Peer: %s" % NetworkSession.get_local_peer_id()
 	if NetworkSession.has_method("get_mission_flow_phase_name"):
 		status += " | Mission Flow: %s" % NetworkSession.get_mission_flow_phase_name()
 	if in_lobby and ready_total > 0:
@@ -473,7 +464,7 @@ func _rebuild_peer_list(slot_map: Dictionary) -> void:
 	_peers_list.clear()
 	var ready_map: Dictionary = NetworkSession.get_lobby_ready_map()
 	if not NetworkSession.has_active_peer():
-		_peers_list.add_item("Offline. Create a lobby or join by session code.")
+		_peers_list.add_item("Offline.")
 		return
 	if slot_map.is_empty():
 		_peers_list.add_item("Connected. Waiting for peers...")
@@ -487,4 +478,4 @@ func _rebuild_peer_list(slot_map: Dictionary) -> void:
 		if peer_id_int == NetworkSession.get_local_peer_id():
 			tag = " (you)"
 		var ready_text := "READY" if bool(ready_map.get(peer_id_int, false)) else "NOT READY"
-		_peers_list.add_item("Peer %s -> Slot %s | %s%s" % [peer_id_int, slot, ready_text, tag])
+		_peers_list.add_item("Player %s | %s%s" % [slot + 1, ready_text, tag])

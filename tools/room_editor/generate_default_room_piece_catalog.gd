@@ -72,6 +72,55 @@ func _init() -> void:
 
 
 func _add_manual_pieces(pieces: Array[Resource], used_piece_ids: Dictionary) -> void:
+	var floor_mask_small_piece = _make_piece(
+		&"floor_mask_small",
+		"Floor Mask Small",
+		&"floor",
+		"res://assets/structure/floors/floor_dirt_small_A.gltf",
+		"",
+		&"visual_only",
+		true,
+		&"ground",
+		false,
+		false,
+		PackedStringArray(["floor", "runtime_mask"])
+	)
+	_register_piece(pieces, used_piece_ids, floor_mask_small_piece)
+
+	var floor_mask_large_piece = _make_piece(
+		&"floor_mask_large",
+		"Floor Mask Large",
+		&"floor",
+		"res://assets/structure/floors/floor_dirt_large.gltf",
+		"",
+		&"visual_only",
+		true,
+		&"ground",
+		false,
+		false,
+		PackedStringArray(["floor", "runtime_mask"])
+	)
+	floor_mask_large_piece.footprint = Vector2i(2, 2)
+	floor_mask_large_piece.supports_rotation = false
+	_register_piece(pieces, used_piece_ids, floor_mask_large_piece)
+
+	var floor_mask_extra_large_piece = _make_piece(
+		&"floor_mask_extra_large",
+		"Floor Mask Extra Large",
+		&"floor",
+		"res://assets/structure/floors/floor_dirt_large.gltf",
+		"",
+		&"visual_only",
+		true,
+		&"ground",
+		false,
+		false,
+		PackedStringArray(["floor", "runtime_mask"])
+	)
+	floor_mask_extra_large_piece.footprint = Vector2i(3, 3)
+	floor_mask_extra_large_piece.supports_rotation = false
+	_register_piece(pieces, used_piece_ids, floor_mask_extra_large_piece)
+
 	var floor_piece = _make_piece(
 		&"floor_dirt_small_a",
 		"Floor Dirt Small A",
@@ -131,6 +180,7 @@ func _add_manual_pieces(pieces: Array[Resource], used_piece_ids: Dictionary) -> 
 		false,
 		PackedStringArray(["entrance"])
 	)
+	entrance_piece.footprint = Vector2i(3, 1)
 	entrance_piece.connector_type = &"standard"
 	entrance_piece.marker_kind = "entrance"
 	entrance_piece.marker_width_tiles = 3
@@ -149,6 +199,7 @@ func _add_manual_pieces(pieces: Array[Resource], used_piece_ids: Dictionary) -> 
 		false,
 		PackedStringArray(["exit"])
 	)
+	exit_piece.footprint = Vector2i(3, 1)
 	exit_piece.connector_type = &"standard"
 	exit_piece.marker_kind = "exit"
 	exit_piece.marker_width_tiles = 3

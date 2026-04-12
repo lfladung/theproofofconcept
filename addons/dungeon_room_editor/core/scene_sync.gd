@@ -133,7 +133,9 @@ func _sync_connection_marker_item(
 		return
 	marker.name = "%s_%s" % [String(piece.piece_id), item.item_id]
 	var direction := GridMath.direction_from_rotation(item.normalized_rotation_steps())
-	marker.position = _connection_marker_center_local(item.grid_position, direction, layout, room)
+	var footprint := GridMath.rotated_footprint(piece.footprint, item.normalized_rotation_steps())
+	var center_cell: Vector2i = item.grid_position + Vector2i((footprint.x - 1) / 2, (footprint.y - 1) / 2)
+	marker.position = GridMath.grid_to_local(center_cell, layout, room)
 	marker.rotation = float(item.normalized_rotation_steps()) * PI * 0.5
 	marker.direction = direction
 	marker.connection_tag = piece.connector_type
@@ -141,25 +143,6 @@ func _sync_connection_marker_item(
 	marker.marker_kind = piece.marker_kind
 	marker.width_tiles = maxi(piece.marker_width_tiles, 3)
 	parent.add_child(marker)
-
-
-func _connection_marker_center_local(
-	grid_position: Vector2i,
-	direction: String,
-	layout,
-	room: RoomBase
-) -> Vector2:
-	match direction:
-		"north":
-			return GridMath.grid_to_local(grid_position + Vector2i(1, 0), layout, room)
-		"south":
-			return GridMath.grid_to_local(grid_position + Vector2i(1, 0), layout, room)
-		"east":
-			return GridMath.grid_to_local(grid_position + Vector2i(0, 1), layout, room)
-		"west":
-			return GridMath.grid_to_local(grid_position + Vector2i(0, 1), layout, room)
-		_:
-			return GridMath.grid_to_local(grid_position, layout, room)
 
 
 func _sync_blocker_item(

@@ -30,6 +30,10 @@ from urllib.parse import parse_qs, urlparse
 
 LOBBY_CODE_CHARS = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
 LOBBY_CODE_LENGTH = 6
+HUB_MAX_PLAYERS = 6
+RUN_MAX_PLAYERS = 4
+INSTANCE_KIND_HUB = "hub"
+INSTANCE_KIND_RUN = "run"
 
 
 @dataclass
@@ -44,6 +48,8 @@ class InstanceRecord:
     started_unix: int
     last_seen_unix: int
     process_id: int = 0
+    kind: str = INSTANCE_KIND_HUB
+    mission_id: str = ""
 
     def to_json(self) -> dict[str, Any]:
         return {
@@ -57,6 +63,48 @@ class InstanceRecord:
             "started_unix": self.started_unix,
             "last_seen_unix": self.last_seen_unix,
             "process_id": self.process_id,
+            "kind": self.kind,
+            "mission_id": self.mission_id,
+        }
+
+
+@dataclass
+class PartyMemberRecord:
+    member_id: str
+    ready: bool
+    joined_unix: int
+    last_seen_unix: int
+
+    def to_json(self) -> dict[str, Any]:
+        return {
+            "member_id": self.member_id,
+            "ready": self.ready,
+            "joined_unix": self.joined_unix,
+            "last_seen_unix": self.last_seen_unix,
+        }
+
+
+@dataclass
+class PartyRecord:
+    party_code: str
+    owner_member_id: str
+    mission_id: str
+    max_players: int
+    created_unix: int
+    last_seen_unix: int
+    members: dict[str, PartyMemberRecord]
+    launch: dict[str, Any] | None = None
+
+    def to_json(self) -> dict[str, Any]:
+        return {
+            "party_code": self.party_code,
+            "owner_member_id": self.owner_member_id,
+            "mission_id": self.mission_id,
+            "max_players": self.max_players,
+            "created_unix": self.created_unix,
+            "last_seen_unix": self.last_seen_unix,
+            "members": [member.to_json() for member in self.members.values()],
+            "launch": self.launch or {},
         }
 
 
