@@ -3849,6 +3849,30 @@ func _rpc_despawn_enemy(net_id: int) -> void:
 	_enemy_nodes_by_network_id.erase(net_id)
 
 
+func broadcast_enemy_transform_state(
+	net_id: int, world_pos: Vector2, planar_velocity: Vector2, compact_state: Dictionary
+) -> void:
+	if net_id <= 0 or not _is_server_peer() or not _can_broadcast_world_replication():
+		return
+	_rpc_receive_enemy_transform_state.rpc(net_id, world_pos, planar_velocity, compact_state)
+
+
+@rpc("any_peer", "call_remote", "unreliable_ordered")
+func _rpc_receive_enemy_transform_state(
+	net_id: int, world_pos: Vector2, planar_velocity: Vector2, compact_state: Dictionary
+) -> void:
+	if _is_authoritative_world():
+		return
+	if multiplayer.get_remote_sender_id() != 1:
+		return
+	var enemy_v: Variant = _enemy_nodes_by_network_id.get(net_id, null)
+	if enemy_v is not EnemyBase or not is_instance_valid(enemy_v):
+		return
+	var enemy := enemy_v as EnemyBase
+	if enemy.has_method(&"apply_remote_enemy_transform_state"):
+		enemy.call(&"apply_remote_enemy_transform_state", world_pos, planar_velocity, compact_state)
+
+
 @rpc("any_peer", "call_remote", "reliable")
 func _rpc_set_encounter_aggro(encounter_id_text: String, enabled: bool) -> void:
 	if _is_authoritative_world():
@@ -4370,16 +4394,6 @@ func _deferred_advance_floor_after_portal() -> void:
 	_floor_transition_pending = false
 	_loading_overlay_call(&"show_loading")
 	await get_tree().process_frame
-	if _networked_run and _floor_index >= _selected_mission_floor_count():
-		_finalize_run_meta_progression()
-		var session := get_node_or_null("/root/NetworkSession")
-		if (
-			session != null
-			and session.has_method("return_to_hub")
-			and _is_authoritative_world()
-		):
-			session.call("return_to_hub")
-			return
 	for peer_id in _players_by_peer.keys():
 		var node: Variant = _players_by_peer[peer_id]
 		if node is CharacterBody2D and is_instance_valid(node):
@@ -4390,23 +4404,17 @@ func _deferred_advance_floor_after_portal() -> void:
 				player.call(&"heal_to_full")
 	_grant_tempering_xp_to_all_players(_MetaProgressionConstantsRef.TEMPERING_XP_PER_FLOOR)
 	_floor_index += 1
+	_sync_run_state_floor_index()
 	_regenerate_level(true)
 	await get_tree().process_frame
 	await get_tree().process_frame
 	_loading_overlay_call(&"hide_loading")
 
 
-func _selected_mission_floor_count() -> int:
-	var session := get_node_or_null("/root/NetworkSession")
-	if session == null or not session.has_method("get_selected_mission_payload"):
-		return 999999
-	var payload_v: Variant = session.call("get_selected_mission_payload")
-	if payload_v is not Dictionary:
-		return 999999
-	var payload := payload_v as Dictionary
-	if payload.is_empty():
-		return 999999
-	return maxi(1, int(payload.get("floor_count", 1)))
+func _sync_run_state_floor_index() -> void:
+	var run_state := get_node_or_null("/root/RunState")
+	if run_state != null and run_state.has_method(&"set_floor"):
+		run_state.call(&"set_floor", _floor_index)
 
 
 func _on_player_hit() -> void:

@@ -225,17 +225,32 @@ func _enemy_network_server_broadcast(delta: float) -> void:
 	_network_sync_time_accum = 0.0
 	var cs := _enemy_network_compact_state()
 	_edge_network_merge_mark_and_prime_into(cs)
-	_rpc_receive_enemy_transform_state.rpc(global_position, velocity, cs)
+	var net_id := _enemy_network_id()
+	if net_id <= 0:
+		return
+	var orchestrator := _resolve_network_orchestrator()
+	if orchestrator == null or not orchestrator.has_method(&"broadcast_enemy_transform_state"):
+		return
+	orchestrator.call(&"broadcast_enemy_transform_state", net_id, global_position, velocity, cs)
 
 
-@rpc("any_peer", "call_remote", "unreliable_ordered")
-func _rpc_receive_enemy_transform_state(
+func _enemy_network_id() -> int:
+	if has_meta(&"enemy_network_id"):
+		return int(get_meta(&"enemy_network_id", 0))
+	return 0
+
+
+func _resolve_network_orchestrator() -> Node:
+	var world := get_parent()
+	if world == null:
+		return null
+	return world.get_parent()
+
+
+func apply_remote_enemy_transform_state(
 	world_pos: Vector2, planar_velocity: Vector2, compact_state: Dictionary
 ) -> void:
 	if _is_server_peer():
-		return
-	var mp := _multiplayer_api_safe()
-	if mp == null or mp.get_remote_sender_id() != 1:
 		return
 	_remote_target_position = world_pos
 	_remote_target_velocity = planar_velocity
