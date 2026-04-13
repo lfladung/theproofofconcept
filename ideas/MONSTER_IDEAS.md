@@ -80,6 +80,14 @@ Deep: elongated, blurred — the silhouette looks like speed, with ghost-trails 
 
 > Near the surface: it throws blindly. Deeper: it has perfected the act of reaching out.
 
+**Current implementation note:** Volley is now implemented as a systemic turret/ranged chassis rather
+than 21 separate enemies. The chassis is `scripts/entities/arrow_tower.gd`, with three archetypes
+(`spitter`, `volley`, `barrage`) and a family infusion package (`flow`, `edge`, `echo`, `surge`,
+`phase`, `mass`, `anchor`). Authored rooms can request the combined forms with explicit IDs such as
+`spitter_flow`, `volley_edge`, and `barrage_mass`; `arrow_tower` remains a legacy alias for a conservative
+`volley_flow` default. The rule is that each family package should change only 1-2 parts of the ranged
+attack loop so the enemy still reads as Spitter / Volley / Barrage first, pillar second.
+
 **Lore:** Something in these creatures discovered distance. They found they could extend beyond their own body — send a piece of themselves somewhere else. 
 Near the surface this is crude, almost accidental. 
 They fling without aim, surprised by the act. Deeper, the Pit has had time to refine the idea. 
@@ -95,13 +103,11 @@ As the tier increases, the creature looks more like it was designed to fire rath
 
 **Concept addition over baseline:** discovers it can reach the player without approaching
 
-- Fires one slow, lobbed projectile toward the player's current position. Aim is imprecise (±15°).
-- Retreats slowly if the player closes within 4 units. Does not fight in melee.
-- Long reload: fires every 3.5s. Retreating does not cancel the reload.
-- Projectile is large and slow enough to see clearly — the threat is volume and zone coverage.
-- **Stats:** 25 HP · Move speed: 4 (retreat only) · Projectile speed: 7 · Projectile damage: 10 · Drops: 1 Resonance
-- **Counterplay:** Walk toward it — it will retreat rather than fight. Chase it down. Slow projectiles
-  let you dodge by moving rather than reacting. With multiple Spitters the stagger of their fire rates creates a continuous field even without coordination.
+- Fires one readable single projectile toward the player's current position.
+- Current turret chassis version is stationary: the Spitter identity comes from single-shot cadence, lower projectile speed, and simple family expression rather than retreat movement.
+- Projectile is large and slow enough to see clearly — the threat is volume, landing effects, and zone coverage.
+- **Stats target:** 25 HP · Projectile damage: ~14 before family tuning · Drops: 1 Resonance
+- **Counterplay:** Close distance and punish the stationary body. Slow projectiles let you dodge by moving rather than reacting. With multiple Spitters the stagger of their fire rates creates a continuous field even without coordination.
 - **Spawn guidance:** 3–5 together. The overlap of their fire rhythms creates area denial. Single
   Spitters are trivial. Works well at the back of a room behind melee enemies.
 
@@ -111,12 +117,12 @@ As the tier increases, the creature looks more like it was designed to fire rath
 
 **Concept addition:** learns to aim, learns to spread
 
-- Maintains distance. Closes to ~10 units, then holds.
-- Telegraph: arc/cone builds on ground (1s). Fires 3 projectiles in a spread when cone fills.
-- After firing: cooldown (1.6s), then reposition to maintain distance.
-- Disrupted by hits — cancels charge, enters brief stagger.
-- **Stats:** 60 HP · Move speed: 7 · Projectile speed: 18 · Projectile damage: 12 each · Drops: 3 Resonances
-- **Counterplay:** Aggressive pressure disrupts its charge. The spread cone is a visible tell — dodge sideways from the center. At close range it becomes a melee target with no fallback.
+- Telegraph: arc/cone builds on ground. Fires 3 projectiles in a spread when the cone fills.
+- Current turret chassis version is stationary and uses cached telegraph meshes; movement/reposition while reloading is reserved for a future mobile ranged chassis.
+- After firing: cooldown, then repeats the charge.
+- Hits do not currently cancel the charge; this keeps the turret readable as a placement hazard rather than a kite enemy.
+- **Stats target:** 60 HP · Projectile speed: ~20 before family tuning · Projectile damage: ~12 each · Drops: 3 Resonances
+- **Counterplay:** The spread cone is a visible tell — dodge sideways from the center. At close range it becomes a melee target with no fallback, but the charge currently completes unless line/range is broken.
 - **Spawn guidance:** 1–2 in mid-depth rooms. Behind a Shieldwall is a strong combination — forces the player to flank while dodging volleys.
 
 ---
@@ -125,22 +131,35 @@ As the tier increases, the creature looks more like it was designed to fire rath
 
 **Concept addition:** the shot is no longer a single moment — it has a follow-up
 
-- Slow movement (~4 units/s). High HP. Does not interrupt its attack cycle when hit.
-- **Phase 1 (immediate):** telegraphed spread volley, same pattern as RobotMob (5 projectiles, wider spread).
-- **Phase 2 (3s later):** fires 3 homing projectiles from secondary ports. These slowly track the player's current position. Homing speed is low — they're meant to punish players who stop after dodging the spread.
-- Homing projectiles have their own HP (20 each) and can be destroyed by hitting them.
-- After both phases: 3s cooldown, then repeats.
-- **Stats:** 120 HP · Move speed: 4 · Spread damage: 14 · Homing damage: 18 · Drops: 6 Resonances
-- **Counterplay:** Kill the homing projectiles if you can't outrun them. Keep moving after dodging
-  the spread — standing still to fight is what the follow-up punishes. Aggressive melee is risky because it doesn't interrupt; high burst damage is rewarded here.
+- High HP turret. Does not interrupt its attack cycle when hit.
+- **Phase 1:** telegraphed spread volley, 5 projectiles, wider spread.
+- **Phase 2:** short delayed follow-up, 3 projectiles from the same chassis origin. Follow-up behavior is family-specific: Flow accelerates, Edge re-aims once, Echo repeats, Surge detonates, Phase blinks, Mass pulls/zones, Anchor slows/zones.
+- Current follow-up projectiles are not separate destroyable actors. They remain pooled `ArrowProjectile` instances with optional event-driven effect metadata.
+- After both phases: cooldown, then repeats.
+- **Stats target:** 120 HP · Spread damage: ~9 each before family tuning · Follow-up damage: ~90% of base · Drops: 6 Resonances
+- **Counterplay:** Keep moving after dodging the spread — standing still to fight is what the follow-up punishes. Aggressive melee is risky because it doesn't interrupt; high burst damage is rewarded here.
 - **Spawn guidance:** Always solo or with 1 weak add (Spitter or Scrambler). 
 Two Barrages staggering their two-phase attacks is extremely punishing and should be reserved for very late rooms.
 
+### Family Infusion Packages
+
+Each package modifies only a small part of the ranged loop. Use the explicit spawn ID format
+`<archetype>_<family>` for authored rooms.
+
+- **Flow:** faster/longer projectiles; Spitter leaves a short sliding lane danger, Volley uses a forward-biased spread, Barrage follow-up accelerates.
+- **Edge:** tighter/faster shots; Volley narrows the cone, Barrage follow-up fires fast needle shots with one re-aim toward the player's dodge.
+- **Echo:** repeated patterns; Spitter splits once, Volley repeats the same 3-shot volley after 0.5s, Barrage repeats from origin or impact.
+- **Surge:** delayed impact danger; Spitter detonates after landing, Volley creates small delayed AoEs, Barrage follow-up becomes delayed explosive orbs.
+- **Phase:** timing/position unreliability; Spitter blinks forward, Volley adds delayed phantom hits, Barrage follow-up blinks rather than tracking smoothly.
+- **Mass:** space control; Spitter creates a slow field, Volley leaves lingering heavy zones, Barrage follow-up adds pull plus heavier zones.
+- **Anchor:** anti-mobility; Spitter roots or heavily slows on hit, Volley leaves sticky/tether zones, Barrage follow-up applies heavy slow and movement restriction.
+
 **Encounter compositions (Volley):**
 - Safe intro: 3 Spitters in a room with obstacles — teaches dodging slow projectiles while navigating
-- Pressure: 1 RobotMob + 2 Scramblers — the Scramblers prevent the player from freely advancing
-- Skill check: 1 Barrage — teaches the two-phase pattern, punishes passive play
-- Combination: 1 Barrage + 1 Shieldwall pushing from the front — Barrage fires over the top
+- Pressure: 1 `volley_flow` + 2 Scramblers — the Scramblers prevent the player from freely advancing
+- Zone lesson: 1 `spitter_mass` + 1 Stumbler — teaches that landing zones matter, not just trajectories
+- Skill check: 1 `barrage_edge` or `barrage_phase` — teaches the two-phase pattern, punishes rhythmic dodging
+- Control check: 1 `barrage_anchor` + 1 Shieldwall pushing from the front — Barrage fires over the top while movement options shrink
 
 ---
 

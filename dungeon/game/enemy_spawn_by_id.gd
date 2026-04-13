@@ -26,6 +26,17 @@ const DETONATOR_SCENE := preload("res://scenes/entities/detonator.tscn")
 const ECHO_SPLINTER_SCENE := preload("res://scenes/entities/echo_splinter.tscn")
 const ECHO_UNIT_SCENE := preload("res://scenes/entities/echo_unit.tscn")
 
+const RANGED_ARCHETYPES: Array[StringName] = [&"spitter", &"volley", &"barrage"]
+const RANGED_FAMILIES: Array[StringName] = [
+	&"flow",
+	&"edge",
+	&"echo",
+	&"surge",
+	&"phase",
+	&"mass",
+	&"anchor",
+]
+
 
 static func primary_family_scenes() -> Array[PackedScene]:
 	var scenes: Array[PackedScene] = [
@@ -52,6 +63,9 @@ static func primary_family_scenes() -> Array[PackedScene]:
 
 
 static func scene_for_enemy_id(enemy_id: StringName) -> PackedScene:
+	var spec := spawn_spec_for_enemy_id(enemy_id)
+	if not spec.is_empty():
+		return spec.get("scene", null) as PackedScene
 	var key := String(enemy_id).strip_edges().to_lower()
 	match key:
 		"", "default":
@@ -102,3 +116,29 @@ static func scene_for_enemy_id(enemy_id: StringName) -> PackedScene:
 			return ECHO_UNIT_SCENE
 		_:
 			return null
+
+
+static func spawn_spec_for_enemy_id(enemy_id: StringName) -> Dictionary:
+	var key := String(enemy_id).strip_edges().to_lower()
+	if key == "":
+		return {}
+	if key == "arrow_tower":
+		return _ranged_turret_spec(&"volley", &"flow")
+	var parts := key.split("_", false)
+	if parts.size() != 2:
+		return {}
+	var archetype := StringName(parts[0])
+	var family := StringName(parts[1])
+	if archetype not in RANGED_ARCHETYPES or family not in RANGED_FAMILIES:
+		return {}
+	return _ranged_turret_spec(archetype, family)
+
+
+static func _ranged_turret_spec(archetype: StringName, family: StringName) -> Dictionary:
+	return {
+		"scene": ARROW_TOWER_SCENE,
+		"config": {
+			"archetype": String(archetype),
+			"family": String(family),
+		},
+	}

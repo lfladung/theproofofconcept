@@ -107,12 +107,16 @@ func _spawn_authored_enemies() -> void:
 			continue
 		if zone.zone_type != "enemy_spawn":
 			continue
-		var enemy_scene := _enemy_scene_for_zone(zone)
+		var enemy_spec := _enemy_spawn_spec_for_zone(zone)
+		var enemy_scene := enemy_spec.get("scene", null) as PackedScene
 		if enemy_scene == null:
 			continue
 		var enemy := enemy_scene.instantiate() as Node2D
 		if enemy == null:
 			continue
+		var spawn_config := enemy_spec.get("config", {}) as Dictionary
+		if not spawn_config.is_empty() and enemy.has_method(&"configure_ranged_family"):
+			enemy.call(&"configure_ranged_family", spawn_config)
 		if enemy.has_method(&"configure_spawn"):
 			enemy.call(&"configure_spawn", zone.global_position, player_position)
 		else:
@@ -129,7 +133,8 @@ func spawn_runtime_enemy_by_kind(
 	spawn_position: Vector2,
 	target_position: Vector2,
 	speed_multiplier: float = 1.0,
-	start_aggro: bool = true
+	start_aggro: bool = true,
+	spawn_config: Dictionary = {}
 ) -> EnemyBase:
 	var scene_to_spawn := _playtest_enemy_scene_from_kind(scene_kind)
 	if scene_to_spawn == null:
@@ -137,6 +142,8 @@ func spawn_runtime_enemy_by_kind(
 	var enemy := scene_to_spawn.instantiate() as EnemyBase
 	if enemy == null:
 		return null
+	if not spawn_config.is_empty() and enemy.has_method(&"configure_ranged_family"):
+		enemy.call(&"configure_ranged_family", spawn_config)
 	enemy.apply_speed_multiplier(speed_multiplier)
 	enemy.configure_spawn(spawn_position, target_position)
 	_game_world_2d.add_child(enemy)
@@ -198,26 +205,34 @@ func _playtest_enemy_scene_from_kind(kind: int) -> PackedScene:
 
 
 func _enemy_scene_for_zone(zone: ZoneMarker2D) -> PackedScene:
+	var spec := _enemy_spawn_spec_for_zone(zone)
+	return spec.get("scene", null) as PackedScene
+
+
+func _enemy_spawn_spec_for_zone(zone: ZoneMarker2D) -> Dictionary:
 	if zone == null:
-		return null
+		return {}
 	var resolved_enemy_id := zone.enemy_id
 	if resolved_enemy_id == &"":
 		resolved_enemy_id = StringName(String(zone.zone_role))
+	var spec := EnemySpawnByEnemyId.spawn_spec_for_enemy_id(resolved_enemy_id)
+	if not spec.is_empty():
+		return spec.duplicate(true)
 	var from_catalog := EnemySpawnByEnemyId.scene_for_enemy_id(resolved_enemy_id)
 	if from_catalog != null:
-		return from_catalog
+		return {"scene": from_catalog, "config": {}}
 	match resolved_enemy_id:
 		&"melee":
-			return EnemySpawnByEnemyId.STUMBLER_SCENE
+			return {"scene": EnemySpawnByEnemyId.STUMBLER_SCENE, "config": {}}
 		&"ranged":
-			return EnemySpawnByEnemyId.SHIELDWALL_SCENE
+			return {"scene": EnemySpawnByEnemyId.SHIELDWALL_SCENE, "config": {}}
 		_:
 			var pool: Array[PackedScene] = [
 				EnemySpawnByEnemyId.STUMBLER_SCENE,
 				EnemySpawnByEnemyId.SHIELDWALL_SCENE,
 				EnemySpawnByEnemyId.WARDEN_SCENE,
 			]
-			return pool[randi() % pool.size()]
+			return {"scene": pool[randi() % pool.size()], "config": {}}
 
 
 func _remove_generated_room_visuals() -> void:

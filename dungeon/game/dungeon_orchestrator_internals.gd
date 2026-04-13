@@ -34,6 +34,9 @@ const BACKDROP_PARALLAX_CAMERA_FRACTION := 0.02
 ## Cap accumulated quad shift in camera space so margins can hide edges (0 = no cap).
 const BACKDROP_PARALLAX_MAX_OFFSET := 40.0
 const LAYOUT_KEY_BACKDROP_TEXTURE_PATH := "backdrop_texture_path"
+const LAYOUT_KEY_PHASE := "layout_phase"
+const LAYOUT_PHASE_FLOOR := "floor"
+const LAYOUT_PHASE_MINI_HUB := "mini_hub"
 const DOOR_STANDARD_SCENE := preload("res://dungeon/modules/connectivity/door_standard_2d.tscn")
 const ENTRANCE_MARKER_SCENE := preload("res://dungeon/modules/connectivity/entrance_marker_2d.tscn")
 const EXIT_MARKER_SCENE := preload("res://dungeon/modules/connectivity/exit_marker_2d.tscn")
@@ -261,6 +264,9 @@ var _coin_network_id_sequence := 0
 var _coin_totals_by_peer: Dictionary = {}
 var _shared_coin_total := 0
 var _awaiting_layout_snapshot := false
+var _mini_hub_active := false
+var _mini_hub_interactions_active := false
+var _mini_hub_arrival_retry_count := 0
 var _pending_enemy_spawn_requests: Array[Dictionary] = []
 var _authored_room_catalog
 var _authored_floor_generator
@@ -499,6 +505,8 @@ func _enemy_scene_kind_from_enemy_instance(enemy: EnemyBase) -> int:
 		return ENEMY_SCENE_KIND_BURSTER
 	if enemy is DetonatorMob:
 		return ENEMY_SCENE_KIND_DETONATOR
+	if enemy is ArrowTowerMob:
+		return ENEMY_SCENE_KIND_ARROW_TOWER
 	return ENEMY_SCENE_KIND_FLOW_DASHER
 
 
@@ -899,7 +907,7 @@ func _ensure_loadout_overlay() -> void:
 		ui_root.add_child(overlay)
 		_loadout_overlay = overlay
 	if _loadout_overlay != null and _loadout_overlay.has_method(&"bind_player"):
-		_loadout_overlay.call(&"bind_player", _player, Callable(self, "_room_type_at"))
+		_loadout_overlay.call(&"bind_player", _player, Callable(self, "_loadout_room_type_at"))
 
 
 func _ensure_infusion_guide_overlay() -> void:
@@ -946,7 +954,7 @@ func _bind_player_loadout_runtime(player: CharacterBody2D, peer_id: int) -> void
 		if _loadout_repository.has_method(&"refresh_owner_from_meta_store"):
 			_loadout_repository.call(&"refresh_owner_from_meta_store", owner_id)
 	if player.has_method(&"bind_loadout_runtime"):
-		player.call(&"bind_loadout_runtime", self, Callable(self, "_room_type_at"), owner_id)
+		player.call(&"bind_loadout_runtime", self, Callable(self, "_loadout_room_type_at"), owner_id)
 	if (
 		_is_authoritative_world()
 		and _loadout_repository != null
@@ -977,7 +985,7 @@ func handle_player_loadout_request(player: CharacterBody2D, action: StringName, 
 	var owner_id := _loadout_owner_id_for_player(player)
 	var context := {
 		"safe_room_only": true,
-		"is_safe_room": _room_type_at(player.global_position, 1.25) == "safe",
+		"is_safe_room": _loadout_room_type_at(player.global_position, 1.25) == "safe",
 	}
 	var result: Dictionary = {}
 	match action:
@@ -1040,7 +1048,7 @@ func _bind_local_player_runtime_hooks() -> void:
 	if _info_controller != null:
 		_info_controller.player = _player
 	if _loadout_overlay != null and _loadout_overlay.has_method(&"bind_player"):
-		_loadout_overlay.call(&"bind_player", _player, Callable(self, "_room_type_at"))
+		_loadout_overlay.call(&"bind_player", _player, Callable(self, "_loadout_room_type_at"))
 	if _infusion_guide_overlay != null and _infusion_guide_overlay.has_method(&"bind_player"):
 		_infusion_guide_overlay.call(&"bind_player", _player)
 	_refresh_combat_debug_overlay(0.0, true)
@@ -1084,6 +1092,7 @@ func _on_player_weapon_mode_changed(display_name: String) -> void:
 func _regenerate_level(randomize_layout: bool) -> void:
 	_has_generated_floor = false
 	_floor_transition_pending = false
+	_mini_hub_interactions_active = false
 	_combat_started = false
 	_combat_cleared = false
 	_boss_started = false
@@ -1102,7 +1111,19 @@ func _regenerate_level(randomize_layout: bool) -> void:
 			(n as Node).queue_free()
 	_enemy_nodes_by_network_id.clear()
 	var assembled_ok := false
-	if _is_authored_floor_mode():
+	if _mini_hub_active:
+		if _networked_run and not _is_authoritative_world():
+			if _map_layout.is_empty():
+				_request_layout_snapshot_from_server()
+				return
+			_awaiting_layout_snapshot = false
+		else:
+			_map_layout = _generate_mini_hub_layout()
+		_mini_hub_active = String(_map_layout.get(LAYOUT_KEY_PHASE, "")) == LAYOUT_PHASE_MINI_HUB
+		_destroy_dynamic_rooms()
+		_spawn_rooms_from_layout(_map_layout)
+		assembled_ok = true
+	elif _is_authored_floor_mode():
 		if _networked_run and not _is_authoritative_world():
 			if _map_layout.is_empty():
 				_request_layout_snapshot_from_server()
@@ -1222,10 +1243,14 @@ func _regenerate_level(randomize_layout: bool) -> void:
 		if _debug_spawn_exit_elevator_visual != null and is_instance_valid(_debug_spawn_exit_elevator_visual):
 			_debug_spawn_exit_elevator_visual.visible = false
 	if _is_authoritative_world():
+		if not _mini_hub_active and not _map_layout.is_empty():
+			_map_layout[LAYOUT_KEY_PHASE] = LAYOUT_PHASE_FLOOR
 		_ensure_layout_backdrop_path_server()
 	_log_generation_debug(_map_layout)
 	var room_count := (_map_layout.get("room_specs", []) as Array).size()
-	if _is_authored_floor_mode():
+	if _mini_hub_active:
+		_set_info_base_text("Intermission after floor %s. Adjust loadout, then board the elevator together." % [_floor_index])
+	elif _is_authored_floor_mode():
 		_set_info_base_text("Floor %s — authored critical path (%s rooms)." % [_floor_index, room_count])
 	else:
 		_set_info_base_text(
@@ -1240,6 +1265,8 @@ func _regenerate_level(randomize_layout: bool) -> void:
 	_bind_minimap_runtime()
 	if _is_authoritative_world():
 		_broadcast_layout_snapshot_if_server()
+		if _mini_hub_active:
+			call_deferred("_enable_mini_hub_elevator_after_arrival_sync")
 
 
 func _position_players_at_spawn(entrance_spawn: Vector2) -> void:
@@ -1266,6 +1293,9 @@ func _position_players_at_spawn(entrance_spawn: Vector2) -> void:
 
 
 func _position_players_at_floor_start() -> void:
+	if _mini_hub_active:
+		_position_players_at_mini_hub_start()
+		return
 	if not _is_authored_floor_mode():
 		var entrance_spawn := _room_center_2d(_layout_room_name("start_room"))
 		_position_players_at_spawn(entrance_spawn)
@@ -1301,6 +1331,30 @@ func _position_players_at_floor_start() -> void:
 			)
 		)
 		player.global_position = target
+		player.velocity = Vector2.ZERO
+		player.set_meta(&"spawn_initialized", true)
+
+
+func _position_players_at_mini_hub_start() -> void:
+	var hub_center := _room_center_2d(_layout_room_name("start_room"))
+	var offsets: Array[Vector2] = [
+		Vector2(-6.0, -4.0),
+		Vector2(6.0, -4.0),
+		Vector2(-6.0, 4.0),
+		Vector2(6.0, 4.0),
+		Vector2(0.0, -8.0),
+	]
+	var peer_ids: Array[int] = _peer_ids_sorted_by_slot(_peer_slots)
+	if peer_ids.is_empty():
+		peer_ids.append(_local_peer_id())
+	for i in range(peer_ids.size()):
+		var peer_id := peer_ids[i]
+		var node: Variant = _players_by_peer.get(peer_id, null)
+		if node is not CharacterBody2D:
+			continue
+		var player := node as CharacterBody2D
+		var offset: Vector2 = offsets[i] if i < offsets.size() else Vector2(float(i) * 2.0, 0.0)
+		player.global_position = hub_center + offset
 		player.velocity = Vector2.ZERO
 		player.set_meta(&"spawn_initialized", true)
 
@@ -1682,15 +1736,33 @@ func _spawn_rooms_from_layout(layout: Dictionary) -> void:
 		)
 		room.tile_size = Vector2i(3, 3)
 		var kind := String(d.get("kind", "start"))
-		room.room_type = DungeonMapLayoutV1.kind_to_room_type(kind)
+		room.room_type = String(d.get("room_type", DungeonMapLayoutV1.kind_to_room_type(kind)))
 		room.room_tags = PackedStringArray([room.room_type])
+		room.safe_room = room.room_type == "safe"
 		room.standard_room_sizes = PackedInt32Array([3, 5, 9, 12, 15, 18, 24])
+		if kind == "mini_hub":
+			_prepare_mini_hub_room(room)
 		if kind == "exit":
 			room.min_difficulty_tier = 4
 			room.max_difficulty_tier = 8
 		_rooms_root.add_child(room)
 	if _room_queries != null:
 		_room_queries.invalidate_cache()
+
+
+func _prepare_mini_hub_room(room: RoomBase) -> void:
+	if room == null:
+		return
+	room.room_id = "mini_hub"
+	room.safe_room = true
+	room.room_tags = PackedStringArray(["safe", "mini_hub"])
+	room.allowed_connection_types = PackedStringArray([])
+	var zones := room.get_node_or_null("Zones")
+	if zones != null:
+		_free_children_immediate(zones)
+	var sockets := room.get_node_or_null("Sockets")
+	if sockets != null:
+		_free_children_immediate(sockets)
 
 
 func _spawn_authored_rooms_from_layout(layout: Dictionary) -> bool:
@@ -1847,7 +1919,7 @@ func _scene_base_name(scene_path: String) -> String:
 
 
 func _is_authored_floor_mode() -> bool:
-	return floor_generation_mode == "authored_rooms"
+	return floor_generation_mode == "authored_rooms" and not _mini_hub_active
 
 
 func _ensure_authored_floor_generator() -> void:
@@ -1892,6 +1964,43 @@ func _generate_authored_floor_layout() -> Dictionary:
 			"max_floor_attempts": 20,
 		}
 	)
+
+
+func _generate_mini_hub_layout() -> Dictionary:
+	var room_name := "mini_hub_%02d" % [_floor_index]
+	var room_spec := {
+		"name": room_name,
+		"room_instance_id": room_name,
+		"kind": "mini_hub",
+		"role": "mini_hub",
+		"room_type": "safe",
+		"size": Vector2i(16, 16),
+		"grid": Vector2i.ZERO,
+		"world_position": Vector2.ZERO,
+	}
+	var layout := {
+		"ok": true,
+		"generator_mode": LAYOUT_PHASE_MINI_HUB,
+		"room_specs": [room_spec],
+		"links": [],
+		"start_room": room_name,
+		"exit_room": room_name,
+		"critical_path": [room_name],
+		"combat_room": "",
+		"combat_entry_dir": "west",
+		"combat_exit_dir": "east",
+		"boss_entry_dir": "south",
+		"puzzle_room": "",
+		"treasure_room": "",
+		"trap_room": "",
+		"stage_debug": {
+			"graph": {"rooms": 1, "links": 0},
+			"roles": {"sequence": ["mini_hub"]},
+			"spatial": {"start_room": room_name},
+		},
+	}
+	layout[LAYOUT_KEY_PHASE] = LAYOUT_PHASE_MINI_HUB
+	return layout
 
 
 func _tower_spawn_near_center(encounter_id: StringName, module_pos: Vector2) -> Vector2:
@@ -2049,6 +2158,17 @@ func _cache_runtime_door_positions() -> void:
 
 
 func _position_runtime_markers() -> void:
+	if _mini_hub_active:
+		var hub_center := _room_center_2d(_layout_room_name("exit_room"))
+		_boss_exit_portal.position = hub_center
+		if _boss_portal_marker != null:
+			_boss_portal_marker.visible = false
+		_ensure_boss_exit_elevator_visual()
+		if _boss_exit_elevator_visual != null and is_instance_valid(_boss_exit_elevator_visual):
+			_set_elevator_visual_transform(_boss_exit_elevator_visual, hub_center, hub_center + Vector2(0.0, -6.0))
+			_boss_exit_elevator_visual.visible = false
+		_position_debug_spawn_exit_portal()
+		return
 	var exit_key := _layout_room_name("exit_room")
 	var boss_room := _room_by_name(exit_key)
 	if boss_room != null:
@@ -2162,7 +2282,7 @@ func _start_room_exit_direction() -> String:
 
 
 func _position_debug_spawn_exit_portal() -> void:
-	if not OS.is_debug_build():
+	if _mini_hub_active or not OS.is_debug_build():
 		_debug_spawn_exit_portal.monitoring = false
 		_debug_spawn_exit_portal.monitorable = false
 		if _debug_spawn_portal_marker != null:
@@ -3254,6 +3374,20 @@ func _spawn_entrance_exit_markers() -> void:
 
 func _spawn_encounter_modules() -> void:
 	_enemy_nodes_by_network_id.clear()
+	if _mini_hub_active:
+		_spawn_points_by_encounter.clear()
+		_spawn_volumes_by_encounter.clear()
+		_spawn_count_by_encounter.clear()
+		_planned_tower_positions_by_encounter.clear()
+		_entry_socket_by_encounter.clear()
+		_entry_socket_dir_by_encounter.clear()
+		if _door_lock_controller != null:
+			_door_lock_controller.clear_encounter_locks()
+		_encounter_active = {}
+		_encounter_completed = {}
+		_encounter_mobs = {}
+		_combat_encounter_id = &""
+		return
 	if not _is_authoritative_world():
 		_spawn_points_by_encounter.clear()
 		_spawn_volumes_by_encounter.clear()
@@ -3601,11 +3735,17 @@ func _spawn_encounter_wave(encounter_id: StringName, total_count: int, speed_mul
 			break
 		if point_node is EnemySpawnPoint2D:
 			var point := point_node as EnemySpawnPoint2D
+			var spawn_config: Dictionary = {}
 			var scene_for_spawn := (
 				_enemy_scene_from_id(point.enemy_id)
 				if point.enemy_id != &""
 				else planned_scenes[spawned] if spawned < planned_scenes.size() else null
 			)
+			if point.enemy_id != &"":
+				var spec := _enemy_spawn_spec_from_id(point.enemy_id)
+				if not spec.is_empty():
+					scene_for_spawn = spec.get("scene", scene_for_spawn) as PackedScene
+					spawn_config = (spec.get("config", {}) as Dictionary).duplicate(true)
 			var pos := point.get_spawn_position()
 			var authored_marker := bool(point.get_meta(&"authored_marker", false))
 			if not authored_marker:
@@ -3616,7 +3756,8 @@ func _spawn_encounter_wave(encounter_id: StringName, total_count: int, speed_mul
 				player_pos,
 				speed_multiplier,
 				scene_for_spawn,
-				false
+				false,
+				spawn_config
 			)
 			spawned += 1
 	while spawned < total_count:
@@ -3633,7 +3774,8 @@ func _spawn_encounter_wave(encounter_id: StringName, total_count: int, speed_mul
 			player_pos,
 			speed_multiplier,
 			scene_for_spawn,
-			false
+			false,
+			{}
 		)
 		spawned += 1
 
@@ -3644,7 +3786,8 @@ func _spawn_encounter_mob(
 	target_position: Vector2,
 	speed_multiplier: float,
 	enemy_scene: PackedScene = null,
-	start_aggro := false
+	start_aggro := false,
+	spawn_config: Dictionary = {}
 ) -> void:
 	_pending_enemy_spawn_requests.append(
 		{
@@ -3654,6 +3797,7 @@ func _spawn_encounter_mob(
 			"speed_multiplier": speed_multiplier,
 			"enemy_scene": enemy_scene,
 			"start_aggro": start_aggro,
+			"spawn_config": spawn_config.duplicate(true),
 		}
 	)
 	if _pending_enemy_spawn_requests.size() == 1:
@@ -3667,7 +3811,8 @@ func server_enqueue_enemy_spawn(
 	target_position: Vector2,
 	speed_multiplier: float,
 	enemy_scene: PackedScene,
-	start_aggro: bool = true
+	start_aggro: bool = true,
+	spawn_config: Dictionary = {}
 ) -> void:
 	if not is_inside_tree() or not _is_server_peer() or enemy_scene == null:
 		return
@@ -3677,7 +3822,8 @@ func server_enqueue_enemy_spawn(
 		target_position,
 		speed_multiplier,
 		enemy_scene,
-		start_aggro
+		start_aggro,
+		spawn_config
 	)
 
 
@@ -3687,7 +3833,8 @@ func _spawn_encounter_mob_deferred(
 	target_position: Vector2,
 	speed_multiplier: float,
 	enemy_scene: PackedScene = null,
-	start_aggro := false
+	start_aggro := false,
+	spawn_config: Dictionary = {}
 ) -> void:
 	var resolved_encounter_id := _resolve_encounter_for_spawn(encounter_id, spawn_position)
 	var scene_to_spawn := enemy_scene if enemy_scene != null else _pick_enemy_scene(encounter_id)
@@ -3696,6 +3843,7 @@ func _spawn_encounter_mob_deferred(
 	var enemy := scene_to_spawn.instantiate() as EnemyBase
 	if enemy == null:
 		return
+	_apply_enemy_spawn_config(enemy, spawn_config)
 	enemy.apply_speed_multiplier(speed_multiplier)
 	enemy.configure_spawn(spawn_position, target_position)
 	_register_enemy_network_id(enemy, net_id)
@@ -3712,7 +3860,8 @@ func _spawn_encounter_mob_deferred(
 			spawn_position,
 			target_position,
 			speed_multiplier,
-			final_aggro
+			final_aggro,
+			spawn_config
 		)
 
 
@@ -3722,7 +3871,8 @@ func spawn_runtime_enemy_by_kind(
 	spawn_position: Vector2,
 	target_position: Vector2,
 	speed_multiplier: float = 1.0,
-	start_aggro: bool = true
+	start_aggro: bool = true,
+	spawn_config: Dictionary = {}
 ) -> EnemyBase:
 	if not _is_authoritative_world():
 		return null
@@ -3734,6 +3884,7 @@ func spawn_runtime_enemy_by_kind(
 	var enemy := scene_to_spawn.instantiate() as EnemyBase
 	if enemy == null:
 		return null
+	_apply_enemy_spawn_config(enemy, spawn_config)
 	enemy.apply_speed_multiplier(speed_multiplier)
 	enemy.configure_spawn(spawn_position, target_position)
 	_register_enemy_network_id(enemy, net_id)
@@ -3750,7 +3901,8 @@ func spawn_runtime_enemy_by_kind(
 			spawn_position,
 			target_position,
 			speed_multiplier,
-			final_aggro
+			final_aggro,
+			spawn_config
 		)
 	return enemy
 
@@ -3768,7 +3920,8 @@ func _process_pending_enemy_spawns(delta: float) -> void:
 		request.get("target_position", Vector2.ZERO) as Vector2,
 		float(request.get("speed_multiplier", 1.0)),
 		request.get("enemy_scene", null) as PackedScene,
-		bool(request.get("start_aggro", false))
+		bool(request.get("start_aggro", false)),
+		(request.get("spawn_config", {}) as Dictionary).duplicate(true)
 	)
 	_encounter_spawn_queue_time_remaining = maxf(0.01, encounter_spawn_queue_interval)
 
@@ -3812,7 +3965,8 @@ func _rpc_spawn_enemy(
 	spawn_position: Vector2,
 	target_position: Vector2,
 	speed_multiplier: float,
-	aggro_enabled: bool
+	aggro_enabled: bool,
+	spawn_config: Dictionary = {}
 ) -> void:
 	if _is_authoritative_world():
 		return
@@ -3820,7 +3974,9 @@ func _rpc_spawn_enemy(
 		return
 	var existing_v: Variant = _enemy_nodes_by_network_id.get(net_id, null)
 	if existing_v is EnemyBase and is_instance_valid(existing_v):
-		(existing_v as EnemyBase).set_aggro_enabled(aggro_enabled)
+		var existing_enemy := existing_v as EnemyBase
+		_apply_enemy_spawn_config(existing_enemy, spawn_config)
+		existing_enemy.set_aggro_enabled(aggro_enabled)
 		return
 	var scene_to_spawn := _enemy_scene_from_kind(scene_kind)
 	if scene_to_spawn == null:
@@ -3829,6 +3985,7 @@ func _rpc_spawn_enemy(
 	if enemy == null:
 		return
 	var encounter_id := StringName(encounter_id_text)
+	_apply_enemy_spawn_config(enemy, spawn_config)
 	enemy.apply_speed_multiplier(speed_multiplier)
 	enemy.configure_spawn(spawn_position, target_position)
 	_register_enemy_network_id(enemy, net_id)
@@ -3938,6 +4095,7 @@ func _send_runtime_snapshot_to_peer(peer_id: int) -> void:
 		var encounter_id := StringName(enemy.get_meta(&"encounter_id", &""))
 		var scene_kind := _enemy_scene_kind_from_enemy_instance(enemy)
 		var aggro_enabled := bool(_encounter_active.get(encounter_id, false))
+		var spawn_config := _enemy_spawn_config_from_instance(enemy)
 		_rpc_spawn_enemy.rpc_id(
 			peer_id,
 			net_id,
@@ -3946,9 +4104,11 @@ func _send_runtime_snapshot_to_peer(peer_id: int) -> void:
 			enemy.global_position,
 			enemy.global_position,
 			1.0,
-			aggro_enabled
+			aggro_enabled,
+			spawn_config
 		)
 	_rpc_set_puzzle_gate_solved.rpc_id(peer_id, _puzzle_solved, false)
+	_rpc_set_boss_exit_active.rpc_id(peer_id, _boss_exit_portal != null and _boss_exit_portal.monitoring)
 	_ensure_coin_totals_for_roster()
 	_rpc_sync_coin_totals.rpc_id(peer_id, _coin_totals_by_peer)
 	for player_peer_id in _players_by_peer.keys():
@@ -4018,6 +4178,7 @@ func _rpc_receive_layout_snapshot(floor_index_value: int, layout_snapshot: Dicti
 		await get_tree().process_frame
 	_floor_index = maxi(1, floor_index_value)
 	_map_layout = layout_snapshot.duplicate(true)
+	_mini_hub_active = String(_map_layout.get(LAYOUT_KEY_PHASE, LAYOUT_PHASE_FLOOR)) == LAYOUT_PHASE_MINI_HUB
 	_awaiting_layout_snapshot = false
 	_regenerate_level(false)
 	_request_runtime_snapshot_from_server()
@@ -4188,6 +4349,28 @@ func _enemy_scene_from_id(enemy_id: StringName) -> PackedScene:
 	return _pick_random_primary_family_scene()
 
 
+func _enemy_spawn_spec_from_id(enemy_id: StringName) -> Dictionary:
+	var spec := EnemySpawnByEnemyId.spawn_spec_for_enemy_id(enemy_id)
+	if spec is Dictionary:
+		return (spec as Dictionary).duplicate(true)
+	return {}
+
+
+func _apply_enemy_spawn_config(enemy: EnemyBase, spawn_config: Dictionary) -> void:
+	if enemy == null or spawn_config.is_empty():
+		return
+	if enemy.has_method(&"configure_ranged_family"):
+		enemy.call(&"configure_ranged_family", spawn_config)
+
+
+func _enemy_spawn_config_from_instance(enemy: EnemyBase) -> Dictionary:
+	if enemy != null and enemy.has_method(&"get_enemy_spawn_config"):
+		var config_v: Variant = enemy.call(&"get_enemy_spawn_config")
+		if config_v is Dictionary:
+			return (config_v as Dictionary).duplicate(true)
+	return {}
+
+
 func _room_name_for_encounter(encounter_id: StringName) -> StringName:
 	var id_text := String(encounter_id)
 	if id_text == "boss":
@@ -4253,6 +4436,8 @@ func _complete_encounter(encounter_id: StringName) -> void:
 
 
 func _set_boss_exit_active(active: bool, replicate: bool = true) -> void:
+	if _mini_hub_active:
+		_mini_hub_interactions_active = active
 	if _boss_exit_portal != null and is_instance_valid(_boss_exit_portal):
 		_boss_exit_portal.set_deferred("monitoring", active)
 		_boss_exit_portal.set_deferred("monitorable", active)
@@ -4299,7 +4484,9 @@ func _count_players_on_exit_elevator(required_peer_ids: Array[int]) -> int:
 func _try_schedule_floor_advance_if_all_players_on_elevator() -> void:
 	if not _is_authoritative_world():
 		return
-	if not _boss_cleared or _floor_transition_pending:
+	if _floor_transition_pending:
+		return
+	if not _mini_hub_active and not _boss_cleared:
 		return
 	if _boss_exit_portal == null or not _boss_exit_portal.monitoring:
 		return
@@ -4308,9 +4495,14 @@ func _try_schedule_floor_advance_if_all_players_on_elevator() -> void:
 		return
 	var on_count := _count_players_on_exit_elevator(required_peer_ids)
 	if on_count < required_peer_ids.size():
-		_set_info_base_text(
-			"Boss defeated. Elevator boarding: %s/%s players." % [on_count, required_peer_ids.size()]
-		)
+		if _mini_hub_active:
+			_set_info_base_text(
+				"Mini-hub elevator boarding: %s/%s players." % [on_count, required_peer_ids.size()]
+			)
+		else:
+			_set_info_base_text(
+				"Boss defeated. Elevator boarding: %s/%s players." % [on_count, required_peer_ids.size()]
+			)
 		return
 	_schedule_floor_advance_after_portal()
 
@@ -4356,7 +4548,7 @@ func _try_schedule_floor_advance_if_all_players_on_debug_elevator() -> void:
 func _on_boss_exit_portal_body_entered(body: Node2D) -> void:
 	if not _is_authoritative_world():
 		return
-	if not _boss_cleared or not _is_player_body(body):
+	if not (_boss_cleared or _mini_hub_active) or not _is_player_body(body):
 		return
 	_try_schedule_floor_advance_if_all_players_on_elevator()
 
@@ -4402,9 +4594,17 @@ func _deferred_advance_floor_after_portal() -> void:
 				player.call(&"revive_to_full")
 			elif player.has_method(&"heal_to_full"):
 				player.call(&"heal_to_full")
-	_grant_tempering_xp_to_all_players(_MetaProgressionConstantsRef.TEMPERING_XP_PER_FLOOR)
-	_floor_index += 1
-	_sync_run_state_floor_index()
+	if _mini_hub_active:
+		_mini_hub_active = false
+		_floor_index += 1
+		_sync_run_state_floor_index()
+		_sync_run_state_phase(&"floor")
+	else:
+		_grant_tempering_xp_to_all_players(_MetaProgressionConstantsRef.TEMPERING_XP_PER_FLOOR)
+		_mini_hub_active = true
+		_mini_hub_arrival_retry_count = 0
+		_map_layout = {}
+		_sync_run_state_phase(&"mini_hub")
 	_regenerate_level(true)
 	await get_tree().process_frame
 	await get_tree().process_frame
@@ -4415,6 +4615,47 @@ func _sync_run_state_floor_index() -> void:
 	var run_state := get_node_or_null("/root/RunState")
 	if run_state != null and run_state.has_method(&"set_floor"):
 		run_state.call(&"set_floor", _floor_index)
+
+
+func _sync_run_state_phase(phase: StringName) -> void:
+	var run_state := get_node_or_null("/root/RunState")
+	if run_state != null and run_state.has_method(&"set_extra_value"):
+		run_state.call(&"set_extra_value", &"phase", String(phase))
+
+
+func _mini_hub_required_players_arrived(required_peer_ids: Array[int]) -> bool:
+	if required_peer_ids.is_empty():
+		return false
+	var hub_room := _layout_room_name("start_room")
+	for peer_id in required_peer_ids:
+		var node_v: Variant = _players_by_peer.get(peer_id, null)
+		if node_v is not CharacterBody2D:
+			return false
+		var player := node_v as CharacterBody2D
+		if player == null or not is_instance_valid(player):
+			return false
+		if StringName(_room_name_at(player.global_position, 1.25)) != hub_room:
+			return false
+	return true
+
+
+func _enable_mini_hub_elevator_after_arrival_sync() -> void:
+	if not _is_authoritative_world() or not _mini_hub_active:
+		return
+	await get_tree().physics_frame
+	if not _is_authoritative_world() or not _mini_hub_active:
+		return
+	var required_peer_ids := _required_floor_transition_peer_ids()
+	if not _mini_hub_required_players_arrived(required_peer_ids):
+		_mini_hub_arrival_retry_count += 1
+		if _mini_hub_arrival_retry_count <= 10:
+			call_deferred("_enable_mini_hub_elevator_after_arrival_sync")
+		else:
+			_set_info_base_text("Mini-hub waiting for all players to arrive.")
+		return
+	_mini_hub_arrival_retry_count = 0
+	_set_boss_exit_active(true)
+	_set_info_base_text("Mini-hub ready. Adjust loadout, then board the elevator together.")
 
 
 func _on_player_hit() -> void:
@@ -4555,6 +4796,15 @@ func _is_player_body(body: Node2D) -> bool:
 
 func _room_type_at(world_pos: Vector2, margin: float = 0.0) -> String:
 	return _room_queries.room_type_at(world_pos, margin) if _room_queries != null else ""
+
+
+func _loadout_room_type_at(world_pos: Vector2, margin: float = 0.0) -> String:
+	var room_type := _room_type_at(world_pos, margin)
+	if room_type != "safe":
+		return room_type
+	if _mini_hub_active and _mini_hub_interactions_active:
+		return room_type
+	return "connector"
 
 
 func _set_info_base_text(text: String) -> void:

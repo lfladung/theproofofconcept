@@ -54,6 +54,12 @@ var _wall_pierce_hits_remaining := 0
 var _knockback_attribution_owner: Node = null
 ## Echo handgun twin: same mesh family as primary but tinted + cached under a distinct visual key.
 var _echo_twin_visual := false
+var _effect_owner: Node = null
+var _effect_config: Dictionary = {}
+var _elapsed_sec := 0.0
+var _blink_done := false
+var _reaim_done := false
+var _owner_finish_reported := false
 
 
 func configure(
@@ -66,7 +72,9 @@ func configure(
 	charge_size_mult: float = 1.0,
 	wall_pierce_hits_remaining: int = 0,
 	knockback_attribution_owner: Node = null,
-	echo_twin_visual: bool = false
+	echo_twin_visual: bool = false,
+	effect_owner: Node = null,
+	effect_config: Dictionary = {}
 ) -> void:
 	global_position = spawn_position
 	_start_pos = spawn_position
@@ -79,8 +87,14 @@ func configure(
 	_charge_size_mult = clampf(charge_size_mult, 1.0, 2.5)
 	_wall_pierce_hits_remaining = maxi(0, wall_pierce_hits_remaining)
 	_echo_twin_visual = echo_twin_visual
+	_effect_owner = effect_owner
+	_effect_config = effect_config.duplicate(true)
 	_finished = false
 	_traveled = 0.0
+	_elapsed_sec = 0.0
+	_blink_done = false
+	_reaim_done = false
+	_owner_finish_reported = false
 	if is_inside_tree():
 		_activate_runtime_state()
 
@@ -118,6 +132,9 @@ func deactivate_for_pool() -> void:
 	hide()
 	set_physics_process(false)
 	monitoring = false
+	_effect_owner = null
+	_effect_config.clear()
+	_owner_finish_reported = false
 	if _hitbox != null:
 		_hitbox.deactivate()
 	if _visual != null and is_instance_valid(_visual):
@@ -273,8 +290,19 @@ func _visual_scene_for_current_style() -> PackedScene:
 				return PLAYER_PROJECTILE_YELLOW_VISUAL_SCENE
 			_:
 				return PLAYER_PROJECTILE_VISUAL_SCENE
-	if _projectile_style_id == &"green":
-		return HOSTILE_PROJECTILE_GREEN_VISUAL_SCENE
+	match _projectile_style_id:
+		&"blue":
+			return PLAYER_PROJECTILE_BLUE_VISUAL_SCENE
+		&"green":
+			return HOSTILE_PROJECTILE_GREEN_VISUAL_SCENE
+		&"orange":
+			return PLAYER_PROJECTILE_ORANGE_VISUAL_SCENE
+		&"purple":
+			return PLAYER_PROJECTILE_PURPLE_VISUAL_SCENE
+		&"pink":
+			return PLAYER_PROJECTILE_PINK_VISUAL_SCENE
+		&"yellow":
+			return PLAYER_PROJECTILE_YELLOW_VISUAL_SCENE
 	return ARROW_VISUAL_SCENE
 
 
@@ -333,12 +361,38 @@ func _disable_cast_shadows_recursive(node: Node) -> void:
 func _physics_process(delta: float) -> void:
 	if _finished:
 		return
+	_elapsed_sec += delta
+	_tick_effect_motion()
 	var step := _direction * speed * delta
 	global_position += step
 	_traveled = global_position.distance_to(_start_pos)
 	_sync_visual()
 	if _traveled >= max_distance:
 		_finish_projectile()
+
+
+func _tick_effect_motion() -> void:
+	if _effect_config.is_empty():
+		return
+	var acceleration := float(_effect_config.get("acceleration", 0.0))
+	if not is_zero_approx(acceleration):
+		speed = maxf(0.1, speed + acceleration * get_physics_process_delta_time())
+	if not _blink_done:
+		var blink_after := float(_effect_config.get("blink_after", -1.0))
+		if blink_after >= 0.0 and _elapsed_sec >= blink_after:
+			var blink_distance := float(_effect_config.get("blink_distance", 0.0))
+			if absf(blink_distance) > 0.001:
+				global_position += _direction * blink_distance
+			_blink_done = true
+	if not _reaim_done:
+		var reaim_after := float(_effect_config.get("reaim_after", -1.0))
+		if reaim_after >= 0.0 and _elapsed_sec >= reaim_after:
+			var target_v: Variant = _effect_config.get("reaim_target_position", null)
+			if target_v is Vector2:
+				var to_target := (target_v as Vector2) - global_position
+				if to_target.length_squared() > 0.0001:
+					_direction = to_target.normalized()
+			_reaim_done = true
 
 
 func _sync_visual() -> void:
@@ -358,11 +412,30 @@ func _finish_projectile() -> void:
 	if _hitbox != null:
 		_hitbox.deactivate()
 	monitoring = false
+	_report_owner_projectile_finished(-1, false)
 	projectile_finished.emit(global_position)
 	if _pooled_enabled:
 		ArrowProjectilePoolScript.release_projectile(self)
 	else:
 		queue_free()
+
+
+func _report_owner_projectile_finished(target_uid: int, accepted_hit: bool) -> void:
+	if _owner_finish_reported:
+		return
+	_owner_finish_reported = true
+	if _effect_owner == null or not is_instance_valid(_effect_owner):
+		return
+	if not _effect_owner.has_method(&"on_ranged_projectile_effect_finished"):
+		return
+	_effect_owner.call(
+		&"on_ranged_projectile_effect_finished",
+		global_position,
+		_direction,
+		target_uid,
+		accepted_hit,
+		_effect_config
+	)
 
 
 func _on_world_body_entered(body: Node2D) -> void:
@@ -383,6 +456,7 @@ func _on_hitbox_target_resolved(
 ) -> void:
 	if not consume_hit:
 		return
+	_report_owner_projectile_finished(_target_uid, _accepted)
 	_finish_projectile()
 
 

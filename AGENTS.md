@@ -34,7 +34,7 @@ Read the smallest relevant set before editing:
 
 ## Current Project Snapshot
 
-As of 2026-04-11 (bump this date when you materially change this section):
+As of 2026-04-13 (bump this date when you materially change this section):
 
 - `ideas/MILESTONES_v2.md` is the active roadmap for hub, mission select, upgrade UI, gems/socketing, mini-hubs, authored encounter composition, reward-drop replacement, naming, and display polish.
 - Project identity metadata and the lobby title now use `The Proof of Concept`.
@@ -48,6 +48,8 @@ As of 2026-04-11 (bump this date when you materially change this section):
 - Stat pillars (`dungeon/modules/gameplay/stat_pillar_2d.gd`) grant server-authoritative runtime bonuses merged in `player.gd`; several new stat keys exist in `scripts/loadout/loadout_constants.gd` but are not necessarily consumed by combat math yet (affix items / full wiring: see `ideas/EQUIPMENT_UPGRADES.md`).
 - A reusable authored outline library lives under `dungeon/rooms/authored/outlines/` with generator/validator helpers in `tools/room_editor/generate_outline_rooms.gd` and `tools/room_editor/validate_outline_rooms.gd`.
 - Enemy families now share more of their common target-refresh and single-model visual-state wiring through `scripts/entities/enemy_base.gd`; when adding a new Flow/Mass/Edge variant, prefer family or base helpers over copy-pasting per-enemy plumbing.
+- Turret-style ranged enemies now use one configurable volley-family chassis (`scripts/entities/arrow_tower.gd`) with `spitter` / `volley` / `barrage` archetypes plus 7 family packages, resolved by explicit authored IDs such as `spitter_flow`, `volley_edge`, and `barrage_mass`; `arrow_tower` remains a legacy alias.
+- Mini-hubs now sit between completed floors and the next generated floor. Boss/floor elevators move the party into a no-enemy safe intermission room; loadout changes are gated there after all players arrive, then the central elevator requires all players aboard before advancing.
 
 ## Subsystem Notes
 
@@ -285,10 +287,12 @@ Update this list when something materially ships; prefer pointers to docs and sc
 - Multiplayer: co-op milestones 1–9 complete; dedicated join-by-session-code through DS milestones 1–3; external matchmaker / reconnect-token handoff still open (`ideas/sunset/MULTIPLAYER_MILESTONE_MAP.md`).
 - Hub/mission flow: dedicated multiplayer now routes connected players to `scenes/hub/hub_world.tscn`; mission state is server-owned in `NetworkSession`, mission data lives under `scripts/missions/`, and all three starter missions currently resolve to `dungeon/game/dungeon_orchestrator.tscn`.
 - Enemy-family cleanup: `enemy_base.gd` now owns shared target-refresh cadence and single-scene visual-state helpers used by Flow/Edge/Mass enemy variants; keep future family work layered there first.
+- Volley-family turrets: `arrow_tower.gd` is now a shared ranged chassis with `spitter` / `volley` / `barrage` archetypes and Flow/Edge/Echo/Surge/Phase/Mass/Anchor packages; authored spawn IDs are resolved in `dungeon/game/enemy_spawn_by_id.gd`, and orchestrator enemy spawn replication carries optional spawn config for clients/late snapshots.
 - Edge family: `edge_family_base.gd` now owns committed line-attack facing, thin floor telegraphs, and precision line damage; `skewer_mob.gd`, `glaiver_mob.gd`, and `razorform_mob.gd` layer Skewer/Glaiver/Razorform behavior on top, with Razorform cut telegraphs managed by `edge_cut_line_hazard.gd`.
 - Meta-progression system: `MetaProgressionStore` autoload (gear instances, gems, materials, local JSON persistence); `GearItemData` / `GemItemData` resources; `TemperingManager` run-scoped RefCounted; `MetaProgressionConstants` (`class_name`). All stat multipliers flow through `LoadoutRepository._aggregate_stats_for_slots`. Item display names centralised in `LoadoutConstants.ITEM_DISPLAY_NAMES`. Design reference: `ideas/META_PROGRESSION.md`, `ideas/INVENTORY.md`.
 - Inventory UI: full-screen lobby overlay at `scripts/ui/inventory/inventory_screen.gd`; 3 sub-screens (Loadout with collapsible slot categories + equip/detail, Gear Detail, Gem Management). In-run loadout overlay (`loadout_overlay.gd`) tooltips also show tier/pillar/familiarity. `LoadoutRepository` initialises from `MetaProgressionStore` and syncs equip changes back to it.
 - Starter gear: T1 equipped + T2 Aligned + T3 Specialized per slot (varied pillars), seeded materials. Delete `user://meta_progression_local.json` to regenerate.
+- Mini-hub floor transition: `dungeon/game/dungeon_orchestrator_internals.gd` uses `layout_phase=mini_hub` for a single no-enemy safe room between floors. The boss elevator enters the mini-hub; once all players arrive, loadout becomes available and the central elevator requires full-party boarding before `_floor_index` increments and the next combat floor generates.
 
 ---
 
