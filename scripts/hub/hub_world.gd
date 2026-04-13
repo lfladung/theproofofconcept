@@ -7,6 +7,7 @@ const HUB_ROOM_LAYOUT_PATH := "res://dungeon/rooms/authored/layouts/hub_room.lay
 const MISSION_INTERFACE_SCENE := preload("res://scenes/hub/mission_interface.tscn")
 const UPGRADE_AREA_SCENE := preload("res://scenes/hub/upgrade_area.tscn")
 const MISSION_SELECT_SCENE := preload("res://scenes/ui/mission_select_ui.tscn")
+const ESCAPE_MENU_SCENE := preload("res://scenes/ui/escape_menu.tscn")
 const MissionInterfaceScript = preload("res://scripts/hub/mission_interface.gd")
 const UpgradeAreaScript = preload("res://scripts/hub/upgrade_area.gd")
 const GridMath = preload("res://addons/dungeon_room_editor/core/grid_math.gd")
@@ -32,6 +33,7 @@ var _retired_players_by_peer: Dictionary = {}
 var _local_player: CharacterBody2D
 var _focused_interactable: Node
 var _mission_select_ui: Control
+var _escape_menu: Control
 var _hub_room: RoomBase
 var _runtime_scene_ready_sent := false
 
@@ -46,6 +48,7 @@ func _ready() -> void:
 		session.peer_slot_map_changed.connect(_on_peer_slot_map_changed)
 	_maybe_mark_runtime_scene_ready()
 	_prompt_label.visible = false
+	_ensure_escape_menu()
 
 
 func _exit_tree() -> void:
@@ -57,6 +60,17 @@ func _exit_tree() -> void:
 
 func _process(delta: float) -> void:
 	_update_camera(delta)
+
+
+func _unhandled_input(event: InputEvent) -> void:
+	if event is InputEventKey:
+		var key := event as InputEventKey
+		if key.pressed and not key.echo and key.keycode == KEY_ESCAPE:
+			if _is_mission_select_open():
+				return
+			_ensure_escape_menu()
+			if _escape_menu != null and _escape_menu.has_method(&"handle_escape") and bool(_escape_menu.call(&"handle_escape")):
+				get_viewport().set_input_as_handled()
 
 
 func _spawn_hub_room() -> void:
@@ -196,9 +210,9 @@ func _apply_player_roster_from_slot_map(raw_slot_map: Dictionary) -> void:
 		var player := player_entry.get("player", null) as CharacterBody2D
 		if player == null:
 			continue
-		if bool(player_entry.get("created", false)) and _should_assign_initial_spawn(peer_id):
+		if bool(player_entry.get("created", false)):
 			var slot := int(slot_map.get(peer_id, 0))
-			player.global_position = _spawn_position_for_slot(slot)
+			_place_player_at_spawn(player, _spawn_position_for_slot(slot))
 		_players_by_peer[peer_id] = player
 		seen[peer_id] = true
 	for key in _players_by_peer.keys():
@@ -274,6 +288,7 @@ func _free_retired_player(peer_id: int, player: Node) -> void:
 
 func _resolve_local_player() -> void:
 	_local_player = _players_by_peer.get(_local_peer_id(), null) as CharacterBody2D
+	_sync_escape_menu_input_block()
 
 
 func _local_peer_id() -> int:
@@ -316,6 +331,17 @@ func _should_assign_initial_spawn(peer_id: int) -> bool:
 	if multiplayer.is_server():
 		return true
 	return peer_id == _local_peer_id()
+
+
+func _place_player_at_spawn(player: CharacterBody2D, spawn_position: Vector2) -> void:
+	if player == null:
+		return
+	if player.has_method(&"set_spawn_position_immediate"):
+		player.call(&"set_spawn_position_immediate", spawn_position, true)
+		return
+	player.global_position = spawn_position
+	player.velocity = Vector2.ZERO
+	player.set_meta(&"spawn_initialized", true)
 
 
 func _spawn_position_for_slot(slot: int) -> Vector2:
@@ -437,6 +463,63 @@ func _close_mission_select() -> void:
 func _set_local_player_menu_blocked(blocked: bool) -> void:
 	if _local_player != null and is_instance_valid(_local_player) and _local_player.has_method("set_menu_input_blocked"):
 		_local_player.call("set_menu_input_blocked", blocked)
+
+
+func _ensure_escape_menu() -> void:
+	if _escape_menu != null and is_instance_valid(_escape_menu):
+		return
+	var existing := _overlay_root.get_node_or_null("EscapeMenu") as Control
+	if existing != null:
+		_escape_menu = existing
+	else:
+		var overlay := ESCAPE_MENU_SCENE.instantiate() as Control
+		if overlay == null:
+			return
+		overlay.name = "EscapeMenu"
+		_overlay_root.add_child(overlay)
+		_escape_menu = overlay
+	if (
+		_escape_menu.has_signal(&"visibility_changed_for_input_block")
+		and not _escape_menu.is_connected(&"visibility_changed_for_input_block", _on_escape_menu_visibility_changed)
+	):
+		_escape_menu.connect(&"visibility_changed_for_input_block", _on_escape_menu_visibility_changed)
+	if (
+		_escape_menu.has_signal(&"back_to_main_screen_requested")
+		and not _escape_menu.is_connected(&"back_to_main_screen_requested", _on_escape_menu_back_to_main_requested)
+	):
+		_escape_menu.connect(&"back_to_main_screen_requested", _on_escape_menu_back_to_main_requested)
+	_sync_escape_menu_input_block()
+
+
+func _sync_escape_menu_input_block() -> void:
+	if _escape_menu == null or not is_instance_valid(_escape_menu):
+		return
+	if _escape_menu.has_method(&"is_menu_open"):
+		_on_escape_menu_visibility_changed(bool(_escape_menu.call(&"is_menu_open")))
+
+
+func _on_escape_menu_visibility_changed(open: bool) -> void:
+	_set_local_player_menu_blocked(open or _is_mission_select_open())
+
+
+func _on_escape_menu_back_to_main_requested() -> void:
+	var session := _session()
+	if session != null and session.has_method("has_active_peer") and bool(session.call("has_active_peer")):
+		var role_name := String(session.call("get_role_name")) if session.has_method("get_role_name") else ""
+		if role_name == "HOST" and session.has_method("close_lobby_from_host"):
+			session.call("close_lobby_from_host")
+		elif session.has_method("disconnect_from_session"):
+			session.call("disconnect_from_session", true)
+		return
+	if session != null and session.has_method("disconnect_from_session"):
+		session.call("disconnect_from_session", false)
+	var err := get_tree().change_scene_to_file("res://scenes/ui/lobby_menu.tscn")
+	if err != OK:
+		push_warning("Failed to return to main screen (error %s)." % [err])
+
+
+func _is_mission_select_open() -> bool:
+	return _mission_select_ui != null and is_instance_valid(_mission_select_ui) and _mission_select_ui.visible
 
 
 func _update_camera(delta: float) -> void:

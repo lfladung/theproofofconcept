@@ -95,6 +95,7 @@ const Layer1EncounterRegistry = preload("res://dungeon/game/encounters/layer_1_e
 const PLAYER_SCENE := preload("res://scenes/entities/player.tscn")
 const LOADOUT_OVERLAY_SCENE := preload("res://scenes/ui/loadout/loadout_overlay.tscn")
 const INFUSION_GUIDE_OVERLAY_SCENE := preload("res://scenes/ui/infusion_guide_overlay.tscn")
+const ESCAPE_MENU_SCENE := preload("res://scenes/ui/escape_menu.tscn")
 const LoadoutRepositoryScript = preload("res://scripts/loadout/loadout_repository.gd")
 const _MetaProgressionConstantsRef = preload("res://scripts/meta_progression/meta_progression_constants.gd")
 const ELEVATOR_VISUAL_SCENE := preload("res://art/props/interactables/elevator_texture.glb")
@@ -150,6 +151,7 @@ const _W_EXT_X := 65.0
 const _E_EXT_X := 143.0
 const _BOSS_W_EXT_X := 182.0
 const _BOSS_PORTAL_INSET := 1.5
+const _MINI_HUB_EXIT_ELEVATOR_INSET := 7.5
 const _ROOM_SIZE_SCALE := 1.5
 const _BACK_HALF_MIN_RATIO := 0.22
 const _AUTHORED_VISUAL_STREAM_MARGIN := 18.0
@@ -256,6 +258,7 @@ var _loadout_repository: Node
 var _tempering_manager: RefCounted  # TemperingManager, run-scoped
 var _loadout_overlay: Control
 var _infusion_guide_overlay: Control
+var _escape_menu: Control
 var _network_session: Node
 var _networked_run := false
 var _bound_hit_player: CharacterBody2D
@@ -350,6 +353,7 @@ func _ready() -> void:
 	_ensure_fps_counter()
 	_ensure_loadout_overlay()
 	_ensure_infusion_guide_overlay()
+	_ensure_escape_menu()
 	_regenerate_level(true)
 	_bind_local_player_runtime_hooks()
 	if _is_authoritative_world():
@@ -957,6 +961,106 @@ func _ensure_infusion_guide_overlay() -> void:
 		_infusion_guide_overlay.call(&"bind_player", _player)
 
 
+func _ensure_escape_menu() -> void:
+	var ui_root := get_node_or_null("CanvasLayer/UI") as Control
+	if ui_root == null:
+		return
+	if _escape_menu != null and is_instance_valid(_escape_menu):
+		_refresh_escape_menu_return_to_hub_availability()
+		return
+	var existing := ui_root.get_node_or_null("EscapeMenu") as Control
+	if existing != null:
+		_escape_menu = existing
+	else:
+		var overlay := ESCAPE_MENU_SCENE.instantiate() as Control
+		if overlay == null:
+			return
+		overlay.name = "EscapeMenu"
+		ui_root.add_child(overlay)
+		_escape_menu = overlay
+	if (
+		_escape_menu.has_signal(&"visibility_changed_for_input_block")
+		and not _escape_menu.is_connected(&"visibility_changed_for_input_block", _on_escape_menu_visibility_changed)
+	):
+		_escape_menu.connect(&"visibility_changed_for_input_block", _on_escape_menu_visibility_changed)
+	if (
+		_escape_menu.has_signal(&"back_to_main_screen_requested")
+		and not _escape_menu.is_connected(&"back_to_main_screen_requested", _on_escape_menu_back_to_main_requested)
+	):
+		_escape_menu.connect(&"back_to_main_screen_requested", _on_escape_menu_back_to_main_requested)
+	if (
+		_escape_menu.has_signal(&"return_to_hub_requested")
+		and not _escape_menu.is_connected(&"return_to_hub_requested", _on_escape_menu_return_to_hub_requested)
+	):
+		_escape_menu.connect(&"return_to_hub_requested", _on_escape_menu_return_to_hub_requested)
+	_refresh_escape_menu_return_to_hub_availability()
+	_sync_escape_menu_input_block()
+
+
+func _sync_escape_menu_input_block() -> void:
+	if _escape_menu == null or not is_instance_valid(_escape_menu):
+		return
+	if _escape_menu.has_method(&"is_menu_open"):
+		_on_escape_menu_visibility_changed(bool(_escape_menu.call(&"is_menu_open")))
+
+
+func _refresh_escape_menu_return_to_hub_availability() -> void:
+	if _escape_menu != null and is_instance_valid(_escape_menu) and _escape_menu.has_method(&"set_return_to_hub_available"):
+		_escape_menu.call(&"set_return_to_hub_available", _is_multiplayer_run_return_to_hub_available())
+
+
+func _on_escape_menu_visibility_changed(open: bool) -> void:
+	if _player != null and is_instance_valid(_player) and _player.has_method(&"set_menu_input_blocked"):
+		_player.call(&"set_menu_input_blocked", open or _should_defer_escape_menu_to_existing_overlay())
+
+
+func _on_escape_menu_back_to_main_requested() -> void:
+	var session := get_node_or_null("/root/NetworkSession")
+	if session != null and session.has_method("has_active_peer") and bool(session.call("has_active_peer")):
+		if session.has_method("disconnect_from_session"):
+			session.call("disconnect_from_session", true)
+		return
+	if session != null and session.has_method("disconnect_from_session"):
+		session.call("disconnect_from_session", false)
+	var err := get_tree().change_scene_to_file("res://scenes/ui/lobby_menu.tscn")
+	if err != OK:
+		push_warning("Failed to return to main screen (error %s)." % [err])
+
+
+func _on_escape_menu_return_to_hub_requested() -> void:
+	var session := get_node_or_null("/root/NetworkSession")
+	if session == null or not session.has_method("request_leave_run_from_local_peer"):
+		return
+	session.call("request_leave_run_from_local_peer")
+
+
+func _is_multiplayer_run_return_to_hub_available() -> bool:
+	var session := get_node_or_null("/root/NetworkSession")
+	return (
+		session != null
+		and session.has_method("has_active_peer")
+		and bool(session.call("has_active_peer"))
+	)
+
+
+func _should_defer_escape_menu_to_existing_overlay() -> bool:
+	if (
+		_loadout_overlay != null
+		and is_instance_valid(_loadout_overlay)
+		and _loadout_overlay.has_method(&"is_loadout_panel_open")
+		and bool(_loadout_overlay.call(&"is_loadout_panel_open"))
+	):
+		return true
+	if (
+		_infusion_guide_overlay != null
+		and is_instance_valid(_infusion_guide_overlay)
+		and _infusion_guide_overlay.has_method(&"is_infusion_guide_open")
+		and bool(_infusion_guide_overlay.call(&"is_infusion_guide_open"))
+	):
+		return true
+	return false
+
+
 func _loadout_owner_id_for_peer(peer_id: int) -> StringName:
 	return StringName("peer_%s" % [maxi(1, peer_id)])
 
@@ -1078,6 +1182,7 @@ func _bind_local_player_runtime_hooks() -> void:
 		_loadout_overlay.call(&"bind_player", _player, Callable(self, "_loadout_room_type_at"))
 	if _infusion_guide_overlay != null and _infusion_guide_overlay.has_method(&"bind_player"):
 		_infusion_guide_overlay.call(&"bind_player", _player)
+	_sync_escape_menu_input_block()
 	_refresh_combat_debug_overlay(0.0, true)
 
 
@@ -1314,9 +1419,7 @@ func _position_players_at_spawn(entrance_spawn: Vector2) -> void:
 			continue
 		var player := node as CharacterBody2D
 		var offset: Vector2 = offsets[i] if i < offsets.size() else Vector2(float(i) * 2.0, 0.0)
-		player.global_position = entrance_spawn + offset
-		player.velocity = Vector2.ZERO
-		player.set_meta(&"spawn_initialized", true)
+		_place_player_at_spawn(player, entrance_spawn + offset)
 
 
 func _position_players_at_floor_start() -> void:
@@ -1357,9 +1460,7 @@ func _position_players_at_floor_start() -> void:
 				else Vector2(float(i) * 2.0, 0.0)
 			)
 		)
-		player.global_position = target
-		player.velocity = Vector2.ZERO
-		player.set_meta(&"spawn_initialized", true)
+		_place_player_at_spawn(player, target)
 
 
 func _position_players_at_mini_hub_start() -> void:
@@ -1381,9 +1482,7 @@ func _position_players_at_mini_hub_start() -> void:
 			continue
 		var player := node as CharacterBody2D
 		var offset: Vector2 = offsets[i] if i < offsets.size() else Vector2(float(i) * 2.0, 0.0)
-		player.global_position = hub_center + offset
-		player.velocity = Vector2.ZERO
-		player.set_meta(&"spawn_initialized", true)
+		_place_player_at_spawn(player, hub_center + offset)
 
 
 func _authored_spawn_positions(start_room_name: StringName) -> Array[Vector2]:
@@ -1414,10 +1513,19 @@ func _position_uninitialized_players(anchor: Vector2) -> void:
 		var offset: Vector2 = (
 			offsets[offset_idx] if offset_idx < offsets.size() else Vector2(float(offset_idx) * 2.0, 0.0)
 		)
-		player.global_position = anchor + offset
-		player.velocity = Vector2.ZERO
-		player.set_meta(&"spawn_initialized", true)
+		_place_player_at_spawn(player, anchor + offset)
 		offset_idx += 1
+
+
+func _place_player_at_spawn(player: CharacterBody2D, spawn_position: Vector2) -> void:
+	if player == null:
+		return
+	if player.has_method(&"set_spawn_position_immediate"):
+		player.call(&"set_spawn_position_immediate", spawn_position, true)
+		return
+	player.global_position = spawn_position
+	player.velocity = Vector2.ZERO
+	player.set_meta(&"spawn_initialized", true)
 
 
 func _log_player_authority_roster(reason: String) -> void:
@@ -2234,13 +2342,13 @@ func _cache_runtime_door_positions() -> void:
 
 func _position_runtime_markers() -> void:
 	if _mini_hub_active:
-		var hub_center := _room_center_2d(_layout_room_name("exit_room"))
-		_boss_exit_portal.position = hub_center
+		var hub_exit_pos := _mini_hub_exit_elevator_world_position()
+		_boss_exit_portal.position = hub_exit_pos
 		if _boss_portal_marker != null:
 			_boss_portal_marker.visible = false
 		_ensure_boss_exit_elevator_visual()
 		if _boss_exit_elevator_visual != null and is_instance_valid(_boss_exit_elevator_visual):
-			_set_elevator_visual_transform(_boss_exit_elevator_visual, hub_center, hub_center + Vector2(0.0, -6.0))
+			_set_elevator_visual_transform(_boss_exit_elevator_visual, hub_exit_pos, hub_exit_pos + Vector2(0.0, -6.0))
 			_boss_exit_elevator_visual.visible = false
 		_position_debug_spawn_exit_portal()
 		return
@@ -2269,6 +2377,16 @@ func _boss_floor_exit_world_position(exit_key: StringName, boss_room: RoomBase) 
 	var inset_y := maxf(0.0, half.y - _BOSS_PORTAL_INSET)
 	var offset := Vector2(outward.x * inset_x, outward.y * inset_y)
 	return boss_room.global_position + offset
+
+
+func _mini_hub_exit_elevator_world_position() -> Vector2:
+	var room_name := _layout_room_name("exit_room")
+	var room := _room_by_name(room_name)
+	if room == null:
+		return _room_center_2d(room_name)
+	var half := _room_half_extents(room)
+	var north_offset := maxf(0.0, half.y - _MINI_HUB_EXIT_ELEVATOR_INSET)
+	return room.global_position + Vector2(0.0, -north_offset)
 
 
 func _spawn_exit_world_position(start_room_name: StringName, start_room: RoomBase) -> Vector2:
@@ -3141,6 +3259,8 @@ func _set_puzzle_gate_solved(solved: bool, animate: bool = true, replicate: bool
 
 func _spawn_gameplay_objects() -> void:
 	if _is_authored_floor_mode():
+		return
+	if _mini_hub_active:
 		return
 	if _map_layout.is_empty():
 		return

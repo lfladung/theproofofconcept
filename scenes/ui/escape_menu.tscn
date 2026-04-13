@@ -1,0 +1,154 @@
+[gd_scene load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://scripts/ui/escape_menu.gd" id="1_script"]
+
+[sub_resource type="StyleBoxFlat" id="1_panel_style"]
+bg_color = Color(0.08, 0.09, 0.105, 0.94)
+border_width_left = 2
+border_width_top = 2
+border_width_right = 2
+border_width_bottom = 2
+border_color = Color(0.8, 0.76, 0.62, 0.95)
+corner_radius_top_left = 8
+corner_radius_top_right = 8
+corner_radius_bottom_right = 8
+corner_radius_bottom_left = 8
+
+[node name="EscapeMenu" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+script = ExtResource("1_script")
+
+[node name="ModalRoot" type="Control" parent="."]
+visible = false
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="Dim" type="ColorRect" parent="ModalRoot"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 0
+color = Color(0, 0, 0, 0.58)
+
+[node name="Panel" type="PanelContainer" parent="ModalRoot"]
+layout_mode = 1
+anchors_preset = -1
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -280.0
+offset_top = -230.0
+offset_right = 280.0
+offset_bottom = 230.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 0
+theme_override_styles/panel = SubResource("1_panel_style")
+
+[node name="Margin" type="MarginContainer" parent="ModalRoot/Panel"]
+layout_mode = 2
+theme_override_constants/margin_left = 18
+theme_override_constants/margin_top = 16
+theme_override_constants/margin_right = 18
+theme_override_constants/margin_bottom = 16
+
+[node name="Rows" type="VBoxContainer" parent="ModalRoot/Panel/Margin"]
+layout_mode = 2
+theme_override_constants/separation = 12
+
+[node name="RootMenu" type="VBoxContainer" parent="ModalRoot/Panel/Margin/Rows"]
+layout_mode = 2
+theme_override_constants/separation = 12
+
+[node name="TitleLabel" type="Label" parent="ModalRoot/Panel/Margin/Rows/RootMenu"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 28
+text = "Menu"
+horizontal_alignment = 1
+
+[node name="ReturnToHubButton" type="Button" parent="ModalRoot/Panel/Margin/Rows/RootMenu"]
+visible = false
+custom_minimum_size = Vector2(0, 44)
+layout_mode = 2
+text = "Return to Hub"
+
+[node name="BackToMainButton" type="Button" parent="ModalRoot/Panel/Margin/Rows/RootMenu"]
+custom_minimum_size = Vector2(0, 44)
+layout_mode = 2
+text = "Back to Main Screen"
+
+[node name="OptionsButton" type="Button" parent="ModalRoot/Panel/Margin/Rows/RootMenu"]
+custom_minimum_size = Vector2(0, 44)
+layout_mode = 2
+text = "Options"
+
+[node name="OptionsMenu" type="VBoxContainer" parent="ModalRoot/Panel/Margin/Rows"]
+visible = false
+layout_mode = 2
+theme_override_constants/separation = 10
+
+[node name="OptionsTitleLabel" type="Label" parent="ModalRoot/Panel/Margin/Rows/OptionsMenu"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 28
+text = "Options"
+horizontal_alignment = 1
+
+[node name="TabContainer" type="TabContainer" parent="ModalRoot/Panel/Margin/Rows/OptionsMenu"]
+custom_minimum_size = Vector2(500, 260)
+layout_mode = 2
+current_tab = 0
+
+[node name="Controls" type="VBoxContainer" parent="ModalRoot/Panel/Margin/Rows/OptionsMenu/TabContainer"]
+layout_mode = 2
+theme_override_constants/separation = 8
+metadata/_tab_index = 0
+
+[node name="SchemeLabel" type="Label" parent="ModalRoot/Panel/Margin/Rows/OptionsMenu/TabContainer/Controls"]
+layout_mode = 2
+text = "Control scheme"
+
+[node name="ControlSchemeOption" type="OptionButton" parent="ModalRoot/Panel/Margin/Rows/OptionsMenu/TabContainer/Controls"]
+layout_mode = 2
+
+[node name="ControlSchemeHint" type="Label" parent="ModalRoot/Panel/Margin/Rows/OptionsMenu/TabContainer/Controls"]
+layout_mode = 2
+autowrap_mode = 3
+
+[node name="General" type="VBoxContainer" parent="ModalRoot/Panel/Margin/Rows/OptionsMenu/TabContainer"]
+visible = false
+layout_mode = 2
+theme_override_constants/separation = 8
+metadata/_tab_index = 1
+
+[node name="ResolutionLabel" type="Label" parent="ModalRoot/Panel/Margin/Rows/OptionsMenu/TabContainer/General"]
+layout_mode = 2
+text = "Resolution"
+
+[node name="ResolutionOption" type="OptionButton" parent="ModalRoot/Panel/Margin/Rows/OptionsMenu/TabContainer/General"]
+layout_mode = 2
+
+[node name="WindowModeLabel" type="Label" parent="ModalRoot/Panel/Margin/Rows/OptionsMenu/TabContainer/General"]
+layout_mode = 2
+text = "Window mode"
+
+[node name="WindowModeOption" type="OptionButton" parent="ModalRoot/Panel/Margin/Rows/OptionsMenu/TabContainer/General"]
+layout_mode = 2
+
+[node name="OptionsBackButton" type="Button" parent="ModalRoot/Panel/Margin/Rows/OptionsMenu"]
+custom_minimum_size = Vector2(0, 40)
+layout_mode = 2
+text = "Back"

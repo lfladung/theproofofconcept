@@ -676,6 +676,19 @@ func suppress_placeholder_visual() -> void:
 	_visual = null
 
 
+func set_spawn_position_immediate(world_pos: Vector2, mark_initialized: bool = true) -> void:
+	global_position = world_pos
+	velocity = Vector2.ZERO
+	_remote_target_position = world_pos
+	_remote_target_velocity = Vector2.ZERO
+	if not _is_local_owner_peer():
+		_remote_has_state = true
+	if mark_initialized:
+		set_meta(&"spawn_initialized", true)
+	if _visual != null and is_instance_valid(_visual):
+		_update_visual_from_planar_speed(0.0)
+
+
 func _multiplayer_active() -> bool:
 	return multiplayer.multiplayer_peer != null
 

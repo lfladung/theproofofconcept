@@ -10,6 +10,15 @@ func _unhandled_input(event: InputEvent) -> void:
 		if _infusion_guide_overlay.has_method(&"request_toggle_from_world"):
 			_infusion_guide_overlay.call(&"request_toggle_from_world")
 		get_viewport().set_input_as_handled()
+		return
+	if event is InputEventKey:
+		var key := event as InputEventKey
+		if key.pressed and not key.echo and key.keycode == KEY_ESCAPE:
+			if _should_defer_escape_menu_to_existing_overlay():
+				return
+			_ensure_escape_menu()
+			if _escape_menu != null and _escape_menu.has_method(&"handle_escape") and bool(_escape_menu.call(&"handle_escape")):
+				get_viewport().set_input_as_handled()
 
 
 func _process(delta: float) -> void:
@@ -194,4 +203,3 @@ func _physics_process(_delta: float) -> void:
 		_prev_player_inside = inside_now
 		_prev_room_name = room_now
 	_apply_hard_door_clamps()
-

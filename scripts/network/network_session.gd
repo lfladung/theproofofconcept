@@ -754,12 +754,13 @@ func return_to_hub() -> bool:
 		return false
 	if session_state != SessionState.IN_RUN:
 		return false
-	_rpc_set_session_state.rpc(SessionState.LOBBY)
-	_set_mission_state(&"", MissionFlowPhase.HUB, true)
-	_rpc_change_scene.rpc(HUB_SCENE_PATH)
+	_begin_scene_transfer()
 	_runtime_ready_peers.clear()
 	if _include_host_in_slots:
 		_runtime_ready_peers[host_peer_id] = true
+	_rpc_change_scene.rpc(HUB_SCENE_PATH)
+	_rpc_set_session_state.rpc(SessionState.LOBBY)
+	_set_mission_state(&"", MissionFlowPhase.HUB, true)
 	for key in _peer_slots.keys():
 		_lobby_ready_peers[int(key)] = false
 	_broadcast_lobby_ready_if_host()
@@ -1230,6 +1231,8 @@ func _deferred_change_scene() -> void:
 
 
 func _clear_scene_transfer_after_scene_ready(token: int) -> void:
+	await get_tree().process_frame
+	await get_tree().process_frame
 	await get_tree().process_frame
 	await get_tree().process_frame
 	if token == _scene_transfer_token:
