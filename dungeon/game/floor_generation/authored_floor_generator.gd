@@ -292,6 +292,7 @@ func _build_layout_from_placed(
 				"room_id": room_data.room_id,
 				"role": role,
 				"room_type": _runtime_room_type_for_role(role),
+				"room_tags": room_data.room_tags.duplicate(),
 				"rotation_deg": rotation_deg,
 				"grid": center_cell,
 				"world_position": world_position,

@@ -16,6 +16,7 @@ const ROOM_PIECE_CATALOG = preload("res://addons/dungeon_room_editor/resources/d
 const CAMERA_LERP_SPEED := 8.0
 const CAMERA_DIAG_PITCH_DEG := -38.0
 const CAMERA_DIAG_YAW_DEG := 180.0
+const STALE_PLAYER_RPC_GRACE_SECONDS := 1.0
 
 @onready var _game_world_2d: Node2D = $GameWorld2D
 @onready var _rooms_root: Node2D = $GameWorld2D/Rooms
@@ -27,6 +28,7 @@ const CAMERA_DIAG_YAW_DEG := 180.0
 
 var _preview_builder = PreviewBuilderScript.new()
 var _players_by_peer: Dictionary = {}
+var _retired_players_by_peer: Dictionary = {}
 var _local_player: CharacterBody2D
 var _focused_interactable: Node
 var _mission_select_ui: Control
@@ -205,7 +207,7 @@ func _apply_player_roster_from_slot_map(raw_slot_map: Dictionary) -> void:
 			continue
 		var stale := _players_by_peer[peer_id] as Node
 		if stale != null and is_instance_valid(stale):
-			stale.queue_free()
+			_retire_player_node_for_peer(peer_id, stale)
 		_players_by_peer.erase(peer_id)
 	_resolve_local_player()
 
@@ -234,6 +236,40 @@ func _assign_player_authority(player: CharacterBody2D, peer_id: int) -> void:
 	player.set_meta(&"peer_id", peer_id)
 	if player.has_method("set_network_owner_peer_id"):
 		player.call("set_network_owner_peer_id", peer_id)
+
+
+func _retire_player_node_for_peer(peer_id: int, player: Node) -> void:
+	_retired_players_by_peer[peer_id] = player
+	player.set_meta(&"retired_from_hub_roster", true)
+	player.remove_from_group(&"player")
+	player.set_process(false)
+	player.set_physics_process(false)
+	if player is CanvasItem:
+		(player as CanvasItem).visible = false
+	if player.has_method("set_menu_input_blocked"):
+		player.call("set_menu_input_blocked", true)
+	if player.has_method("suppress_placeholder_visual"):
+		player.call("suppress_placeholder_visual")
+	for child in player.get_children():
+		if child is CollisionShape2D:
+			(child as CollisionShape2D).set_deferred(&"disabled", true)
+		elif child is Area2D:
+			(child as Area2D).monitoring = false
+			(child as Area2D).monitorable = false
+	var tree := get_tree()
+	if tree == null:
+		player.queue_free()
+		return
+	tree.create_timer(STALE_PLAYER_RPC_GRACE_SECONDS).timeout.connect(
+		_free_retired_player.bind(peer_id, player)
+	)
+
+
+func _free_retired_player(peer_id: int, player: Node) -> void:
+	if _retired_players_by_peer.get(peer_id, null) == player:
+		_retired_players_by_peer.erase(peer_id)
+	if player != null and is_instance_valid(player):
+		player.queue_free()
 
 
 func _resolve_local_player() -> void:

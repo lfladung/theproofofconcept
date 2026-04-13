@@ -620,8 +620,11 @@ func close_lobby_from_host() -> void:
 		disconnect_from_session()
 		return
 	_registry_unregister_best_effort()
+	_begin_scene_transfer()
 	_rpc_lobby_closed_by_host.rpc("Host closed the lobby.")
-	call_deferred("_finish_lobby_shutdown_to_menu")
+	await get_tree().process_frame
+	await get_tree().process_frame
+	_finish_lobby_shutdown_to_menu()
 
 
 func request_select_mission_from_local_peer(mission_id: StringName) -> void:

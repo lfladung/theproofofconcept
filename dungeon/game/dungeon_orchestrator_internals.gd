@@ -90,6 +90,8 @@ const ROOM_PIECE_CATALOG = preload("res://addons/dungeon_room_editor/resources/d
 const AuthoredRoomCatalogScript = preload("res://dungeon/game/floor_generation/authored_room_catalog.gd")
 const AuthoredFloorGeneratorScript = preload("res://dungeon/game/floor_generation/authored_floor_generator.gd")
 const EnemySpawnByEnemyId = preload("res://dungeon/game/enemy_spawn_by_id.gd")
+const EncounterRunManagerScript = preload("res://dungeon/game/encounters/encounter_run_manager.gd")
+const Layer1EncounterRegistry = preload("res://dungeon/game/encounters/layer_1_encounter_registry.gd")
 const PLAYER_SCENE := preload("res://scenes/entities/player.tscn")
 const LOADOUT_OVERLAY_SCENE := preload("res://scenes/ui/loadout/loadout_overlay.tscn")
 const INFUSION_GUIDE_OVERLAY_SCENE := preload("res://scenes/ui/infusion_guide_overlay.tscn")
@@ -198,6 +200,8 @@ var _encounter_mobs: Dictionary = {}
 var _spawn_points_by_encounter: Dictionary = {}
 var _spawn_volumes_by_encounter: Dictionary = {}
 var _spawn_count_by_encounter: Dictionary = {}
+var _encounter_template_by_encounter: Dictionary = {}
+var _encounter_spawn_plan_by_encounter: Dictionary = {}
 var _planned_tower_positions_by_encounter: Dictionary = {}
 var _entry_socket_by_encounter: Dictionary = {}
 var _entry_socket_dir_by_encounter: Dictionary = {}
@@ -275,6 +279,7 @@ var _room_preview_builder
 var _authored_room_visual_nodes: Dictionary = {}
 var _authored_room_stream_buckets: Dictionary = {}
 var _authored_room_stream_rooms_by_name: Dictionary = {}
+var _encounter_run_manager: RefCounted
 var _enemy_assets_prewarmed := false
 ## Accumulated LevelBackdropQuad position in Camera3D local XY (Z from BACKDROP_QUAD_DISTANCE).
 var _backdrop_offset_cam := Vector3.ZERO
@@ -415,6 +420,28 @@ func _pick_scene_from_pool(pool: Array[PackedScene]) -> PackedScene:
 
 func _pick_random_primary_family_scene() -> PackedScene:
 	return _pick_scene_from_pool(EnemySpawnByEnemyId.primary_family_scenes())
+
+
+func _ensure_encounter_run_manager() -> void:
+	if _encounter_run_manager != null and _encounter_run_manager.is_configured():
+		return
+	_encounter_run_manager = EncounterRunManagerScript.new()
+	var seed := _encounter_run_seed()
+	_encounter_run_manager.configure(seed, Layer1EncounterRegistry.templates())
+	if OS.is_debug_build():
+		print("EncounterTemplate run_seed=%s layer=1" % [seed])
+
+
+func _encounter_run_seed() -> int:
+	var run_state := get_node_or_null("/root/RunState")
+	if run_state != null:
+		var seed_v: Variant = run_state.get("run_seed")
+		if seed_v is int and int(seed_v) != 0:
+			return int(seed_v)
+		if seed_v is float and int(seed_v) != 0:
+			return int(seed_v)
+	var fallback := int(_rng.randi())
+	return fallback if fallback != 0 else int(Time.get_unix_time_from_system())
 
 
 func _enemy_scene_kind_from_scene(scene: PackedScene) -> int:
@@ -1737,7 +1764,7 @@ func _spawn_rooms_from_layout(layout: Dictionary) -> void:
 		room.tile_size = Vector2i(3, 3)
 		var kind := String(d.get("kind", "start"))
 		room.room_type = String(d.get("room_type", DungeonMapLayoutV1.kind_to_room_type(kind)))
-		room.room_tags = PackedStringArray([room.room_type])
+		room.room_tags = _runtime_room_tags(room, d)
 		room.safe_room = room.room_type == "safe"
 		room.standard_room_sizes = PackedInt32Array([3, 5, 9, 12, 15, 18, 24])
 		if kind == "mini_hub":
@@ -1789,7 +1816,7 @@ func _spawn_authored_rooms_from_layout(layout: Dictionary) -> bool:
 		room.name = room_name
 		room.room_id = String(spec.get("room_id", room.room_id))
 		room.room_type = String(spec.get("room_type", room.room_type))
-		room.room_tags = PackedStringArray([room.room_type, String(spec.get("role", room.room_type))])
+		room.room_tags = _runtime_room_tags(room, spec)
 		room.position = spec.get("world_position", Vector2.ZERO) as Vector2
 		room.rotation_degrees = float(int(spec.get("rotation_deg", 0)))
 		room.set_meta(&"runtime_floor_theme", _random_authored_room_floor_theme())
@@ -1814,6 +1841,54 @@ func _spawn_authored_rooms_from_layout(layout: Dictionary) -> bool:
 		_room_queries.invalidate_cache()
 	_rebuild_authored_room_stream_buckets()
 	return spawned_count == specs.size() and spawned_count > 0
+
+
+func _runtime_room_tags(room: RoomBase, spec: Dictionary) -> PackedStringArray:
+	var tags := PackedStringArray()
+	_append_unique_tag(tags, String(room.room_type))
+	_append_unique_tag(tags, String(spec.get("role", "")))
+	var spec_tags_v: Variant = spec.get("room_tags", PackedStringArray())
+	if spec_tags_v is PackedStringArray:
+		var packed_tags := spec_tags_v as PackedStringArray
+		for tag in packed_tags:
+			_append_unique_tag(tags, tag)
+	elif spec_tags_v is Array:
+		var array_tags := spec_tags_v as Array
+		for tag_value in array_tags:
+			_append_unique_tag(tags, String(tag_value))
+	_append_unique_tag(tags, String(room.size_class))
+	_append_unique_tag(tags, _room_size_tag(room))
+	if room.room_type == "corridor" or String(spec.get("role", "")) == "chokepoint":
+		_append_unique_tag(tags, "corridor")
+	if room.room_type == "arena":
+		_append_unique_tag(tags, "open")
+	return tags
+
+
+func _room_size_tag(room: RoomBase) -> String:
+	if room == null:
+		return "medium"
+	var tile_count := room.room_size_tiles.x * room.room_size_tiles.y
+	if tile_count <= 16 * 16:
+		return "small"
+	if tile_count >= 30 * 30:
+		return "large"
+	return "medium"
+
+
+func _append_unique_tag(tags: PackedStringArray, tag: String) -> void:
+	var cleaned := tag.strip_edges().to_lower()
+	if cleaned.is_empty():
+		return
+	if not tags.has(cleaned):
+		tags.append(cleaned)
+
+
+func _packed_tags_text(tags: PackedStringArray) -> String:
+	var parts: Array[String] = []
+	for tag in tags:
+		parts.append(tag)
+	return ",".join(parts)
 
 
 func _random_authored_room_floor_theme() -> StringName:
@@ -3378,6 +3453,8 @@ func _spawn_encounter_modules() -> void:
 		_spawn_points_by_encounter.clear()
 		_spawn_volumes_by_encounter.clear()
 		_spawn_count_by_encounter.clear()
+		_encounter_template_by_encounter.clear()
+		_encounter_spawn_plan_by_encounter.clear()
 		_planned_tower_positions_by_encounter.clear()
 		_entry_socket_by_encounter.clear()
 		_entry_socket_dir_by_encounter.clear()
@@ -3392,6 +3469,8 @@ func _spawn_encounter_modules() -> void:
 		_spawn_points_by_encounter.clear()
 		_spawn_volumes_by_encounter.clear()
 		_spawn_count_by_encounter.clear()
+		_encounter_template_by_encounter.clear()
+		_encounter_spawn_plan_by_encounter.clear()
 		_planned_tower_positions_by_encounter.clear()
 		_entry_socket_by_encounter.clear()
 		_entry_socket_dir_by_encounter.clear()
@@ -3405,6 +3484,8 @@ func _spawn_encounter_modules() -> void:
 	_spawn_points_by_encounter.clear()
 	_spawn_volumes_by_encounter.clear()
 	_spawn_count_by_encounter.clear()
+	_encounter_template_by_encounter.clear()
+	_encounter_spawn_plan_by_encounter.clear()
 	_planned_tower_positions_by_encounter.clear()
 	_entry_socket_by_encounter.clear()
 	_entry_socket_dir_by_encounter.clear()
@@ -3414,6 +3495,7 @@ func _spawn_encounter_modules() -> void:
 	_encounter_completed = {&"boss": false}
 	_encounter_mobs = {&"boss": []}
 	_combat_encounter_id = &""
+	_ensure_encounter_run_manager()
 
 	var combat_room_name := _layout_room_name("combat_room")
 	var boss_room := _room_by_name(_layout_room_name("exit_room"))
@@ -3460,10 +3542,14 @@ func _spawn_encounter_modules() -> void:
 			trigger_config.get("size", trigger_sz) as Vector2
 		)
 		var authored_spawn_count := _spawn_authored_enemy_points_for_room(r, encounter_id)
-		if authored_spawn_count > 0:
+		if authored_spawn_count <= 0:
+			_spawn_arena_modules_for_room(r, encounter_id)
+		var template_spawn_count := _assign_layer_1_encounter_template(r, encounter_id)
+		if template_spawn_count > 0:
+			_spawn_count_by_encounter[encounter_id] = template_spawn_count
+		elif authored_spawn_count > 0:
 			_spawn_count_by_encounter[encounter_id] = authored_spawn_count
 		else:
-			_spawn_arena_modules_for_room(r, encounter_id)
 			_spawn_count_by_encounter[encounter_id] = _rng.randi_range(2, 4)
 		_encounter_active[encounter_id] = false
 		_encounter_completed[encounter_id] = false
@@ -3625,6 +3711,35 @@ func _room_should_register_encounter(room: RoomBase) -> bool:
 	return not _zone_markers(StringName(room.name), "enemy_spawn").is_empty()
 
 
+func _assign_layer_1_encounter_template(room: RoomBase, encounter_id: StringName) -> int:
+	if room == null:
+		return 0
+	_ensure_encounter_run_manager()
+	if _encounter_run_manager == null:
+		return 0
+	var selection: Dictionary = _encounter_run_manager.choose_template(1, room.room_tags)
+	var template = selection.get("template", null)
+	if template == null:
+		return 0
+	var spawn_plan: Array = _encounter_run_manager.resolve_template_spawns(template)
+	if spawn_plan.is_empty():
+		return 0
+	_encounter_template_by_encounter[encounter_id] = template
+	_encounter_spawn_plan_by_encounter[encounter_id] = spawn_plan
+	print(
+		"EncounterTemplate selected room=%s encounter=%s template=%s display=%s repeated=%s stage=%s tags=%s" % [
+			String(room.name),
+			String(encounter_id),
+			String(template.id),
+			template.display_name,
+			bool(selection.get("repeated", false)),
+			String(selection.get("stage", "")),
+			_packed_tags_text(room.room_tags),
+		]
+	)
+	return spawn_plan.size()
+
+
 func _encounter_trigger_config_for_room(
 	room: RoomBase,
 	encounter_id: StringName,
@@ -3720,36 +3835,43 @@ func _spawn_encounter_wave(encounter_id: StringName, total_count: int, speed_mul
 	var points: Array = _spawn_points_by_encounter.get(encounter_id, []) as Array
 	var volumes: Array = _spawn_volumes_by_encounter.get(encounter_id, []) as Array
 	var player_pos := _reference_player_position()
+	var spawn_plan: Array = _encounter_spawn_plan_by_encounter.get(encounter_id, []) as Array
+	var use_spawn_plan := String(encounter_id) != "boss" and not spawn_plan.is_empty()
 	var planned_scenes: Array[PackedScene] = []
-	if total_count >= 1:
-		planned_scenes.append(_pick_melee_enemy_scene(encounter_id))
-	if total_count >= 2:
-		planned_scenes.append(_pick_ranged_enemy_scene(encounter_id))
-	if total_count >= 3:
-		planned_scenes.append(_pick_random_primary_family_scene())
-	for i in range(planned_scenes.size(), total_count):
-		planned_scenes.append(_pick_enemy_scene(encounter_id))
-	planned_scenes.shuffle()
+	if not use_spawn_plan:
+		if total_count >= 1:
+			planned_scenes.append(_pick_melee_enemy_scene(encounter_id))
+		if total_count >= 2:
+			planned_scenes.append(_pick_ranged_enemy_scene(encounter_id))
+		if total_count >= 3:
+			planned_scenes.append(_pick_random_primary_family_scene())
+		for i in range(planned_scenes.size(), total_count):
+			planned_scenes.append(_pick_enemy_scene(encounter_id))
+		planned_scenes.shuffle()
 	for point_node in points:
 		if spawned >= total_count:
 			break
 		if point_node is EnemySpawnPoint2D:
 			var point := point_node as EnemySpawnPoint2D
 			var spawn_config: Dictionary = {}
-			var scene_for_spawn := (
-				_enemy_scene_from_id(point.enemy_id)
-				if point.enemy_id != &""
-				else planned_scenes[spawned] if spawned < planned_scenes.size() else null
-			)
-			if point.enemy_id != &"":
+			var scene_for_spawn: PackedScene = null
+			if use_spawn_plan:
+				var planned_spawn := _enemy_spawn_spec_from_plan_entry(spawn_plan[spawned] as Dictionary)
+				scene_for_spawn = planned_spawn.get("scene", null) as PackedScene
+				spawn_config = (planned_spawn.get("config", {}) as Dictionary).duplicate(true)
+			else:
+				scene_for_spawn = (
+					_enemy_scene_from_id(point.enemy_id)
+					if point.enemy_id != &""
+					else planned_scenes[spawned] if spawned < planned_scenes.size() else null
+				)
+			if not use_spawn_plan and point.enemy_id != &"":
 				var spec := _enemy_spawn_spec_from_id(point.enemy_id)
 				if not spec.is_empty():
 					scene_for_spawn = spec.get("scene", scene_for_spawn) as PackedScene
 					spawn_config = (spec.get("config", {}) as Dictionary).duplicate(true)
 			var pos := point.get_spawn_position()
-			var authored_marker := bool(point.get_meta(&"authored_marker", false))
-			if not authored_marker:
-				pos = _bias_spawn_to_back_half(encounter_id, pos)
+			pos = _prepare_encounter_spawn_position(encounter_id, pos, scene_for_spawn)
 			_spawn_encounter_mob(
 				encounter_id,
 				pos,
@@ -3761,13 +3883,21 @@ func _spawn_encounter_wave(encounter_id: StringName, total_count: int, speed_mul
 			)
 			spawned += 1
 	while spawned < total_count:
-		if volumes.is_empty():
-			break
-		var volume_idx := randi() % volumes.size()
-		var volume := volumes[volume_idx] as EnemySpawnVolume2D
-		var scene_for_spawn := planned_scenes[spawned] if spawned < planned_scenes.size() else null
-		var vpos := volume.sample_spawn_position()
-		vpos = _bias_spawn_to_back_half(encounter_id, vpos)
+		var spawn_config: Dictionary = {}
+		var scene_for_spawn: PackedScene = null
+		if use_spawn_plan:
+			var planned_spawn := _enemy_spawn_spec_from_plan_entry(spawn_plan[spawned] as Dictionary)
+			scene_for_spawn = planned_spawn.get("scene", null) as PackedScene
+			spawn_config = (planned_spawn.get("config", {}) as Dictionary).duplicate(true)
+		else:
+			scene_for_spawn = planned_scenes[spawned] if spawned < planned_scenes.size() else null
+		var vpos := _fallback_spawn_position_for_encounter(encounter_id)
+		if not volumes.is_empty():
+			var volume_idx := _rng.randi_range(0, volumes.size() - 1)
+			var volume := volumes[volume_idx] as EnemySpawnVolume2D
+			if volume != null:
+				vpos = volume.sample_spawn_position()
+		vpos = _prepare_encounter_spawn_position(encounter_id, vpos, scene_for_spawn)
 		_spawn_encounter_mob(
 			encounter_id,
 			vpos,
@@ -3775,7 +3905,7 @@ func _spawn_encounter_wave(encounter_id: StringName, total_count: int, speed_mul
 			speed_multiplier,
 			scene_for_spawn,
 			false,
-			{}
+			spawn_config
 		)
 		spawned += 1
 
@@ -4316,6 +4446,92 @@ func _bias_spawn_to_back_half(encounter_id: StringName, candidate_pos: Vector2) 
 		return candidate_pos
 	var adjusted := candidate_pos + back_dir * (back_limit - dot_back)
 	return _clamp_pos_to_room(room, adjusted)
+
+
+func _prepare_encounter_spawn_position(
+	encounter_id: StringName, candidate_pos: Vector2, scene_for_spawn: PackedScene
+) -> Vector2:
+	var room_name := _room_name_for_encounter(encounter_id)
+	var room := _room_by_name(room_name)
+	var pos := _bias_spawn_to_exit_side(encounter_id, candidate_pos)
+	if scene_for_spawn == EnemySpawnByEnemyId.ARROW_TOWER_SCENE:
+		pos = _tower_spawn_near_center(encounter_id, pos)
+		pos = _separate_tower_spawn(encounter_id, pos)
+		_register_planned_tower_spawn(encounter_id, pos)
+	if room != null:
+		pos = _clamp_pos_to_room(room, pos)
+	return pos
+
+
+func _fallback_spawn_position_for_encounter(encounter_id: StringName) -> Vector2:
+	var room_name := _room_name_for_encounter(encounter_id)
+	var room := _room_by_name(room_name)
+	if room == null:
+		return _reference_player_position()
+	var half := _room_half_extents(room)
+	var usable_half := Vector2(maxf(1.0, half.x * 0.55), maxf(1.0, half.y * 0.55))
+	var candidate := room.global_position + Vector2(
+		_rng.randf_range(-usable_half.x, usable_half.x),
+		_rng.randf_range(-usable_half.y, usable_half.y)
+	)
+	return _clamp_pos_to_room(room, candidate)
+
+
+func _bias_spawn_to_exit_side(encounter_id: StringName, candidate_pos: Vector2) -> Vector2:
+	var room_name := _room_name_for_encounter(encounter_id)
+	if room_name == &"":
+		return candidate_pos
+	var room := _room_by_name(room_name)
+	if room == null:
+		return candidate_pos
+	var exit_dir := _encounter_exit_direction(encounter_id)
+	if exit_dir.is_empty():
+		return _bias_spawn_to_back_half(encounter_id, candidate_pos)
+	var exit_dir_vec := _direction_vector(exit_dir).normalized()
+	if exit_dir_vec.length_squared() <= 0.0001:
+		return _bias_spawn_to_back_half(encounter_id, candidate_pos)
+	var half := _room_half_extents(room)
+	var exit_limit := maxf(2.5, maxf(half.x, half.y) * _BACK_HALF_MIN_RATIO)
+	var rel := candidate_pos - room.global_position
+	var dot_exit := rel.dot(exit_dir_vec)
+	if dot_exit >= exit_limit:
+		return _clamp_pos_to_room(room, candidate_pos)
+	var adjusted := candidate_pos + exit_dir_vec * (exit_limit - dot_exit)
+	return _clamp_pos_to_room(room, adjusted)
+
+
+func _encounter_exit_direction(encounter_id: StringName) -> String:
+	var id_text := String(encounter_id)
+	if id_text == "boss":
+		return ""
+	var room_name := _room_name_for_encounter(encounter_id)
+	if room_name == &"":
+		return ""
+	var room := _room_by_name(room_name)
+	if room == null:
+		return ""
+	var room_rot := int(round(room.rotation_degrees))
+	for socket in room.get_all_sockets():
+		if socket.connector_type == &"inactive":
+			continue
+		if socket.marker_kind == "exit":
+			return RoomTransformUtils.rotate_direction(String(socket.direction), room_rot)
+	if room_name == _layout_room_name("combat_room"):
+		return _combat_exit_dir
+	return ""
+
+
+func _enemy_spawn_spec_from_plan_entry(entry: Dictionary) -> Dictionary:
+	var enemy_id := entry.get("enemy_id", &"") as StringName
+	var spec := _enemy_spawn_spec_from_id(enemy_id)
+	var scene := spec.get("scene", null) as PackedScene
+	var config := (spec.get("config", {}) as Dictionary).duplicate(true)
+	if scene == null:
+		scene = _enemy_scene_from_id(enemy_id)
+	return {
+		"scene": scene,
+		"config": config,
+	}
 
 
 func _resolve_encounter_for_spawn(requested_encounter_id: StringName, spawn_pos: Vector2) -> StringName:
