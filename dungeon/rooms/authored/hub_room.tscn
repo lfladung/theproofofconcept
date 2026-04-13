@@ -2518,7 +2518,3 @@ z_index = 20
 
 [node name="TileDeco" parent="Layout" index="3"]
 z_index = 30
-
-[node name="Visual3DProxy" parent="." index="4"]
-visible = false
-metadata/_room_editor_suppressed_proxy_visible = true

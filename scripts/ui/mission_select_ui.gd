@@ -4,7 +4,6 @@ class_name MissionSelectUI
 signal close_requested
 
 const MissionRegistryRef = preload("res://scripts/missions/mission_registry.gd")
-const MISSION_FLOW_PHASE_STAGING := 3
 
 @onready var _title_label: Label = $Panel/Margin/Rows/TitleLabel
 @onready var _lobby_code_row: HBoxContainer = $Panel/Margin/Rows/LobbyCodeRow
@@ -26,6 +25,7 @@ const MISSION_FLOW_PHASE_STAGING := 3
 
 var _selected_local_mission_id: StringName = &""
 var _showing_lobby_stage := false
+var _party_poll_timer: Timer
 
 
 func _ready() -> void:
@@ -44,11 +44,19 @@ func _ready() -> void:
 		session.peer_slot_map_changed.connect(_on_peer_slot_map_changed)
 	if session != null and session.has_signal("lobby_ready_changed"):
 		session.lobby_ready_changed.connect(_on_lobby_ready_changed)
+	if session != null and session.has_signal("party_state_changed"):
+		session.party_state_changed.connect(_on_party_state_changed)
 	if session != null and session.has_signal("registry_lookup_result"):
 		session.registry_lookup_result.connect(_on_registry_lookup_result)
 	if session != null and session.has_signal("transport_error"):
 		session.transport_error.connect(_on_transport_error)
 	_build_mission_list()
+	_party_poll_timer = Timer.new()
+	_party_poll_timer.name = "PartyPollTimer"
+	_party_poll_timer.wait_time = 1.0
+	_party_poll_timer.one_shot = false
+	add_child(_party_poll_timer)
+	_party_poll_timer.timeout.connect(_on_party_poll_timer_timeout)
 	_select_local_mission(MissionRegistryRef.default_mission_id())
 	_refresh_network_state()
 
@@ -78,6 +86,12 @@ func _exit_tree() -> void:
 		and _session().lobby_ready_changed.is_connected(_on_lobby_ready_changed)
 	):
 		_session().lobby_ready_changed.disconnect(_on_lobby_ready_changed)
+	if (
+		_session() != null
+		and _session().has_signal("party_state_changed")
+		and _session().party_state_changed.is_connected(_on_party_state_changed)
+	):
+		_session().party_state_changed.disconnect(_on_party_state_changed)
 	if (
 		_session() != null
 		and _session().has_signal("registry_lookup_result")
@@ -125,9 +139,6 @@ func _build_mission_list() -> void:
 
 func _on_mission_button_pressed(mission_id: StringName) -> void:
 	_select_local_mission(mission_id)
-	var session := _session()
-	if session != null and session.has_method("request_select_mission_from_local_peer"):
-		session.call("request_select_mission_from_local_peer", mission_id)
 
 
 func _select_local_mission(mission_id: StringName) -> void:
@@ -151,23 +162,18 @@ func _select_local_mission(mission_id: StringName) -> void:
 
 func _refresh_network_state() -> void:
 	var session := _session()
-	var payload := (
-		session.call("get_selected_mission_payload") as Dictionary
-		if session != null and session.has_method("get_selected_mission_payload")
-		else {}
-	)
-	if payload.is_empty():
-		_current_label.text = "Authoritative mission: none selected"
+	var local_mission = MissionRegistryRef.get_mission(_selected_local_mission_id)
+	if local_mission == null:
+		_current_label.text = "Selected mission: none"
 	else:
-		_current_label.text = "Authoritative mission: %s (%s)" % [
-			String(payload.get("display_name", "")),
-			String(payload.get("mission_id", "")),
+		_current_label.text = "Selected mission: %s (%s)" % [
+			local_mission.display_name,
+			String(local_mission.mission_id),
 		]
-	if session != null and session.has_method("get_mission_state_snapshot"):
-		var snapshot := session.call("get_mission_state_snapshot") as Dictionary
-		_showing_lobby_stage = int(snapshot.get("phase", 0)) == MISSION_FLOW_PHASE_STAGING
+	if session != null and session.has_method("has_active_party") and bool(session.call("has_active_party")):
+		_showing_lobby_stage = true
 
-	_title_label.text = "Multiplayer Lobby" if _showing_lobby_stage else "Mission Select"
+	_title_label.text = "Party Lobby" if _showing_lobby_stage else "Mission Select"
 	_current_label.visible = not _showing_lobby_stage
 	_lobby_code_row.visible = not _showing_lobby_stage
 	_content.visible = not _showing_lobby_stage
@@ -177,23 +183,22 @@ func _refresh_network_state() -> void:
 	_ready_button.visible = _showing_lobby_stage
 	_close_button.text = "Back" if _showing_lobby_stage else "Close"
 
-	_proceed_button.disabled = not (
-		session != null and session.has_method("has_selected_mission") and bool(session.call("has_selected_mission"))
-	)
+	_proceed_button.disabled = _selected_local_mission_id == &""
 	var pending := (
 		session != null
 		and (
 			(session.has_method("is_registry_lookup_in_progress") and bool(session.call("is_registry_lookup_in_progress")))
 			or (session.has_method("is_lobby_create_in_progress") and bool(session.call("is_lobby_create_in_progress")))
+			or (session.has_method("is_party_request_in_progress") and bool(session.call("is_party_request_in_progress")))
 		)
 	)
 	_join_lobby_button.disabled = pending
 	_lobby_code_input.editable = not pending
 	_refresh_lobby_stage_state()
+	_refresh_party_polling()
 
 
 func _on_mission_state_changed(snapshot: Dictionary) -> void:
-	_showing_lobby_stage = int(snapshot.get("phase", 0)) == MISSION_FLOW_PHASE_STAGING
 	_refresh_network_state()
 
 
@@ -206,6 +211,10 @@ func _on_peer_slot_map_changed(_slot_map: Dictionary) -> void:
 
 
 func _on_lobby_ready_changed(_ready_map: Dictionary) -> void:
+	_refresh_network_state()
+
+
+func _on_party_state_changed(_snapshot: Dictionary) -> void:
 	_refresh_network_state()
 
 
@@ -230,46 +239,43 @@ func _on_lobby_code_submitted(_text: String) -> void:
 
 func _on_join_lobby_pressed() -> void:
 	var session := _session()
-	if session == null or not session.has_method("join_lobby_via_session_code"):
+	if session == null or not session.has_method("join_party_by_code"):
 		return
 	var code := _lobby_code_input.text.strip_edges().to_upper()
 	if code.is_empty():
-		_current_label.text = "Enter a lobby code first."
+		_current_label.text = "Enter a party code first."
 		return
-	if session.has_method("has_active_peer") and bool(session.call("has_active_peer")):
-		session.call("disconnect_from_session", false)
-	if not bool(session.call("join_lobby_via_session_code", code)):
+	if not bool(session.call("join_party_by_code", code)):
 		_refresh_network_state()
 
 
 func _on_ready_pressed() -> void:
 	var session := _session()
-	if session != null and session.has_method("toggle_local_peer_ready"):
-		session.call("toggle_local_peer_ready")
+	if session != null and session.has_method("toggle_local_party_ready"):
+		session.call("toggle_local_party_ready")
 
 
 func _on_start_run_pressed() -> void:
 	var session := _session()
-	if session != null and session.has_method("request_start_run_from_local_peer"):
-		session.call("request_start_run_from_local_peer")
+	if session != null and session.has_method("start_party_run"):
+		session.call("start_party_run")
 
 
 func _on_proceed_pressed() -> void:
 	var session := _session()
 	if session == null:
 		return
-	var has_mission := session.has_method("has_selected_mission") and bool(session.call("has_selected_mission"))
-	if not has_mission and _selected_local_mission_id != &"":
-		session.call("request_select_mission_from_local_peer", _selected_local_mission_id)
-	if session.has_method("request_mission_staging_from_local_peer"):
-		session.call("request_mission_staging_from_local_peer")
+	if _selected_local_mission_id == &"":
+		return
+	if session.has_method("create_party_for_mission"):
+		session.call("create_party_for_mission", _selected_local_mission_id)
 
 
 func _on_close_pressed() -> void:
 	if _showing_lobby_stage:
 		var session := _session()
-		if session != null and session.has_method("request_cancel_mission_staging_from_local_peer"):
-			session.call("request_cancel_mission_staging_from_local_peer")
+		if session != null and session.has_method("leave_party"):
+			session.call("leave_party")
 		open_mission_select_stage()
 		return
 	close_requested.emit()
@@ -286,82 +292,96 @@ func _refresh_lobby_stage_state() -> void:
 		_peers_list.clear()
 		_peers_list.add_item("Offline.")
 		return
-	var has_selected_mission := session.has_method("has_selected_mission") and bool(session.call("has_selected_mission"))
-	var payload := (
-		session.call("get_selected_mission_payload") as Dictionary
-		if has_selected_mission and session.has_method("get_selected_mission_payload")
+	var party_snapshot := (
+		session.call("get_party_snapshot") as Dictionary
+		if session.has_method("get_party_snapshot")
 		else {}
 	)
-	if payload.is_empty():
+	var mission_id := StringName(String(party_snapshot.get("mission_id", String(_selected_local_mission_id))))
+	var mission = MissionRegistryRef.get_mission(mission_id)
+	if mission == null:
 		_mission_context_label.text = "Mission: none selected"
 	else:
 		_mission_context_label.text = "Mission: %s (%s)" % [
-			String(payload.get("display_name", "")),
-			String(payload.get("mission_id", "")),
+			mission.display_name,
+			String(mission.mission_id),
 		]
-	var session_code := (
-		String(session.call("get_session_code")).strip_edges().to_upper()
-		if session.has_method("get_session_code")
+	var party_code := (
+		String(session.call("get_party_code")).strip_edges().to_upper()
+		if session.has_method("get_party_code")
 		else ""
 	)
-	_lobby_code_display_label.text = session_code if not session_code.is_empty() else "-"
+	_lobby_code_display_label.text = party_code if not party_code.is_empty() else "-"
 
-	var slot_map := (
-		session.call("get_peer_slot_map") as Dictionary
-		if session.has_method("get_peer_slot_map")
-		else {}
-	)
-	var ready_map := (
-		session.call("get_lobby_ready_map") as Dictionary
-		if session.has_method("get_lobby_ready_map")
-		else {}
-	)
-	var in_lobby := int(session.get("session_state")) == 2
-	var is_dedicated := int(session.get("session_role")) == 3
+	var members := party_snapshot.get("members", []) as Array
 	var local_ready := (
-		bool(session.call("is_local_peer_ready"))
-		if session.has_method("is_local_peer_ready")
+		bool(session.call("is_local_party_ready"))
+		if session.has_method("is_local_party_ready")
 		else false
 	)
-	var ready_total := slot_map.size()
+	var ready_total := members.size()
 	var ready_count := 0
-	for key in slot_map.keys():
-		if bool(ready_map.get(int(key), false)):
+	for member_v in members:
+		if member_v is Dictionary and bool((member_v as Dictionary).get("ready", false)):
 			ready_count += 1
 
-	var status := "State: %s | Role: %s" % [
-		String(session.call("get_state_name")) if session.has_method("get_state_name") else "UNKNOWN",
-		String(session.call("get_role_name")) if session.has_method("get_role_name") else "UNKNOWN",
-	]
-	if in_lobby and ready_total > 0:
+	var status := "Party: %s" % [party_code if not party_code.is_empty() else "pending"]
+	if ready_total > 0:
 		status += " | Ready: %s/%s" % [ready_count, ready_total]
 	_status_label.text = status
 
-	_start_run_button.disabled = not (in_lobby and not is_dedicated and has_selected_mission)
-	_start_run_button.text = "Start Selected Mission" if has_selected_mission else "Select Mission First"
-	_ready_button.disabled = not (in_lobby and not is_dedicated)
+	var is_owner := session.has_method("is_local_party_owner") and bool(session.call("is_local_party_owner"))
+	_start_run_button.disabled = not (is_owner and mission != null)
+	_start_run_button.text = "Start Mission" if is_owner else "Waiting For Owner"
+	_ready_button.disabled = party_code.is_empty()
 	_ready_button.text = "Unready" if local_ready else "Ready"
-	_rebuild_peer_list(slot_map, ready_map)
+	_rebuild_party_list(party_snapshot)
 
 
-func _rebuild_peer_list(slot_map: Dictionary, ready_map: Dictionary) -> void:
+func _rebuild_party_list(party_snapshot: Dictionary) -> void:
 	_peers_list.clear()
 	var session := _session()
-	if session == null or not (session.has_method("has_active_peer") and bool(session.call("has_active_peer"))):
-		_peers_list.add_item("Offline.")
+	if session == null:
+		_peers_list.add_item("No party.")
 		return
-	if slot_map.is_empty():
-		_peers_list.add_item("Connected. Waiting for peers...")
+	var members := party_snapshot.get("members", []) as Array
+	if members.is_empty():
+		_peers_list.add_item("Waiting for party...")
 		return
-	var local_peer := int(session.call("get_local_peer_id")) if session.has_method("get_local_peer_id") else 1
-	var peer_ids := slot_map.keys()
-	peer_ids.sort()
-	for peer_id in peer_ids:
-		var peer_id_int := int(peer_id)
-		var slot := int(slot_map[peer_id])
-		var tag := " (you)" if peer_id_int == local_peer else ""
-		var ready_text := "READY" if bool(ready_map.get(peer_id_int, false)) else "NOT READY"
-		_peers_list.add_item("Player %s | %s%s" % [slot + 1, ready_text, tag])
+	var owner_id := String(party_snapshot.get("owner_member_id", ""))
+	var local_member_id := (
+		String(session.call("get_party_member_id"))
+		if session.has_method("get_party_member_id")
+		else ""
+	)
+	for index in range(members.size()):
+		var member := members[index] as Dictionary
+		if member == null:
+			continue
+		var member_id := String(member.get("member_id", ""))
+		var tag := ""
+		if member_id == owner_id:
+			tag += " host"
+		if member_id == local_member_id:
+			tag += " (you)"
+		var ready_text := "READY" if bool(member.get("ready", false)) else "NOT READY"
+		_peers_list.add_item("Player %s | %s%s" % [index + 1, ready_text, tag])
+
+
+func _refresh_party_polling() -> void:
+	if _party_poll_timer == null:
+		return
+	if _showing_lobby_stage:
+		if _party_poll_timer.is_stopped():
+			_party_poll_timer.start()
+	else:
+		_party_poll_timer.stop()
+
+
+func _on_party_poll_timer_timeout() -> void:
+	var session := _session()
+	if session != null and session.has_method("poll_party"):
+		session.call("poll_party")
 
 
 func _session() -> Node:

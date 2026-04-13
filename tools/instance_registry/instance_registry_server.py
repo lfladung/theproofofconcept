@@ -172,8 +172,12 @@ class DedicatedInstanceSpawner:
         requested_max_players: int,
         used_ports: set[int],
         used_codes: set[str],
+        instance_kind: str = INSTANCE_KIND_HUB,
+        mission_id: str = "",
     ) -> dict[str, Any]:
         max_players = max(1, requested_max_players or self._cfg.default_max_players)
+        normalized_kind = instance_kind.strip().lower() or INSTANCE_KIND_HUB
+        normalized_mission_id = mission_id.strip()
         session_code = self._random_session_code(used_codes)
         instance_id = self._build_instance_id()
         port = self._pick_port(used_ports)
@@ -194,15 +198,18 @@ class DedicatedInstanceSpawner:
             "--dedicated_server",
             f"--port={port}",
             f"--max_players={max_players}",
-            "--start_in_run=false",
+            f"--start_in_run={'true' if normalized_kind == INSTANCE_KIND_RUN else 'false'}",
             f"--server_log_interval_ms={self._cfg.server_log_interval_ms}",
             f"--dedicated_log_file={gameplay_log}",
             f"--registry_url={self._cfg.registry_url}",
             f"--public_host={self._cfg.public_host}",
             f"--session_code={session_code}",
             f"--instance_id={instance_id}",
+            f"--instance_kind={normalized_kind}",
             f"--empty_shutdown_seconds={self._cfg.empty_shutdown_seconds}",
         ]
+        if normalized_mission_id:
+            args.append(f"--mission_id={normalized_mission_id}")
 
         process = subprocess.Popen(
             args,
@@ -226,9 +233,11 @@ class DedicatedInstanceSpawner:
             "port": port,
             "max_players": max_players,
             "current_players": 0,
-            "state": "LOBBY",
+            "state": "IN_RUN" if normalized_kind == INSTANCE_KIND_RUN else "LOBBY",
             "started_unix": started_unix,
             "process_id": int(process.pid),
+            "kind": normalized_kind,
+            "mission_id": normalized_mission_id,
         }
 
 
@@ -238,6 +247,7 @@ class InstanceDirectory:
         self._spawner = spawner
         self._lock = threading.Lock()
         self._instances: dict[str, InstanceRecord] = {}
+        self._parties: dict[str, PartyRecord] = {}
 
     def _now(self) -> int:
         return int(time.time())
@@ -251,6 +261,13 @@ class InstanceDirectory:
         ]
         for instance_id in stale_ids:
             del self._instances[instance_id]
+        stale_party_codes = [
+            party_code
+            for party_code, party in self._parties.items()
+            if (now - int(party.last_seen_unix)) > self._stale_after
+        ]
+        for party_code in stale_party_codes:
+            del self._parties[party_code]
 
     def register(self, payload: dict[str, Any]) -> dict[str, Any]:
         instance_id = str(payload.get("instance_id", "")).strip()
@@ -262,6 +279,8 @@ class InstanceDirectory:
         state = str(payload.get("state", "LOBBY")).strip() or "LOBBY"
         started_unix = int(payload.get("started_unix", self._now()))
         process_id = int(payload.get("process_id", 0))
+        kind = str(payload.get("kind", INSTANCE_KIND_HUB)).strip().lower() or INSTANCE_KIND_HUB
+        mission_id = str(payload.get("mission_id", "")).strip()
 
         if not instance_id or not session_code or not host or port <= 0:
             raise ValueError("instance_id, session_code, host, and port are required")
@@ -277,6 +296,8 @@ class InstanceDirectory:
             started_unix=started_unix,
             last_seen_unix=self._now(),
             process_id=max(0, process_id),
+            kind=kind,
+            mission_id=mission_id,
         )
 
         with self._lock:
@@ -314,6 +335,12 @@ class InstanceDirectory:
                 record.port = port if port > 0 else record.port
             if "process_id" in payload:
                 record.process_id = max(0, int(payload.get("process_id", record.process_id)))
+            if "kind" in payload:
+                kind = str(payload.get("kind", record.kind)).strip().lower()
+                record.kind = kind if kind else record.kind
+            if "mission_id" in payload:
+                mission_id = str(payload.get("mission_id", record.mission_id)).strip()
+                record.mission_id = mission_id if mission_id else record.mission_id
 
             record.last_seen_unix = self._now()
             self._instances[instance_id] = record
@@ -362,18 +389,46 @@ class InstanceDirectory:
     def create_lobby(self, payload: dict[str, Any]) -> dict[str, Any]:
         if bool(payload.get("dry_run", False)):
             return {"ok": True, "dry_run": True, "supports_create_lobby": True}
+        return self.allocate_hub(payload)
+
+    def allocate_hub(self, payload: dict[str, Any]) -> dict[str, Any]:
+        if bool(payload.get("dry_run", False)):
+            return {"ok": True, "dry_run": True, "supports_create_lobby": True, "supports_hub_allocation": True}
         if self._spawner is None:
             return {"ok": False, "error": "allocator_unavailable"}
-        requested_max_players = int(payload.get("max_players", self._spawner._cfg.default_max_players))
+        requested_max_players = int(payload.get("max_players", HUB_MAX_PLAYERS))
 
         with self._lock:
             self._purge_stale_locked()
+            candidates = [
+                record
+                for record in self._instances.values()
+                if record.kind == INSTANCE_KIND_HUB
+                and record.state == "LOBBY"
+                and record.current_players < min(record.max_players, requested_max_players)
+            ]
+            if candidates:
+                candidates.sort(key=lambda r: (-r.current_players, -r.last_seen_unix))
+                record = candidates[0]
+                record.current_players = min(record.max_players, record.current_players + 1)
+                record.last_seen_unix = self._now()
+                return {
+                    "ok": True,
+                    "created": False,
+                    "session_code": record.session_code,
+                    "instance": record.to_json(),
+                    "join": {
+                        "host": record.host,
+                        "port": record.port,
+                    },
+                }
             used_ports = {int(row.port) for row in self._instances.values()}
             used_codes = {str(row.session_code).upper() for row in self._instances.values()}
             spawn = self._spawner.spawn_instance(
                 requested_max_players=requested_max_players,
                 used_ports=used_ports,
                 used_codes=used_codes,
+                instance_kind=INSTANCE_KIND_HUB,
             )
             record = InstanceRecord(
                 instance_id=str(spawn["instance_id"]),
@@ -386,7 +441,10 @@ class InstanceDirectory:
                 started_unix=int(spawn["started_unix"]),
                 last_seen_unix=self._now(),
                 process_id=max(0, int(spawn.get("process_id", 0))),
+                kind=str(spawn.get("kind", INSTANCE_KIND_HUB)),
+                mission_id=str(spawn.get("mission_id", "")),
             )
+            record.current_players = min(record.max_players, record.current_players + 1)
             self._instances[record.instance_id] = record
 
         return {
@@ -399,6 +457,174 @@ class InstanceDirectory:
                 "port": record.port,
             },
         }
+
+    def create_party(self, payload: dict[str, Any]) -> dict[str, Any]:
+        mission_id = str(payload.get("mission_id", "")).strip()
+        owner_member_id = str(payload.get("member_id", "")).strip()
+        if not mission_id or not owner_member_id:
+            raise ValueError("mission_id and member_id are required")
+        with self._lock:
+            self._purge_stale_locked()
+            used_codes = set(self._parties.keys())
+            party_code = self._random_party_code(used_codes)
+            now = self._now()
+            member = PartyMemberRecord(
+                member_id=owner_member_id,
+                ready=False,
+                joined_unix=now,
+                last_seen_unix=now,
+            )
+            party = PartyRecord(
+                party_code=party_code,
+                owner_member_id=owner_member_id,
+                mission_id=mission_id,
+                max_players=RUN_MAX_PLAYERS,
+                created_unix=now,
+                last_seen_unix=now,
+                members={owner_member_id: member},
+            )
+            self._parties[party_code] = party
+            return {"ok": True, "party": party.to_json()}
+
+    def join_party(self, payload: dict[str, Any]) -> dict[str, Any]:
+        party_code = str(payload.get("party_code", "")).strip().upper()
+        member_id = str(payload.get("member_id", "")).strip()
+        if not party_code or not member_id:
+            raise ValueError("party_code and member_id are required")
+        with self._lock:
+            self._purge_stale_locked()
+            party = self._parties.get(party_code)
+            if party is None:
+                return {"ok": False, "error": "party_not_found"}
+            if member_id not in party.members and len(party.members) >= party.max_players:
+                return {"ok": False, "error": "party_full"}
+            now = self._now()
+            party.members[member_id] = PartyMemberRecord(
+                member_id=member_id,
+                ready=False,
+                joined_unix=now,
+                last_seen_unix=now,
+            )
+            party.last_seen_unix = now
+            return {"ok": True, "party": party.to_json()}
+
+    def update_party_member(self, payload: dict[str, Any]) -> dict[str, Any]:
+        party_code = str(payload.get("party_code", "")).strip().upper()
+        member_id = str(payload.get("member_id", "")).strip()
+        if not party_code or not member_id:
+            raise ValueError("party_code and member_id are required")
+        with self._lock:
+            self._purge_stale_locked()
+            party = self._parties.get(party_code)
+            if party is None:
+                return {"ok": False, "error": "party_not_found"}
+            member = party.members.get(member_id)
+            if member is None:
+                return {"ok": False, "error": "member_not_found"}
+            if "ready" in payload:
+                member.ready = bool(payload.get("ready", member.ready))
+            if party.owner_member_id == member_id and "mission_id" in payload:
+                mission_id = str(payload.get("mission_id", party.mission_id)).strip()
+                party.mission_id = mission_id if mission_id else party.mission_id
+            member.last_seen_unix = self._now()
+            party.last_seen_unix = member.last_seen_unix
+            return {"ok": True, "party": party.to_json()}
+
+    def leave_party(self, payload: dict[str, Any]) -> dict[str, Any]:
+        party_code = str(payload.get("party_code", "")).strip().upper()
+        member_id = str(payload.get("member_id", "")).strip()
+        if not party_code or not member_id:
+            raise ValueError("party_code and member_id are required")
+        with self._lock:
+            self._purge_stale_locked()
+            party = self._parties.get(party_code)
+            if party is None:
+                return {"ok": True, "removed": False}
+            party.members.pop(member_id, None)
+            if not party.members or party.owner_member_id == member_id:
+                self._parties.pop(party_code, None)
+                return {"ok": True, "removed": True}
+            party.last_seen_unix = self._now()
+            return {"ok": True, "removed": True, "party": party.to_json()}
+
+    def get_party_snapshot(self, party_code: str, member_id: str = "") -> dict[str, Any]:
+        code = party_code.strip().upper()
+        if not code:
+            raise ValueError("party_code is required")
+        with self._lock:
+            self._purge_stale_locked()
+            party = self._parties.get(code)
+            if party is None:
+                return {"ok": False, "error": "party_not_found"}
+            if member_id and member_id in party.members:
+                party.members[member_id].last_seen_unix = self._now()
+                party.last_seen_unix = party.members[member_id].last_seen_unix
+            return {"ok": True, "party": party.to_json()}
+
+    def start_party_run(self, payload: dict[str, Any]) -> dict[str, Any]:
+        party_code = str(payload.get("party_code", "")).strip().upper()
+        member_id = str(payload.get("member_id", "")).strip()
+        if not party_code or not member_id:
+            raise ValueError("party_code and member_id are required")
+        with self._lock:
+            self._purge_stale_locked()
+            party = self._parties.get(party_code)
+            if party is None:
+                return {"ok": False, "error": "party_not_found"}
+            if party.owner_member_id != member_id:
+                return {"ok": False, "error": "not_party_owner"}
+            if not party.mission_id:
+                return {"ok": False, "error": "mission_required"}
+            for member in party.members.values():
+                if not member.ready:
+                    return {"ok": False, "error": "party_not_ready"}
+            if party.launch:
+                return {"ok": True, "party": party.to_json(), "launch": party.launch}
+            if self._spawner is None:
+                return {"ok": False, "error": "allocator_unavailable"}
+            used_ports = {int(row.port) for row in self._instances.values()}
+            used_codes = {str(row.session_code).upper() for row in self._instances.values()}
+            spawn = self._spawner.spawn_instance(
+                requested_max_players=RUN_MAX_PLAYERS,
+                used_ports=used_ports,
+                used_codes=used_codes,
+                instance_kind=INSTANCE_KIND_RUN,
+                mission_id=party.mission_id,
+            )
+            record = InstanceRecord(
+                instance_id=str(spawn["instance_id"]),
+                session_code=str(spawn["session_code"]),
+                host=str(spawn["host"]),
+                port=int(spawn["port"]),
+                max_players=max(1, int(spawn["max_players"])),
+                current_players=max(0, int(spawn["current_players"])),
+                state=str(spawn["state"]).strip() or "IN_RUN",
+                started_unix=int(spawn["started_unix"]),
+                last_seen_unix=self._now(),
+                process_id=max(0, int(spawn.get("process_id", 0))),
+                kind=INSTANCE_KIND_RUN,
+                mission_id=party.mission_id,
+            )
+            self._instances[record.instance_id] = record
+            party.launch = {
+                "instance": record.to_json(),
+                "join": {
+                    "host": record.host,
+                    "port": record.port,
+                },
+            }
+            party.last_seen_unix = self._now()
+            return {"ok": True, "party": party.to_json(), "launch": party.launch}
+
+    def _random_party_code(self, used_codes: set[str]) -> str:
+        return self._spawner._random_session_code(used_codes) if self._spawner is not None else self._fallback_random_code(used_codes)
+
+    def _fallback_random_code(self, used_codes: set[str]) -> str:
+        for _ in range(128):
+            code = "".join(random.choice(LOBBY_CODE_CHARS) for _ in range(LOBBY_CODE_LENGTH))
+            if code not in used_codes:
+                return code
+        raise RuntimeError("failed_to_generate_unique_party_code")
 
     def list_instances(self) -> dict[str, Any]:
         with self._lock:
@@ -448,6 +674,18 @@ class RequestHandler(BaseHTTPRequestHandler):
             status = 200 if result.get("ok") else 404
             self._send_json(status, result)
             return
+        if parsed.path == "/v1/parties/snapshot":
+            query = parse_qs(parsed.query)
+            code = str((query.get("code") or [""])[0])
+            member_id = str((query.get("member_id") or [""])[0])
+            try:
+                result = self.directory.get_party_snapshot(code, member_id)
+            except ValueError as exc:
+                self._send_json(400, {"ok": False, "error": str(exc)})
+                return
+            status = 200 if result.get("ok") else 404
+            self._send_json(status, result)
+            return
 
         self._send_json(404, {"ok": False, "error": "not_found"})
 
@@ -481,6 +719,35 @@ class RequestHandler(BaseHTTPRequestHandler):
                     self._send_json(503, result)
                     return
                 self._send_json(500, result)
+                return
+            if parsed.path == "/v1/hubs/join":
+                result = self.directory.allocate_hub(payload)
+                if result.get("ok"):
+                    self._send_json(200, result)
+                    return
+                error = str(result.get("error", "allocator_error"))
+                self._send_json(503 if error == "allocator_unavailable" else 500, result)
+                return
+            if parsed.path == "/v1/parties/create":
+                self._send_json(200, self.directory.create_party(payload))
+                return
+            if parsed.path == "/v1/parties/join":
+                result = self.directory.join_party(payload)
+                status = 200 if result.get("ok") else 409 if result.get("error") == "party_full" else 404
+                self._send_json(status, result)
+                return
+            if parsed.path == "/v1/parties/update":
+                result = self.directory.update_party_member(payload)
+                status = 200 if result.get("ok") else 404
+                self._send_json(status, result)
+                return
+            if parsed.path == "/v1/parties/leave":
+                self._send_json(200, self.directory.leave_party(payload))
+                return
+            if parsed.path == "/v1/parties/start":
+                result = self.directory.start_party_run(payload)
+                status = 200 if result.get("ok") else 409
+                self._send_json(status, result)
                 return
         except ValueError as exc:
             self._send_json(400, {"ok": False, "error": str(exc)})
@@ -520,7 +787,7 @@ def build_arg_parser() -> argparse.ArgumentParser:
         default=500,
         help="number of sequential ports to probe for free port allocation",
     )
-    parser.add_argument("--spawn-default-max-players", type=int, default=4, help="default max players")
+    parser.add_argument("--spawn-default-max-players", type=int, default=HUB_MAX_PLAYERS, help="default hub max players")
     parser.add_argument(
         "--spawn-server-log-interval-ms",
         type=int,

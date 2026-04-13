@@ -691,11 +691,11 @@ func _is_server_peer() -> bool:
 func _can_broadcast_world_replication() -> bool:
 	if not _multiplayer_active():
 		return false
-	if not _is_server_peer():
-		return true
 	var session := get_node_or_null("/root/NetworkSession")
 	if session != null and session.has_method("can_broadcast_world_replication"):
 		return bool(session.call("can_broadcast_world_replication"))
+	if not _is_server_peer():
+		return true
 	return true
 
 
@@ -1689,7 +1689,8 @@ func _client_predicted_step(delta: float) -> void:
 	}
 	_pending_input_commands.append(command)
 	_apply_movement_step(delta, move_active, target_world, dodge_pressed, defend_down, aim_planar)
-	_rpc_submit_movement_input.rpc(sequence, move_active, target_world, dodge_down, defend_down, aim_planar)
+	if _can_broadcast_world_replication():
+		_rpc_submit_movement_input.rpc(sequence, move_active, target_world, dodge_down, defend_down, aim_planar)
 	_apply_local_reconciliation(delta)
 
 
@@ -2195,6 +2196,8 @@ func _submit_local_melee_attack_request(
 	if _is_server_peer():
 		_try_execute_server_melee_attack(_facing_planar, cr, apply_charge_scaling, surge_overcharge_norm)
 		return
+	if not _can_broadcast_world_replication():
+		return
 	_local_melee_request_sequence += 1
 	_start_facing_lock(_facing_planar)
 	_rpc_request_melee_attack.rpc_id(
@@ -2225,6 +2228,8 @@ func _submit_local_ranged_attack_request(
 	if _is_server_peer():
 		_try_execute_server_ranged_attack(_facing_planar, cr, apply_charge_scaling)
 		return
+	if not _can_broadcast_world_replication():
+		return
 	_local_ranged_request_sequence += 1
 	_start_facing_lock(_facing_planar)
 	_rpc_request_ranged_attack.rpc_id(
@@ -2238,6 +2243,8 @@ func _submit_local_bomb_attack_request() -> void:
 		return
 	if _is_server_peer():
 		_try_execute_server_bomb_attack(_facing_planar)
+		return
+	if not _can_broadcast_world_replication():
 		return
 	_local_bomb_request_sequence += 1
 	_start_facing_lock(_facing_planar)
@@ -2253,6 +2260,8 @@ func _submit_local_weapon_switch_request() -> void:
 		return
 	if _is_server_peer():
 		_cycle_weapon()
+		return
+	if not _can_broadcast_world_replication():
 		return
 	_local_weapon_switch_request_sequence += 1
 	_cycle_weapon()
@@ -3771,6 +3780,8 @@ func _surge_maybe_report_charge_field_to_server(delta: float) -> void:
 	if not _multiplayer_active() or _is_server_peer():
 		return
 	if not _is_local_owner_peer():
+		return
+	if not _can_broadcast_world_replication():
 		return
 	var st := _infusion_surge_threshold()
 	if not InfusionSurgeRef.is_surge_attuned(st):

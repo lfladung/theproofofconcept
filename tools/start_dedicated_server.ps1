@@ -2,7 +2,7 @@ param(
     [int]$Port = 7000,
     [bool]$AutoSelectPortWhenBusy = $true,
     [int]$PortSearchCount = 100,
-    [int]$MaxPlayers = 4,
+    [int]$MaxPlayers = 6,
     [bool]$StartInRun = $false,
     [int]$ServerLogIntervalMs = 1500,
     [string]$RegistryUrl = "http://127.0.0.1:8787",

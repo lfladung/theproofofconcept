@@ -13,8 +13,6 @@ const GridMath = preload("res://addons/dungeon_room_editor/core/grid_math.gd")
 const PreviewBuilderScript = preload("res://addons/dungeon_room_editor/preview/preview_builder.gd")
 const RoomEditorSceneSyncScript = preload("res://addons/dungeon_room_editor/core/scene_sync.gd")
 const ROOM_PIECE_CATALOG = preload("res://addons/dungeon_room_editor/resources/default_room_piece_catalog.tres")
-const MISSION_FLOW_PHASE_NONE := 0
-const MISSION_FLOW_PHASE_STAGING := 3
 const CAMERA_LERP_SPEED := 8.0
 const CAMERA_DIAG_PITCH_DEG := -38.0
 const CAMERA_DIAG_YAW_DEG := 180.0
@@ -33,6 +31,7 @@ var _local_player: CharacterBody2D
 var _focused_interactable: Node
 var _mission_select_ui: Control
 var _hub_room: RoomBase
+var _runtime_scene_ready_sent := false
 
 
 func _ready() -> void:
@@ -43,10 +42,7 @@ func _ready() -> void:
 	var session := _session()
 	if session != null and session.has_signal("peer_slot_map_changed"):
 		session.peer_slot_map_changed.connect(_on_peer_slot_map_changed)
-	if session != null and session.has_signal("mission_state_changed"):
-		session.mission_state_changed.connect(_on_mission_state_changed)
-	if session != null and session.has_method("get_mission_state_snapshot"):
-		_on_mission_state_changed(session.call("get_mission_state_snapshot") as Dictionary)
+	_maybe_mark_runtime_scene_ready()
 	_prompt_label.visible = false
 
 
@@ -55,9 +51,6 @@ func _exit_tree() -> void:
 	if session != null and session.has_signal("peer_slot_map_changed"):
 		if session.peer_slot_map_changed.is_connected(_on_peer_slot_map_changed):
 			session.peer_slot_map_changed.disconnect(_on_peer_slot_map_changed)
-	if session != null and session.has_signal("mission_state_changed"):
-		if session.mission_state_changed.is_connected(_on_mission_state_changed):
-			session.mission_state_changed.disconnect(_on_mission_state_changed)
 
 
 func _process(delta: float) -> void:
@@ -186,20 +179,24 @@ func _current_slot_map() -> Dictionary:
 
 
 func _on_peer_slot_map_changed(slot_map: Dictionary) -> void:
+	_runtime_scene_ready_sent = false
 	_apply_player_roster_from_slot_map(slot_map)
+	_maybe_mark_runtime_scene_ready()
 
 
 func _apply_player_roster_from_slot_map(raw_slot_map: Dictionary) -> void:
 	var slot_map := _normalize_slot_map(raw_slot_map)
-	if slot_map.is_empty():
+	if slot_map.is_empty() and _should_use_offline_slot_fallback():
 		slot_map[_local_peer_id()] = 0
 	var seen: Dictionary = {}
 	for peer_id in _peer_ids_sorted_by_slot(slot_map):
-		var player := _ensure_player_node_for_peer(peer_id)
+		var player_entry := _ensure_player_node_for_peer(peer_id)
+		var player := player_entry.get("player", null) as CharacterBody2D
 		if player == null:
 			continue
-		var slot := int(slot_map.get(peer_id, 0))
-		player.global_position = _spawn_position_for_slot(slot)
+		if bool(player_entry.get("created", false)) and _should_assign_initial_spawn(peer_id):
+			var slot := int(slot_map.get(peer_id, 0))
+			player.global_position = _spawn_position_for_slot(slot)
 		_players_by_peer[peer_id] = player
 		seen[peer_id] = true
 	for key in _players_by_peer.keys():
@@ -213,23 +210,23 @@ func _apply_player_roster_from_slot_map(raw_slot_map: Dictionary) -> void:
 	_resolve_local_player()
 
 
-func _ensure_player_node_for_peer(peer_id: int) -> CharacterBody2D:
+func _ensure_player_node_for_peer(peer_id: int) -> Dictionary:
 	var existing := _players_by_peer.get(peer_id, null) as CharacterBody2D
 	if existing != null and is_instance_valid(existing):
 		_assign_player_authority(existing, peer_id)
-		return existing
+		return {"player": existing, "created": false}
 	var desired_name := "PlayerPeer_%s" % [peer_id]
 	var found := _game_world_2d.get_node_or_null(NodePath(desired_name)) as CharacterBody2D
 	if found != null:
 		_assign_player_authority(found, peer_id)
-		return found
+		return {"player": found, "created": false}
 	var spawned := PLAYER_SCENE.instantiate() as CharacterBody2D
 	if spawned == null:
-		return null
+		return {"player": null, "created": false}
 	spawned.name = desired_name
 	_game_world_2d.add_child(spawned)
 	_assign_player_authority(spawned, peer_id)
-	return spawned
+	return {"player": spawned, "created": true}
 
 
 func _assign_player_authority(player: CharacterBody2D, peer_id: int) -> void:
@@ -250,14 +247,87 @@ func _local_peer_id() -> int:
 	return 1
 
 
+func _should_use_offline_slot_fallback() -> bool:
+	var session := _session()
+	if session == null:
+		return true
+	if not (session.has_method("has_active_peer") and bool(session.call("has_active_peer"))):
+		return true
+	return false
+
+
+func _maybe_mark_runtime_scene_ready() -> void:
+	if _runtime_scene_ready_sent:
+		return
+	var session := _session()
+	if session == null or not session.has_method("mark_runtime_scene_ready_local"):
+		return
+	if session.has_method("has_active_peer") and not bool(session.call("has_active_peer")):
+		return
+	if _local_player == null or not is_instance_valid(_local_player):
+		return
+	var slot_map := _current_slot_map()
+	if not slot_map.has(_local_peer_id()):
+		return
+	_runtime_scene_ready_sent = true
+	session.call("mark_runtime_scene_ready_local")
+
+
+func _should_assign_initial_spawn(peer_id: int) -> bool:
+	var session := _session()
+	if session == null or not (session.has_method("has_active_peer") and bool(session.call("has_active_peer"))):
+		return true
+	if multiplayer.is_server():
+		return true
+	return peer_id == _local_peer_id()
+
+
 func _spawn_position_for_slot(slot: int) -> Vector2:
-	var positions := [
-		Vector2(0.0, -30.0),
-		Vector2(-4.0, -26.0),
-		Vector2(4.0, -26.0),
-		Vector2(0.0, -22.0),
-	]
+	var positions := _hub_spawn_positions()
 	return positions[clampi(slot, 0, positions.size() - 1)]
+
+
+func _hub_spawn_positions() -> Array[Vector2]:
+	var authored_positions := _hub_authored_positions(&"spawn_player_marker", "player")
+	if authored_positions.is_empty():
+		authored_positions.append(Vector2(0.0, -30.0))
+	var base: Vector2 = authored_positions[0]
+	var positions: Array[Vector2] = []
+	for position in authored_positions:
+		positions.append(position)
+	var offsets: Array[Vector2] = [
+		Vector2.ZERO,
+		Vector2(-4.0, 0.0),
+		Vector2(4.0, 0.0),
+		Vector2(0.0, 4.0),
+		Vector2(-4.0, 4.0),
+		Vector2(4.0, 4.0),
+	]
+	for offset in offsets:
+		if positions.size() >= 6:
+			break
+		var candidate: Vector2 = base + offset
+		if not positions.has(candidate):
+			positions.append(candidate)
+	return positions
+
+
+func _hub_authored_positions(piece_id: StringName, required_tag: String) -> Array[Vector2]:
+	var positions: Array[Vector2] = []
+	if _hub_room == null or _hub_room.authored_layout == null:
+		return positions
+	var items: Array = _hub_room.authored_layout.get("items")
+	for item in items:
+		if item == null:
+			continue
+		var item_piece_id := item.get("piece_id") as StringName
+		var tags := item.get("tags") as PackedStringArray
+		if item_piece_id != piece_id and not tags.has(required_tag):
+			continue
+		var grid_position := item.get("grid_position") as Vector2i
+		var local_position := GridMath.grid_to_local(grid_position, _hub_room.authored_layout, _hub_room)
+		positions.append(_hub_room.to_global(local_position))
+	return positions
 
 
 func _normalize_slot_map(slot_map: Dictionary) -> Dictionary:
@@ -326,30 +396,6 @@ func _close_mission_select() -> void:
 		_mission_select_ui.queue_free()
 	_mission_select_ui = null
 	_set_local_player_menu_blocked(false)
-
-
-func _open_staging_ui() -> void:
-	_open_mission_select()
-	if _mission_select_ui != null and _mission_select_ui.has_method("open_multiplayer_lobby_stage"):
-		_mission_select_ui.call("open_multiplayer_lobby_stage")
-	_set_local_player_menu_blocked(true)
-
-
-func _close_staging_ui() -> void:
-	if _mission_select_ui != null and is_instance_valid(_mission_select_ui):
-		if _mission_select_ui.has_method("open_mission_select_stage"):
-			_mission_select_ui.call("open_mission_select_stage")
-		_set_local_player_menu_blocked(true)
-		return
-	_set_local_player_menu_blocked(false)
-
-
-func _on_mission_state_changed(snapshot: Dictionary) -> void:
-	var phase := int(snapshot.get("phase", MISSION_FLOW_PHASE_NONE))
-	if phase == MISSION_FLOW_PHASE_STAGING:
-		_open_staging_ui()
-	elif _mission_select_ui != null:
-		_close_staging_ui()
 
 
 func _set_local_player_menu_blocked(blocked: bool) -> void:

@@ -8,7 +8,7 @@ param(
     [string]$SpawnPublicHost = "127.0.0.1",
     [int]$SpawnBasePort = 7000,
     [int]$SpawnPortSearchCount = 500,
-    [int]$SpawnDefaultMaxPlayers = 4,
+    [int]$SpawnDefaultMaxPlayers = 6,
     [int]$SpawnServerLogIntervalMs = 1500,
     [int]$SpawnEmptyShutdownSeconds = 20,
     [double]$SpawnReadyTimeoutSeconds = 8.0,

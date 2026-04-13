@@ -275,7 +275,7 @@ var _backdrop_offset_cam := Vector3.ZERO
 var _prev_backdrop_camera_ref := Vector3.ZERO
 @export_enum("legacy_grid", "authored_rooms") var floor_generation_mode := "authored_rooms"
 ## When true, each floor uses exactly 3 rooms (authored generator + legacy layout). Default false keeps 7–9 / 8–10.
-@export var floor_generation_compact_three_rooms := false
+@export var floor_generation_compact_three_rooms := true
 @export var show_combat_debug_overlay := false
 @export var show_fps_counter := true
 @export var combat_debug_update_interval := 0.25
@@ -773,6 +773,12 @@ func _apply_player_roster_from_slot_map(raw_slot_map: Dictionary) -> void:
 
 func _on_network_slot_map_changed(slot_map: Dictionary) -> void:
 	_apply_player_roster_from_slot_map(slot_map)
+	if (
+		_network_session != null
+		and _network_session.has_method("mark_runtime_scene_ready_local")
+		and not _is_authoritative_world()
+	):
+		_network_session.call("mark_runtime_scene_ready_local")
 
 
 func _ensure_meta_progression_loaded(owner_id: StringName) -> void:

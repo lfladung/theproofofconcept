@@ -9,6 +9,7 @@ signal registry_lookup_result(success: bool, message: String)
 signal session_code_changed(session_code: String)
 signal lobby_ready_changed(ready_map: Dictionary)
 signal mission_state_changed(snapshot: Dictionary)
+signal party_state_changed(snapshot: Dictionary)
 
 enum SessionState {
 	OFFLINE,
@@ -32,7 +33,9 @@ enum MissionFlowPhase {
 }
 
 const DEFAULT_PORT := 7000
-const DEFAULT_MAX_PLAYERS := 4
+const HUB_MAX_PLAYERS := 6
+const RUN_MAX_PLAYERS := 4
+const DEFAULT_MAX_PLAYERS := RUN_MAX_PLAYERS
 const LOBBY_CODE_LENGTH := 6
 const DEFAULT_REGISTRY_URL := "http://127.0.0.1:8787"
 const LOBBY_SCENE_PATH := "res://scenes/ui/lobby_menu.tscn"
@@ -50,6 +53,8 @@ var dedicated_server_mode := false
 var _peer_slots: Dictionary = {}
 var _intended_disconnect := false
 var _queued_scene_path := ""
+var _scene_transfer_in_progress := false
+var _scene_transfer_token := 0
 var _include_host_in_slots := true
 var _runtime_ready_peers: Dictionary = {}
 var _lobby_ready_peers: Dictionary = {}
@@ -76,6 +81,16 @@ var _lookup_in_flight := false
 var _lookup_code := ""
 var _create_lobby_request: HTTPRequest = null
 var _create_lobby_in_flight := false
+var _party_request: HTTPRequest = null
+var _party_request_in_flight := false
+var _party_request_context := ""
+var _party_code := ""
+var _party_member_id := ""
+var _party_snapshot: Dictionary = {}
+var _party_selected_mission_id: StringName = &""
+var _party_ready := false
+var _instance_kind := "hub"
+var _fallback_to_hub_scene_on_registry_failure := false
 
 # Dedicated runtime diagnostics (console logging).
 var _server_diag_timer: Timer = null
@@ -125,8 +140,23 @@ func get_slot_for_peer(peer_id: int) -> int:
 
 
 func can_broadcast_world_replication() -> bool:
+	if _scene_transfer_in_progress:
+		return false
+	if session_state == SessionState.CONNECTING or session_state == SessionState.OFFLINE:
+		return false
+	if session_role == SessionRole.CLIENT:
+		return (
+			(session_state == SessionState.LOBBY or session_state == SessionState.IN_RUN)
+			and _peer_slots.has(get_local_peer_id())
+		)
 	if session_role != SessionRole.HOST and session_role != SessionRole.DEDICATED_SERVER:
 		return true
+	for key in _peer_slots.keys():
+		var peer_id := int(key)
+		if peer_id == host_peer_id:
+			continue
+		if not bool(_runtime_ready_peers.get(peer_id, false)):
+			return false
 	if session_state != SessionState.IN_RUN:
 		return (
 			session_state == SessionState.LOBBY
@@ -136,12 +166,6 @@ func can_broadcast_world_replication() -> bool:
 				MissionFlowPhase.STAGING,
 			]
 		)
-	for key in _peer_slots.keys():
-		var peer_id := int(key)
-		if peer_id == host_peer_id:
-			continue
-		if not bool(_runtime_ready_peers.get(peer_id, false)):
-			return false
 	return true
 
 
@@ -151,6 +175,15 @@ func mark_runtime_scene_ready_local() -> void:
 	if not has_active_peer():
 		return
 	_rpc_client_runtime_ready.rpc_id(host_peer_id)
+
+
+func mark_runtime_scene_leaving_local() -> void:
+	_begin_scene_transfer()
+	if session_role != SessionRole.CLIENT:
+		return
+	if not has_active_peer():
+		return
+	_rpc_client_runtime_leaving.rpc_id(host_peer_id)
 
 func get_local_peer_id() -> int:
 	var peer := multiplayer.multiplayer_peer
@@ -226,6 +259,34 @@ func get_lobby_ready_map() -> Dictionary:
 	return _lobby_ready_peers.duplicate(true)
 
 
+func get_party_snapshot() -> Dictionary:
+	return _party_snapshot.duplicate(true)
+
+
+func get_party_code() -> String:
+	return _party_code
+
+
+func get_party_member_id() -> String:
+	return _ensure_party_member_id()
+
+
+func has_active_party() -> bool:
+	return not _party_code.is_empty()
+
+
+func is_party_request_in_progress() -> bool:
+	return _party_request_in_flight
+
+
+func is_local_party_owner() -> bool:
+	return not _party_member_id.is_empty() and _party_member_id == String(_party_snapshot.get("owner_member_id", ""))
+
+
+func is_local_party_ready() -> bool:
+	return _party_ready
+
+
 func is_local_peer_ready() -> bool:
 	return bool(_lobby_ready_peers.get(get_local_peer_id(), false))
 
@@ -267,18 +328,46 @@ func is_lobby_create_in_progress() -> bool:
 	return _create_lobby_in_flight
 
 
+func request_hub_from_registry(registry_url: String = "") -> bool:
+	if has_active_peer():
+		_emit_transport_error("Already connected to a hub.")
+		return false
+	if _lookup_in_flight or _create_lobby_in_flight:
+		_emit_transport_error("A session directory request is already in progress.")
+		return false
+	var base_url := _registry_base_url(registry_url)
+	_ensure_create_lobby_request_node()
+	var endpoint := "%s/v1/hubs/join" % [base_url.trim_suffix("/")]
+	var headers := PackedStringArray(["Content-Type: application/json"])
+	var payload := {
+		"max_players": HUB_MAX_PLAYERS,
+	}
+	var err := _create_lobby_request.request(
+		endpoint,
+		headers,
+		HTTPClient.METHOD_POST,
+		JSON.stringify(payload)
+	)
+	if err != OK:
+		_emit_transport_error("Failed to query session directory (error %s)." % [err])
+		return false
+	_create_lobby_in_flight = true
+	_emit_registry_lookup_result(true, "Finding a hub...")
+	return true
+
+
 func request_lobby_from_registry(registry_url: String = "") -> bool:
+	return request_hub_from_registry(registry_url)
+
+
+func request_legacy_lobby_from_registry(registry_url: String = "") -> bool:
 	if has_active_peer():
 		_emit_transport_error("Disconnect first before creating a lobby.")
 		return false
 	if _lookup_in_flight or _create_lobby_in_flight:
 		_emit_transport_error("A session directory request is already in progress.")
 		return false
-	var base_url := registry_url.strip_edges()
-	if base_url.is_empty():
-		base_url = _cmdline_string_value("--registry_url=", DEFAULT_REGISTRY_URL)
-	if base_url.is_empty():
-		base_url = DEFAULT_REGISTRY_URL
+	var base_url := _registry_base_url(registry_url)
 	_ensure_create_lobby_request_node()
 	var endpoint := "%s/v1/lobbies/create" % [base_url.trim_suffix("/")]
 	var headers := PackedStringArray(["Content-Type: application/json"])
@@ -342,10 +431,12 @@ func host_lobby(
 
 
 func join_lobby(address: String, port: int = DEFAULT_PORT) -> bool:
+	_begin_scene_transfer()
 	_disconnect_local_peer()
 	var peer := ENetMultiplayerPeer.new()
 	var err := peer.create_client(address, port)
 	if err != OK:
+		_end_scene_transfer()
 		_emit_transport_error(
 			"Failed to join lobby at %s:%s (error %s)." % [address, port, err]
 		)
@@ -360,6 +451,7 @@ func join_lobby(address: String, port: int = DEFAULT_PORT) -> bool:
 	_lobby_ready_peers.clear()
 	_set_mission_state(&"", MissionFlowPhase.NONE, false)
 	_session_code = ""
+	_clear_party_state()
 	_emit_session_code_changed()
 	_emit_lobby_ready_changed()
 	return true
@@ -391,6 +483,115 @@ func join_lobby_via_session_code(session_code: String, registry_url: String = ""
 	_lookup_code = code
 	_emit_registry_lookup_result(true, "Resolving session code %s..." % [code])
 	return true
+
+
+func create_party_for_mission(mission_id: StringName, registry_url: String = "") -> bool:
+	var normalized_id := StringName(String(mission_id))
+	if not MissionRegistryRef.has_mission(normalized_id):
+		_emit_transport_error("Unknown mission '%s'." % [String(normalized_id)])
+		return false
+	_party_selected_mission_id = normalized_id
+	_party_ready = false
+	return _send_party_request(
+		"/v1/parties/create",
+		{
+			"mission_id": String(normalized_id),
+			"member_id": _ensure_party_member_id(),
+		},
+		"create",
+		registry_url
+	)
+
+
+func join_party_by_code(party_code: String, registry_url: String = "") -> bool:
+	var code := party_code.strip_edges().to_upper()
+	if code.is_empty():
+		_emit_transport_error("Enter a party code first.")
+		return false
+	return _send_party_request(
+		"/v1/parties/join",
+		{
+			"party_code": code,
+			"member_id": _ensure_party_member_id(),
+		},
+		"join",
+		registry_url
+	)
+
+
+func set_local_party_ready(is_ready: bool, registry_url: String = "") -> bool:
+	if _party_code.is_empty():
+		_emit_transport_error("Join a party first.")
+		return false
+	_party_ready = is_ready
+	var payload := {
+		"party_code": _party_code,
+		"member_id": _ensure_party_member_id(),
+		"ready": is_ready,
+	}
+	if is_local_party_owner() and _party_selected_mission_id != &"":
+		payload["mission_id"] = String(_party_selected_mission_id)
+	return _send_party_request("/v1/parties/update", payload, "update", registry_url)
+
+
+func toggle_local_party_ready() -> bool:
+	return set_local_party_ready(not _party_ready)
+
+
+func leave_party(registry_url: String = "") -> bool:
+	if _party_code.is_empty():
+		_clear_party_state()
+		return true
+	var sent := _send_party_request(
+		"/v1/parties/leave",
+		{
+			"party_code": _party_code,
+			"member_id": _ensure_party_member_id(),
+		},
+		"leave",
+		registry_url
+	)
+	if sent:
+		_clear_party_state()
+	return sent
+
+
+func poll_party(registry_url: String = "") -> bool:
+	if _party_code.is_empty() or _party_request_in_flight:
+		return false
+	var base_url := _registry_base_url(registry_url)
+	_ensure_party_request_node()
+	_party_request_context = "poll"
+	var endpoint := "%s/v1/parties/snapshot?code=%s&member_id=%s" % [
+		base_url.trim_suffix("/"),
+		_party_code.uri_encode(),
+		_ensure_party_member_id().uri_encode(),
+	]
+	var err := _party_request.request(endpoint, PackedStringArray(), HTTPClient.METHOD_GET)
+	if err != OK:
+		_party_request_context = ""
+		_emit_transport_error("Failed to query party state (error %s)." % [err])
+		return false
+	_party_request_in_flight = true
+	return true
+
+
+func start_party_run(registry_url: String = "") -> bool:
+	if _party_code.is_empty():
+		_emit_transport_error("Join a party first.")
+		return false
+	if not is_local_party_owner():
+		_emit_transport_error("Only the party owner can start the mission.")
+		return false
+	return _send_party_request(
+		"/v1/parties/start",
+		{
+			"party_code": _party_code,
+			"member_id": _ensure_party_member_id(),
+		},
+		"start",
+		registry_url
+	)
 
 
 func disconnect_from_session(change_scene: bool = true) -> void:
@@ -571,7 +772,14 @@ func request_leave_run_from_local_peer() -> void:
 	elif session_role == SessionRole.DEDICATED_SERVER:
 		return
 	elif session_role == SessionRole.CLIENT and has_active_peer():
-		_rpc_request_return_to_hub.rpc_id(host_peer_id)
+		mark_runtime_scene_leaving_local()
+		await get_tree().process_frame
+		await get_tree().process_frame
+		disconnect_from_session(false)
+		_fallback_to_hub_scene_on_registry_failure = true
+		if not request_hub_from_registry():
+			_fallback_to_hub_scene_on_registry_failure = false
+			_queue_scene_change(HUB_SCENE_PATH)
 	else:
 		disconnect_from_session()
 
@@ -708,6 +916,18 @@ func _rpc_client_runtime_ready() -> void:
 		_dedicated_log("peer_runtime_ready peer=%s slots=%s" % [sender_peer, _slot_map_debug_string()])
 
 
+@rpc("any_peer", "call_remote", "reliable")
+func _rpc_client_runtime_leaving() -> void:
+	if session_role != SessionRole.HOST and session_role != SessionRole.DEDICATED_SERVER:
+		return
+	var sender_peer := multiplayer.get_remote_sender_id()
+	if sender_peer <= 0:
+		return
+	_runtime_ready_peers[sender_peer] = false
+	if dedicated_server_mode:
+		_dedicated_log("peer_runtime_leaving peer=%s slots=%s" % [sender_peer, _slot_map_debug_string()])
+
+
 func _on_connected_to_server() -> void:
 	if session_role == SessionRole.CLIENT:
 		host_peer_id = 1
@@ -730,6 +950,11 @@ func _on_connection_failed() -> void:
 	_emit_session_code_changed()
 	_emit_lobby_ready_changed()
 	_emit_slot_map_changed()
+	if _fallback_to_hub_scene_on_registry_failure:
+		_fallback_to_hub_scene_on_registry_failure = false
+		_queue_scene_change(HUB_SCENE_PATH)
+	else:
+		_end_scene_transfer()
 	if not _intended_disconnect:
 		_emit_transport_error(message)
 
@@ -921,6 +1146,9 @@ func _best_registry_public_host() -> String:
 func _broadcast_slot_map_if_host() -> void:
 	if session_role != SessionRole.HOST and session_role != SessionRole.DEDICATED_SERVER:
 		return
+	for key in _peer_slots.keys():
+		var peer_id := int(key)
+		_runtime_ready_peers[peer_id] = peer_id == host_peer_id
 	_rpc_sync_peer_slots.rpc(_peer_slots)
 
 
@@ -959,9 +1187,20 @@ func _clear_intended_disconnect() -> void:
 	_intended_disconnect = false
 
 
+func _begin_scene_transfer() -> void:
+	_scene_transfer_token += 1
+	_scene_transfer_in_progress = true
+
+
+func _end_scene_transfer() -> void:
+	_scene_transfer_token += 1
+	_scene_transfer_in_progress = false
+
+
 func _queue_scene_change(scene_path: String) -> void:
 	if scene_path.is_empty():
 		return
+	_begin_scene_transfer()
 	if scene_path == RUN_SCENE_PATH:
 		var overlay := get_node_or_null("/root/LoadingOverlay")
 		if overlay != null and overlay.has_method("show_loading"):
@@ -977,10 +1216,28 @@ func _deferred_change_scene() -> void:
 	_queued_scene_path = ""
 	var current := get_tree().current_scene
 	if current != null and current.scene_file_path == scene_path:
+		call_deferred("_clear_scene_transfer_after_scene_ready", _scene_transfer_token)
 		return
 	var err := get_tree().change_scene_to_file(scene_path)
 	if err != OK:
+		_end_scene_transfer()
 		_emit_transport_error("Failed to change scene to '%s' (error %s)." % [scene_path, err])
+		return
+	call_deferred("_clear_scene_transfer_after_scene_ready", _scene_transfer_token)
+
+
+func _clear_scene_transfer_after_scene_ready(token: int) -> void:
+	await get_tree().process_frame
+	await get_tree().process_frame
+	if token == _scene_transfer_token:
+		_scene_transfer_in_progress = false
+
+
+func _fallback_to_hub_scene_after_run_leave_if_needed() -> void:
+	if not _fallback_to_hub_scene_on_registry_failure:
+		return
+	_fallback_to_hub_scene_on_registry_failure = false
+	_queue_scene_change(HUB_SCENE_PATH)
 
 
 func _set_state(new_state: int) -> void:
@@ -1009,6 +1266,11 @@ func _emit_session_code_changed() -> void:
 
 func _emit_lobby_ready_changed() -> void:
 	lobby_ready_changed.emit(_lobby_ready_peers.duplicate(true))
+
+
+func _emit_party_state_changed() -> void:
+	party_state_changed.emit(_party_snapshot.duplicate(true))
+
 
 func _emit_transport_error(message: String) -> void:
 	if dedicated_server_mode or _is_dedicated_cmdline():
@@ -1065,6 +1327,10 @@ func _hard_reset_offline_boot_state() -> void:
 	_lookup_in_flight = false
 	_lookup_code = ""
 	_create_lobby_in_flight = false
+	_party_request_in_flight = false
+	_party_request_context = ""
+	_fallback_to_hub_scene_on_registry_failure = false
+	_clear_party_state()
 
 
 func _try_bootstrap_dedicated_server() -> void:
@@ -1073,6 +1339,8 @@ func _try_bootstrap_dedicated_server() -> void:
 	var port := _cmdline_int_value("--port=", DEFAULT_PORT)
 	var wanted_max_players := _cmdline_int_value("--max_players=", DEFAULT_MAX_PLAYERS)
 	var auto_start_run := _cmdline_bool_value("--start_in_run=", false)
+	var mission_id := StringName(_cmdline_string_value("--mission_id=", ""))
+	_instance_kind = _cmdline_string_value("--instance_kind=", "hub").strip_edges().to_lower()
 	_dedicated_idle_shutdown_seconds = maxf(5.0, float(_cmdline_int_value("--empty_shutdown_seconds=", 20)))
 	var requested_log_path := _cmdline_string_value("--dedicated_log_file=", "").strip_edges()
 	if not requested_log_path.is_empty():
@@ -1080,9 +1348,12 @@ func _try_bootstrap_dedicated_server() -> void:
 	if not host_lobby(port, wanted_max_players, false, true):
 		return
 	_registry_configure_for_dedicated(port, wanted_max_players)
-	_registry_register_instance()
 	if auto_start_run:
-		start_run()
+		_bootstrap_dedicated_run(mission_id)
+	else:
+		_instance_kind = "hub"
+		_queue_scene_change(HUB_SCENE_PATH)
+	_registry_register_instance()
 
 
 
@@ -1140,6 +1411,21 @@ func _cmdline_string_value(prefix: String, fallback: String) -> String:
 	return fallback
 
 
+func _bootstrap_dedicated_run(mission_id: StringName) -> void:
+	var normalized_id := StringName(String(mission_id))
+	if normalized_id == &"" or not MissionRegistryRef.has_mission(normalized_id):
+		normalized_id = MissionRegistryRef.default_mission_id()
+	_selected_mission_id = normalized_id
+	_mission_flow_phase = MissionFlowPhase.STAGING
+	_instance_kind = "run"
+	_set_state(SessionState.IN_RUN)
+	var run_scene_path := MissionLaunchResolverRef.resolve_scene_path(_selected_mission_id)
+	if run_scene_path.is_empty():
+		run_scene_path = RUN_SCENE_PATH
+	_queue_scene_change(run_scene_path)
+	_dedicated_log("boot_run mission_id=%s max_players=%s" % [String(_selected_mission_id), max_players])
+
+
 func _registry_configure_for_dedicated(port: int, wanted_max_players: int) -> void:
 	var configured_registry := _cmdline_string_value("--registry_url=", "")
 	if configured_registry.is_empty():
@@ -1150,6 +1436,9 @@ func _registry_configure_for_dedicated(port: int, wanted_max_players: int) -> vo
 	_public_port = port
 	_instance_id = _cmdline_string_value("--instance_id=", "inst_%s" % [Time.get_unix_time_from_system()])
 	_session_code = _cmdline_string_value("--session_code=", _random_session_code())
+	_instance_kind = _cmdline_string_value("--instance_kind=", _instance_kind).strip_edges().to_lower()
+	if _instance_kind.is_empty():
+		_instance_kind = "hub"
 	_registry_heartbeat_seconds = maxf(
 		1.0,
 		float(_cmdline_int_value("--registry_heartbeat_ms=", 5000)) / 1000.0
@@ -1201,6 +1490,54 @@ func _ensure_create_lobby_request_node() -> void:
 	_create_lobby_request.request_completed.connect(_on_create_lobby_request_completed)
 
 
+func _ensure_party_request_node() -> void:
+	if _party_request != null:
+		return
+	_party_request = HTTPRequest.new()
+	_party_request.name = "PartyRequest"
+	add_child(_party_request)
+	_party_request.request_completed.connect(_on_party_request_completed)
+
+
+func _send_party_request(path: String, payload: Dictionary, context: String, registry_url: String = "") -> bool:
+	if _party_request_in_flight:
+		_emit_transport_error("A party request is already in progress.")
+		return false
+	var base_url := _registry_base_url(registry_url)
+	_ensure_party_request_node()
+	_party_request_context = context
+	var headers := PackedStringArray(["Content-Type: application/json"])
+	var err := _party_request.request(
+		"%s%s" % [base_url.trim_suffix("/"), path],
+		headers,
+		HTTPClient.METHOD_POST,
+		JSON.stringify(payload)
+	)
+	if err != OK:
+		_party_request_context = ""
+		_emit_transport_error("Failed to query party service (error %s)." % [err])
+		return false
+	_party_request_in_flight = true
+	return true
+
+
+func _registry_base_url(registry_url: String = "") -> String:
+	var base_url := registry_url.strip_edges()
+	if base_url.is_empty():
+		base_url = _cmdline_string_value("--registry_url=", DEFAULT_REGISTRY_URL)
+	if base_url.is_empty():
+		base_url = DEFAULT_REGISTRY_URL
+	return base_url
+
+
+func _ensure_party_member_id() -> String:
+	if _party_member_id.is_empty():
+		var rng := RandomNumberGenerator.new()
+		rng.randomize()
+		_party_member_id = "member_%s_%s" % [Time.get_unix_time_from_system(), rng.randi()]
+	return _party_member_id
+
+
 func _random_session_code() -> String:
 	var chars := "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
 	var rng := RandomNumberGenerator.new()
@@ -1225,6 +1562,8 @@ func _registry_register_instance() -> void:
 			"current_players": _peer_slots.size(),
 			"state": get_state_name(),
 			"started_unix": _registry_started_unix,
+			"kind": _instance_kind,
+			"mission_id": String(_selected_mission_id),
 		}
 	)
 
@@ -1243,6 +1582,8 @@ func _registry_send_heartbeat() -> void:
 			"current_players": _peer_slots.size(),
 			"max_players": max_players,
 			"state": get_state_name(),
+			"kind": _instance_kind,
+			"mission_id": String(_selected_mission_id),
 		}
 	)
 
@@ -1361,6 +1702,7 @@ func _on_create_lobby_request_completed(
 		var create_error := "Session directory request failed (HTTP %s)." % [response_code]
 		_emit_transport_error(create_error)
 		_emit_registry_lookup_result(false, create_error)
+		_fallback_to_hub_scene_after_run_leave_if_needed()
 		return
 	var response_text := body.get_string_from_utf8()
 	var parsed: Variant = JSON.parse_string(response_text)
@@ -1368,6 +1710,7 @@ func _on_create_lobby_request_completed(
 		var parse_error := "Session directory returned invalid JSON payload."
 		_emit_transport_error(parse_error)
 		_emit_registry_lookup_result(false, parse_error)
+		_fallback_to_hub_scene_after_run_leave_if_needed()
 		return
 	var payload := parsed as Dictionary
 	if not bool(payload.get("ok", false)):
@@ -1376,12 +1719,14 @@ func _on_create_lobby_request_completed(
 			payload_error = "Session directory error: %s" % [String(payload.get("error", "unknown"))]
 		_emit_transport_error(payload_error)
 		_emit_registry_lookup_result(false, payload_error)
+		_fallback_to_hub_scene_after_run_leave_if_needed()
 		return
 	var join_variant: Variant = payload.get("join", {})
 	if join_variant is not Dictionary:
 		var join_error := "Session directory response is missing join endpoint info."
 		_emit_transport_error(join_error)
 		_emit_registry_lookup_result(false, join_error)
+		_fallback_to_hub_scene_after_run_leave_if_needed()
 		return
 	var join_data := join_variant as Dictionary
 	var host := String(join_data.get("host", "")).strip_edges()
@@ -1395,6 +1740,7 @@ func _on_create_lobby_request_completed(
 		var endpoint_error := "Session directory returned an invalid lobby endpoint."
 		_emit_transport_error(endpoint_error)
 		_emit_registry_lookup_result(false, endpoint_error)
+		_fallback_to_hub_scene_after_run_leave_if_needed()
 		return
 	if not code.is_empty():
 		_session_code = code
@@ -1405,6 +1751,46 @@ func _on_create_lobby_request_completed(
 	)
 	if not join_lobby(host, port):
 		_emit_registry_lookup_result(false, "Found lobby, but failed to join.")
+		_fallback_to_hub_scene_after_run_leave_if_needed()
+		return
+	_fallback_to_hub_scene_on_registry_failure = false
+
+
+func _on_party_request_completed(
+	_result: int,
+	response_code: int,
+	_headers: PackedStringArray,
+	body: PackedByteArray
+) -> void:
+	var context := _party_request_context
+	_party_request_context = ""
+	_party_request_in_flight = false
+	var response_text := body.get_string_from_utf8()
+	var parsed: Variant = JSON.parse_string(response_text)
+	if response_code < 200 or response_code >= 300:
+		var message := _party_error_message(response_code, parsed)
+		_emit_transport_error(message)
+		_emit_party_state_changed()
+		return
+	if parsed is not Dictionary:
+		_emit_transport_error("Party service returned invalid JSON payload.")
+		_emit_party_state_changed()
+		return
+	var payload := parsed as Dictionary
+	if not bool(payload.get("ok", false)):
+		_emit_transport_error(_party_error_text(String(payload.get("error", "party_request_failed"))))
+		_emit_party_state_changed()
+		return
+	if context == "leave":
+		_clear_party_state()
+		return
+	_apply_party_payload(payload)
+	var launch := payload.get("launch", {}) as Dictionary
+	if launch.is_empty() and _party_snapshot.has("launch"):
+		launch = _party_snapshot.get("launch", {}) as Dictionary
+	if not launch.is_empty():
+		_connect_to_party_launch(launch)
+	_emit_party_state_changed()
 
 
 func _pick_registry_lobby_candidate(instances: Array) -> Dictionary:
@@ -1441,6 +1827,79 @@ func _pick_registry_lobby_candidate(instances: Array) -> Dictionary:
 			chosen = row
 			chosen_players = current_players
 	return chosen
+
+
+func _apply_party_payload(payload: Dictionary) -> void:
+	var party := payload.get("party", {}) as Dictionary
+	if party.is_empty():
+		return
+	_party_snapshot = party.duplicate(true)
+	_party_code = String(party.get("party_code", "")).strip_edges().to_upper()
+	_party_selected_mission_id = StringName(String(party.get("mission_id", "")))
+	_party_ready = false
+	var members := party.get("members", []) as Array
+	for member_v in members:
+		if member_v is not Dictionary:
+			continue
+		var member := member_v as Dictionary
+		if String(member.get("member_id", "")) == _ensure_party_member_id():
+			_party_ready = bool(member.get("ready", false))
+			break
+	_emit_party_state_changed()
+
+
+func _clear_party_state() -> void:
+	_party_code = ""
+	_party_snapshot.clear()
+	_party_selected_mission_id = &""
+	_party_ready = false
+	_emit_party_state_changed()
+
+
+func _connect_to_party_launch(launch: Dictionary) -> void:
+	var join := launch.get("join", {}) as Dictionary
+	var host := String(join.get("host", "")).strip_edges()
+	var port := int(join.get("port", DEFAULT_PORT))
+	if host.is_empty() or port <= 0:
+		_emit_transport_error("Party launch returned an invalid endpoint.")
+		return
+	_clear_party_state()
+	_join_lobby_after_runtime_scene_exit(host, port)
+
+
+func _join_lobby_after_runtime_scene_exit(host: String, port: int) -> void:
+	if session_role == SessionRole.CLIENT and has_active_peer():
+		mark_runtime_scene_leaving_local()
+		await get_tree().process_frame
+		await get_tree().process_frame
+	if not join_lobby(host, port):
+		_emit_transport_error("Party launch endpoint was valid, but connection failed.")
+
+
+func _party_error_message(response_code: int, parsed: Variant) -> String:
+	if parsed is Dictionary:
+		var payload := parsed as Dictionary
+		if payload.has("error"):
+			return _party_error_text(String(payload.get("error", "")))
+	return "Party request failed (HTTP %s)." % [response_code]
+
+
+func _party_error_text(error: String) -> String:
+	match error:
+		"party_full":
+			return "Party is full."
+		"party_not_found":
+			return "Party code was not found."
+		"not_party_owner":
+			return "Only the party owner can start the mission."
+		"party_not_ready":
+			return "All party members must be ready before the mission starts."
+		"mission_required":
+			return "Select a mission before starting."
+		"allocator_unavailable":
+			return "Mission allocator is unavailable."
+		_:
+			return "Party request failed: %s" % [error]
 
 
 func _enable_dedicated_diagnostics(port: int) -> void:
