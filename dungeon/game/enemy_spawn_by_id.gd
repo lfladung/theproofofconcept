@@ -36,6 +36,38 @@ const RANGED_FAMILIES: Array[StringName] = [
 	&"mass",
 	&"anchor",
 ]
+## Dictionary-backed sets for O(1) membership checks in spawn_spec_for_enemy_id.
+const _RANGED_ARCHETYPE_SET: Dictionary = {&"spitter": true, &"volley": true, &"barrage": true}
+const _RANGED_FAMILY_SET: Dictionary = {
+	&"flow": true,
+	&"edge": true,
+	&"echo": true,
+	&"surge": true,
+	&"phase": true,
+	&"mass": true,
+	&"anchor": true,
+}
+
+
+static func melee_family_scenes() -> Array[PackedScene]:
+	return [
+		STUMBLER_SCENE,
+		SHIELDWALL_SCENE,
+		WARDEN_SCENE,
+		DASHER_SCENE,
+		GLAIVER_SCENE,
+		SCRAMBLER_SCENE,
+	]
+
+
+static func ranged_family_scenes() -> Array[PackedScene]:
+	return [
+		FLOW_DASHER_SCENE,
+		LEECHER_SCENE,
+		SKEWER_SCENE,
+		RAZORFORM_SCENE,
+		FLOWFORM_SCENE,
+	]
 
 
 static func primary_family_scenes() -> Array[PackedScene]:
@@ -129,7 +161,7 @@ static func spawn_spec_for_enemy_id(enemy_id: StringName) -> Dictionary:
 		return {}
 	var archetype := StringName(parts[0])
 	var family := StringName(parts[1])
-	if archetype not in RANGED_ARCHETYPES or family not in RANGED_FAMILIES:
+	if not _RANGED_ARCHETYPE_SET.has(archetype) or not _RANGED_FAMILY_SET.has(family):
 		return {}
 	return _ranged_turret_spec(archetype, family)
 

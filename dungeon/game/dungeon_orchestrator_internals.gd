@@ -89,15 +89,20 @@ const RoomPreviewBuilderScript = preload("res://addons/dungeon_room_editor/previ
 const ROOM_PIECE_CATALOG = preload("res://addons/dungeon_room_editor/resources/default_room_piece_catalog.tres")
 const AuthoredRoomCatalogScript = preload("res://dungeon/game/floor_generation/authored_room_catalog.gd")
 const AuthoredFloorGeneratorScript = preload("res://dungeon/game/floor_generation/authored_floor_generator.gd")
+const EncounterSpawnControllerScript = preload("res://dungeon/game/components/encounter_spawn_controller.gd")
 const EnemySpawnByEnemyId = preload("res://dungeon/game/enemy_spawn_by_id.gd")
 const EncounterRunManagerScript = preload("res://dungeon/game/encounters/encounter_run_manager.gd")
 const Layer1EncounterRegistry = preload("res://dungeon/game/encounters/layer_1_encounter_registry.gd")
+const Layer2EncounterRegistry = preload("res://dungeon/game/encounters/layer_2_encounter_registry.gd")
+const Layer3EncounterRegistry = preload("res://dungeon/game/encounters/layer_3_encounter_registry.gd")
 const PLAYER_SCENE := preload("res://scenes/entities/player.tscn")
 const LOADOUT_OVERLAY_SCENE := preload("res://scenes/ui/loadout/loadout_overlay.tscn")
 const INFUSION_GUIDE_OVERLAY_SCENE := preload("res://scenes/ui/infusion_guide_overlay.tscn")
 const ESCAPE_MENU_SCENE := preload("res://scenes/ui/escape_menu.tscn")
 const LoadoutRepositoryScript = preload("res://scripts/loadout/loadout_repository.gd")
 const _MetaProgressionConstantsRef = preload("res://scripts/meta_progression/meta_progression_constants.gd")
+const _LoadoutConstantsRef = preload("res://scripts/loadout/loadout_constants.gd")
+const _TemperingManagerScript = preload("res://scripts/meta_progression/tempering_manager.gd")
 const ELEVATOR_VISUAL_SCENE := preload("res://art/props/interactables/elevator_texture.glb")
 const ENEMY_SCENE_KIND_DASHER := 1
 const ENEMY_SCENE_KIND_ARROW_TOWER := 2
@@ -162,6 +167,11 @@ const _ELEVATOR_PLAYER_SIZE_MULT := 4.0
 const _ELEVATOR_VISUAL_CLEARANCE_Y := 0.12
 const _DEBUG_ELEVATOR_YAW_OFFSET_DEG := 180.0
 const _AUTHORED_ROOM_FLOOR_THEMES: Array[StringName] = [&"dirt", &"wood", &"dark_wood", &"tile"]
+const _SPEED_SCALE_PER_FLOOR := 0.08
+## Arena enemy speed caps around floor 9 (1.0 + 8 * 0.08 = 1.64).
+const _SPEED_SCALE_MAX_ARENA := 1.65
+## Boss enemy speed cap is slightly lower — boss kits are tuned for deliberate pace.
+const _SPEED_SCALE_MAX_BOSS := 1.55
 ## Arrow towers are biased toward room center; keep planned spawns apart so two never share one spot.
 const _TOWER_SPAWN_MIN_SEP := 4.5
 const _MULTIPLAYER_DEBUG_LOGGING := false
@@ -246,6 +256,7 @@ var _room_queries: RoomQueryService
 var _info_controller: InfoLabelController
 var _camera_follow: CameraFollowController
 var _door_lock_controller: DoorLockController
+var _encounter_spawn_controller
 var _dungeon_world_environment: WorldEnvironment
 var _dungeon_environment: Environment
 var _backdrop_quad: MeshInstance3D
@@ -284,12 +295,18 @@ var _authored_room_stream_buckets: Dictionary = {}
 var _authored_room_stream_rooms_by_name: Dictionary = {}
 var _encounter_run_manager: RefCounted
 var _enemy_assets_prewarmed := false
+## Cached score-UI node refs — populated once in _ready, avoids per-call get_nodes_in_group.
+var _score_ui_nodes: Array[Node] = []
+## Accumulates per-enemy transform updates in a physics tick; flushed as one RPC.
+var _pending_transform_updates: Array = []
+## True when coin totals changed since the last authoritative-maintenance flush.
+var _coin_totals_dirty := false
 ## Accumulated LevelBackdropQuad position in Camera3D local XY (Z from BACKDROP_QUAD_DISTANCE).
 var _backdrop_offset_cam := Vector3.ZERO
 var _prev_backdrop_camera_ref := Vector3.ZERO
 @export_enum("legacy_grid", "authored_rooms") var floor_generation_mode := "authored_rooms"
 ## When true, each floor uses exactly 3 rooms (authored generator + legacy layout). Default false keeps 7–9 / 8–10.
-@export var floor_generation_compact_three_rooms := true
+@export var floor_generation_compact_three_rooms := false
 @export var show_combat_debug_overlay := false
 @export var show_fps_counter := true
 @export var combat_debug_update_interval := 0.25
@@ -316,6 +333,7 @@ var _encounter_spawn_queue_time_remaining := 0.0
 func _ready() -> void:
 	_rng.randomize()
 	_camera_pivot.rotation_degrees = Vector3(CAMERA_DIAG_PITCH_DEG, CAMERA_DIAG_YAW_DEG, 0.0)
+	_score_ui_nodes = get_tree().get_nodes_in_group(&"score_ui")
 	_network_session = get_node_or_null("/root/NetworkSession")
 	_networked_run = _network_session != null and _network_session.has_method("has_active_peer") and bool(
 		_network_session.call("has_active_peer")
@@ -349,6 +367,23 @@ func _ready() -> void:
 	_door_lock_controller.door_clamp_y_ext = _DOOR_CLAMP_Y_EXT
 	_door_lock_controller.resolve_room_name_for_body = _door_resolve_room_name_for_body
 	add_child(_door_lock_controller)
+	_encounter_spawn_controller = EncounterSpawnControllerScript.new()
+	_encounter_spawn_controller.room_queries = _room_queries
+	_encounter_spawn_controller.door_lock_controller = _door_lock_controller
+	_encounter_spawn_controller.encounter_modules_root = _encounter_modules_root
+	_encounter_spawn_controller.world_2d = $GameWorld2D
+	_encounter_spawn_controller.rng = _rng
+	_encounter_spawn_controller.is_authoritative_fn = Callable(self, "_is_authoritative_world")
+	_encounter_spawn_controller.is_server_peer_fn = Callable(self, "_is_server_peer")
+	_encounter_spawn_controller.can_broadcast_replication_fn = Callable(self, "_can_broadcast_world_replication")
+	_encounter_spawn_controller.get_player_position_fn = Callable(self, "_reference_player_position")
+	_encounter_spawn_controller.prespawn_mobs = prespawn_encounter_mobs
+	_encounter_spawn_controller.spawn_queue_interval = encounter_spawn_queue_interval
+	_encounter_spawn_controller.encounter_started.connect(_on_controller_encounter_started)
+	_encounter_spawn_controller.encounter_cleared.connect(_on_controller_encounter_cleared)
+	_encounter_spawn_controller.enemy_coin_drop_requested.connect(_on_enemy_coin_drop_requested)
+	_encounter_spawn_controller.boss_setup_requested.connect(_setup_boss_infusion_pillars)
+	add_child(_encounter_spawn_controller)
 	_ensure_combat_debug_overlay()
 	_ensure_fps_counter()
 	_ensure_loadout_overlay()
@@ -411,212 +446,50 @@ func _can_broadcast_world_replication() -> bool:
 	return true
 
 
-func _next_enemy_network_id() -> int:
-	_enemy_network_id_sequence += 1
-	return _enemy_network_id_sequence
+func _reference_player_position() -> Vector2:
+	var ordered_peer_ids: Array[int] = _peer_ids_sorted_by_slot(_peer_slots)
+	for peer_id in ordered_peer_ids:
+		var node_v: Variant = _players_by_peer.get(peer_id, null)
+		if node_v is CharacterBody2D and is_instance_valid(node_v):
+			return (node_v as CharacterBody2D).global_position
+	if _player != null and is_instance_valid(_player) and _player.is_in_group(&"player"):
+		return _player.global_position
+	var start_room := _layout_room_name("start_room")
+	if String(start_room) != "":
+		return _room_center_2d(start_room)
+	return Vector2.ZERO
 
 
-func _pick_scene_from_pool(pool: Array[PackedScene]) -> PackedScene:
-	if pool.is_empty():
-		return FLOW_DASHER_SCENE
-	return pool[_rng.randi_range(0, pool.size() - 1)]
-
-
-func _pick_random_primary_family_scene() -> PackedScene:
-	return _pick_scene_from_pool(EnemySpawnByEnemyId.primary_family_scenes())
-
-
-func _ensure_encounter_run_manager() -> void:
-	if _encounter_run_manager != null and _encounter_run_manager.is_configured():
+func _on_controller_encounter_started(encounter_id: StringName, is_main_combat: bool) -> void:
+	if String(encounter_id) == "boss":
+		_boss_started = true
+		_set_boss_entry_locked(true)
+		_set_info_base_text("Boss encounter started. Defeat all enemies.")
 		return
-	_encounter_run_manager = EncounterRunManagerScript.new()
-	var seed := _encounter_run_seed()
-	_encounter_run_manager.configure(seed, Layer1EncounterRegistry.templates())
-	if OS.is_debug_build():
-		print("EncounterTemplate run_seed=%s layer=1" % [seed])
+	if is_main_combat:
+		_combat_started = true
+		_set_combat_doors_locked(true)
+		_set_info_base_text("Combat started. Clear all enemies to unlock.")
+	else:
+		_set_info_base_text("Arena encounter started.")
 
 
-func _encounter_run_seed() -> int:
-	var run_state := get_node_or_null("/root/RunState")
-	if run_state != null:
-		var seed_v: Variant = run_state.get("run_seed")
-		if seed_v is int and int(seed_v) != 0:
-			return int(seed_v)
-		if seed_v is float and int(seed_v) != 0:
-			return int(seed_v)
-	var fallback := int(_rng.randi())
-	return fallback if fallback != 0 else int(Time.get_unix_time_from_system())
-
-
-func _enemy_scene_kind_from_scene(scene: PackedScene) -> int:
-	if scene == SPLITTER_SCENE:
-		return ENEMY_SCENE_KIND_SPLITTER
-	if scene == ECHOFORM_SCENE:
-		return ENEMY_SCENE_KIND_ECHOFORM
-	if scene == TRIAD_SCENE:
-		return ENEMY_SCENE_KIND_TRIAD
-	if scene == ECHO_SPLINTER_SCENE:
-		return ENEMY_SCENE_KIND_ECHO_SPLINTER
-	if scene == ECHO_UNIT_SCENE:
-		return ENEMY_SCENE_KIND_ECHO_UNIT
-	if scene == BINDER_SCENE:
-		return ENEMY_SCENE_KIND_BINDER
-	if scene == LURKER_SCENE:
-		return ENEMY_SCENE_KIND_LURKER
-	if scene == LEECHER_SCENE:
-		return ENEMY_SCENE_KIND_LEECHER
-	if scene == SKEWER_SCENE:
-		return ENEMY_SCENE_KIND_SKEWER
-	if scene == GLAIVER_SCENE:
-		return ENEMY_SCENE_KIND_GLAIVER
-	if scene == RAZORFORM_SCENE:
-		return ENEMY_SCENE_KIND_RAZORFORM
-	if scene == STUMBLER_SCENE:
-		return ENEMY_SCENE_KIND_STUMBLER
-	if scene == SHIELDWALL_SCENE:
-		return ENEMY_SCENE_KIND_SHIELDWALL
-	if scene == WARDEN_SCENE:
-		return ENEMY_SCENE_KIND_WARDEN
-	if scene == FLOWFORM_SCENE:
-		return ENEMY_SCENE_KIND_FLOWFORM
-	if scene == SCRAMBLER_SCENE:
-		return ENEMY_SCENE_KIND_SCRAMBLER
-	if scene == FLOW_DASHER_SCENE:
-		return ENEMY_SCENE_KIND_FLOW_DASHER
-	if scene == EnemySpawnByEnemyId.DASHER_SCENE:
-		return ENEMY_SCENE_KIND_DASHER
-	if scene == EnemySpawnByEnemyId.ARROW_TOWER_SCENE:
-		return ENEMY_SCENE_KIND_ARROW_TOWER
-	if scene == EnemySpawnByEnemyId.FIZZLER_SCENE:
-		return ENEMY_SCENE_KIND_FIZZLER
-	if scene == EnemySpawnByEnemyId.BURSTER_SCENE:
-		return ENEMY_SCENE_KIND_BURSTER
-	if scene == EnemySpawnByEnemyId.DETONATOR_SCENE:
-		return ENEMY_SCENE_KIND_DETONATOR
-	return ENEMY_SCENE_KIND_FLOW_DASHER
-
-
-func _enemy_scene_kind_from_enemy_instance(enemy: EnemyBase) -> int:
-	var script_v: Variant = enemy.get_script() if enemy != null else null
-	if script_v == SPLITTER_MOB_SCRIPT:
-		return ENEMY_SCENE_KIND_SPLITTER
-	if script_v == ECHOFORM_MOB_SCRIPT:
-		return ENEMY_SCENE_KIND_ECHOFORM
-	if script_v == TRIAD_MOB_SCRIPT:
-		return ENEMY_SCENE_KIND_TRIAD
-	if script_v == ECHO_SPLINTER_MOB_SCRIPT:
-		return ENEMY_SCENE_KIND_ECHO_SPLINTER
-	if script_v == ECHO_UNIT_MOB_SCRIPT:
-		return ENEMY_SCENE_KIND_ECHO_UNIT
-	if script_v == BINDER_MOB_SCRIPT:
-		return ENEMY_SCENE_KIND_BINDER
-	if script_v == LURKER_MOB_SCRIPT:
-		return ENEMY_SCENE_KIND_LURKER
-	if script_v == LEECHER_MOB_SCRIPT:
-		return ENEMY_SCENE_KIND_LEECHER
-	if script_v == SKEWER_MOB_SCRIPT:
-		return ENEMY_SCENE_KIND_SKEWER
-	if script_v == GLAIVER_MOB_SCRIPT:
-		return ENEMY_SCENE_KIND_GLAIVER
-	if script_v == RAZORFORM_MOB_SCRIPT:
-		return ENEMY_SCENE_KIND_RAZORFORM
-	if enemy is StumblerMob:
-		return ENEMY_SCENE_KIND_STUMBLER
-	if enemy is ShieldwallMob:
-		return ENEMY_SCENE_KIND_SHIELDWALL
-	if enemy is WardenMob:
-		return ENEMY_SCENE_KIND_WARDEN
-	if enemy is FlowformMob:
-		return ENEMY_SCENE_KIND_FLOWFORM
-	if enemy is ScramblerMob:
-		return ENEMY_SCENE_KIND_SCRAMBLER
-	if enemy is FizzlerMob:
-		return ENEMY_SCENE_KIND_FIZZLER
-	if enemy is BursterMob:
-		return ENEMY_SCENE_KIND_BURSTER
-	if enemy is DetonatorMob:
-		return ENEMY_SCENE_KIND_DETONATOR
-	if enemy is ArrowTowerMob:
-		return ENEMY_SCENE_KIND_ARROW_TOWER
-	return ENEMY_SCENE_KIND_FLOW_DASHER
-
-
-func _enemy_scene_from_kind(kind: int) -> PackedScene:
-	match kind:
-		ENEMY_SCENE_KIND_DASHER:
-			return EnemySpawnByEnemyId.DASHER_SCENE
-		ENEMY_SCENE_KIND_ARROW_TOWER:
-			return EnemySpawnByEnemyId.ARROW_TOWER_SCENE
-		ENEMY_SCENE_KIND_SPLITTER:
-			return SPLITTER_SCENE
-		ENEMY_SCENE_KIND_ECHOFORM:
-			return ECHOFORM_SCENE
-		ENEMY_SCENE_KIND_TRIAD:
-			return TRIAD_SCENE
-		ENEMY_SCENE_KIND_ECHO_SPLINTER:
-			return ECHO_SPLINTER_SCENE
-		ENEMY_SCENE_KIND_ECHO_UNIT:
-			return ECHO_UNIT_SCENE
-		ENEMY_SCENE_KIND_BINDER:
-			return BINDER_SCENE
-		ENEMY_SCENE_KIND_LURKER:
-			return LURKER_SCENE
-		ENEMY_SCENE_KIND_LEECHER:
-			return LEECHER_SCENE
-		ENEMY_SCENE_KIND_SKEWER:
-			return SKEWER_SCENE
-		ENEMY_SCENE_KIND_GLAIVER:
-			return GLAIVER_SCENE
-		ENEMY_SCENE_KIND_RAZORFORM:
-			return RAZORFORM_SCENE
-		ENEMY_SCENE_KIND_STUMBLER:
-			return STUMBLER_SCENE
-		ENEMY_SCENE_KIND_SHIELDWALL:
-			return SHIELDWALL_SCENE
-		ENEMY_SCENE_KIND_WARDEN:
-			return WARDEN_SCENE
-		ENEMY_SCENE_KIND_FLOWFORM:
-			return FLOWFORM_SCENE
-		ENEMY_SCENE_KIND_SCRAMBLER:
-			return SCRAMBLER_SCENE
-		ENEMY_SCENE_KIND_FLOW_DASHER:
-			return FLOW_DASHER_SCENE
-		ENEMY_SCENE_KIND_FIZZLER:
-			return EnemySpawnByEnemyId.FIZZLER_SCENE
-		ENEMY_SCENE_KIND_BURSTER:
-			return EnemySpawnByEnemyId.BURSTER_SCENE
-		ENEMY_SCENE_KIND_DETONATOR:
-			return EnemySpawnByEnemyId.DETONATOR_SCENE
-		_:
-			return FLOW_DASHER_SCENE
-
-
-func _register_encounter_enemy(encounter_id: StringName, enemy: EnemyBase) -> void:
-	if enemy == null:
-		return
-	enemy.set_meta(&"encounter_id", encounter_id)
-	if not _encounter_mobs.has(encounter_id):
-		_encounter_mobs[encounter_id] = []
-	var mobs: Array = _encounter_mobs[encounter_id] as Array
-	mobs.append(enemy)
-	_encounter_mobs[encounter_id] = mobs
-	enemy.tree_exited.connect(
-		func() -> void: _on_encounter_mob_removed(encounter_id, enemy),
-		CONNECT_ONE_SHOT
-	)
-	if enemy.has_signal(&"coin_drop_requested") and not enemy.coin_drop_requested.is_connected(
-		_on_enemy_coin_drop_requested
-	):
-		enemy.coin_drop_requested.connect(_on_enemy_coin_drop_requested)
-
-
-func _register_enemy_network_id(enemy: EnemyBase, net_id: int) -> void:
-	if enemy == null or net_id <= 0:
-		return
-	enemy.name = "Enemy_%s" % [net_id]
-	enemy.set_meta(&"enemy_network_id", net_id)
-	enemy.set_multiplayer_authority(1, true)
-	_enemy_nodes_by_network_id[net_id] = enemy
+func _on_controller_encounter_cleared(
+	encounter_id: StringName, is_boss: bool, is_main_combat: bool
+) -> void:
+	if is_boss:
+		_boss_cleared = true
+		_set_boss_entry_locked(false)
+		_set_boss_exit_active(true)
+		_set_info_base_text("Boss defeated. Elevator is active. All players must board.")
+		_grant_tempering_xp_to_all_players(_MetaProgressionConstantsRef.TEMPERING_XP_PER_BOSS_KILL)
+	elif is_main_combat:
+		_combat_cleared = true
+		_set_combat_doors_locked(false)
+		_set_info_base_text("Combat room cleared. Doors unlocked.")
+	else:
+		_set_info_base_text("Arena room cleared.")
+	_magnet_dropped_coins_for_encounter_room(encounter_id)
 
 
 func _next_coin_network_id() -> int:
@@ -655,7 +528,9 @@ func _ensure_coin_totals_for_roster() -> void:
 
 func _refresh_local_coin_ui() -> void:
 	var local_total := _shared_coin_total
-	for n in get_tree().get_nodes_in_group(&"score_ui"):
+	for n in _score_ui_nodes:
+		if not is_instance_valid(n):
+			continue
 		if n.has_method(&"set_score"):
 			n.call(&"set_score", local_total)
 		elif n.has_method(&"reset_score"):
@@ -664,7 +539,18 @@ func _refresh_local_coin_ui() -> void:
 				n.call(&"add_score", local_total)
 
 
+## Marks coin totals as dirty; the actual RPC is batched through _tick_authoritative_maintenance
+## so rapid consecutive pickups collapse into one network packet.
 func _broadcast_coin_totals_if_server() -> void:
+	if not _networked_run or not _is_server_peer() or not _has_multiplayer_peer():
+		return
+	_coin_totals_dirty = true
+
+
+func _flush_coin_totals_if_dirty() -> void:
+	if not _coin_totals_dirty:
+		return
+	_coin_totals_dirty = false
 	if not _networked_run or not _is_server_peer() or not _has_multiplayer_peer():
 		return
 	if not _can_broadcast_world_replication():
@@ -835,8 +721,7 @@ func _register_equipped_gear_for_tempering(owner_id: StringName) -> void:
 	var meta_store := get_node_or_null("/root/MetaProgressionStore")
 	if meta_store == null:
 		return
-	var LoadoutConstantsRef = load("res://scripts/loadout/loadout_constants.gd")
-	for slot_id in LoadoutConstantsRef.SLOT_ORDER:
+	for slot_id in _LoadoutConstantsRef.SLOT_ORDER:
 		var gear_v: Variant = meta_store.call(&"get_equipped_gear", owner_id, slot_id)
 		if gear_v == null:
 			continue
@@ -915,8 +800,7 @@ func _ensure_loadout_repository() -> void:
 func _ensure_tempering_manager() -> void:
 	if _tempering_manager != null:
 		return
-	var TemperingManagerScript = load("res://scripts/meta_progression/tempering_manager.gd")
-	_tempering_manager = TemperingManagerScript.new()
+	_tempering_manager = _TemperingManagerScript.new()
 	if _loadout_repository != null and _loadout_repository.has_method(&"set_tempering_manager"):
 		_loadout_repository.call(&"set_tempering_manager", _tempering_manager)
 
@@ -1235,13 +1119,12 @@ func _regenerate_level(randomize_layout: bool) -> void:
 	_info_label_refresh_time_remaining = 0.0
 	_authoritative_maintenance_time_remaining = 0.0
 	_info_label_last_room_name = ""
-	_pending_enemy_spawn_requests.clear()
-	_encounter_spawn_queue_time_remaining = 0.0
+	if _encounter_spawn_controller != null:
+		_encounter_spawn_controller.clear_runtime_state()
 	_clear_floor_loot()
 	for n in get_tree().get_nodes_in_group(&"mob"):
 		if n is Node:
 			(n as Node).queue_free()
-	_enemy_nodes_by_network_id.clear()
 	var assembled_ok := false
 	if _mini_hub_active:
 		if _networked_run and not _is_authoritative_world():
@@ -1339,7 +1222,8 @@ func _regenerate_level(randomize_layout: bool) -> void:
 	_build_world_bounds()
 	_build_room_debug_visuals()
 	_spawn_gameplay_objects()
-	_spawn_encounter_modules()
+	_setup_encounter_spawn_controller_for_floor()
+	_encounter_spawn_controller.setup_encounters()
 	_prewarm_enemy_assets_once()
 	_spawn_entrance_exit_markers()
 	_set_combat_doors_locked(false, false)
@@ -2047,27 +1931,17 @@ func _opposite_direction(direction: String) -> String:
 			return ""
 
 
-func _collect_dropped_coins_under(node: Node, out: Array) -> void:
-	for c in node.get_children():
-		if c is DroppedCoin:
-			out.append(c)
-		else:
-			_collect_dropped_coins_under(c, out)
-
-
 func _clear_floor_loot() -> void:
 	# Coins can live under PieceInstances (chests) or GameWorld2D root (mob death drops).
 	_coin_nodes_by_network_id.clear()
 	var gw := get_node_or_null("GameWorld2D") as Node
 	if gw != null:
-		var coins: Array = []
-		_collect_dropped_coins_under(gw, coins)
-		for n in coins:
-			if n is Node and is_instance_valid(n):
+		for n in gw.find_children("*", "DroppedCoin", true, false):
+			if is_instance_valid(n):
 				(n as Node).queue_free()
 	# Safety net for any orphaned visual meshes from old floor coins.
 	for n in _visual_world.find_children("DroppedCoinMesh", "MeshInstance3D", true, false):
-		if n is Node:
+		if is_instance_valid(n):
 			(n as Node).queue_free()
 
 
@@ -2338,6 +2212,21 @@ func _cache_runtime_door_positions() -> void:
 	_w_ext_x = _combat_door_x_w - 2.5
 	_e_ext_x = _combat_door_x_e + 3.5
 	_boss_w_ext_x = _boss_door_x_w - 2.5
+
+
+func _setup_encounter_spawn_controller_for_floor() -> void:
+	if _encounter_spawn_controller == null:
+		return
+	_encounter_spawn_controller.floor_index = _floor_index
+	_encounter_spawn_controller.map_layout = _map_layout
+	_encounter_spawn_controller.mini_hub_active = _mini_hub_active
+	_encounter_spawn_controller.combat_entry_dir = _combat_entry_dir
+	_encounter_spawn_controller.combat_exit_dir = _combat_exit_dir
+	_encounter_spawn_controller.combat_entry_socket = _combat_entry_socket
+	_encounter_spawn_controller.boss_entry_dir = _boss_entry_dir
+	_encounter_spawn_controller.boss_entry_socket = _boss_entry_socket
+	_encounter_spawn_controller.prespawn_mobs = prespawn_encounter_mobs
+	_encounter_spawn_controller.spawn_queue_interval = encounter_spawn_queue_interval
 
 
 func _position_runtime_markers() -> void:
@@ -2875,57 +2764,52 @@ func _rebuild_authored_room_stream_buckets() -> void:
 		var room_key := String(room.name)
 		_authored_room_stream_rooms_by_name[room_key] = room
 		var bounds := _room_queries.room_bounds_rect(room)
-		for bucket in _bucket_coords_for_rect(bounds):
-			var bucket_key := _authored_room_stream_bucket_key(bucket)
-			var bucket_rooms: Array = _authored_room_stream_buckets.get(bucket_key, [])
-			bucket_rooms.append(room)
-			_authored_room_stream_buckets[bucket_key] = bucket_rooms
+		if bounds.size.x <= 0.0 or bounds.size.y <= 0.0:
+			continue
+		var min_x := int(floor(bounds.position.x / _AUTHORED_VISUAL_STREAM_BUCKET_SIZE))
+		var min_y := int(floor(bounds.position.y / _AUTHORED_VISUAL_STREAM_BUCKET_SIZE))
+		var max_x := int(floor((bounds.end.x - 0.001) / _AUTHORED_VISUAL_STREAM_BUCKET_SIZE))
+		var max_y := int(floor((bounds.end.y - 0.001) / _AUTHORED_VISUAL_STREAM_BUCKET_SIZE))
+		for by in range(min_y, max_y + 1):
+			for bx in range(min_x, max_x + 1):
+				var bucket := Vector2i(bx, by)
+				var existing = _authored_room_stream_buckets.get(bucket)
+				if existing is Array:
+					(existing as Array).append(room)
+				else:
+					_authored_room_stream_buckets[bucket] = [room]
 
 
 func _authored_rooms_intersecting_rect(world_rect: Rect2) -> Array[RoomBase]:
 	var rooms: Array[RoomBase] = []
-	var seen: Dictionary = {}
 	if _authored_room_stream_buckets.is_empty():
 		_rebuild_authored_room_stream_buckets()
 	if _authored_room_stream_buckets.is_empty():
 		return rooms
-	for bucket in _bucket_coords_for_rect(world_rect):
-		var bucket_key := _authored_room_stream_bucket_key(bucket)
-		var bucket_rooms: Array = _authored_room_stream_buckets.get(bucket_key, [])
-		for room_value in bucket_rooms:
-			if room_value is not RoomBase:
-				continue
-			var room := room_value as RoomBase
-			if room == null or not is_instance_valid(room):
-				continue
-			var room_key := String(room.name)
-			if seen.has(room_key):
-				continue
-			seen[room_key] = true
-			rooms.append(room)
-	return rooms
-
-
-func _bucket_coords_for_rect(world_rect: Rect2) -> Array[Vector2i]:
-	var coords: Array[Vector2i] = []
 	if world_rect.size.x <= 0.0 or world_rect.size.y <= 0.0:
-		return coords
-	var min_bucket := Vector2i(
-		int(floor(world_rect.position.x / _AUTHORED_VISUAL_STREAM_BUCKET_SIZE)),
-		int(floor(world_rect.position.y / _AUTHORED_VISUAL_STREAM_BUCKET_SIZE))
-	)
-	var max_bucket := Vector2i(
-		int(floor((world_rect.end.x - 0.001) / _AUTHORED_VISUAL_STREAM_BUCKET_SIZE)),
-		int(floor((world_rect.end.y - 0.001) / _AUTHORED_VISUAL_STREAM_BUCKET_SIZE))
-	)
-	for y in range(min_bucket.y, max_bucket.y + 1):
-		for x in range(min_bucket.x, max_bucket.x + 1):
-			coords.append(Vector2i(x, y))
-	return coords
-
-
-func _authored_room_stream_bucket_key(bucket: Vector2i) -> String:
-	return "%s:%s" % [bucket.x, bucket.y]
+		return rooms
+	var seen: Dictionary = {}
+	var min_x := int(floor(world_rect.position.x / _AUTHORED_VISUAL_STREAM_BUCKET_SIZE))
+	var min_y := int(floor(world_rect.position.y / _AUTHORED_VISUAL_STREAM_BUCKET_SIZE))
+	var max_x := int(floor((world_rect.end.x - 0.001) / _AUTHORED_VISUAL_STREAM_BUCKET_SIZE))
+	var max_y := int(floor((world_rect.end.y - 0.001) / _AUTHORED_VISUAL_STREAM_BUCKET_SIZE))
+	for by in range(min_y, max_y + 1):
+		for bx in range(min_x, max_x + 1):
+			var bucket_rooms = _authored_room_stream_buckets.get(Vector2i(bx, by))
+			if bucket_rooms == null:
+				continue
+			for room_value in (bucket_rooms as Array):
+				if room_value is not RoomBase:
+					continue
+				var room := room_value as RoomBase
+				if not is_instance_valid(room):
+					continue
+				var room_key := String(room.name)
+				if seen.has(room_key):
+					continue
+				seen[room_key] = true
+				rooms.append(room)
+	return rooms
 
 
 func _assign_combat_door_visual_refs() -> void:
@@ -3199,7 +3083,7 @@ func _apply_hard_door_clamps() -> void:
 			_puzzle_solved,
 			_puzzle_gate_socket,
 			_puzzle_gate_dir,
-			_encounter_active,
+			_encounter_spawn_controller.active_encounter_state() if _encounter_spawn_controller != null else {},
 			_PLAYER_CLAMP_R,
 			_MOB_CLAMP_R,
 			[]
@@ -3207,20 +3091,14 @@ func _apply_hard_door_clamps() -> void:
 	if not _is_authoritative_world():
 		return
 	var mob_bodies: Array[CharacterBody2D] = []
-	for encounter_key in _encounter_mobs.keys():
-		var encounter_id := encounter_key as StringName
-		if not bool(_encounter_active.get(encounter_id, false)):
-			continue
-		var mobs: Array = _encounter_mobs.get(encounter_id, []) as Array
-		for mob_value in mobs:
-			if mob_value is CharacterBody2D and is_instance_valid(mob_value):
-				mob_bodies.append(mob_value as CharacterBody2D)
+	if _encounter_spawn_controller != null:
+		mob_bodies = _encounter_spawn_controller.get_all_active_mob_bodies()
 	_door_lock_controller.apply_hard_door_clamps(
 		null,
 		_puzzle_solved,
 		_puzzle_gate_socket,
 		_puzzle_gate_dir,
-		_encounter_active,
+		_encounter_spawn_controller.active_encounter_state() if _encounter_spawn_controller != null else {},
 		_PLAYER_CLAMP_R,
 		_MOB_CLAMP_R,
 		mob_bodies
@@ -3430,6 +3308,15 @@ func _magnet_dropped_coins_for_encounter_room(encounter_id: StringName) -> void:
 			_rpc_coin_begin_room_clear_magnet.rpc(int(net_id_key), peer_pick)
 
 
+func _room_name_for_encounter(encounter_id: StringName) -> StringName:
+	var id_text := String(encounter_id)
+	if id_text == "boss":
+		return _layout_room_name("exit_room")
+	if id_text.begins_with("arena_"):
+		return StringName(id_text.trim_prefix("arena_"))
+	return &""
+
+
 func _despawn_coin_local(coin_network_id: int) -> void:
 	var coin_v: Variant = _coin_nodes_by_network_id.get(coin_network_id, null)
 	if coin_v is DroppedCoin and is_instance_valid(coin_v):
@@ -3568,490 +3455,10 @@ func _spawn_entrance_exit_markers() -> void:
 
 
 func _spawn_encounter_modules() -> void:
-	_enemy_nodes_by_network_id.clear()
-	if _mini_hub_active:
-		_spawn_points_by_encounter.clear()
-		_spawn_volumes_by_encounter.clear()
-		_spawn_count_by_encounter.clear()
-		_encounter_template_by_encounter.clear()
-		_encounter_spawn_plan_by_encounter.clear()
-		_planned_tower_positions_by_encounter.clear()
-		_entry_socket_by_encounter.clear()
-		_entry_socket_dir_by_encounter.clear()
-		if _door_lock_controller != null:
-			_door_lock_controller.clear_encounter_locks()
-		_encounter_active = {}
-		_encounter_completed = {}
-		_encounter_mobs = {}
-		_combat_encounter_id = &""
+	if _encounter_spawn_controller == null:
 		return
-	if not _is_authoritative_world():
-		_spawn_points_by_encounter.clear()
-		_spawn_volumes_by_encounter.clear()
-		_spawn_count_by_encounter.clear()
-		_encounter_template_by_encounter.clear()
-		_encounter_spawn_plan_by_encounter.clear()
-		_planned_tower_positions_by_encounter.clear()
-		_entry_socket_by_encounter.clear()
-		_entry_socket_dir_by_encounter.clear()
-		if _door_lock_controller != null:
-			_door_lock_controller.clear_encounter_locks()
-		_encounter_active = {}
-		_encounter_completed = {}
-		_encounter_mobs = {}
-		_combat_encounter_id = &""
-		return
-	_spawn_points_by_encounter.clear()
-	_spawn_volumes_by_encounter.clear()
-	_spawn_count_by_encounter.clear()
-	_encounter_template_by_encounter.clear()
-	_encounter_spawn_plan_by_encounter.clear()
-	_planned_tower_positions_by_encounter.clear()
-	_entry_socket_by_encounter.clear()
-	_entry_socket_dir_by_encounter.clear()
-	if _door_lock_controller != null:
-		_door_lock_controller.clear_encounter_locks()
-	_encounter_active = {&"boss": false}
-	_encounter_completed = {&"boss": false}
-	_encounter_mobs = {&"boss": []}
-	_combat_encounter_id = &""
-	_ensure_encounter_run_manager()
-
-	var combat_room_name := _layout_room_name("combat_room")
-	var boss_room := _room_by_name(_layout_room_name("exit_room"))
-	if boss_room == null:
-		return
-	var boss_center := boss_room.global_position
-	_entry_socket_by_encounter[&"boss"] = _boss_entry_socket
-	_entry_socket_dir_by_encounter[&"boss"] = _boss_entry_dir
-	_cache_locked_sockets_for_encounter(boss_room, &"boss")
-	var boss_trigger := _encounter_trigger_config_for_room(boss_room, &"boss", boss_center)
-	_spawn_encounter_trigger(
-		boss_trigger.get("position", boss_center) as Vector2,
-		&"boss",
-		"BossEncounterTrigger",
-		boss_trigger.get("size", Vector2.ZERO) as Vector2
-	)
-	for room in _rooms_root.get_children():
-		if room is not RoomBase:
-			continue
-		var r := room as RoomBase
-		if not _room_should_register_encounter(r):
-			continue
-		var encounter_id := StringName("arena_%s" % [String(r.name)])
-		var trigger_name := "ArenaEncounterTrigger_%s" % [String(r.name)]
-		_cache_entry_socket_for_encounter(r, encounter_id)
-		_cache_locked_sockets_for_encounter(r, encounter_id)
-		var trigger_pos := r.global_position
-		var trigger_sz := Vector2.ZERO
-		if r.name == combat_room_name and _combat_entry_socket.length_squared() > 0.01:
-			# Fire once the player is well inside the arena (entry socket is excluded from pull-in clamps).
-			var inward := (-_direction_vector(_combat_entry_dir)).normalized()
-			trigger_pos = _combat_entry_socket + inward * (_DOOR_SLAB_HALF + _COMBAT_ENTRY_TRIGGER_INSET)
-			trigger_sz = _encounter_entry_trigger_size(_combat_entry_dir)
-		var trigger_config := _encounter_trigger_config_for_room(
-			r,
-			encounter_id,
-			trigger_pos,
-			trigger_sz
-		)
-		_spawn_encounter_trigger(
-			trigger_config.get("position", trigger_pos) as Vector2,
-			encounter_id,
-			trigger_name,
-			trigger_config.get("size", trigger_sz) as Vector2
-		)
-		var authored_spawn_count := _spawn_authored_enemy_points_for_room(r, encounter_id)
-		if authored_spawn_count <= 0:
-			_spawn_arena_modules_for_room(r, encounter_id)
-		var template_spawn_count := _assign_layer_1_encounter_template(r, encounter_id)
-		if template_spawn_count > 0:
-			_spawn_count_by_encounter[encounter_id] = template_spawn_count
-		elif authored_spawn_count > 0:
-			_spawn_count_by_encounter[encounter_id] = authored_spawn_count
-		else:
-			_spawn_count_by_encounter[encounter_id] = _rng.randi_range(2, 4)
-		_encounter_active[encounter_id] = false
-		_encounter_completed[encounter_id] = false
-		_encounter_mobs[encounter_id] = []
-		if r.name == combat_room_name:
-			_combat_encounter_id = encounter_id
-
-	var boss_spawn_count := _spawn_authored_enemy_points_for_room(boss_room, &"boss")
-	if boss_spawn_count > 0:
-		_spawn_count_by_encounter[&"boss"] = boss_spawn_count
-	else:
-		var boss_half := _room_half_extents(boss_room)
-		var bpx := maxf(5.0, boss_half.x - 12.0)
-		var bpy := maxf(5.0, boss_half.y - 12.0)
-		_spawn_enemy_spawn_point(boss_center + Vector2(-bpx, -bpy), &"boss")
-		_spawn_enemy_spawn_point(boss_center + Vector2(bpx, bpy), &"boss")
-		var boss_vol_size := Vector2(maxf(16.0, boss_half.x * 0.4), maxf(12.0, boss_half.y * 0.35))
-		_spawn_enemy_spawn_volume(boss_center + Vector2(-bpx, bpy), boss_vol_size, &"boss")
-	_setup_boss_infusion_pillars(boss_room, boss_center)
-	if prespawn_encounter_mobs:
-		_prespawn_encounter_mobs()
-
-
-func _cache_locked_sockets_for_encounter(room: RoomBase, encounter_id: StringName) -> void:
-	if room == null or _door_lock_controller == null:
-		return
-	var exclude_socket := _entry_socket_by_encounter.get(encounter_id, Vector2.ZERO) as Vector2
-	var exclude_dir := String(_entry_socket_dir_by_encounter.get(encounter_id, ""))
-	_door_lock_controller.cache_room_locks(
-		room,
-		encounter_id,
-		_door_visual_by_socket_key,
-		exclude_socket,
-		exclude_dir
-	)
-
-
-func _socket_pos_key(p: Vector2) -> String:
-	var qx := int(roundf(p.x * 100.0))
-	var qy := int(roundf(p.y * 100.0))
-	return "%s:%s" % [qx, qy]
-
-
-func _apply_encounter_door_visuals_locked(
-	encounter_id: StringName, locked: bool, animate: bool = true
-) -> void:
-	if _door_lock_controller == null:
-		return
-	_door_lock_controller.set_encounter_visuals_locked(encounter_id, locked, animate)
-
-
-func _set_encounter_door_visuals_locked(encounter_id: StringName, locked: bool, animate: bool = true) -> void:
-	_apply_encounter_door_visuals_locked(encounter_id, locked, animate)
-	if (
-		_networked_run
-		and _is_server_peer()
-		and _has_multiplayer_peer()
-		and _can_broadcast_world_replication()
-	):
-		_rpc_set_encounter_door_visuals_locked.rpc(String(encounter_id), locked, animate)
-
-
-func _spawn_encounter_trigger(
-	position_2d: Vector2,
-	encounter_id: StringName,
-	node_name: String,
-	trigger_size_override: Vector2 = Vector2.ZERO
-) -> void:
-	var trigger := ROOM_TRIGGER_SCENE.instantiate() as RoomEncounterTrigger2D
-	if trigger == null:
-		return
-	trigger.name = node_name
-	trigger.encounter_id = encounter_id
-	trigger.position = position_2d
-	if trigger_size_override.length_squared() > 0.001:
-		trigger.trigger_size = trigger_size_override
-	trigger.encounter_triggered.connect(_on_encounter_triggered)
-	_encounter_modules_root.add_child(trigger)
-
-
-func _spawn_enemy_spawn_point(
-	position_2d: Vector2,
-	encounter_id: StringName,
-	enemy_id: StringName = &"",
-	authored_marker := false
-) -> void:
-	var point := SPAWN_POINT_SCENE.instantiate() as EnemySpawnPoint2D
-	if point == null:
-		return
-	point.encounter_id = encounter_id
-	point.enemy_id = enemy_id
-	point.position = position_2d
-	if authored_marker:
-		point.set_meta(&"authored_marker", true)
-	_encounter_modules_root.add_child(point)
-	if not _spawn_points_by_encounter.has(encounter_id):
-		_spawn_points_by_encounter[encounter_id] = []
-	var points: Array = _spawn_points_by_encounter[encounter_id] as Array
-	points.append(point)
-	_spawn_points_by_encounter[encounter_id] = points
-
-
-func _spawn_enemy_spawn_volume(position_2d: Vector2, size_2d: Vector2, encounter_id: StringName) -> void:
-	var volume := SPAWN_VOLUME_SCENE.instantiate() as EnemySpawnVolume2D
-	if volume == null:
-		return
-	volume.encounter_id = encounter_id
-	volume.position = position_2d
-	volume.size = size_2d
-	_encounter_modules_root.add_child(volume)
-	if not _spawn_volumes_by_encounter.has(encounter_id):
-		_spawn_volumes_by_encounter[encounter_id] = []
-	var volumes: Array = _spawn_volumes_by_encounter[encounter_id] as Array
-	volumes.append(volume)
-	_spawn_volumes_by_encounter[encounter_id] = volumes
-
-
-func _spawn_arena_modules_for_room(room: RoomBase, encounter_id: StringName) -> void:
-	var center := room.global_position
-	var half := _room_half_extents(room)
-	var margin := Vector2(minf(6.0, half.x * 0.35), minf(6.0, half.y * 0.35))
-	var px := maxf(3.0, half.x - margin.x)
-	var py := maxf(3.0, half.y - margin.y)
-	for point_pos in [
-		center + Vector2(-px, -py),
-		center + Vector2(-px, py),
-		center + Vector2(px, -py),
-		center + Vector2(px, py),
-	]:
-		_spawn_enemy_spawn_point(point_pos, encounter_id)
-	var vol_size := Vector2(maxf(12.0, half.x * 0.5), maxf(10.0, half.y * 0.4))
-	_spawn_enemy_spawn_volume(center + Vector2(-px * 0.78, -py * 0.72), vol_size, encounter_id)
-	_spawn_enemy_spawn_volume(center + Vector2(px * 0.78, py * 0.72), vol_size, encounter_id)
-
-
-func _spawn_authored_enemy_points_for_room(room: RoomBase, encounter_id: StringName) -> int:
-	if room == null:
-		return 0
-	var room_name := StringName(room.name)
-	var spawn_markers := _zone_markers(room_name, "enemy_spawn")
-	var spawned_count := 0
-	for marker in spawn_markers:
-		var position := marker.get("world_position", Vector2.ZERO) as Vector2
-		_spawn_enemy_spawn_point(
-			position,
-			encounter_id,
-			marker.get("enemy_id", &"") as StringName,
-			true
-		)
-		spawned_count += 1
-	return spawned_count
-
-
-func _room_should_register_encounter(room: RoomBase) -> bool:
-	if room == null:
-		return false
-	if room.room_type == "arena":
-		return true
-	return not _zone_markers(StringName(room.name), "enemy_spawn").is_empty()
-
-
-func _assign_layer_1_encounter_template(room: RoomBase, encounter_id: StringName) -> int:
-	if room == null:
-		return 0
-	_ensure_encounter_run_manager()
-	if _encounter_run_manager == null:
-		return 0
-	var selection: Dictionary = _encounter_run_manager.choose_template(1, room.room_tags)
-	var template = selection.get("template", null)
-	if template == null:
-		return 0
-	var spawn_plan: Array = _encounter_run_manager.resolve_template_spawns(template)
-	if spawn_plan.is_empty():
-		return 0
-	_encounter_template_by_encounter[encounter_id] = template
-	_encounter_spawn_plan_by_encounter[encounter_id] = spawn_plan
-	print(
-		"EncounterTemplate selected room=%s encounter=%s template=%s display=%s repeated=%s stage=%s tags=%s" % [
-			String(room.name),
-			String(encounter_id),
-			String(template.id),
-			template.display_name,
-			bool(selection.get("repeated", false)),
-			String(selection.get("stage", "")),
-			_packed_tags_text(room.room_tags),
-		]
-	)
-	return spawn_plan.size()
-
-
-func _encounter_trigger_config_for_room(
-	room: RoomBase,
-	encounter_id: StringName,
-	fallback_position: Vector2,
-	fallback_size: Vector2 = Vector2.ZERO
-) -> Dictionary:
-	if room == null:
-		return {"position": fallback_position, "size": fallback_size}
-	var markers := _zone_markers(StringName(room.name), "encounter_trigger", &"entry")
-	if markers.is_empty():
-		return {"position": fallback_position, "size": fallback_size}
-	var direction := String(_entry_socket_dir_by_encounter.get(encounter_id, ""))
-	return {
-		"position": markers[0].get("world_position", fallback_position) as Vector2,
-		"size": _encounter_entry_trigger_size(direction),
-	}
-
-
-func _encounter_entry_trigger_size(direction: String) -> Vector2:
-	match direction:
-		"west", "east":
-			return Vector2(6.0, _DOOR_CLAMP_Y_EXT * 2.0 + 2.0)
-		"north", "south":
-			return Vector2(_DOOR_CLAMP_Y_EXT * 2.0 + 2.0, 6.0)
-		_:
-			return Vector2(6.0, 14.0)
-
-
-func _on_encounter_triggered(encounter_id: StringName) -> void:
-	if not _is_authoritative_world():
-		return
-	if bool(_encounter_active.get(encounter_id, false)) or bool(_encounter_completed.get(encounter_id, false)):
-		return
-	match String(encounter_id):
-		"boss":
-			call_deferred("_start_boss_encounter")
-		_:
-			if String(encounter_id).begins_with("arena_"):
-				call_deferred("_start_arena_encounter", encounter_id)
-
-
-func _start_arena_encounter(encounter_id: StringName) -> void:
-	_encounter_active[encounter_id] = true
-	_set_encounter_door_visuals_locked(encounter_id, true, true)
-	_set_encounter_mobs_aggro(encounter_id, true)
-	var is_main_combat := encounter_id == _combat_encounter_id
-	if is_main_combat:
-		_combat_started = true
-		_set_combat_doors_locked(true)
-		_set_info_base_text("Combat started. Clear all enemies to unlock.")
-	else:
-		_set_info_base_text("Arena encounter started.")
-	if (_encounter_mobs.get(encounter_id, []) as Array).is_empty():
-		var count := int(_spawn_count_by_encounter.get(encounter_id, _rng.randi_range(2, 4)))
-		_spawn_encounter_wave(encounter_id, clampi(count, 2, 4), 1.0 + float(_floor_index - 1) * 0.08)
-
-
-func _start_boss_encounter() -> void:
-	_boss_started = true
-	_encounter_active[&"boss"] = true
-	_set_encounter_door_visuals_locked(&"boss", true, true)
-	_set_encounter_mobs_aggro(&"boss", true)
-	_set_boss_entry_locked(true)
-	_set_info_base_text("Boss encounter started. Defeat all enemies.")
-	if (_encounter_mobs.get(&"boss", []) as Array).is_empty():
-		var raw_count := 2 + int(floor(float(_floor_index - 1) / 2.0))
-		var adjusted_count := maxi(1, int(ceili(float(raw_count) * 0.5)))
-		_spawn_encounter_wave(
-			&"boss",
-			int(_spawn_count_by_encounter.get(&"boss", adjusted_count)),
-			1.25 + float(_floor_index - 1) * 0.05
-		)
-
-
-func _reference_player_position() -> Vector2:
-	var ordered_peer_ids: Array[int] = _peer_ids_sorted_by_slot(_peer_slots)
-	for peer_id in ordered_peer_ids:
-		var node_v: Variant = _players_by_peer.get(peer_id, null)
-		if node_v is CharacterBody2D and is_instance_valid(node_v):
-			return (node_v as CharacterBody2D).global_position
-	if _player != null and is_instance_valid(_player) and _player.is_in_group(&"player"):
-		return _player.global_position
-	var start_room := _layout_room_name("start_room")
-	if String(start_room) != "":
-		return _room_center_2d(start_room)
-	return Vector2.ZERO
-
-
-func _spawn_encounter_wave(encounter_id: StringName, total_count: int, speed_multiplier: float) -> void:
-	if not _planned_tower_positions_by_encounter.has(encounter_id):
-		_planned_tower_positions_by_encounter[encounter_id] = []
-	var spawned := 0
-	var points: Array = _spawn_points_by_encounter.get(encounter_id, []) as Array
-	var volumes: Array = _spawn_volumes_by_encounter.get(encounter_id, []) as Array
-	var player_pos := _reference_player_position()
-	var spawn_plan: Array = _encounter_spawn_plan_by_encounter.get(encounter_id, []) as Array
-	var use_spawn_plan := String(encounter_id) != "boss" and not spawn_plan.is_empty()
-	var planned_scenes: Array[PackedScene] = []
-	if not use_spawn_plan:
-		if total_count >= 1:
-			planned_scenes.append(_pick_melee_enemy_scene(encounter_id))
-		if total_count >= 2:
-			planned_scenes.append(_pick_ranged_enemy_scene(encounter_id))
-		if total_count >= 3:
-			planned_scenes.append(_pick_random_primary_family_scene())
-		for i in range(planned_scenes.size(), total_count):
-			planned_scenes.append(_pick_enemy_scene(encounter_id))
-		planned_scenes.shuffle()
-	for point_node in points:
-		if spawned >= total_count:
-			break
-		if point_node is EnemySpawnPoint2D:
-			var point := point_node as EnemySpawnPoint2D
-			var spawn_config: Dictionary = {}
-			var scene_for_spawn: PackedScene = null
-			if use_spawn_plan:
-				var planned_spawn := _enemy_spawn_spec_from_plan_entry(spawn_plan[spawned] as Dictionary)
-				scene_for_spawn = planned_spawn.get("scene", null) as PackedScene
-				spawn_config = (planned_spawn.get("config", {}) as Dictionary).duplicate(true)
-			else:
-				scene_for_spawn = (
-					_enemy_scene_from_id(point.enemy_id)
-					if point.enemy_id != &""
-					else planned_scenes[spawned] if spawned < planned_scenes.size() else null
-				)
-			if not use_spawn_plan and point.enemy_id != &"":
-				var spec := _enemy_spawn_spec_from_id(point.enemy_id)
-				if not spec.is_empty():
-					scene_for_spawn = spec.get("scene", scene_for_spawn) as PackedScene
-					spawn_config = (spec.get("config", {}) as Dictionary).duplicate(true)
-			var pos := point.get_spawn_position()
-			pos = _prepare_encounter_spawn_position(encounter_id, pos, scene_for_spawn)
-			_spawn_encounter_mob(
-				encounter_id,
-				pos,
-				player_pos,
-				speed_multiplier,
-				scene_for_spawn,
-				false,
-				spawn_config
-			)
-			spawned += 1
-	while spawned < total_count:
-		var spawn_config: Dictionary = {}
-		var scene_for_spawn: PackedScene = null
-		if use_spawn_plan:
-			var planned_spawn := _enemy_spawn_spec_from_plan_entry(spawn_plan[spawned] as Dictionary)
-			scene_for_spawn = planned_spawn.get("scene", null) as PackedScene
-			spawn_config = (planned_spawn.get("config", {}) as Dictionary).duplicate(true)
-		else:
-			scene_for_spawn = planned_scenes[spawned] if spawned < planned_scenes.size() else null
-		var vpos := _fallback_spawn_position_for_encounter(encounter_id)
-		if not volumes.is_empty():
-			var volume_idx := _rng.randi_range(0, volumes.size() - 1)
-			var volume := volumes[volume_idx] as EnemySpawnVolume2D
-			if volume != null:
-				vpos = volume.sample_spawn_position()
-		vpos = _prepare_encounter_spawn_position(encounter_id, vpos, scene_for_spawn)
-		_spawn_encounter_mob(
-			encounter_id,
-			vpos,
-			player_pos,
-			speed_multiplier,
-			scene_for_spawn,
-			false,
-			spawn_config
-		)
-		spawned += 1
-
-
-func _spawn_encounter_mob(
-	encounter_id: StringName,
-	spawn_position: Vector2,
-	target_position: Vector2,
-	speed_multiplier: float,
-	enemy_scene: PackedScene = null,
-	start_aggro := false,
-	spawn_config: Dictionary = {}
-) -> void:
-	_pending_enemy_spawn_requests.append(
-		{
-			"encounter_id": encounter_id,
-			"spawn_position": spawn_position,
-			"target_position": target_position,
-			"speed_multiplier": speed_multiplier,
-			"enemy_scene": enemy_scene,
-			"start_aggro": start_aggro,
-			"spawn_config": spawn_config.duplicate(true),
-		}
-	)
-	if _pending_enemy_spawn_requests.size() == 1:
-		_encounter_spawn_queue_time_remaining = 0.0
+	_setup_encounter_spawn_controller_for_floor()
+	_encounter_spawn_controller.setup_encounters()
 
 
 ## Server-only: queue a specific enemy scene with full replication (death splits, scripted adds).
@@ -4064,9 +3471,9 @@ func server_enqueue_enemy_spawn(
 	start_aggro: bool = true,
 	spawn_config: Dictionary = {}
 ) -> void:
-	if not is_inside_tree() or not _is_server_peer() or enemy_scene == null:
+	if _encounter_spawn_controller == null:
 		return
-	_spawn_encounter_mob(
+	_encounter_spawn_controller.server_enqueue_enemy_spawn(
 		encounter_id,
 		spawn_position,
 		target_position,
@@ -4075,44 +3482,6 @@ func server_enqueue_enemy_spawn(
 		start_aggro,
 		spawn_config
 	)
-
-
-func _spawn_encounter_mob_deferred(
-	encounter_id: StringName,
-	spawn_position: Vector2,
-	target_position: Vector2,
-	speed_multiplier: float,
-	enemy_scene: PackedScene = null,
-	start_aggro := false,
-	spawn_config: Dictionary = {}
-) -> void:
-	var resolved_encounter_id := _resolve_encounter_for_spawn(encounter_id, spawn_position)
-	var scene_to_spawn := enemy_scene if enemy_scene != null else _pick_enemy_scene(encounter_id)
-	var scene_kind := _enemy_scene_kind_from_scene(scene_to_spawn)
-	var net_id := _next_enemy_network_id()
-	var enemy := scene_to_spawn.instantiate() as EnemyBase
-	if enemy == null:
-		return
-	_apply_enemy_spawn_config(enemy, spawn_config)
-	enemy.apply_speed_multiplier(speed_multiplier)
-	enemy.configure_spawn(spawn_position, target_position)
-	_register_enemy_network_id(enemy, net_id)
-	$GameWorld2D.add_child(enemy)
-	var encounter_is_active := bool(_encounter_active.get(resolved_encounter_id, false))
-	var final_aggro := start_aggro or encounter_is_active
-	enemy.set_aggro_enabled(final_aggro)
-	_register_encounter_enemy(resolved_encounter_id, enemy)
-	if _is_server_peer() and _can_broadcast_world_replication():
-		_rpc_spawn_enemy.rpc(
-			net_id,
-			String(resolved_encounter_id),
-			scene_kind,
-			spawn_position,
-			target_position,
-			speed_multiplier,
-			final_aggro,
-			spawn_config
-		)
 
 
 func spawn_runtime_enemy_by_kind(
@@ -4124,62 +3493,34 @@ func spawn_runtime_enemy_by_kind(
 	start_aggro: bool = true,
 	spawn_config: Dictionary = {}
 ) -> EnemyBase:
-	if not _is_authoritative_world():
+	if _encounter_spawn_controller == null:
 		return null
-	var scene_to_spawn := _enemy_scene_from_kind(scene_kind)
-	if scene_to_spawn == null:
-		return null
-	var resolved_encounter_id := _resolve_encounter_for_spawn(encounter_id, spawn_position)
-	var net_id := _next_enemy_network_id()
-	var enemy := scene_to_spawn.instantiate() as EnemyBase
-	if enemy == null:
-		return null
-	_apply_enemy_spawn_config(enemy, spawn_config)
-	enemy.apply_speed_multiplier(speed_multiplier)
-	enemy.configure_spawn(spawn_position, target_position)
-	_register_enemy_network_id(enemy, net_id)
-	$GameWorld2D.add_child(enemy)
-	var encounter_is_active := bool(_encounter_active.get(resolved_encounter_id, false))
-	var final_aggro := start_aggro or encounter_is_active
-	enemy.set_aggro_enabled(final_aggro)
-	_register_encounter_enemy(resolved_encounter_id, enemy)
-	if _is_server_peer() and _can_broadcast_world_replication():
-		_rpc_spawn_enemy.rpc(
-			net_id,
-			String(resolved_encounter_id),
-			scene_kind,
-			spawn_position,
-			target_position,
-			speed_multiplier,
-			final_aggro,
-			spawn_config
-		)
-	return enemy
-
-
-func _process_pending_enemy_spawns(delta: float) -> void:
-	if _pending_enemy_spawn_requests.is_empty():
-		return
-	_encounter_spawn_queue_time_remaining -= delta
-	if _encounter_spawn_queue_time_remaining > 0.0:
-		return
-	var request := _pending_enemy_spawn_requests.pop_front() as Dictionary
-	_spawn_encounter_mob_deferred(
-		request.get("encounter_id", &"") as StringName,
-		request.get("spawn_position", Vector2.ZERO) as Vector2,
-		request.get("target_position", Vector2.ZERO) as Vector2,
-		float(request.get("speed_multiplier", 1.0)),
-		request.get("enemy_scene", null) as PackedScene,
-		bool(request.get("start_aggro", false)),
-		(request.get("spawn_config", {}) as Dictionary).duplicate(true)
+	return _encounter_spawn_controller.spawn_runtime_enemy_by_kind(
+		encounter_id,
+		scene_kind,
+		spawn_position,
+		target_position,
+		speed_multiplier,
+		start_aggro,
+		spawn_config
 	)
-	_encounter_spawn_queue_time_remaining = maxf(0.01, encounter_spawn_queue_interval)
-
 
 func _prewarm_enemy_assets_once() -> void:
 	if _enemy_assets_prewarmed or not prewarm_enemy_assets or _is_dedicated_server_session():
 		return
-	for scene in [SKEWER_SCENE, GLAIVER_SCENE, RAZORFORM_SCENE]:
+	# All 22 enemy scene types — first instantiation pays the shader/mesh compile cost;
+	# doing it here during level load prevents mid-combat frame spikes.
+	var scenes: Array[PackedScene] = [
+		FLOW_DASHER_SCENE, FLOWFORM_SCENE, SCRAMBLER_SCENE, STUMBLER_SCENE,
+		SHIELDWALL_SCENE, WARDEN_SCENE, SPLITTER_SCENE, ECHOFORM_SCENE,
+		TRIAD_SCENE, ECHO_SPLINTER_SCENE, ECHO_UNIT_SCENE, BINDER_SCENE,
+		LURKER_SCENE, LEECHER_SCENE, SKEWER_SCENE, GLAIVER_SCENE,
+		RAZORFORM_SCENE,
+		EnemySpawnByEnemyId.DASHER_SCENE, EnemySpawnByEnemyId.ARROW_TOWER_SCENE,
+		EnemySpawnByEnemyId.FIZZLER_SCENE, EnemySpawnByEnemyId.BURSTER_SCENE,
+		EnemySpawnByEnemyId.DETONATOR_SCENE,
+	]
+	for scene in scenes:
 		if scene == null:
 			continue
 		var enemy: Node = scene.instantiate()
@@ -4198,111 +3539,25 @@ func _prewarm_enemy_assets_once() -> void:
 	_enemy_assets_prewarmed = true
 
 
-func _set_encounter_mobs_aggro(encounter_id: StringName, enabled: bool) -> void:
-	var mobs: Array = _encounter_mobs.get(encounter_id, []) as Array
-	for mob in mobs:
-		if mob is EnemyBase and is_instance_valid(mob):
-			(mob as EnemyBase).set_aggro_enabled(enabled)
-	if _is_server_peer() and _can_broadcast_world_replication():
-		_rpc_set_encounter_aggro.rpc(String(encounter_id), enabled)
-
-
-@rpc("any_peer", "call_remote", "reliable")
-func _rpc_spawn_enemy(
-	net_id: int,
-	encounter_id_text: String,
-	scene_kind: int,
-	spawn_position: Vector2,
-	target_position: Vector2,
-	speed_multiplier: float,
-	aggro_enabled: bool,
-	spawn_config: Dictionary = {}
-) -> void:
-	if _is_authoritative_world():
-		return
-	if multiplayer.get_remote_sender_id() != 1:
-		return
-	var existing_v: Variant = _enemy_nodes_by_network_id.get(net_id, null)
-	if existing_v is EnemyBase and is_instance_valid(existing_v):
-		var existing_enemy := existing_v as EnemyBase
-		_apply_enemy_spawn_config(existing_enemy, spawn_config)
-		existing_enemy.set_aggro_enabled(aggro_enabled)
-		return
-	var scene_to_spawn := _enemy_scene_from_kind(scene_kind)
-	if scene_to_spawn == null:
-		return
-	var enemy := scene_to_spawn.instantiate() as EnemyBase
-	if enemy == null:
-		return
-	var encounter_id := StringName(encounter_id_text)
-	_apply_enemy_spawn_config(enemy, spawn_config)
-	enemy.apply_speed_multiplier(speed_multiplier)
-	enemy.configure_spawn(spawn_position, target_position)
-	_register_enemy_network_id(enemy, net_id)
-	$GameWorld2D.add_child(enemy)
-	enemy.set_aggro_enabled(aggro_enabled)
-	_register_encounter_enemy(encounter_id, enemy)
-
-
-@rpc("any_peer", "call_remote", "reliable")
-func _rpc_despawn_enemy(net_id: int) -> void:
-	if _is_authoritative_world():
-		return
-	if multiplayer.get_remote_sender_id() != 1:
-		return
-	var enemy_v: Variant = _enemy_nodes_by_network_id.get(net_id, null)
-	if enemy_v is EnemyBase and is_instance_valid(enemy_v):
-		(enemy_v as EnemyBase).queue_free()
-	_enemy_nodes_by_network_id.erase(net_id)
-
-
 func broadcast_enemy_transform_state(
 	net_id: int, world_pos: Vector2, planar_velocity: Vector2, compact_state: Dictionary
 ) -> void:
-	if net_id <= 0 or not _is_server_peer() or not _can_broadcast_world_replication():
+	if _encounter_spawn_controller == null:
 		return
-	_rpc_receive_enemy_transform_state.rpc(net_id, world_pos, planar_velocity, compact_state)
+	_encounter_spawn_controller.broadcast_enemy_transform_state(
+		net_id,
+		world_pos,
+		planar_velocity,
+		compact_state
+	)
 
 
-@rpc("any_peer", "call_remote", "unreliable_ordered")
-func _rpc_receive_enemy_transform_state(
-	net_id: int, world_pos: Vector2, planar_velocity: Vector2, compact_state: Dictionary
-) -> void:
-	if _is_authoritative_world():
+## Sends all accumulated transform updates as one unreliable RPC, then clears the queue.
+## Called at the end of each physics tick from dungeon_orchestrator.gd.
+func _flush_enemy_transform_batch() -> void:
+	if _encounter_spawn_controller == null:
 		return
-	if multiplayer.get_remote_sender_id() != 1:
-		return
-	var enemy_v: Variant = _enemy_nodes_by_network_id.get(net_id, null)
-	if enemy_v is not EnemyBase or not is_instance_valid(enemy_v):
-		return
-	var enemy := enemy_v as EnemyBase
-	if enemy.has_method(&"apply_remote_enemy_transform_state"):
-		enemy.call(&"apply_remote_enemy_transform_state", world_pos, planar_velocity, compact_state)
-
-
-@rpc("any_peer", "call_remote", "reliable")
-func _rpc_set_encounter_aggro(encounter_id_text: String, enabled: bool) -> void:
-	if _is_authoritative_world():
-		return
-	if multiplayer.get_remote_sender_id() != 1:
-		return
-	var encounter_id := StringName(encounter_id_text)
-	var mobs: Array = _encounter_mobs.get(encounter_id, []) as Array
-	for mob in mobs:
-		if mob is EnemyBase and is_instance_valid(mob):
-			(mob as EnemyBase).set_aggro_enabled(enabled)
-
-
-@rpc("authority", "call_remote", "reliable")
-func _rpc_set_encounter_door_visuals_locked(
-	encounter_id_text: String, locked: bool, animate: bool
-) -> void:
-	if _is_authoritative_world():
-		return
-	if multiplayer.get_remote_sender_id() != 1:
-		return
-	_apply_encounter_door_visuals_locked(StringName(encounter_id_text), locked, animate)
-
+	_encounter_spawn_controller.flush_enemy_transform_batch()
 
 @rpc("authority", "call_remote", "reliable")
 func _rpc_set_combat_doors_locked(locked: bool, animate: bool) -> void:
@@ -4334,29 +3589,8 @@ func _rpc_set_puzzle_gate_solved(solved: bool, animate: bool) -> void:
 func _send_runtime_snapshot_to_peer(peer_id: int) -> void:
 	if peer_id <= 0 or not _is_server_peer() or not _has_multiplayer_peer():
 		return
-	var enemy_ids: Array = _enemy_nodes_by_network_id.keys()
-	enemy_ids.sort()
-	for key in enemy_ids:
-		var net_id := int(key)
-		var enemy_v: Variant = _enemy_nodes_by_network_id.get(net_id, null)
-		if enemy_v is not EnemyBase or not is_instance_valid(enemy_v):
-			continue
-		var enemy := enemy_v as EnemyBase
-		var encounter_id := StringName(enemy.get_meta(&"encounter_id", &""))
-		var scene_kind := _enemy_scene_kind_from_enemy_instance(enemy)
-		var aggro_enabled := bool(_encounter_active.get(encounter_id, false))
-		var spawn_config := _enemy_spawn_config_from_instance(enemy)
-		_rpc_spawn_enemy.rpc_id(
-			peer_id,
-			net_id,
-			String(encounter_id),
-			scene_kind,
-			enemy.global_position,
-			enemy.global_position,
-			1.0,
-			aggro_enabled,
-			spawn_config
-		)
+	if _encounter_spawn_controller != null:
+		_encounter_spawn_controller.send_runtime_snapshot_to_peer(peer_id)
 	_rpc_set_puzzle_gate_solved.rpc_id(peer_id, _puzzle_solved, false)
 	_rpc_set_boss_exit_active.rpc_id(peer_id, _boss_exit_portal != null and _boss_exit_portal.monitoring)
 	_ensure_coin_totals_for_roster()
@@ -4494,281 +3728,6 @@ func _rpc_sync_coin_totals(raw_totals: Dictionary) -> void:
 	_shared_coin_total = synced_total
 	_ensure_coin_totals_for_roster()
 	_refresh_local_coin_ui()
-
-
-func _prespawn_encounter_mobs() -> void:
-	for encounter_key in _spawn_count_by_encounter.keys():
-		var encounter_id := encounter_key as StringName
-		var count := clampi(int(_spawn_count_by_encounter.get(encounter_id, 0)), 0, 4)
-		if count > 0:
-			var speed_multiplier := (
-				1.25 + float(_floor_index - 1) * 0.05
-				if encounter_id == &"boss"
-				else 1.0 + float(_floor_index - 1) * 0.08
-			)
-			_spawn_encounter_wave(encounter_id, count, speed_multiplier)
-	if not _spawn_count_by_encounter.has(&"boss"):
-		var raw_count := 2 + int(floor(float(_floor_index - 1) / 2.0))
-		var adjusted_count := maxi(1, int(ceili(float(raw_count) * 0.5)))
-		_spawn_encounter_wave(&"boss", adjusted_count, 1.25 + float(_floor_index - 1) * 0.05)
-
-
-func _cache_entry_socket_for_encounter(room: RoomBase, encounter_id: StringName) -> void:
-	if room == null:
-		return
-	var room_rot := int(round(room.rotation_degrees))
-	# Prefer the explicit entrance marker. Proximity to start_room can pick the wrong socket when
-	# rooms are placed at non-zero rotation (e.g. 180° swaps entrance and exit positions in world space).
-	for socket in room.get_all_sockets():
-		if socket.connector_type == &"inactive":
-			continue
-		if socket.marker_kind == "entrance":
-			_entry_socket_by_encounter[encounter_id] = socket.global_position
-			_entry_socket_dir_by_encounter[encounter_id] = RoomTransformUtils.rotate_direction(
-				String(socket.direction), room_rot
-			)
-			return
-	# Fallback: room has no entrance marker — use closest socket to start room.
-	var start_center := _room_center_2d(_layout_room_name("start_room"))
-	var best_socket := room.global_position
-	var best_dist := 1.0e12
-	var best_dir := ""
-	for socket in room.get_all_sockets():
-		if socket.connector_type == &"inactive":
-			continue
-		var world_pos := socket.global_position
-		var d := world_pos.distance_squared_to(start_center)
-		if d < best_dist:
-			best_dist = d
-			best_socket = world_pos
-			best_dir = RoomTransformUtils.rotate_direction(String(socket.direction), room_rot)
-	_entry_socket_by_encounter[encounter_id] = best_socket
-	_entry_socket_dir_by_encounter[encounter_id] = best_dir
-
-
-func _bias_spawn_to_back_half(encounter_id: StringName, candidate_pos: Vector2) -> Vector2:
-	var room_name := _room_name_for_encounter(encounter_id)
-	if room_name == &"":
-		return candidate_pos
-	var room := _room_by_name(room_name)
-	if room == null:
-		return candidate_pos
-	var entry_socket := _entry_socket_by_encounter.get(encounter_id, room.global_position) as Vector2
-	var to_entry := entry_socket - room.global_position
-	if to_entry.length_squared() <= 0.0001:
-		return candidate_pos
-	var back_dir := -to_entry.normalized()
-	var half := _room_half_extents(room)
-	var back_limit := maxf(2.5, maxf(half.x, half.y) * _BACK_HALF_MIN_RATIO)
-	var rel := candidate_pos - room.global_position
-	var dot_back := rel.dot(back_dir)
-	if dot_back >= back_limit:
-		return candidate_pos
-	var adjusted := candidate_pos + back_dir * (back_limit - dot_back)
-	return _clamp_pos_to_room(room, adjusted)
-
-
-func _prepare_encounter_spawn_position(
-	encounter_id: StringName, candidate_pos: Vector2, scene_for_spawn: PackedScene
-) -> Vector2:
-	var room_name := _room_name_for_encounter(encounter_id)
-	var room := _room_by_name(room_name)
-	var pos := _bias_spawn_to_exit_side(encounter_id, candidate_pos)
-	if scene_for_spawn == EnemySpawnByEnemyId.ARROW_TOWER_SCENE:
-		pos = _tower_spawn_near_center(encounter_id, pos)
-		pos = _separate_tower_spawn(encounter_id, pos)
-		_register_planned_tower_spawn(encounter_id, pos)
-	if room != null:
-		pos = _clamp_pos_to_room(room, pos)
-	return pos
-
-
-func _fallback_spawn_position_for_encounter(encounter_id: StringName) -> Vector2:
-	var room_name := _room_name_for_encounter(encounter_id)
-	var room := _room_by_name(room_name)
-	if room == null:
-		return _reference_player_position()
-	var half := _room_half_extents(room)
-	var usable_half := Vector2(maxf(1.0, half.x * 0.55), maxf(1.0, half.y * 0.55))
-	var candidate := room.global_position + Vector2(
-		_rng.randf_range(-usable_half.x, usable_half.x),
-		_rng.randf_range(-usable_half.y, usable_half.y)
-	)
-	return _clamp_pos_to_room(room, candidate)
-
-
-func _bias_spawn_to_exit_side(encounter_id: StringName, candidate_pos: Vector2) -> Vector2:
-	var room_name := _room_name_for_encounter(encounter_id)
-	if room_name == &"":
-		return candidate_pos
-	var room := _room_by_name(room_name)
-	if room == null:
-		return candidate_pos
-	var exit_dir := _encounter_exit_direction(encounter_id)
-	if exit_dir.is_empty():
-		return _bias_spawn_to_back_half(encounter_id, candidate_pos)
-	var exit_dir_vec := _direction_vector(exit_dir).normalized()
-	if exit_dir_vec.length_squared() <= 0.0001:
-		return _bias_spawn_to_back_half(encounter_id, candidate_pos)
-	var half := _room_half_extents(room)
-	var exit_limit := maxf(2.5, maxf(half.x, half.y) * _BACK_HALF_MIN_RATIO)
-	var rel := candidate_pos - room.global_position
-	var dot_exit := rel.dot(exit_dir_vec)
-	if dot_exit >= exit_limit:
-		return _clamp_pos_to_room(room, candidate_pos)
-	var adjusted := candidate_pos + exit_dir_vec * (exit_limit - dot_exit)
-	return _clamp_pos_to_room(room, adjusted)
-
-
-func _encounter_exit_direction(encounter_id: StringName) -> String:
-	var id_text := String(encounter_id)
-	if id_text == "boss":
-		return ""
-	var room_name := _room_name_for_encounter(encounter_id)
-	if room_name == &"":
-		return ""
-	var room := _room_by_name(room_name)
-	if room == null:
-		return ""
-	var room_rot := int(round(room.rotation_degrees))
-	for socket in room.get_all_sockets():
-		if socket.connector_type == &"inactive":
-			continue
-		if socket.marker_kind == "exit":
-			return RoomTransformUtils.rotate_direction(String(socket.direction), room_rot)
-	if room_name == _layout_room_name("combat_room"):
-		return _combat_exit_dir
-	return ""
-
-
-func _enemy_spawn_spec_from_plan_entry(entry: Dictionary) -> Dictionary:
-	var enemy_id := entry.get("enemy_id", &"") as StringName
-	var spec := _enemy_spawn_spec_from_id(enemy_id)
-	var scene := spec.get("scene", null) as PackedScene
-	var config := (spec.get("config", {}) as Dictionary).duplicate(true)
-	if scene == null:
-		scene = _enemy_scene_from_id(enemy_id)
-	return {
-		"scene": scene,
-		"config": config,
-	}
-
-
-func _resolve_encounter_for_spawn(requested_encounter_id: StringName, spawn_pos: Vector2) -> StringName:
-	if String(requested_encounter_id) == "boss":
-		return requested_encounter_id
-	var room_name := _room_name_at(spawn_pos, 1.25)
-	if room_name.is_empty():
-		return requested_encounter_id
-	var resolved := StringName("arena_%s" % [room_name])
-	if _encounter_active.has(resolved) and _encounter_completed.has(resolved):
-		return resolved
-	return requested_encounter_id
-
-
-func _pick_enemy_scene(_encounter_id: StringName) -> PackedScene:
-	return _pick_random_primary_family_scene()
-
-
-func _pick_melee_enemy_scene(_encounter_id: StringName) -> PackedScene:
-	return _pick_random_primary_family_scene()
-
-
-func _pick_ranged_enemy_scene(_encounter_id: StringName) -> PackedScene:
-	return _pick_random_primary_family_scene()
-
-
-func _enemy_scene_from_id(enemy_id: StringName) -> PackedScene:
-	var resolved := EnemySpawnByEnemyId.scene_for_enemy_id(enemy_id)
-	if resolved != null:
-		return resolved
-	return _pick_random_primary_family_scene()
-
-
-func _enemy_spawn_spec_from_id(enemy_id: StringName) -> Dictionary:
-	var spec := EnemySpawnByEnemyId.spawn_spec_for_enemy_id(enemy_id)
-	if spec is Dictionary:
-		return (spec as Dictionary).duplicate(true)
-	return {}
-
-
-func _apply_enemy_spawn_config(enemy: EnemyBase, spawn_config: Dictionary) -> void:
-	if enemy == null or spawn_config.is_empty():
-		return
-	if enemy.has_method(&"configure_ranged_family"):
-		enemy.call(&"configure_ranged_family", spawn_config)
-
-
-func _enemy_spawn_config_from_instance(enemy: EnemyBase) -> Dictionary:
-	if enemy != null and enemy.has_method(&"get_enemy_spawn_config"):
-		var config_v: Variant = enemy.call(&"get_enemy_spawn_config")
-		if config_v is Dictionary:
-			return (config_v as Dictionary).duplicate(true)
-	return {}
-
-
-func _room_name_for_encounter(encounter_id: StringName) -> StringName:
-	var id_text := String(encounter_id)
-	if id_text == "boss":
-		return _layout_room_name("exit_room")
-	if id_text.begins_with("arena_"):
-		return StringName(id_text.trim_prefix("arena_"))
-	return &""
-
-
-func _on_encounter_mob_removed(encounter_id: StringName, mob: EnemyBase) -> void:
-	if not _encounter_mobs.has(encounter_id):
-		pass
-	else:
-		var mobs: Array = _encounter_mobs[encounter_id] as Array
-		mobs.erase(mob)
-		_encounter_mobs[encounter_id] = mobs
-	var net_id := -1
-	if mob != null and mob.has_meta(&"enemy_network_id"):
-		net_id = int(mob.get_meta(&"enemy_network_id", -1))
-	if net_id > 0:
-		_enemy_nodes_by_network_id.erase(net_id)
-		if _is_server_peer() and _can_broadcast_world_replication():
-			_rpc_despawn_enemy.rpc(net_id)
-
-
-func _refresh_encounter_state() -> void:
-	for encounter_key in _encounter_active.keys():
-		var encounter_id := encounter_key as StringName
-		if not bool(_encounter_active[encounter_id]):
-			continue
-		var mobs: Array = _encounter_mobs.get(encounter_id, []) as Array
-		var alive: Array = []
-		for mob in mobs:
-			if is_instance_valid(mob):
-				alive.append(mob)
-		_encounter_mobs[encounter_id] = alive
-		if alive.is_empty():
-			_complete_encounter(encounter_id)
-
-
-func _complete_encounter(encounter_id: StringName) -> void:
-	_encounter_active[encounter_id] = false
-	_encounter_completed[encounter_id] = true
-	match String(encounter_id):
-		"boss":
-			_boss_cleared = true
-			_set_encounter_door_visuals_locked(encounter_id, false, true)
-			_set_boss_entry_locked(false)
-			_set_boss_exit_active(true)
-			_set_info_base_text("Boss defeated. Elevator is active. All players must board.")
-		_:
-			if String(encounter_id).begins_with("arena_"):
-				_set_encounter_door_visuals_locked(encounter_id, false, true)
-				if encounter_id == _combat_encounter_id:
-					_combat_cleared = true
-					_set_combat_doors_locked(false)
-					_set_info_base_text("Combat room cleared. Doors unlocked.")
-				else:
-					_set_info_base_text("Arena room cleared.")
-	_magnet_dropped_coins_for_encounter_room(encounter_id)
-	if String(encounter_id) == "boss":
-		_grant_tempering_xp_to_all_players(_MetaProgressionConstantsRef.TEMPERING_XP_PER_BOSS_KILL)
 
 
 func _set_boss_exit_active(active: bool, replicate: bool = true) -> void:
@@ -5173,7 +4132,9 @@ func _tick_authoritative_maintenance(delta: float) -> void:
 	if _authoritative_maintenance_time_remaining > 0.0:
 		return
 	_process_authoritative_revive_and_wipe()
-	_refresh_encounter_state()
+	if _encounter_spawn_controller != null:
+		_encounter_spawn_controller.refresh_encounter_state()
 	_try_schedule_floor_advance_if_all_players_on_elevator()
 	_try_schedule_floor_advance_if_all_players_on_debug_elevator()
+	_flush_coin_totals_if_dirty()
 	_authoritative_maintenance_time_remaining = maxf(0.01, authoritative_maintenance_update_interval)

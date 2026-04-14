@@ -131,6 +131,21 @@ static func templates() -> Array:
 			T.choice([&"glaiver", &"volley_edge"]),
 			T.enemy(&"scrambler", 2),
 		]),
+		T.make(&"boss_pressure", "Boss: Pressure", 1, _tags(["boss", "open"]), [
+			T.enemy(&"shieldwall", 1),
+			T.enemy(&"scrambler", 3),
+			T.enemy(&"spitter_flow", 2),
+		]),
+		T.make(&"boss_phase_push", "Boss: Phase Push", 1, _tags(["boss", "open"]), [
+			T.enemy(&"lurker", 2),
+			T.enemy(&"dasher", 1),
+			T.enemy(&"scrambler", 2),
+		]),
+		T.make(&"boss_echo_tide", "Boss: Echo Tide", 1, _tags(["boss", "open"]), [
+			T.enemy(&"splitter", 1),
+			T.enemy(&"echoform", 1),
+			T.enemy(&"scrambler", 3),
+		]),
 	]
 
 

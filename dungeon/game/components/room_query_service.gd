@@ -146,6 +146,20 @@ func room_bounds_rect(room: RoomBase) -> Rect2:
 	return bounds
 
 
+func clamp_pos_to_room(room: RoomBase, pos: Vector2) -> Vector2:
+	if room == null:
+		return pos
+	var room_rect := room_bounds_rect(room)
+	if room_rect.size.x <= 0.0 or room_rect.size.y <= 0.0:
+		var fallback_rect := room.get_room_rect_world()
+		room_rect = Rect2(room.global_position - fallback_rect.size * 0.5, fallback_rect.size)
+	var inset := 0.9
+	return Vector2(
+		clampf(pos.x, room_rect.position.x + inset, room_rect.end.x - inset),
+		clampf(pos.y, room_rect.position.y + inset, room_rect.end.y - inset)
+	)
+
+
 func is_point_inside_any_room(world_pos: Vector2, margin: float = 0.0) -> bool:
 	return _find_room_entry_at(world_pos, margin).get("room", null) != null
 

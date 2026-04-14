@@ -14,8 +14,8 @@ static func make(
 	template_layer: int,
 	template_tags: PackedStringArray,
 	template_entries: Array[Dictionary]
-) -> RefCounted:
-	var template = (load("res://dungeon/game/encounters/encounter_template.gd") as GDScript).new()
+) -> EncounterTemplate:
+	var template := EncounterTemplate.new()
 	template.id = template_id
 	template.display_name = template_display_name
 	template.layer = template_layer
@@ -34,11 +34,17 @@ static func enemy(enemy_id: StringName, count_min: int, count_max: int = -1) -> 
 	}
 
 
-static func choice(choices: Array[StringName], count_min: int = 1, count_max: int = -1) -> Dictionary:
+static func choice(
+	choices: Array[StringName],
+	count_min: int = 1,
+	count_max: int = -1,
+	weights: Array[float] = []
+) -> Dictionary:
 	if count_max < 0:
 		count_max = count_min
 	return {
 		"choices": choices.duplicate(),
+		"weights": weights.duplicate(),
 		"count_min": maxi(0, count_min),
 		"count_max": maxi(0, count_max),
 	}
@@ -90,5 +96,26 @@ func _resolve_entry_enemy_id(entry: Dictionary, rng: RandomNumberGenerator) -> S
 	var choices := entry.get("choices", []) as Array
 	if choices.is_empty():
 		return &""
-	var idx := rng.randi_range(0, choices.size() - 1)
-	return choices[idx] as StringName
+	var weights := entry.get("weights", []) as Array
+	if weights.size() == choices.size():
+		return _weighted_choice(choices, weights, rng)
+	return choices[rng.randi_range(0, choices.size() - 1)] as StringName
+
+
+func _weighted_choice(
+	choices: Array,
+	weights: Array,
+	rng: RandomNumberGenerator
+) -> StringName:
+	var total := 0.0
+	for w in weights:
+		total += maxf(0.0, float(w))
+	if total <= 0.0:
+		return choices[rng.randi_range(0, choices.size() - 1)] as StringName
+	var roll := rng.randf() * total
+	var cumulative := 0.0
+	for i in range(choices.size()):
+		cumulative += maxf(0.0, float(weights[i]))
+		if roll <= cumulative:
+			return choices[i] as StringName
+	return choices[choices.size() - 1] as StringName

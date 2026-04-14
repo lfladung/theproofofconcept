@@ -3,6 +3,24 @@ class_name EncounterRunManager
 
 const ROOM_MATCH_TAGS := ["open", "corridor", "small", "medium", "large"]
 
+## Maps room tags to the template tags that are compatible with them.
+## A template earns +1.0 score for each of its tags that appears in the
+## compat list for a given room tag. Broad templates (no size/layout tags)
+## receive a 0.1 baseline so they still surface as fallbacks.
+## Keys and values use StringName so _score_template_for_room needs no String() casts.
+const _ROOM_TAG_COMPAT: Dictionary = {
+	&"corridor":   [&"corridor", &"small", &"low_intensity"],
+	&"connector":  [&"corridor", &"small", &"low_intensity"],
+	&"chokepoint": [&"corridor", &"small", &"medium", &"low_intensity"],
+	&"small":      [&"small", &"low_intensity"],
+	&"medium":     [&"medium", &"open"],
+	&"large":      [&"large", &"medium", &"open"],
+	&"arena":      [&"open", &"medium", &"large"],
+	&"boss":       [&"boss"],
+}
+## Shared empty array returned by _ROOM_TAG_COMPAT.get() on a miss — avoids per-call allocation.
+static var _EMPTY_COMPAT: Array = []
+
 var _rng := RandomNumberGenerator.new()
 var _templates_by_layer: Dictionary = {}
 var _bags_by_layer: Dictionary = {}
@@ -81,21 +99,40 @@ func _choose_from_stage(
 	layer: int,
 	room_tags: PackedStringArray,
 	unused_only: bool,
-	exact_match: bool
+	require_positive_score: bool
 ) -> Variant:
 	var bag := _bags_by_layer.get(layer, []) as Array
+	var best = null
+	var best_score := -1.0
 	for value in bag:
 		var template = value
 		if template == null:
 			continue
 		if unused_only and _is_used(layer, template.id):
 			continue
-		if exact_match:
-			if _template_matches_room(template, room_tags):
-				return template
-		elif _is_broad_template(template):
-			return template
-	return null
+		var score := _score_template_for_room(template, room_tags)
+		if require_positive_score and score <= 0.0:
+			continue
+		if score > best_score:
+			best_score = score
+			best = template
+	return best
+
+
+func _score_template_for_room(template, room_tags: PackedStringArray) -> float:
+	if template == null:
+		return -1.0
+	var score := 0.0
+	for room_tag: String in room_tags:
+		var compat: Array = _ROOM_TAG_COMPAT.get(StringName(room_tag), _EMPTY_COMPAT)
+		if compat.is_empty():
+			continue
+		for t_tag: String in template.tags:
+			if compat.has(StringName(t_tag)):
+				score += 1.0
+	if _is_broad_template(template):
+		score = maxf(score, 0.1)
+	return score
 
 
 func _choose_any_unused(layer: int) -> Variant:
@@ -115,22 +152,6 @@ func _choose_any(layer: int) -> Variant:
 	return null
 
 
-func _template_matches_room(template, room_tags: PackedStringArray) -> bool:
-	if template == null:
-		return false
-	if _room_is_corridorish(room_tags):
-		return template.tags.has("corridor") or template.tags.has("small") or template.tags.has("low_intensity")
-	if room_tags.has("small"):
-		return template.tags.has("small") or template.tags.has("low_intensity") or _is_broad_template(template)
-	if room_tags.has("large"):
-		return template.tags.has("large") or template.tags.has("medium") or template.tags.has("open") or _is_broad_template(template)
-	return template.tags.has("open") or template.tags.has("medium") or _is_broad_template(template)
-
-
-func _room_is_corridorish(room_tags: PackedStringArray) -> bool:
-	return room_tags.has("corridor") or room_tags.has("connector") or room_tags.has("chokepoint")
-
-
 func _is_broad_template(template) -> bool:
 	if template == null:
 		return false
@@ -141,22 +162,27 @@ func _is_broad_template(template) -> bool:
 
 
 func _is_used(layer: int, template_id: StringName) -> bool:
-	var used := _used_by_layer.get(layer, {}) as Dictionary
-	return bool(used.get(template_id, false))
+	var used = _used_by_layer.get(layer)
+	if used == null:
+		return false
+	return bool((used as Dictionary).get(template_id, false))
 
 
 func _mark_used(layer: int, template_id: StringName) -> void:
-	var used := _used_by_layer.get(layer, {}) as Dictionary
-	used[template_id] = true
-	_used_by_layer[layer] = used
-	var ever_used := _ever_used_by_layer.get(layer, {}) as Dictionary
-	ever_used[template_id] = true
-	_ever_used_by_layer[layer] = ever_used
+	# _configure() pre-initialises both dicts for every layer so .get() returns the live ref.
+	var used = _used_by_layer.get(layer)
+	if used is Dictionary:
+		(used as Dictionary)[template_id] = true
+	var ever_used = _ever_used_by_layer.get(layer)
+	if ever_used is Dictionary:
+		(ever_used as Dictionary)[template_id] = true
 
 
 func _was_ever_used(layer: int, template_id: StringName) -> bool:
-	var ever_used := _ever_used_by_layer.get(layer, {}) as Dictionary
-	return bool(ever_used.get(template_id, false))
+	var ever_used = _ever_used_by_layer.get(layer)
+	if ever_used == null:
+		return false
+	return bool((ever_used as Dictionary).get(template_id, false))
 
 
 func _rebuild_bag(layer: int) -> void:

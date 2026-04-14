@@ -29,7 +29,8 @@ func _process(delta: float) -> void:
 	_refresh_combat_debug_overlay(delta)
 	_refresh_fps_counter(delta)
 	if _is_authoritative_world():
-		_process_pending_enemy_spawns(delta)
+		if _encounter_spawn_controller != null:
+			_encounter_spawn_controller.flush_spawn_queue(delta)
 		_tick_authoritative_maintenance(delta)
 	_update_backdrop_parallax()
 	_update_backdrop_quad_transform()
@@ -203,3 +204,5 @@ func _physics_process(_delta: float) -> void:
 		_prev_player_inside = inside_now
 		_prev_room_name = room_now
 	_apply_hard_door_clamps()
+	if _is_authoritative_world():
+		_flush_enemy_transform_batch()
