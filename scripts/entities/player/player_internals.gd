@@ -77,9 +77,9 @@ enum WeaponMode { SWORD, GUN, BOMB }
 @export var show_shield_block_debug := false
 @export var debug_visual_update_interval := 0.05
 @export var hitbox_debug_circle_segments := 40
-@export var dodge_speed := 36.0
-@export var dodge_duration := 0.16
-@export var dodge_cooldown := 0.05
+@export var dodge_speed := 50.0
+@export var dodge_duration := 0.3
+@export var dodge_cooldown := 1
 @export var defend_move_speed_multiplier := 0.42
 @export var defend_damage_multiplier := 1.0
 @export var max_stamina := 100.0

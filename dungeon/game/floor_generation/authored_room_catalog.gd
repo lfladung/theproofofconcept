@@ -68,6 +68,7 @@ func _build_room_data(scene_path: String):
 	room_data.allowed_rotations = room.allowed_rotations.duplicate()
 
 	var occupied_seen := {}
+	var blocked_seen := {}
 	var walkable_seen := {}
 	var connection_markers: Array[Dictionary] = []
 	var spawn_markers: Array[Dictionary] = []
@@ -80,7 +81,7 @@ func _build_room_data(scene_path: String):
 		var piece = PIECE_CATALOG.find_piece(item_value.piece_id)
 		if piece == null:
 			continue
-		_collect_piece_cells(item_value, piece, room, occupied_seen, walkable_seen)
+		_collect_piece_cells(item_value, piece, room, occupied_seen, blocked_seen, walkable_seen)
 		if piece.is_connection_marker():
 			connection_markers.append(_connection_marker_from_item(item_value, piece, room))
 		elif piece.is_zone_marker():
@@ -106,7 +107,10 @@ func _build_room_data(scene_path: String):
 	room_data.spawn_markers = spawn_markers
 	room_data.floor_exit_marker = floor_exit_marker
 	room_data.zone_markers = zone_markers
+	for key in blocked_seen.keys():
+		walkable_seen.erase(key)
 	room_data.occupied_cells = _sorted_cells_from_lookup(occupied_seen)
+	room_data.blocked_cells = _sorted_cells_from_lookup(blocked_seen)
 	room_data.walkable_cells = _sorted_cells_from_lookup(walkable_seen)
 	room.free()
 	return room_data
@@ -131,6 +135,7 @@ func _collect_piece_cells(
 	piece,
 	_room: RoomBase,
 	occupied_seen: Dictionary,
+	blocked_seen: Dictionary,
 	walkable_seen: Dictionary
 ) -> void:
 	var footprint := GridMath.rotated_footprint(piece.footprint, item.normalized_rotation_steps())
@@ -141,11 +146,12 @@ func _collect_piece_cells(
 		for y in range(footprint.y):
 			var cell: Vector2i = item.grid_position + Vector2i(x, y)
 			var key := _cell_key(cell)
-			if is_ground:
+			if is_ground or blocks:
 				occupied_seen[key] = cell
+			if is_ground and not blocks:
 				walkable_seen[key] = cell
-			elif blocks:
-				occupied_seen[key] = cell
+			if blocks:
+				blocked_seen[key] = cell
 
 
 func _connection_marker_from_item(item, piece, room: RoomBase) -> Dictionary:

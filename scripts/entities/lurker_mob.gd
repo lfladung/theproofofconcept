@@ -13,6 +13,10 @@ enum PhaseState { PHASED_IDLE, TELEGRAPHING, ATTACK, RECOVER }
 @export var ambush_distance_max := 5.25
 @export var attack_damage := 15
 @export var attack_knockback := 10.0
+@export var attack_hit_width := 1.35
+@export var attack_reach_padding := 0.85
+@export var attack_reach_min := 1.4
+@export var attack_reach_max := 6.5
 @export var phased_move_speed := 5.8
 @export var telegraph_ready_distance := 0.9
 @export var materialize_distance := 3.6
@@ -31,6 +35,7 @@ var _phase := PhaseState.PHASED_IDLE
 var _phase_time_remaining := 0.0
 var _telegraph_anchor := Vector2.ZERO
 var _attack_facing := Vector2(0.0, -1.0)
+var _attack_reach := 1.4
 var _distance_to_target := INF
 var _is_materialized := false
 var _room_queries: Node
@@ -187,6 +192,7 @@ func _start_telegraph() -> void:
 
 
 func _start_attack() -> void:
+	_refresh_attack_hitbox_geometry()
 	var packet := _build_damage_packet(
 		attack_damage,
 		&"lurker_swipe",
@@ -201,6 +207,31 @@ func _start_attack() -> void:
 	_phase_time_remaining = attack_active_duration
 	_is_materialized = true
 	_apply_phase_collision_state()
+
+
+func _refresh_attack_hitbox_geometry() -> void:
+	if _target_player != null and is_instance_valid(_target_player):
+		var to_target := _target_player.global_position - global_position
+		if to_target.length_squared() > 1e-6:
+			_attack_facing = to_target.normalized()
+			_distance_to_target = to_target.length()
+	var dir := _attack_facing.normalized() if _attack_facing.length_squared() > 1e-6 else Vector2(0.0, -1.0)
+	_attack_reach = clampf(
+		_distance_to_target + attack_reach_padding,
+		attack_reach_min,
+		attack_reach_max
+	)
+	if _attack_hitbox == null:
+		return
+	_attack_hitbox.position = dir * (_attack_reach * 0.5)
+	_attack_hitbox.rotation = dir.angle() + PI * 0.5
+	_attack_hitbox.repeat_mode = Hitbox2D.RepeatMode.NONE
+	var shape_node := _attack_hitbox.get_node_or_null("CollisionShape2D") as CollisionShape2D
+	if shape_node == null or shape_node.shape == null:
+		return
+	if shape_node.shape is RectangleShape2D:
+		var rect := shape_node.shape as RectangleShape2D
+		rect.size = Vector2(maxf(0.2, attack_hit_width), _attack_reach)
 
 
 func _start_recover() -> void:

@@ -13,6 +13,9 @@ const EnemyStateVisualScript = preload("res://scripts/visuals/enemy_state_visual
 @export var recommit_charge_time_sec := 0.45
 @export var stuck_speed_threshold := 0.18
 @export var stuck_time_to_retarget := 0.22
+## Only treat wall contact as a reset when Scrambler is actively pushing into the blocker.
+@export var wall_hit_reset_min_speed := 0.12
+@export var wall_hit_push_into_dot := 0.12
 @export var contact_damage := 8
 @export var contact_repeat_sec := 0.5
 @export_range(0.0, 1.0, 0.05) var guard_stamina_split_ratio := 0.5
@@ -162,10 +165,12 @@ func _physics_process(delta: float) -> void:
 		_update_reorientation(delta, to_player, player_distance)
 	else:
 		_update_direct_rush(delta, to_player, player_distance)
+	var vel_before_slide := velocity
 	move_and_slide_with_mob_separation()
 	mass_server_post_slide()
 	var hit_wall := _hit_non_player_wall_this_frame()
-	if hit_wall:
+	var should_wall_reset := _should_reset_after_wall_hit(vel_before_slide)
+	if hit_wall and should_wall_reset:
 		_reset_after_wall_hit(to_player)
 	elif _charge_commit_remaining <= 0.0 and not _is_reorienting:
 		var slide_redirect_dir := _slide_reorientation_direction()
@@ -193,7 +198,15 @@ func _physics_process(delta: float) -> void:
 
 func _update_direct_rush(delta: float, to_player: Vector2, player_distance: float) -> void:
 	if _charge_commit_remaining <= 0.0 and player_distance <= stop_distance:
-		_begin_reorientation()
+		_begin_nearest_target_reorientation()
+		to_player = _target_player.global_position - global_position if _target_player != null and is_instance_valid(_target_player) else to_player
+		player_distance = to_player.length()
+		_update_reorientation(delta, to_player, player_distance)
+		return
+	if _charge_commit_remaining <= 0.0 and _should_reengage_after_passing_target(to_player, player_distance):
+		_begin_nearest_target_reorientation()
+		to_player = _target_player.global_position - global_position if _target_player != null and is_instance_valid(_target_player) else to_player
+		player_distance = to_player.length()
 		_update_reorientation(delta, to_player, player_distance)
 		return
 	var sp := move_speed * _speed_multiplier * surge_infusion_field_move_speed_factor()
@@ -240,6 +253,25 @@ func _begin_reorientation(target_dir: Vector2 = Vector2.ZERO) -> void:
 	velocity = Vector2.ZERO
 
 
+func _begin_nearest_target_reorientation() -> void:
+	_target_player = _pick_nearest_player_target()
+	_target_refresh_time_remaining = maxf(0.05, target_refresh_interval)
+	_begin_reorientation()
+
+
+func _should_reengage_after_passing_target(to_player: Vector2, player_distance: float) -> bool:
+	if reengage_distance <= stop_distance:
+		return false
+	if player_distance < reengage_distance:
+		return false
+	if to_player.length_squared() <= 0.0001:
+		return false
+	if _locked_dir.length_squared() <= 0.0001:
+		return false
+	var dir_to_player := to_player / player_distance
+	return _locked_dir.normalized().dot(dir_to_player) < 0.0
+
+
 func _slide_reorientation_direction() -> Vector2:
 	for i in get_slide_collision_count():
 		var collision := get_slide_collision(i)
@@ -250,8 +282,10 @@ func _slide_reorientation_direction() -> Vector2:
 			return _planar_facing
 		if collider is Area2D:
 			continue
-		if collider is Node and (collider as Node).is_in_group(&"player"):
-			continue
+		if collider is Node:
+			var collider_node := collider as Node
+			if collider_node.is_in_group(&"player") or collider_node.is_in_group(&"mob"):
+				continue
 		var wall_normal := collision.get_normal()
 		if wall_normal.length_squared() > 0.0001:
 			var tangent_a := Vector2(-wall_normal.y, wall_normal.x).normalized()
@@ -276,9 +310,47 @@ func _hit_non_player_wall_this_frame() -> bool:
 			return true
 		if collider is Area2D:
 			continue
-		if collider is Node and (collider as Node).is_in_group(&"player"):
-			continue
+		if collider is Node:
+			var collider_node := collider as Node
+			if collider_node.is_in_group(&"player") or collider_node.is_in_group(&"mob"):
+				continue
 		return true
+	return false
+
+
+func _is_blocking_wall_collision(collision: KinematicCollision2D) -> bool:
+	if collision == null:
+		return true
+	var collider: Variant = collision.get_collider()
+	if collider == null:
+		return true
+	if collider is Area2D:
+		return false
+	if collider is Node:
+		var n := collider as Node
+		if n.is_in_group(&"player") or n.is_in_group(&"mob"):
+			return false
+	return true
+
+
+func _should_reset_after_wall_hit(pre_slide_vel: Vector2) -> bool:
+	var spd_sq := pre_slide_vel.length_squared()
+	var min_sp := wall_hit_reset_min_speed
+	if spd_sq < min_sp * min_sp:
+		return false
+	var dir := pre_slide_vel / sqrt(spd_sq)
+	for i in get_slide_collision_count():
+		var collision := get_slide_collision(i)
+		if collision == null:
+			continue
+		if not _is_blocking_wall_collision(collision):
+			continue
+		var n := collision.get_normal()
+		if n.length_squared() <= 0.0001:
+			continue
+		n = n.normalized()
+		if dir.dot(n) < -wall_hit_push_into_dot:
+			return true
 	return false
 
 
@@ -286,11 +358,18 @@ func _reset_after_wall_hit(to_player: Vector2) -> void:
 	velocity = Vector2.ZERO
 	_stuck_accum = 0.0
 	_charge_commit_remaining = 0.0
-	var reset_dir := (
-		to_player.normalized()
-		if to_player.length_squared() > 0.0001
-		else (_planar_facing.normalized() if _planar_facing.length_squared() > 0.0001 else Vector2(0.0, -1.0))
-	)
+	var slide_dir := _slide_reorientation_direction()
+	var reset_dir := slide_dir
+	if reset_dir.length_squared() <= 0.0001:
+		reset_dir = (
+			to_player.normalized()
+			if to_player.length_squared() > 0.0001
+			else (
+				_planar_facing.normalized()
+				if _planar_facing.length_squared() > 0.0001
+				else Vector2(0.0, -1.0)
+			)
+		)
 	_reorient_target_dir = reset_dir
 	_begin_reorientation(reset_dir)
 

@@ -368,6 +368,7 @@ func _ready() -> void:
 	_door_lock_controller.resolve_room_name_for_body = _door_resolve_room_name_for_body
 	add_child(_door_lock_controller)
 	_encounter_spawn_controller = EncounterSpawnControllerScript.new()
+	_encounter_spawn_controller.name = &"EncounterSpawnController"
 	_encounter_spawn_controller.room_queries = _room_queries
 	_encounter_spawn_controller.door_lock_controller = _door_lock_controller
 	_encounter_spawn_controller.encounter_modules_root = _encounter_modules_root
@@ -1825,6 +1826,7 @@ func _spawn_authored_rooms_from_layout(layout: Dictionary) -> bool:
 		room.set_meta(&"authored_room_center_cell", spec.get("grid", Vector2i.ZERO))
 		room.set_meta(&"authored_room_tile_size", spec.get("tile_size", room.tile_size))
 		room.set_meta(&"authored_room_occupied_cells_world", spec.get("occupied_cells", []))
+		room.set_meta(&"authored_room_blocked_cells_world", spec.get("blocked_cells", []))
 		room.set_meta(&"authored_room_walkable_cells_world", spec.get("walkable_cells", []))
 		room.set_meta(&"authored_connection_markers_world", spec.get("connection_markers", []))
 		room.set_meta(&"authored_zone_markers_world", spec.get("zone_markers", []))

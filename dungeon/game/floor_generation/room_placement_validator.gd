@@ -91,6 +91,13 @@ static func world_walkable_cells(room_data, center_cell: Vector2i, rotation_deg:
 	return world_cells
 
 
+static func world_blocked_cells(room_data, center_cell: Vector2i, rotation_deg: int) -> Array[Vector2i]:
+	var world_cells: Array[Vector2i] = []
+	for cell in room_data.blocked_cells:
+		world_cells.append(RoomTransformUtilsScript.transform_local_cell_to_world(cell, center_cell, rotation_deg))
+	return world_cells
+
+
 static func world_connection_markers(room_data, center_cell: Vector2i, rotation_deg: int) -> Array[Dictionary]:
 	var markers: Array[Dictionary] = []
 	for marker in room_data.connection_markers:

@@ -275,6 +275,7 @@ func _build_layout_from_placed(
 			return a.y < b.y
 		)
 		var walkable_cells := RoomPlacementValidatorScript.world_walkable_cells(room_data, center_cell, rotation_deg)
+		var blocked_cells := RoomPlacementValidatorScript.world_blocked_cells(room_data, center_cell, rotation_deg)
 		var role := String(room_data.role)
 		var room_name := String(spec.get("name", ""))
 		critical_path.append(room_name)
@@ -298,6 +299,7 @@ func _build_layout_from_placed(
 				"world_position": world_position,
 				"tile_size": room_data.tile_size,
 				"occupied_cells": occupied_cells,
+				"blocked_cells": blocked_cells,
 				"walkable_cells": walkable_cells,
 				"connection_markers": connection_markers,
 				"zone_markers": zone_markers,

@@ -149,6 +149,9 @@ func room_bounds_rect(room: RoomBase) -> Rect2:
 func clamp_pos_to_room(room: RoomBase, pos: Vector2) -> Vector2:
 	if room == null:
 		return pos
+	var walkable_rects := _authored_walkable_world_cell_rects(room)
+	if not walkable_rects.is_empty():
+		return _closest_point_in_rects(pos, walkable_rects, 0.9)
 	var room_rect := room_bounds_rect(room)
 	if room_rect.size.x <= 0.0 or room_rect.size.y <= 0.0:
 		var fallback_rect := room.get_room_rect_world()
@@ -175,6 +178,7 @@ func room_type_at(world_pos: Vector2, margin: float = 0.0) -> String:
 
 
 func invalidate_cache() -> void:
+	_clear_cached_room_meta()
 	_room_cache_dirty = true
 	_last_room_hit = null
 
@@ -205,6 +209,30 @@ func _authored_occupied_cells(room: RoomBase) -> Array[Vector2i]:
 	if room == null or not room.has_meta(&"authored_room_occupied_cells_world"):
 		return cells
 	var raw_cells = room.get_meta(&"authored_room_occupied_cells_world")
+	if raw_cells is Array:
+		for value in raw_cells:
+			if value is Vector2i:
+				cells.append(value as Vector2i)
+	return cells
+
+
+func _authored_walkable_cells(room: RoomBase) -> Array[Vector2i]:
+	var cells: Array[Vector2i] = []
+	if room == null or not room.has_meta(&"authored_room_walkable_cells_world"):
+		return cells
+	var raw_cells = room.get_meta(&"authored_room_walkable_cells_world")
+	if raw_cells is Array:
+		for value in raw_cells:
+			if value is Vector2i:
+				cells.append(value as Vector2i)
+	return cells
+
+
+func _authored_blocked_cells(room: RoomBase) -> Array[Vector2i]:
+	var cells: Array[Vector2i] = []
+	if room == null or not room.has_meta(&"authored_room_blocked_cells_world"):
+		return cells
+	var raw_cells = room.get_meta(&"authored_room_blocked_cells_world")
 	if raw_cells is Array:
 		for value in raw_cells:
 			if value is Vector2i:
@@ -332,6 +360,60 @@ func _authored_world_cell_rects(room: RoomBase) -> Array[Rect2]:
 	return rects
 
 
+func _authored_walkable_world_cell_rects(room: RoomBase) -> Array[Rect2]:
+	var rects: Array[Rect2] = []
+	if room == null:
+		return rects
+	if room.has_meta(&"authored_room_walkable_cell_rects_world"):
+		var cached_rects = room.get_meta(&"authored_room_walkable_cell_rects_world")
+		if cached_rects is Array:
+			for value in cached_rects:
+				if value is Rect2:
+					rects.append(value as Rect2)
+			if not rects.is_empty():
+				return rects
+	var walkable_cells := _authored_walkable_cells(room)
+	if walkable_cells.is_empty():
+		return rects
+	var blocked_lookup := {}
+	for blocked_cell in _authored_blocked_cells(room):
+		blocked_lookup[_cell_key(blocked_cell)] = true
+	for cell in walkable_cells:
+		if blocked_lookup.has(_cell_key(cell)):
+			continue
+		rects.append(_room_world_cell_rect(room, cell))
+	room.set_meta(&"authored_room_walkable_cell_rects_world", rects)
+	return rects
+
+
+func _closest_point_in_rects(pos: Vector2, rects: Array[Rect2], inset: float) -> Vector2:
+	var best_pos := pos
+	var best_dist_sq := INF
+	for rect in rects:
+		var candidate := _clamp_point_to_rect(pos, rect, inset)
+		var dist_sq := candidate.distance_squared_to(pos)
+		if dist_sq < best_dist_sq:
+			best_dist_sq = dist_sq
+			best_pos = candidate
+	return best_pos
+
+
+func _clamp_point_to_rect(pos: Vector2, rect: Rect2, inset: float) -> Vector2:
+	if rect.size.x <= 0.0 or rect.size.y <= 0.0:
+		return pos
+	var max_inset := minf(inset, minf(rect.size.x, rect.size.y) * 0.5)
+	var min_pos := rect.position + Vector2(max_inset, max_inset)
+	var max_pos := rect.end - Vector2(max_inset, max_inset)
+	return Vector2(
+		clampf(pos.x, min_pos.x, max_pos.x),
+		clampf(pos.y, min_pos.y, max_pos.y)
+	)
+
+
+func _cell_key(cell: Vector2i) -> String:
+	return "%s,%s" % [cell.x, cell.y]
+
+
 func _connect_rooms_root_signals(root: Node2D) -> void:
 	if root == null:
 		return
@@ -352,6 +434,22 @@ func _disconnect_rooms_root_signals(root: Node2D) -> void:
 		root.child_exiting_tree.disconnect(_on_rooms_root_child_tree_changed)
 	if root.child_order_changed.is_connected(_on_rooms_root_child_order_changed):
 		root.child_order_changed.disconnect(_on_rooms_root_child_order_changed)
+
+
+func _clear_cached_room_meta() -> void:
+	if rooms_root == null:
+		return
+	for child in rooms_root.get_children():
+		if child is not RoomBase:
+			continue
+		var room := child as RoomBase
+		for meta_key in [
+			&"authored_room_bounds_rect",
+			&"authored_room_cell_rects_world",
+			&"authored_room_walkable_cell_rects_world",
+		]:
+			if room.has_meta(meta_key):
+				room.remove_meta(meta_key)
 
 
 func _on_rooms_root_child_tree_changed(_node: Node) -> void:

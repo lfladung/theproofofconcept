@@ -14,6 +14,7 @@ var spawn_markers: Array[Dictionary] = []
 var floor_exit_marker: Dictionary = {}
 var zone_markers: Array[Dictionary] = []
 var occupied_cells: Array[Vector2i] = []
+var blocked_cells: Array[Vector2i] = []
 var walkable_cells: Array[Vector2i] = []
 
 

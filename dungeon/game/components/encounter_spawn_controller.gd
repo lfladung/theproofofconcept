@@ -3,7 +3,7 @@ class_name EncounterSpawnController
 
 signal encounter_started(encounter_id: StringName, is_main_combat: bool)
 signal encounter_cleared(encounter_id: StringName, is_boss: bool, is_main_combat: bool)
-signal enemy_coin_drop_requested(enemy: EnemyBase, drop_config: Dictionary)
+signal enemy_coin_drop_requested(spawn_position: Vector2, coin_value: int)
 signal boss_setup_requested(boss_room: RoomBase, boss_center: Vector2)
 
 const FLOW_DASHER_SCENE := preload("res://scenes/entities/flow_dasher.tscn")
@@ -243,8 +243,8 @@ func _direction_vector(direction: String) -> Vector2:
 		_:
 			return Vector2(1.0, 0.0)
 
-func _on_enemy_coin_drop_requested(enemy: EnemyBase, drop_config: Dictionary) -> void:
-	enemy_coin_drop_requested.emit(enemy, drop_config)
+func _on_enemy_coin_drop_requested(spawn_position: Vector2, coin_value: int) -> void:
+	enemy_coin_drop_requested.emit(spawn_position, coin_value)
 
 
 func _next_enemy_network_id() -> int:
