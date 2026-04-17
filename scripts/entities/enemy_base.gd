@@ -68,7 +68,7 @@ static func step_planar_facing_toward(
 ## Planar knockback impulse = `knockback_strength * knockback_impulse_scale` while `hit_knockback_duration` elapses.
 @export var knockback_impulse_scale := 1.3
 @export var hit_knockback_duration := 0.22
-## Convert tall top-down rectangles into footprint circles so enemies collide closer to their feet than their full silhouette.
+## Convert top-down rectangles into footprint circles large enough to cover the visible body.
 @export_range(0.5, 1.5, 0.05) var topdown_collision_radius_scale := 1.0
 ## Mob-to-mob steering buffer added on top of footprint radii to reduce crowd jams while chasing players.
 @export var mob_separation_extra_margin := 0.3
@@ -1286,11 +1286,13 @@ func _convert_shape_node_to_footprint_circle(shape_node: CollisionShape2D) -> vo
 	var shape := shape_node.shape
 	if shape is CircleShape2D:
 		var circle := shape as CircleShape2D
-		circle.radius = maxf(0.05, circle.radius * topdown_collision_radius_scale)
+		var footprint := circle.duplicate() as CircleShape2D
+		footprint.radius = maxf(0.05, circle.radius * topdown_collision_radius_scale)
+		shape_node.shape = footprint
 		return
 	if shape is RectangleShape2D:
 		var rect := shape as RectangleShape2D
-		var radius := minf(rect.size.x, rect.size.y) * 0.5 * topdown_collision_radius_scale
+		var radius := maxf(rect.size.x, rect.size.y) * 0.5 * topdown_collision_radius_scale
 		var footprint := CircleShape2D.new()
 		footprint.radius = maxf(0.05, radius)
 		shape_node.shape = footprint

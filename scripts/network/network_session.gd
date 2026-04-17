@@ -57,6 +57,7 @@ var _scene_transfer_in_progress := false
 var _scene_transfer_token := 0
 var _include_host_in_slots := true
 var _runtime_ready_peers: Dictionary = {}
+var _runtime_ready_ack_pending_peers: Dictionary = {}
 var _lobby_ready_peers: Dictionary = {}
 var _selected_mission_id: StringName = &""
 var _mission_flow_phase: int = MissionFlowPhase.NONE
@@ -171,6 +172,7 @@ func can_broadcast_world_replication() -> bool:
 
 func mark_runtime_scene_ready_local() -> void:
 	if session_role != SessionRole.CLIENT:
+		_end_scene_transfer()
 		return
 	if not has_active_peer():
 		return
@@ -410,6 +412,7 @@ func host_lobby(
 	_session_code = _random_session_code()
 	_peer_slots.clear()
 	_runtime_ready_peers.clear()
+	_runtime_ready_ack_pending_peers.clear()
 	_lobby_ready_peers.clear()
 	if _include_host_in_slots:
 		_peer_slots[host_peer_id] = 0
@@ -448,6 +451,7 @@ func join_lobby(address: String, port: int = DEFAULT_PORT) -> bool:
 	_set_state(SessionState.CONNECTING)
 	_peer_slots.clear()
 	_runtime_ready_peers.clear()
+	_runtime_ready_ack_pending_peers.clear()
 	_lobby_ready_peers.clear()
 	_set_mission_state(&"", MissionFlowPhase.NONE, false)
 	_session_code = ""
@@ -602,6 +606,7 @@ func disconnect_from_session(change_scene: bool = true) -> void:
 	_set_state(SessionState.OFFLINE)
 	_peer_slots.clear()
 	_runtime_ready_peers.clear()
+	_runtime_ready_ack_pending_peers.clear()
 	_lobby_ready_peers.clear()
 	_set_mission_state(&"", MissionFlowPhase.NONE, false)
 	_session_code = ""
@@ -756,6 +761,7 @@ func return_to_hub() -> bool:
 		return false
 	_begin_scene_transfer()
 	_runtime_ready_peers.clear()
+	_runtime_ready_ack_pending_peers.clear()
 	if _include_host_in_slots:
 		_runtime_ready_peers[host_peer_id] = true
 	_rpc_change_scene.rpc(HUB_SCENE_PATH)
@@ -916,8 +922,17 @@ func _rpc_client_runtime_ready() -> void:
 	if sender_peer <= 0:
 		return
 	_runtime_ready_peers[sender_peer] = true
+	if _scene_transfer_in_progress:
+		_runtime_ready_ack_pending_peers[sender_peer] = true
+	else:
+		_rpc_runtime_scene_ready_ack.rpc_id(sender_peer)
 	if dedicated_server_mode:
 		_dedicated_log("peer_runtime_ready peer=%s slots=%s" % [sender_peer, _slot_map_debug_string()])
+
+
+@rpc("authority", "call_remote", "reliable")
+func _rpc_runtime_scene_ready_ack() -> void:
+	_end_scene_transfer()
 
 
 @rpc("any_peer", "call_remote", "reliable")
@@ -948,6 +963,7 @@ func _on_connection_failed() -> void:
 	_set_state(SessionState.OFFLINE)
 	_peer_slots.clear()
 	_runtime_ready_peers.clear()
+	_runtime_ready_ack_pending_peers.clear()
 	_lobby_ready_peers.clear()
 	_set_mission_state(&"", MissionFlowPhase.NONE, false)
 	_session_code = ""
@@ -971,6 +987,7 @@ func _on_server_disconnected() -> void:
 	_set_state(SessionState.OFFLINE)
 	_peer_slots.clear()
 	_runtime_ready_peers.clear()
+	_runtime_ready_ack_pending_peers.clear()
 	_lobby_ready_peers.clear()
 	_set_mission_state(&"", MissionFlowPhase.NONE, false)
 	_session_code = ""
@@ -1016,6 +1033,7 @@ func _on_peer_connected(peer_id: int) -> void:
 
 func _on_peer_disconnected(peer_id: int) -> void:
 	_runtime_ready_peers.erase(peer_id)
+	_runtime_ready_ack_pending_peers.erase(peer_id)
 	_lobby_ready_peers.erase(peer_id)
 	if _peer_slots.has(peer_id):
 		_peer_slots.erase(peer_id)
@@ -1178,6 +1196,7 @@ func _finish_lobby_shutdown_to_menu() -> void:
 	_set_state(SessionState.OFFLINE)
 	_peer_slots.clear()
 	_runtime_ready_peers.clear()
+	_runtime_ready_ack_pending_peers.clear()
 	_lobby_ready_peers.clear()
 	_set_mission_state(&"", MissionFlowPhase.NONE, false)
 	_session_code = ""
@@ -1199,6 +1218,19 @@ func _begin_scene_transfer() -> void:
 func _end_scene_transfer() -> void:
 	_scene_transfer_token += 1
 	_scene_transfer_in_progress = false
+	_flush_pending_runtime_ready_acks()
+
+
+func _flush_pending_runtime_ready_acks() -> void:
+	if session_role != SessionRole.HOST and session_role != SessionRole.DEDICATED_SERVER:
+		return
+	if _runtime_ready_ack_pending_peers.is_empty():
+		return
+	for key in _runtime_ready_ack_pending_peers.keys():
+		var peer_id := int(key)
+		if peer_id > 0 and bool(_runtime_ready_peers.get(peer_id, false)):
+			_rpc_runtime_scene_ready_ack.rpc_id(peer_id)
+	_runtime_ready_ack_pending_peers.clear()
 
 
 func _queue_scene_change(scene_path: String) -> void:
@@ -1236,6 +1268,8 @@ func _clear_scene_transfer_after_scene_ready(token: int) -> void:
 	await get_tree().process_frame
 	await get_tree().process_frame
 	if token == _scene_transfer_token:
+		if session_role == SessionRole.CLIENT and has_active_peer():
+			return
 		_scene_transfer_in_progress = false
 
 
@@ -1298,6 +1332,7 @@ func _hard_reset_offline_boot_state() -> void:
 	_intended_disconnect = false
 	_peer_slots.clear()
 	_runtime_ready_peers.clear()
+	_runtime_ready_ack_pending_peers.clear()
 	_lobby_ready_peers.clear()
 	_selected_mission_id = &""
 	_mission_flow_phase = MissionFlowPhase.NONE

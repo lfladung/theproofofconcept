@@ -4,13 +4,14 @@ extends EnemyBase
 const EnemyStateVisualScript = preload("res://scripts/visuals/enemy_state_visual.gd")
 enum PhaseState { PHASED_IDLE, TELEGRAPHING, ATTACK, RECOVER }
 
-@export var idle_interval_min := 4.0
-@export var idle_interval_max := 6.0
-@export var telegraph_duration := 0.8
+@export var idle_interval_min := 2.2
+@export var idle_interval_max := 3.4
+@export var telegraph_duration := 0.7
 @export var attack_active_duration := 0.4
-@export var recover_duration := 0.55
+@export var recover_duration := 0.42
 @export var ambush_distance_min := 3.5
 @export var ambush_distance_max := 5.25
+@export var ambush_anchor_repick_distance := 6.0
 @export var attack_damage := 15
 @export var attack_knockback := 10.0
 @export var attack_hit_width := 1.35
@@ -19,7 +20,7 @@ enum PhaseState { PHASED_IDLE, TELEGRAPHING, ATTACK, RECOVER }
 @export var attack_reach_max := 6.5
 @export var phased_move_speed := 5.8
 @export var telegraph_ready_distance := 0.9
-@export var materialize_distance := 3.6
+@export var materialize_distance := 5.8
 @export var mesh_ground_y := 0.12
 @export var mesh_scale := Vector3.ONE
 @export var edge_clip_scale := 2.4
@@ -38,6 +39,7 @@ var _attack_facing := Vector2(0.0, -1.0)
 var _attack_reach := 1.4
 var _distance_to_target := INF
 var _is_materialized := false
+var _has_ambush_anchor := false
 var _room_queries: Node
 @onready var _attack_hitbox: Hitbox2D = $DashContactHitbox
 
@@ -145,17 +147,26 @@ func _tick_server_state(delta: float) -> void:
 
 func _tick_phased_idle(_delta: float) -> void:
 	_target_refresh_time_remaining = maxf(0.0, _target_refresh_time_remaining - _delta)
+	var previous_target := _target_player
 	_target_player = _refresh_phase_target()
+	if previous_target != _target_player:
+		_has_ambush_anchor = false
 	if _target_player == null or not is_instance_valid(_target_player):
 		_distance_to_target = INF
 		_is_materialized = false
+		_has_ambush_anchor = false
 		_apply_phase_collision_state()
 		velocity = Vector2.ZERO
 		return
 	_distance_to_target = global_position.distance_to(_target_player.global_position)
 	_is_materialized = _distance_to_target <= materialize_distance
 	_apply_phase_collision_state()
-	_telegraph_anchor = _pick_ambush_position(_target_player)
+	if (
+		not _has_ambush_anchor
+		or _telegraph_anchor.distance_to(_target_player.global_position) > ambush_anchor_repick_distance
+	):
+		_telegraph_anchor = _pick_ambush_position(_target_player)
+		_has_ambush_anchor = true
 	var to_anchor := _telegraph_anchor - global_position
 	if to_anchor.length_squared() > 0.0001:
 		velocity = to_anchor.normalized() * phased_move_speed
@@ -181,6 +192,7 @@ func _tick_recover(_delta: float) -> void:
 func _start_telegraph() -> void:
 	velocity = Vector2.ZERO
 	_telegraph_anchor = global_position
+	_has_ambush_anchor = false
 	if _target_player != null and is_instance_valid(_target_player):
 		var to_target := _target_player.global_position - _telegraph_anchor
 		if to_target.length_squared() > 1e-6:
@@ -248,6 +260,7 @@ func _enter_phased_idle(initial: bool = false) -> void:
 	if _attack_hitbox != null:
 		_attack_hitbox.deactivate()
 	_phase = PhaseState.PHASED_IDLE
+	_has_ambush_anchor = false
 	_phase_time_remaining = randf_range(idle_interval_min, idle_interval_max)
 	if initial:
 		_phase_time_remaining = randf_range(idle_interval_min * 0.4, idle_interval_max)
@@ -259,6 +272,7 @@ func _force_phase_out_and_relocate() -> void:
 	if _attack_hitbox != null:
 		_attack_hitbox.deactivate()
 	_phase = PhaseState.PHASED_IDLE
+	_has_ambush_anchor = false
 	_phase_time_remaining = randf_range(idle_interval_min * 0.5, idle_interval_min)
 	_is_materialized = false
 	_apply_phase_collision_state()
