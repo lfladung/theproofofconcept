@@ -797,6 +797,11 @@ func _spawn_authored_enemy_points_for_room(room: RoomBase, encounter_id: StringN
 func _room_should_register_encounter(room: RoomBase) -> bool:
 	if room == null:
 		return false
+	var authored_role := String(room.get_meta(&"authored_room_role", ""))
+	if authored_role == "spawn" or authored_role == "connection_room":
+		return false
+	if room.room_tags.has("arena") or room.room_tags.has("combat") or room.room_tags.has("chokepoint"):
+		return true
 	if room.room_type == "arena":
 		return true
 	return not _zone_markers(StringName(room.name), "enemy_spawn").is_empty()

@@ -6,6 +6,7 @@ const GridMath = preload("res://addons/dungeon_room_editor/core/grid_math.gd")
 const PIECE_CATALOG = preload("res://addons/dungeon_room_editor/resources/default_room_piece_catalog.tres")
 
 const _SPAWN_ROOM_PATH := "res://dungeon/rooms/authored/spawn_room.tscn"
+const _CONNECTION_ROOM_PATH := "res://dungeon/rooms/authored/connection_room.tscn"
 const _V3_ROOM_DIR := "res://dungeon/rooms/authored/outlines/v3"
 
 var _rooms: Array = []
@@ -15,7 +16,7 @@ var _rooms_by_role := {}
 func build() -> void:
 	_rooms.clear()
 	_rooms_by_role.clear()
-	var scene_paths: Array[String] = [_SPAWN_ROOM_PATH]
+	var scene_paths: Array[String] = [_SPAWN_ROOM_PATH, _CONNECTION_ROOM_PATH]
 	for file_name in DirAccess.get_files_at(_V3_ROOM_DIR):
 		if not String(file_name).ends_with(".tscn"):
 			continue
@@ -119,15 +120,21 @@ func _build_room_data(scene_path: String):
 func _derive_role(scene_path: String, room: RoomBase) -> String:
 	if scene_path == _SPAWN_ROOM_PATH:
 		return "spawn"
+	if scene_path == _CONNECTION_ROOM_PATH:
+		return "connection_room"
 	if room.room_type == "boss":
 		return "boss"
+	if room.room_type == "treasure":
+		return "treasure"
+	if room.room_type == "safe":
+		return "safe"
 	if room.room_tags.has("chokepoint"):
 		return "chokepoint"
 	if room.room_type == "connector" or room.room_type == "corridor":
-		return "connector"
+		return "combat"
 	if room.room_type == "arena":
 		return "combat"
-	return "connector"
+	return "combat"
 
 
 func _collect_piece_cells(

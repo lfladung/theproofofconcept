@@ -16,6 +16,9 @@ const ROOM_TYPES := {
 	"challenge": true,
 	"lore": true,
 	"safe": true,
+	"connector": true,
+	"connection_room": true,
+	"boss": true,
 }
 
 const CARDINALS := {

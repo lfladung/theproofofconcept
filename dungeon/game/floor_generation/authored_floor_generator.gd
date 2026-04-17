@@ -15,14 +15,18 @@ func generate_floor(catalog, rng: RandomNumberGenerator, config: Dictionary = {}
 	if all_rooms.is_empty():
 		return _failed_layout({}, [{"reason": "empty_catalog"}])
 
-	var min_rooms := int(config.get("min_rooms", 7))
-	var max_rooms := int(config.get("max_rooms", 9))
+	var bounds := _normalized_connection_room_bounds(
+		int(config.get("min_rooms", 7)),
+		int(config.get("max_rooms", 9))
+	)
+	var min_rooms := int(bounds["min_rooms"])
+	var max_rooms := int(bounds["max_rooms"])
 	var max_attempts := int(config.get("max_floor_attempts", 20))
 	var aggregate_failures := {}
 	var attempt_debug: Array[Dictionary] = []
 
 	for attempt_index in range(max_attempts):
-		var total_rooms := rng.randi_range(min_rooms, max_rooms)
+		var total_rooms := _random_odd_room_count(rng, min_rooms, max_rooms)
 		var role_sequence := _build_role_sequence(total_rooms, rng)
 		var attempt_result := _attempt_sequence(catalog, rng, role_sequence)
 		attempt_debug.append(
@@ -149,6 +153,7 @@ func _place_next_room(
 						_increment_bucket(failure_buckets, String(placement.get("reason", "placement_failed")))
 						continue
 					var placed_spec := _make_placed_spec(candidate_room_data, index, candidate_center, candidate_rotation)
+					placed_spec["requested_role"] = requested_role
 					placed_spec["occupied_lookup"] = placement.get("occupied_lookup", {})
 					placed_spec["connected_from"] = String(current_spec.get("name", ""))
 					placed_specs.append(placed_spec)
@@ -188,14 +193,37 @@ func _place_next_room(
 func _build_role_sequence(total_rooms: int, rng: RandomNumberGenerator) -> Array[String]:
 	var sequence: Array[String] = ["spawn"]
 	var encounter_toggle := rng.randi_range(0, 1)
-	for path_index in range(1, total_rooms - 1):
-		if path_index % 2 == 1:
-			sequence.append("connector")
-		else:
+	while sequence.size() < total_rooms - 1:
+		sequence.append("connection_room")
+		if sequence.size() < total_rooms - 1:
 			sequence.append("chokepoint" if encounter_toggle % 2 == 0 else "combat")
 			encounter_toggle += 1
 	sequence.append("boss")
 	return sequence
+
+
+func _normalized_connection_room_bounds(min_rooms: int, max_rooms: int) -> Dictionary:
+	var lo := maxi(5, min_rooms)
+	var hi := maxi(lo, max_rooms)
+	if lo % 2 == 0:
+		lo += 1
+	if hi < lo:
+		hi = lo
+	if hi % 2 == 0:
+		hi -= 1
+	if hi < lo:
+		hi = lo
+	return {"min_rooms": lo, "max_rooms": hi}
+
+
+func _random_odd_room_count(rng: RandomNumberGenerator, min_rooms: int, max_rooms: int) -> int:
+	var possible: Array[int] = []
+	for count in range(min_rooms, max_rooms + 1):
+		if count % 2 == 1:
+			possible.append(count)
+	if possible.is_empty():
+		return maxi(5, min_rooms)
+	return possible[rng.randi_range(0, possible.size() - 1)]
 
 
 func _candidate_pool_for_role(
@@ -209,6 +237,8 @@ func _candidate_pool_for_role(
 	var roles: Array[String] = [role]
 	if role == "combat" or role == "chokepoint":
 		roles = [role, "combat" if role == "chokepoint" else "chokepoint"]
+	elif role == "connection_room":
+		roles = ["connection_room"]
 	for lookup_role in roles:
 		for room_data in catalog.rooms_for_role(lookup_role):
 			if used_paths.has(room_data.scene_path):
@@ -276,7 +306,7 @@ func _build_layout_from_placed(
 		)
 		var walkable_cells := RoomPlacementValidatorScript.world_walkable_cells(room_data, center_cell, rotation_deg)
 		var blocked_cells := RoomPlacementValidatorScript.world_blocked_cells(room_data, center_cell, rotation_deg)
-		var role := String(room_data.role)
+		var role := String(spec.get("requested_role", String(room_data.role)))
 		var room_name := String(spec.get("name", ""))
 		critical_path.append(room_name)
 		if role == "spawn":
@@ -316,6 +346,8 @@ func _build_layout_from_placed(
 			combat_exit_dir = String(link.get("from_dir", "east"))
 		if String(link.get("to", "")) == boss_room_name:
 			boss_entry_dir = String(link.get("to_dir", "west"))
+	var connection_rooms := _connection_rooms_from_specs(room_specs)
+	var progression_gates := _progression_gates_from_specs(room_specs, links, critical_path)
 
 	return {
 		"generator_mode": "authored_rooms",
@@ -328,6 +360,8 @@ func _build_layout_from_placed(
 		"combat_entry_dir": combat_entry_dir,
 		"combat_exit_dir": combat_exit_dir,
 		"boss_entry_dir": boss_entry_dir,
+		"connection_rooms": connection_rooms,
+		"progression_gates": progression_gates,
 		"puzzle_room": "",
 		"treasure_room": "",
 		"trap_room": "",
@@ -335,7 +369,7 @@ func _build_layout_from_placed(
 		"debug_failures": attempt_debug.duplicate(true),
 		"stage_debug": {
 			"graph": {"rooms": room_specs.size(), "links": links.size()},
-			"roles": {"sequence": role_sequence, "combat_room": combat_room_name},
+			"roles": {"sequence": role_sequence, "combat_room": combat_room_name, "connection_rooms": connection_rooms},
 			"spatial": {"start_room": start_room_name, "boss_room": boss_room_name},
 		},
 	}
@@ -354,6 +388,8 @@ func _failed_layout(failure_buckets: Dictionary, attempt_debug: Array) -> Dictio
 		"combat_entry_dir": "west",
 		"combat_exit_dir": "east",
 		"boss_entry_dir": "west",
+		"connection_rooms": [],
+		"progression_gates": [],
 		"puzzle_room": "",
 		"treasure_room": "",
 		"trap_room": "",
@@ -368,12 +404,91 @@ func _runtime_room_type_for_role(role: String) -> String:
 			return "safe"
 		"connector":
 			return "connector"
+		"connection_room":
+			return "connector"
 		"combat", "chokepoint":
 			return "arena"
 		"boss":
 			return "boss"
 		_:
 			return "connector"
+
+
+func _connection_rooms_from_specs(room_specs: Array[Dictionary]) -> Array[String]:
+	var rooms: Array[String] = []
+	for spec in room_specs:
+		if String(spec.get("role", "")) == "connection_room":
+			rooms.append(String(spec.get("name", "")))
+	return rooms
+
+
+func _progression_gates_from_specs(
+	room_specs: Array[Dictionary], links: Array, critical_path: Array[String]
+) -> Array[Dictionary]:
+	var role_by_room := {}
+	for spec in room_specs:
+		role_by_room[String(spec.get("name", ""))] = String(spec.get("role", ""))
+	var gates: Array[Dictionary] = []
+	for i in range(1, critical_path.size() - 1):
+		var connector := String(critical_path[i])
+		if String(role_by_room.get(connector, "")) != "connection_room":
+			continue
+		var previous_room := String(critical_path[i - 1])
+		var next_room := String(critical_path[i + 1])
+		var next_role := String(role_by_room.get(next_room, ""))
+		if not _role_is_gated_encounter(next_role):
+			continue
+		var previous_role := String(role_by_room.get(previous_room, ""))
+		var previous_dirs := _link_dirs_between(links, previous_room, connector)
+		var next_dirs := _link_dirs_between(links, connector, next_room)
+		if previous_dirs.is_empty() or next_dirs.is_empty():
+			continue
+		gates.append({
+			"id": "gate_%02d_%s" % [gates.size(), connector],
+			"connector_room": connector,
+			"previous_room": previous_room,
+			"next_room": next_room,
+			"advance_room_names": _critical_rooms_from_index(critical_path, i),
+			"previous_room_dir": String(previous_dirs.get("a_dir", "")),
+			"connector_entry_dir": String(previous_dirs.get("b_dir", "")),
+			"connector_exit_dir": String(next_dirs.get("a_dir", "")),
+			"next_room_dir": String(next_dirs.get("b_dir", "")),
+			"previous_encounter_id": _encounter_id_for_role(previous_role, previous_room),
+			"next_encounter_id": _encounter_id_for_role(next_role, next_room),
+			"state": "waiting_for_clear",
+		})
+	return gates
+
+
+func _critical_rooms_from_index(critical_path: Array[String], start_index: int) -> Array[String]:
+	var rooms: Array[String] = []
+	for i in range(start_index, critical_path.size()):
+		rooms.append(String(critical_path[i]))
+	return rooms
+
+
+func _role_is_gated_encounter(role: String) -> bool:
+	return role == "combat" or role == "chokepoint" or role == "boss"
+
+
+func _encounter_id_for_role(role: String, room_name: String) -> String:
+	if role == "boss":
+		return "boss"
+	if role == "combat" or role == "chokepoint":
+		return "arena_%s" % [room_name]
+	return ""
+
+
+func _link_dirs_between(links: Array, a: String, b: String) -> Dictionary:
+	for link_value in links:
+		var link := link_value as Dictionary
+		var from_room := String(link.get("from", ""))
+		var to_room := String(link.get("to", ""))
+		if from_room == a and to_room == b:
+			return {"a_dir": String(link.get("from_dir", "")), "b_dir": String(link.get("to_dir", ""))}
+		if from_room == b and to_room == a:
+			return {"a_dir": String(link.get("to_dir", "")), "b_dir": String(link.get("from_dir", ""))}
+	return {}
 
 
 func _scene_base_name(scene_path: String) -> String:

@@ -90,6 +90,7 @@ const ROOM_PIECE_CATALOG = preload("res://addons/dungeon_room_editor/resources/d
 const AuthoredRoomCatalogScript = preload("res://dungeon/game/floor_generation/authored_room_catalog.gd")
 const AuthoredFloorGeneratorScript = preload("res://dungeon/game/floor_generation/authored_floor_generator.gd")
 const EncounterSpawnControllerScript = preload("res://dungeon/game/components/encounter_spawn_controller.gd")
+const ConnectionRoomGateControllerScript = preload("res://dungeon/game/components/connection_room_gate_controller.gd")
 const EnemySpawnByEnemyId = preload("res://dungeon/game/enemy_spawn_by_id.gd")
 const EncounterRunManagerScript = preload("res://dungeon/game/encounters/encounter_run_manager.gd")
 const Layer1EncounterRegistry = preload("res://dungeon/game/encounters/layer_1_encounter_registry.gd")
@@ -257,6 +258,7 @@ var _info_controller: InfoLabelController
 var _camera_follow: CameraFollowController
 var _door_lock_controller: DoorLockController
 var _encounter_spawn_controller
+var _connection_room_gate_controller
 var _dungeon_world_environment: WorldEnvironment
 var _dungeon_environment: Environment
 var _backdrop_quad: MeshInstance3D
@@ -367,6 +369,15 @@ func _ready() -> void:
 	_door_lock_controller.door_clamp_y_ext = _DOOR_CLAMP_Y_EXT
 	_door_lock_controller.resolve_room_name_for_body = _door_resolve_room_name_for_body
 	add_child(_door_lock_controller)
+	_connection_room_gate_controller = ConnectionRoomGateControllerScript.new()
+	_connection_room_gate_controller.name = &"ConnectionRoomGateController"
+	_connection_room_gate_controller.room_queries = _room_queries
+	_connection_room_gate_controller.door_lock_controller = _door_lock_controller
+	_connection_room_gate_controller.required_peer_ids_fn = Callable(self, "_required_floor_transition_peer_ids")
+	_connection_room_gate_controller.player_for_peer_id_fn = Callable(self, "_player_for_peer_id")
+	_connection_room_gate_controller.encounter_cleared_fn = Callable(self, "_encounter_is_cleared")
+	_connection_room_gate_controller.gate_status_changed.connect(_on_connection_room_gate_status_changed)
+	add_child(_connection_room_gate_controller)
 	_encounter_spawn_controller = EncounterSpawnControllerScript.new()
 	_encounter_spawn_controller.name = &"EncounterSpawnController"
 	_encounter_spawn_controller.room_queries = _room_queries
@@ -491,6 +502,14 @@ func _on_controller_encounter_cleared(
 	else:
 		_set_info_base_text("Arena room cleared.")
 	_magnet_dropped_coins_for_encounter_room(encounter_id)
+	if _connection_room_gate_controller != null:
+		_connection_room_gate_controller.refresh()
+
+
+func _on_connection_room_gate_status_changed(text: String) -> void:
+	if text.is_empty():
+		return
+	_set_info_base_text(text)
 
 
 func _next_coin_network_id() -> int:
@@ -1122,6 +1141,8 @@ func _regenerate_level(randomize_layout: bool) -> void:
 	_info_label_last_room_name = ""
 	if _encounter_spawn_controller != null:
 		_encounter_spawn_controller.clear_runtime_state()
+	if _connection_room_gate_controller != null:
+		_connection_room_gate_controller.clear_runtime_state()
 	_clear_floor_loot()
 	for n in get_tree().get_nodes_in_group(&"mob"):
 		if n is Node:
@@ -1225,6 +1246,11 @@ func _regenerate_level(randomize_layout: bool) -> void:
 	_spawn_gameplay_objects()
 	_setup_encounter_spawn_controller_for_floor()
 	_encounter_spawn_controller.setup_encounters()
+	if _connection_room_gate_controller != null:
+		if _is_authoritative_world():
+			_connection_room_gate_controller.setup_gates(_map_layout)
+		else:
+			_connection_room_gate_controller.clear_runtime_state()
 	_prewarm_enemy_assets_once()
 	_spawn_entrance_exit_markers()
 	_set_combat_doors_locked(false, false)
@@ -1842,6 +1868,7 @@ func _runtime_room_tags(room: RoomBase, spec: Dictionary) -> PackedStringArray:
 	_append_unique_tag(tags, String(room.room_type))
 	_append_unique_tag(tags, String(spec.get("role", "")))
 	var spec_tags_v: Variant = spec.get("room_tags", PackedStringArray())
+	var role := String(spec.get("role", ""))
 	if spec_tags_v is PackedStringArray:
 		var packed_tags := spec_tags_v as PackedStringArray
 		for tag in packed_tags:
@@ -1849,7 +1876,8 @@ func _runtime_room_tags(room: RoomBase, spec: Dictionary) -> PackedStringArray:
 	elif spec_tags_v is Array:
 		var array_tags := spec_tags_v as Array
 		for tag_value in array_tags:
-			_append_unique_tag(tags, String(tag_value))
+			var tag_text := String(tag_value)
+			_append_unique_tag(tags, tag_text)
 	_append_unique_tag(tags, String(room.size_class))
 	_append_unique_tag(tags, _room_size_tag(room))
 	if room.room_type == "corridor" or String(spec.get("role", "")) == "chokepoint":
@@ -1995,10 +2023,10 @@ func _ensure_authored_floor_generator() -> void:
 func _floor_generation_legacy_layout_config() -> Dictionary:
 	if floor_generation_compact_three_rooms:
 		return {
-			"total_rooms_min": 3,
-			"total_rooms_max": 3,
-			"critical_path_min": 3,
-			"critical_path_max": 3,
+			"total_rooms_min": 5,
+			"total_rooms_max": 5,
+			"critical_path_min": 5,
+			"critical_path_max": 5,
 			"linear_spine_only": true,
 		}
 	return {}
@@ -2006,7 +2034,7 @@ func _floor_generation_legacy_layout_config() -> Dictionary:
 
 func _authored_floor_room_count_bounds() -> Dictionary:
 	if floor_generation_compact_three_rooms:
-		return {"min_rooms": 3, "max_rooms": 3}
+		return {"min_rooms": 5, "max_rooms": 5}
 	return {"min_rooms": 7, "max_rooms": 9}
 
 
@@ -3761,6 +3789,23 @@ func _required_floor_transition_peer_ids() -> Array[int]:
 	return peer_ids
 
 
+func _player_for_peer_id(peer_id: int) -> CharacterBody2D:
+	var node_v: Variant = _players_by_peer.get(peer_id, null)
+	if node_v is CharacterBody2D and is_instance_valid(node_v):
+		return node_v as CharacterBody2D
+	if peer_id == _local_peer_id() and _player != null and is_instance_valid(_player):
+		return _player
+	return null
+
+
+func _encounter_is_cleared(encounter_id: StringName) -> bool:
+	if _encounter_spawn_controller == null:
+		return false
+	if _encounter_spawn_controller.has_method("is_encounter_cleared"):
+		return bool(_encounter_spawn_controller.call("is_encounter_cleared", encounter_id))
+	return false
+
+
 func _count_players_on_exit_elevator(required_peer_ids: Array[int]) -> int:
 	if _boss_exit_portal == null:
 		return 0
@@ -4136,6 +4181,8 @@ func _tick_authoritative_maintenance(delta: float) -> void:
 	_process_authoritative_revive_and_wipe()
 	if _encounter_spawn_controller != null:
 		_encounter_spawn_controller.refresh_encounter_state()
+	if _connection_room_gate_controller != null:
+		_connection_room_gate_controller.refresh()
 	_try_schedule_floor_advance_if_all_players_on_elevator()
 	_try_schedule_floor_advance_if_all_players_on_debug_elevator()
 	_flush_coin_totals_if_dirty()

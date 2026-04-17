@@ -34,7 +34,7 @@ Read the smallest relevant set before editing:
 
 ## Current Project Snapshot
 
-As of 2026-04-14 (bump this date when you materially change this section):
+As of 2026-04-15 (bump this date when you materially change this section):
 
 - `ideas/MILESTONES_v2.md` is the active roadmap for hub, mission select, upgrade UI, gems/socketing, mini-hubs, authored encounter composition, reward-drop replacement, naming, and display polish.
 - Project identity metadata and the lobby title now use `The Proof of Concept`.
@@ -51,6 +51,7 @@ As of 2026-04-14 (bump this date when you materially change this section):
 - Turret-style ranged enemies now use one configurable volley-family chassis (`scripts/entities/arrow_tower.gd`) with `spitter` / `volley` / `barrage` archetypes plus 7 family packages, resolved by explicit authored IDs such as `spitter_flow`, `volley_edge`, and `barrage_mass`; `arrow_tower` remains a legacy alias.
 - Mini-hubs now sit between completed floors and the next generated floor. Boss/floor elevators move the party into a no-enemy safe intermission room; loadout changes are gated there after all players arrive, then the central elevator requires all players aboard before advancing.
 - Encounter spawning now has a dedicated `dungeon/game/components/encounter_spawn_controller.gd` child component wired by `dungeon_orchestrator_internals.gd`; the orchestrator still owns high-level combat/boss flags, coin magnet, tempering XP, and floor-transition outcomes via controller signals.
+- Connection-room progression gates are generated for authored and legacy floors: generated `connection_room` checkpoints sit between combat/boss rooms, server-owned hard clamps block the next room until all required players enter the checkpoint, then seal the previous room with no door visuals. Authored connection-shaped rooms can still run encounters; spawn rooms stay enemy-free.
 
 ## Subsystem Notes
 
@@ -295,6 +296,7 @@ Update this list when something materially ships; prefer pointers to docs and sc
 - Starter gear: T1 equipped + T2 Aligned + T3 Specialized per slot (varied pillars), seeded materials. Delete `user://meta_progression_local.json` to regenerate.
 - Mini-hub floor transition: `dungeon/game/dungeon_orchestrator_internals.gd` uses `layout_phase=mini_hub` for a single no-enemy safe room between floors. The boss elevator enters the mini-hub; once all players arrive, loadout becomes available and the central elevator requires full-party boarding before `_floor_index` increments and the next combat floor generates.
 - Encounter spawn controller: `dungeon/game/components/encounter_spawn_controller.gd` owns encounter triggers, spawn points/volumes, spawn queues, enemy network IDs, encounter aggro, door-lock cache integration, and enemy transform replication; `dungeon_orchestrator_internals.gd` injects dependencies and handles controller signals for UI text, combat/boss flags, coin magnet, boss exit, and tempering XP.
+- Connection-room gates: `authored_floor_generator.gd` and `DungeonMapLayoutV1` emit `connection_rooms` / `progression_gates` for generated `connection_room` checkpoints; `connection_room_gate_controller.gd` owns server-authoritative checkpoint advancement using named hard clamps in `DoorLockController` with no door visuals. Authored `connector` / `connection_room` rooms remain eligible for encounters; spawn rooms are explicitly excluded.
 
 ---
 

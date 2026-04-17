@@ -330,22 +330,26 @@ func set_aggro_enabled(_enabled: bool) -> void:
 
 func refresh_enemy_target_player(
 	delta: float,
-	current_target: Node2D,
+	current_target: Variant,
 	refresh_time_remaining: float,
 	target_refresh_interval_sec: float,
 	allow_retarget: bool = true,
 	picker: Callable = Callable()
 ) -> Dictionary:
 	var next_refresh_time_remaining := maxf(0.0, refresh_time_remaining - delta)
-	var target_invalid := current_target == null or not is_instance_valid(current_target)
+	var target: Node2D = null
+	if current_target != null and is_instance_valid(current_target) and current_target is Node2D:
+		target = current_target as Node2D
+	var target_invalid := target == null
 	if target_invalid or (allow_retarget and next_refresh_time_remaining <= 0.0):
 		var pick_target := picker
 		if not pick_target.is_valid():
 			pick_target = Callable(self, "_pick_nearest_player_target")
-		current_target = pick_target.call()
+		var picked: Variant = pick_target.call()
+		target = picked as Node2D if picked != null and is_instance_valid(picked) and picked is Node2D else null
 		next_refresh_time_remaining = maxf(0.05, target_refresh_interval_sec)
 	return {
-		"target": current_target,
+		"target": target,
 		"refresh_time_remaining": next_refresh_time_remaining,
 	}
 
@@ -1168,26 +1172,28 @@ func _rpc_show_damage_text(
 	)
 
 
-func _is_player_downed_node(candidate: Node2D) -> bool:
-	if candidate == null or not is_instance_valid(candidate):
+func _is_player_downed_node(candidate: Variant) -> bool:
+	if candidate == null or not is_instance_valid(candidate) or not candidate is Node2D:
 		return false
-	if candidate.has_method(&"is_downed"):
-		return bool(candidate.call(&"is_downed"))
+	var player := candidate as Node2D
+	if player.has_method(&"is_downed"):
+		return bool(player.call(&"is_downed"))
 	return false
 
 
-func _is_targetable_player(candidate: Node2D) -> bool:
-	if candidate == null or not is_instance_valid(candidate):
+func _is_targetable_player(candidate: Variant) -> bool:
+	if candidate == null or not is_instance_valid(candidate) or not candidate is Node2D:
 		return false
 	return not _is_player_downed_node(candidate)
 
 
-func _peer_id_for_player_candidate(candidate: Node2D) -> int:
-	if candidate == null:
+func _peer_id_for_player_candidate(candidate: Variant) -> int:
+	if candidate == null or not is_instance_valid(candidate) or not candidate is Node2D:
 		return 0
-	var peer_id := int(candidate.get_meta(&"peer_id", 0))
-	if peer_id <= 0 and candidate.has_meta(&"network_owner_peer_id"):
-		peer_id = int(candidate.get_meta(&"network_owner_peer_id", 0))
+	var player := candidate as Node2D
+	var peer_id := int(player.get_meta(&"peer_id", 0))
+	if peer_id <= 0 and player.has_meta(&"network_owner_peer_id"):
+		peer_id = int(player.get_meta(&"network_owner_peer_id", 0))
 	return peer_id
 
 

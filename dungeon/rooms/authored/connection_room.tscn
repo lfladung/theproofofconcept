@@ -369,17 +369,19 @@ placement_layer = &"overlay"
 
 [sub_resource type="Resource" id="Resource_7p2tl"]
 script = ExtResource("2_04dvo")
-room_id = "room_base_template"
-room_tags = PackedStringArray("arena")
+room_id = "connection_room"
+room_tags = PackedStringArray("connection_room", "connector")
 recommended_enemy_groups = PackedStringArray()
 items = Array[Resource]([SubResource("Resource_ad0cy"), SubResource("Resource_gvlty"), SubResource("Resource_3q3p7"), SubResource("Resource_43vxt"), SubResource("Resource_4876p"), SubResource("Resource_ssiaw"), SubResource("Resource_hx3ui"), SubResource("Resource_gtd0p"), SubResource("Resource_05htb"), SubResource("Resource_pr2se"), SubResource("Resource_h6jjr"), SubResource("Resource_q6tny"), SubResource("Resource_8bbwi"), SubResource("Resource_vfb6b"), SubResource("Resource_2x7cj"), SubResource("Resource_tt6j1"), SubResource("Resource_p8dx2"), SubResource("Resource_jxryd"), SubResource("Resource_l0xol"), SubResource("Resource_qdyaj"), SubResource("Resource_746ur"), SubResource("Resource_y2n5n"), SubResource("Resource_7vrm4"), SubResource("Resource_32tle"), SubResource("Resource_fdc3y"), SubResource("Resource_s6go4"), SubResource("Resource_bhbsk"), SubResource("Resource_x34xy"), SubResource("Resource_l174x"), SubResource("Resource_t1l0x"), SubResource("Resource_3ded6"), SubResource("Resource_0ey10"), SubResource("Resource_ddyjj"), SubResource("Resource_ks4mh"), SubResource("Resource_dujub"), SubResource("Resource_bfnve"), SubResource("Resource_04dvo")])
 
 [node name="RoomRoot" unique_id=1954948628 instance=ExtResource("1_augh1")]
+room_id = "connection_room"
+room_type = "connector"
 tile_size = Vector2i(3, 3)
 room_size_tiles = Vector2i(7, 5)
 allowed_rotations = PackedInt32Array(0, 90, 180, 270)
 standard_room_sizes = PackedInt32Array(10, 16, 24, 32)
-room_tags = PackedStringArray("arena")
+room_tags = PackedStringArray("connection_room", "connector")
 allowed_connection_types = PackedStringArray("corridor", "connector", "arena")
 authored_layout = SubResource("Resource_7p2tl")
 

@@ -8,11 +8,55 @@ var resolve_room_name_for_body: Callable = Callable()
 
 var _locked_sockets_by_encounter: Dictionary = {}
 var _locked_door_visuals_by_encounter: Dictionary = {}
+var _named_locked_sockets: Dictionary = {}
 
 
 func clear_encounter_locks() -> void:
 	_locked_sockets_by_encounter.clear()
 	_locked_door_visuals_by_encounter.clear()
+
+
+func clear_named_locks() -> void:
+	_named_locked_sockets.clear()
+
+
+func clear_named_locks_by_prefix(prefix: String) -> void:
+	var keys_to_remove: Array[StringName] = []
+	for key in _named_locked_sockets.keys():
+		var lock_id := StringName(key)
+		if String(lock_id).begins_with(prefix):
+			keys_to_remove.append(lock_id)
+	for lock_id in keys_to_remove:
+		_named_locked_sockets.erase(lock_id)
+
+
+func set_named_lock_sockets(lock_id: StringName, sockets: Array[Dictionary]) -> void:
+	if String(lock_id).is_empty():
+		return
+	if sockets.is_empty():
+		_named_locked_sockets.erase(lock_id)
+		return
+	_named_locked_sockets[lock_id] = sockets.duplicate(true)
+
+
+func set_named_socket_lock(lock_id: StringName, socket_pos: Vector2, socket_dir: String, locked: bool) -> void:
+	set_named_room_socket_lock(lock_id, &"", socket_pos, socket_dir, locked)
+
+
+func set_named_room_socket_lock(
+	lock_id: StringName,
+	room_name: StringName,
+	socket_pos: Vector2,
+	socket_dir: String,
+	locked: bool
+) -> void:
+	if not locked:
+		set_named_lock_sockets(lock_id, [])
+		return
+	if socket_pos == Vector2.ZERO or socket_dir.is_empty():
+		set_named_lock_sockets(lock_id, [])
+		return
+	set_named_lock_sockets(lock_id, [{"pos": socket_pos, "dir": socket_dir, "room_name": room_name}])
 
 
 func cache_room_locks(
@@ -79,6 +123,10 @@ func apply_hard_door_clamps(
 			if not _mob_matches_encounter(mob, encounter_id):
 				continue
 			_clamp_encounter_doors(mob, mob_radius, encounter_id)
+	if player != null:
+		_clamp_named_locks(player, player_radius)
+	for mob in mob_bodies:
+		_clamp_named_locks(mob, mob_radius)
 
 
 func _clamp_encounter_doors(body: CharacterBody2D, radius: float, encounter_id: StringName) -> void:
@@ -95,6 +143,27 @@ func _clamp_encounter_doors(body: CharacterBody2D, radius: float, encounter_id: 
 			s.get("pos", Vector2.ZERO) as Vector2,
 			String(s.get("dir", ""))
 		)
+
+
+func _clamp_named_locks(body: CharacterBody2D, radius: float) -> void:
+	if body == null:
+		return
+	var body_room_name := _resolve_body_room_name(body)
+	for lock_key in _named_locked_sockets.keys():
+		var sockets: Array = _named_locked_sockets.get(lock_key, []) as Array
+		for s_variant in sockets:
+			if s_variant is not Dictionary:
+				continue
+			var s := s_variant as Dictionary
+			var lock_room_name := StringName(String(s.get("room_name", "")))
+			if lock_room_name != &"" and body_room_name != lock_room_name:
+				continue
+			_clamp_to_locked_socket(
+				body,
+				radius,
+				s.get("pos", Vector2.ZERO) as Vector2,
+				String(s.get("dir", ""))
+			)
 
 
 func _clamp_to_locked_socket(
@@ -157,6 +226,13 @@ func _rotate_direction(direction: String, rotation_deg: int) -> String:
 		return direction
 	var steps := posmod(posmod(rotation_deg, 360) / 90, 4)
 	return dirs[(idx + steps) % 4]
+
+
+func _resolve_body_room_name(body: CharacterBody2D) -> StringName:
+	if body == null or not resolve_room_name_for_body.is_valid():
+		return &""
+	var value: Variant = resolve_room_name_for_body.call(body)
+	return StringName(String(value))
 
 
 func _mob_matches_encounter(mob: CharacterBody2D, encounter_id: StringName) -> bool:

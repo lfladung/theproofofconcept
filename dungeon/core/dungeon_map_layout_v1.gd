@@ -6,12 +6,24 @@ const CARDINALS := [Vector2i(1, 0), Vector2i(0, 1), Vector2i(-1, 0), Vector2i(0,
 
 
 static func generate(rng: RandomNumberGenerator, config: Dictionary = {}) -> Dictionary:
-	var total_min := int(config.get("total_rooms_min", 8))
-	var total_max := int(config.get("total_rooms_max", 10))
-	var critical_min := int(config.get("critical_path_min", 5))
-	var critical_max := int(config.get("critical_path_max", 8))
+	var total_min := maxi(5, int(config.get("total_rooms_min", 8)))
+	var total_max := maxi(total_min, int(config.get("total_rooms_max", 10)))
+	var critical_min := maxi(5, int(config.get("critical_path_min", 5)))
+	var critical_max := maxi(critical_min, int(config.get("critical_path_max", 8)))
 	var max_attempts := int(config.get("max_attempts", 32))
 	var linear_spine_only := bool(config.get("linear_spine_only", false))
+	if critical_min % 2 == 0:
+		critical_min += 1
+	if critical_max < critical_min:
+		critical_max = critical_min
+	if critical_max % 2 == 0:
+		critical_max -= 1
+	if critical_max < critical_min:
+		critical_max = critical_min
+	if total_min < critical_min:
+		total_min = critical_min
+	if total_max < total_min:
+		total_max = total_min
 
 	for _attempt in range(max_attempts):
 		var stage1 := _stage1_generate_graph(
@@ -60,7 +72,7 @@ static func _stage1_generate_graph(
 	linear_spine_only: bool = false
 ) -> Dictionary:
 	if linear_spine_only:
-		var room_count := rng.randi_range(total_min, total_max)
+		var room_count := _random_odd_between(rng, total_min, total_max)
 		if room_count < 2:
 			return {"ok": false}
 		var nodes: Array[String] = []
@@ -88,7 +100,7 @@ static func _stage1_generate_graph(
 	var cp_high := mini(critical_max, total_max - 1)
 	if cp_low > cp_high:
 		return {"ok": false}
-	var cp_len := rng.randi_range(cp_low, cp_high)
+	var cp_len := _random_odd_between(rng, cp_low, cp_high)
 	var total := cp_len + 1
 	var nodes: Array[String] = []
 	var critical_path: Array[String] = []
@@ -195,16 +207,9 @@ static func _stage3_assign_roles(stage1: Dictionary, stage2: Dictionary, rng: Ra
 		return {"roles": roles}
 	roles[path[0]] = "start"
 	roles[path[path.size() - 1]] = "exit"
-	var puzzle_idx := clampi(path.size() - 3, 1, path.size() - 2)
-	var trap_idx := clampi(2, 1, path.size() - 2)
 	for i in range(1, path.size() - 1):
 		var node := String(path[i])
-		if i == puzzle_idx:
-			roles[node] = "puzzle"
-		elif i == trap_idx and i != puzzle_idx and rng.randf() < 0.35:
-			roles[node] = "trap"
-		else:
-			roles[node] = "combat"
+		roles[node] = "connection_room" if i % 2 == 1 else "combat"
 
 	var path_set: Dictionary = {}
 	for p in path:
@@ -218,12 +223,10 @@ static func _stage3_assign_roles(stage1: Dictionary, stage2: Dictionary, rng: Ra
 	if not side_nodes.is_empty():
 		roles[side_nodes[0]] = "treasure"
 
-	var puzzle_room := String(path[puzzle_idx])
-	var next_room := String(path[puzzle_idx + 1])
 	return {
 		"roles": roles,
-		"puzzle_room": puzzle_room,
-		"puzzle_next_room": next_room,
+		"puzzle_room": "",
+		"puzzle_next_room": "",
 	}
 
 
@@ -297,6 +300,7 @@ static func _stage6_generate_layout(
 	var pos := stage4.get("positions", {}) as Dictionary
 	var room_specs: Array[Dictionary] = []
 	var combat_rooms: Array[String] = []
+	var connection_rooms: Array[String] = []
 	var treasure_rooms: Array[String] = []
 	var trap_rooms: Array[String] = []
 	for n in nodes:
@@ -311,6 +315,8 @@ static func _stage6_generate_layout(
 		})
 		if kind == "combat":
 			combat_rooms.append(id)
+		elif kind == "connection_room":
+			connection_rooms.append(id)
 		elif kind == "treasure":
 			treasure_rooms.append(id)
 		elif kind == "trap":
@@ -351,6 +357,7 @@ static func _stage6_generate_layout(
 	var exit_idx := critical.find(exit_room)
 	var before_exit := String(critical[maxi(0, exit_idx - 1)])
 	var boss_entry_dir := _dir_from_delta((pos.get(before_exit, Vector2i.ZERO) as Vector2i) - (pos.get(exit_room, Vector2i.ZERO) as Vector2i))
+	var progression_gates := _progression_gates_from_layout(roles, critical, links)
 
 	return {
 		"room_specs": room_specs,
@@ -359,6 +366,8 @@ static func _stage6_generate_layout(
 		"exit_room": exit_room,
 		"critical_path": critical,
 		"side_branches": stage1.get("side_branches", []),
+		"connection_rooms": connection_rooms,
+		"progression_gates": progression_gates,
 		"combat_rooms": combat_rooms,
 		"combat_room": combat_room,
 		"treasure_rooms": treasure_rooms,
@@ -424,6 +433,10 @@ static func kind_to_room_type(kind: String) -> String:
 			return "safe"
 		"exit":
 			return "boss"
+		"connector":
+			return "connector"
+		"connection_room":
+			return "connector"
 		"combat":
 			return "arena"
 		"puzzle":
@@ -554,6 +567,79 @@ static func _dir_from_delta(d: Vector2i) -> String:
 	if d == Vector2i(0, -1):
 		return "north"
 	return "east"
+
+
+static func _random_odd_between(rng: RandomNumberGenerator, min_value: int, max_value: int) -> int:
+	var possible: Array[int] = []
+	for value in range(min_value, max_value + 1):
+		if value % 2 == 1:
+			possible.append(value)
+	if possible.is_empty():
+		return min_value + 1 if min_value % 2 == 0 else min_value
+	return possible[rng.randi_range(0, possible.size() - 1)]
+
+
+static func _progression_gates_from_layout(roles: Dictionary, critical: Array, links: Array[Dictionary]) -> Array[Dictionary]:
+	var gates: Array[Dictionary] = []
+	for i in range(1, critical.size() - 1):
+		var connector := String(critical[i])
+		if String(roles.get(connector, "")) != "connection_room":
+			continue
+		var previous_room := String(critical[i - 1])
+		var next_room := String(critical[i + 1])
+		var next_role := String(roles.get(next_room, ""))
+		if not _role_is_gated_encounter(next_role):
+			continue
+		var previous_role := String(roles.get(previous_room, ""))
+		var previous_dirs := _link_dirs_between(links, previous_room, connector)
+		var next_dirs := _link_dirs_between(links, connector, next_room)
+		if previous_dirs.is_empty() or next_dirs.is_empty():
+			continue
+		gates.append({
+			"id": "gate_%02d_%s" % [gates.size(), connector],
+			"connector_room": connector,
+			"previous_room": previous_room,
+			"next_room": next_room,
+			"advance_room_names": _critical_rooms_from_index(critical, i),
+			"previous_room_dir": String(previous_dirs.get("a_dir", "")),
+			"connector_entry_dir": String(previous_dirs.get("b_dir", "")),
+			"connector_exit_dir": String(next_dirs.get("a_dir", "")),
+			"next_room_dir": String(next_dirs.get("b_dir", "")),
+			"previous_encounter_id": _encounter_id_for_role(previous_role, previous_room),
+			"next_encounter_id": _encounter_id_for_role(next_role, next_room),
+			"state": "waiting_for_clear",
+		})
+	return gates
+
+
+static func _critical_rooms_from_index(critical: Array, start_index: int) -> Array[String]:
+	var rooms: Array[String] = []
+	for i in range(start_index, critical.size()):
+		rooms.append(String(critical[i]))
+	return rooms
+
+
+static func _role_is_gated_encounter(role: String) -> bool:
+	return role == "combat" or role == "chokepoint" or role == "boss" or role == "exit"
+
+
+static func _encounter_id_for_role(role: String, room_name: String) -> String:
+	if role == "boss" or role == "exit":
+		return "boss"
+	if role == "combat" or role == "chokepoint":
+		return "arena_%s" % [room_name]
+	return ""
+
+
+static func _link_dirs_between(links: Array[Dictionary], a: String, b: String) -> Dictionary:
+	for link in links:
+		var from_room := String(link.get("from", ""))
+		var to_room := String(link.get("to", ""))
+		if from_room == a and to_room == b:
+			return {"a_dir": String(link.get("from_dir", "")), "b_dir": String(link.get("to_dir", ""))}
+		if from_room == b and to_room == a:
+			return {"a_dir": String(link.get("to_dir", "")), "b_dir": String(link.get("from_dir", ""))}
+	return {}
 
 
 static func _size_for_kind(kind: String) -> Vector2i:
