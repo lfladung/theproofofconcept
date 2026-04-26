@@ -166,7 +166,6 @@ const _ENEMY_PREWARM_POSITION := Vector2(1000000.0, 1000000.0)
 const _ELEVATOR_PLAYER_SIZE_MULT := 4.0
 const _ELEVATOR_VISUAL_CLEARANCE_Y := 0.12
 const _DEBUG_ELEVATOR_YAW_OFFSET_DEG := 180.0
-const _AUTHORED_ROOM_FLOOR_THEMES: Array[StringName] = [&"dirt", &"wood", &"dark_wood", &"tile"]
 const _SPEED_SCALE_PER_FLOOR := 0.08
 ## Arena enemy speed caps around floor 9 (1.0 + 8 * 0.08 = 1.64).
 const _SPEED_SCALE_MAX_ARENA := 1.65
@@ -175,6 +174,31 @@ const _SPEED_SCALE_MAX_BOSS := 1.55
 ## Arrow towers are biased toward room center; keep planned spawns apart so two never share one spot.
 const _TOWER_SPAWN_MIN_SEP := 4.5
 const _MULTIPLAYER_DEBUG_LOGGING := false
+
+func _floor_ground_theme_data() -> Dictionary:
+	var i := (_floor_index - 1) % 4
+	match i:
+		0:
+			return {
+				"glb_scene": GROUND_GLB_METAL,
+				"room_theme": &"tile",
+			}
+		1:
+			return {
+				"glb_scene": GROUND_GLB_GRASS,
+				"room_theme": &"dirt",
+			}
+		2:
+			return {
+				"glb_scene": GROUND_GLB_DIRT,
+				"room_theme": &"dirt",
+			}
+		_:
+			return {
+				"glb_scene": GROUND_GLB_STONE,
+				"room_theme": &"tile",
+			}
+
 
 func _loading_overlay_call(method_name: StringName) -> void:
 	var n := get_node_or_null("/root/LoadingOverlay")
@@ -1813,6 +1837,8 @@ func _prepare_mini_hub_room(room: RoomBase) -> void:
 func _spawn_authored_rooms_from_layout(layout: Dictionary) -> bool:
 	_ensure_authored_floor_generator()
 	var specs: Array = layout.get("room_specs", []) as Array
+	var floor_theme_data: Dictionary = _floor_ground_theme_data()
+	var floor_room_theme: StringName = floor_theme_data.get("room_theme", &"dirt") as StringName
 	var spawned_count := 0
 	for spec_value in specs:
 		if spec_value is not Dictionary:
@@ -1837,7 +1863,7 @@ func _spawn_authored_rooms_from_layout(layout: Dictionary) -> bool:
 		room.room_tags = _runtime_room_tags(room, spec)
 		room.position = spec.get("world_position", Vector2.ZERO) as Vector2
 		room.rotation_degrees = float(int(spec.get("rotation_deg", 0)))
-		room.set_meta(&"runtime_floor_theme", _random_authored_room_floor_theme())
+		room.set_meta(&"runtime_floor_theme", floor_room_theme)
 		room.set_meta(&"runtime_floor_seed", _rng.randi())
 		_rooms_root.add_child(room)
 		if room.authored_layout != null and _room_editor_scene_sync != null:
@@ -1910,12 +1936,6 @@ func _packed_tags_text(tags: PackedStringArray) -> String:
 	for tag in tags:
 		parts.append(tag)
 	return ",".join(parts)
-
-
-func _random_authored_room_floor_theme() -> StringName:
-	if _AUTHORED_ROOM_FLOOR_THEMES.is_empty():
-		return &"dirt"
-	return _AUTHORED_ROOM_FLOOR_THEMES[_rng.randi_range(0, _AUTHORED_ROOM_FLOOR_THEMES.size() - 1)]
 
 
 func _apply_adjacency_sockets(adj: Dictionary) -> void:
@@ -2891,16 +2911,7 @@ func _assign_combat_door_visual_refs() -> void:
 
 
 func _ground_glb_scene_for_dungeon_floor() -> PackedScene:
-	var i := (_floor_index - 1) % 4
-	match i:
-		0:
-			return GROUND_GLB_METAL
-		1:
-			return GROUND_GLB_GRASS
-		2:
-			return GROUND_GLB_DIRT
-		_:
-			return GROUND_GLB_STONE
+	return _floor_ground_theme_data().get("glb_scene", GROUND_GLB_DIRT) as PackedScene
 
 
 func _get_floor_glb_tile_aabb(glb_scene: PackedScene) -> AABB:
