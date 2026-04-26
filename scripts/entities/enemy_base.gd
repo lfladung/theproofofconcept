@@ -1613,7 +1613,8 @@ func _mob_separation_vector(desired_dir: Vector2) -> Vector2:
 	if my_radius <= 0.0:
 		return Vector2.ZERO
 	var steer := Vector2.ZERO
-	for candidate in _targetable_mob_candidates():
+	var candidates := _targetable_mob_candidates()
+	for candidate in candidates:
 		if candidate == self or not is_instance_valid(candidate):
 			continue
 		if candidate is CollisionObject2D and (candidate as CollisionObject2D).collision_layer == 0:

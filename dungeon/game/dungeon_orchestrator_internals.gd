@@ -3,7 +3,6 @@ extends Node
 ## Dungeon floor orchestration: generation, encounters, multiplayer, doors, camera glue.
 ## Per-frame presentation/debug: `dungeon_orchestrator.gd`.
 
-
 const WALL_THICKNESS := 1.0
 const ROOM_HEIGHT := 0.4
 const WALL_VISUAL_HEIGHT := 3.0
@@ -2774,8 +2773,8 @@ func _authored_visual_focus_position() -> Vector2:
 func _authored_visual_stream_rect(focus: Vector2, extra_margin: float) -> Rect2:
 	var viewport_size := get_viewport().get_visible_rect().size
 	var aspect := viewport_size.x / maxf(viewport_size.y, 0.001)
-	var half_height := _camera_3d.size + extra_margin
-	var half_width := (_camera_3d.size * aspect) + extra_margin
+	var half_height := (_camera_3d.size * 0.5) + extra_margin
+	var half_width := (_camera_3d.size * aspect * 0.5) + extra_margin
 	return Rect2(
 		Vector2(focus.x - half_width, focus.y - half_height),
 		Vector2(half_width * 2.0, half_height * 2.0)
