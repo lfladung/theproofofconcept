@@ -74,10 +74,12 @@ func configure_ranged_family(config: Dictionary) -> void:
 
 
 func get_enemy_spawn_config() -> Dictionary:
-	return {
+	var config := super.get_enemy_spawn_config()
+	config.merge({
 		"archetype": ranged_archetype,
 		"family": family_id,
-	}
+	}, true)
+	return config
 
 
 func _ready() -> void:
@@ -119,6 +121,11 @@ func _physics_process(delta: float) -> void:
 			_net_telegraph_dir,
 			_net_telegraph_progress
 		)
+		_sync_visual()
+		return
+	if apply_universal_stagger_stop(delta, false):
+		_reset_charge_state(false, Vector2.ZERO)
+		_enemy_network_server_broadcast(delta)
 		_sync_visual()
 		return
 	if not _aggro_enabled:
@@ -853,8 +860,12 @@ func mass_infusion_receives_knockback() -> bool:
 	return false
 
 
-func _on_nonlethal_hit(_knockback_dir: Vector2, _knockback_strength: float) -> void:
-	pass
+func _on_nonlethal_hit(knockback_dir: Vector2, knockback_strength: float) -> void:
+	super._on_nonlethal_hit(knockback_dir, knockback_strength)
+
+
+func cancel_active_attack_for_stagger() -> void:
+	_reset_charge_state(false, Vector2.ZERO)
 
 
 func can_contact_damage() -> bool:

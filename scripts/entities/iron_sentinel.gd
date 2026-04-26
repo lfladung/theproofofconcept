@@ -166,6 +166,11 @@ func _physics_process(delta: float) -> void:
 	surge_infusion_tick_server_field_decay()
 	var cd_tick := surge_infusion_field_cooldown_tick_factor()
 	_cooldown_remaining = maxf(0.0, _cooldown_remaining - delta * cd_tick)
+	if apply_universal_stagger_stop(delta, true):
+		_update_attack_telegraph_visual(false, AttackState.NONE, Vector2.ZERO, 0.0)
+		_enemy_network_server_broadcast(delta)
+		_sync_visual()
+		return
 	if not _aggro_enabled:
 		velocity = Vector2.ZERO
 		_update_attack_telegraph_visual(false, AttackState.NONE, Vector2.ZERO, 0.0)
@@ -337,6 +342,12 @@ func _cancel_attack() -> void:
 	if _stomp_hitbox != null:
 		_stomp_hitbox.deactivate()
 	_update_attack_telegraph_visual(false, AttackState.NONE, Vector2.ZERO, 0.0)
+
+
+func cancel_active_attack_for_stagger() -> void:
+	_cancel_attack()
+	_guard_advancing = false
+	_guard_break_accumulated_damage = 0.0
 
 
 func _update_recovery(delta: float) -> void:

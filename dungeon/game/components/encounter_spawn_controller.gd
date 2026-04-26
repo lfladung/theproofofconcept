@@ -114,11 +114,13 @@ var _encounter_spawn_queue_time_remaining := 0.0
 var _encounter_run_manager: RefCounted
 var _combat_encounter_id: StringName = &""
 var _pending_transform_updates: Array = []
+var _armored_assigned_by_encounter: Dictionary = {}
 
 func clear_runtime_state() -> void:
 	_pending_enemy_spawn_requests.clear()
 	_encounter_spawn_queue_time_remaining = 0.0
 	_enemy_nodes_by_network_id.clear()
+	_armored_assigned_by_encounter.clear()
 
 func register_door_visual(socket_pos_key: String, door_visual: DungeonCellDoor3D) -> void:
 	if socket_pos_key.is_empty() or door_visual == null:
@@ -546,6 +548,7 @@ func setup_encounters() -> void:
 		_encounter_template_by_encounter.clear()
 		_encounter_spawn_plan_by_encounter.clear()
 		_planned_tower_positions_by_encounter.clear()
+		_armored_assigned_by_encounter.clear()
 		_entry_socket_by_encounter.clear()
 		_entry_socket_dir_by_encounter.clear()
 		if door_lock_controller != null:
@@ -562,6 +565,7 @@ func setup_encounters() -> void:
 		_encounter_template_by_encounter.clear()
 		_encounter_spawn_plan_by_encounter.clear()
 		_planned_tower_positions_by_encounter.clear()
+		_armored_assigned_by_encounter.clear()
 		_entry_socket_by_encounter.clear()
 		_entry_socket_dir_by_encounter.clear()
 		if door_lock_controller != null:
@@ -577,6 +581,7 @@ func setup_encounters() -> void:
 	_encounter_template_by_encounter.clear()
 	_encounter_spawn_plan_by_encounter.clear()
 	_planned_tower_positions_by_encounter.clear()
+	_armored_assigned_by_encounter.clear()
 	_entry_socket_by_encounter.clear()
 	_entry_socket_dir_by_encounter.clear()
 	if door_lock_controller != null:
@@ -961,6 +966,7 @@ func _spawn_encounter_wave(encounter_id: StringName, total_count: int, speed_mul
 					spawn_config = (spec.get("config", {}) as Dictionary).duplicate(true)
 			var pos := point.get_spawn_position()
 			pos = _prepare_encounter_spawn_position(encounter_id, pos, scene_for_spawn)
+			spawn_config = _armor_config_for_spawn(encounter_id, spawn_config)
 			_spawn_encounter_mob(
 				encounter_id,
 				pos,
@@ -987,6 +993,7 @@ func _spawn_encounter_wave(encounter_id: StringName, total_count: int, speed_mul
 			if volume != null:
 				vpos = volume.sample_spawn_position()
 		vpos = _prepare_encounter_spawn_position(encounter_id, vpos, scene_for_spawn)
+		spawn_config = _armor_config_for_spawn(encounter_id, spawn_config)
 		_spawn_encounter_mob(
 			encounter_id,
 			vpos,
@@ -1441,9 +1448,24 @@ func _enemy_spawn_spec_from_id(enemy_id: StringName) -> Dictionary:
 	return {}
 
 
+func _armor_config_for_spawn(encounter_id: StringName, spawn_config: Dictionary) -> Dictionary:
+	var config := spawn_config.duplicate(true)
+	if bool(config.get("armored", false)):
+		_armored_assigned_by_encounter[encounter_id] = true
+		return config
+	if bool(_armored_assigned_by_encounter.get(encounter_id, false)):
+		return config
+	config["armored"] = true
+	config["armor_multiplier"] = EnemyBase.DEFAULT_ARMOR_HEALTH_MULTIPLIER
+	_armored_assigned_by_encounter[encounter_id] = true
+	return config
+
+
 func _apply_enemy_spawn_config(enemy: EnemyBase, spawn_config: Dictionary) -> void:
 	if enemy == null or spawn_config.is_empty():
 		return
+	if enemy.has_method(&"apply_enemy_spawn_config"):
+		enemy.call(&"apply_enemy_spawn_config", spawn_config)
 	if enemy.has_method(&"configure_ranged_family"):
 		enemy.call(&"configure_ranged_family", spawn_config)
 

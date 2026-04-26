@@ -155,6 +155,11 @@ func _physics_process(delta: float) -> void:
 	surge_infusion_tick_server_field_decay()
 	_stomp_cooldown_rem = maxf(0.0, _stomp_cooldown_rem - delta)
 	_recommit_move_remaining = maxf(0.0, _recommit_move_remaining - delta)
+	if apply_universal_stagger_stop(delta, true):
+		_update_stomp_telegraph_visual()
+		_enemy_network_server_broadcast(delta)
+		_sync_visual_from_body()
+		return
 	if not _aggro_enabled:
 		velocity = Vector2.ZERO
 		move_and_slide_with_mob_separation()
@@ -340,6 +345,16 @@ func _activate_stomp_hitbox() -> void:
 	packet.blockable = false
 	packet.debug_label = &"stumbler_stomp"
 	_stomp_hitbox.activate(packet, stomp_hitbox_duration)
+
+
+func cancel_active_attack_for_stagger() -> void:
+	if _phase != Phase.CHASE:
+		_phase = Phase.CHASE
+		_phase_elapsed = 0.0
+		_stomp_cooldown_rem = maxf(_stomp_cooldown_rem, 0.2)
+	if _stomp_hitbox != null:
+		_stomp_hitbox.deactivate()
+	_update_stomp_telegraph_visual()
 
 
 func _enemy_network_compact_state() -> Dictionary:

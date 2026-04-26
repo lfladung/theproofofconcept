@@ -47,6 +47,12 @@ func _physics_process(delta: float) -> void:
 		_target_player = _pick_target_player()
 	ignore_player_body_collisions()
 	_tick_cut_hazards(delta)
+	if apply_universal_stagger_stop(delta, true):
+		move_and_slide_with_mob_separation()
+		mass_server_post_slide()
+		_enemy_network_server_broadcast(delta)
+		_sync_visual_from_body()
+		return
 	if is_death_deferred():
 		velocity = Vector2.ZERO
 		if _cut_hazards_by_id.is_empty():
@@ -171,6 +177,19 @@ func _begin_sequence_cut_spawns() -> void:
 	for index in range(cut_count):
 		_pending_sequence_cut_indices.append(index)
 	_sequence_spawn_timer = 0.0
+
+
+func cancel_active_attack_for_stagger() -> void:
+	if is_death_deferred():
+		return
+	_release_all_cut_visuals()
+	_cut_hazards_by_id.clear()
+	_pending_sequence_cut_indices.clear()
+	_sequence_spawn_timer = 0.0
+	_sequence_state = SequenceState.COOLDOWN
+	_state_time = 0.0
+	_cooldown_remaining = maxf(_cooldown_remaining, universal_stagger_duration)
+	velocity = Vector2.ZERO
 
 
 func _tick_sequence_cut_spawns(delta: float) -> void:

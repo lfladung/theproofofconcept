@@ -1,3 +1,15 @@
+Equipment Upgrade Behavior Catalog
+
+This catalog describes possible permanent tier identities and gem-facing behavior
+hooks per gear slot and pillar. In-run pillar expression belongs to Infusions;
+between-run gear identity belongs to Gear Tiers and Gems.
+
+Run Infusions -> Promotion Progress + Materials -> Between-run Tier Upgrade / Gems
+
+Use this file as a source for what tiers can define and what gems can modify.
+Do not reintroduce separate attunement or inscription systems; permanent identity
+belongs to gear tiers, and flexible customization belongs to gems.
+
 SWORD (Close Combat Expression)
 Fast feedback, high feel impact
 

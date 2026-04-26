@@ -245,7 +245,10 @@ func _physics_process(delta: float) -> void:
 		aim_planar_sp = av as Vector2 if av is Vector2 else Vector2.ZERO
 	var rooted_by_enemy := _external_movement_rooted
 	var dash_blocked := _external_dash_blocked
+	var dodge_down := not _menu_input_blocked and Input.is_action_pressed(&"dodge")
 	var dodge_pressed := not _menu_input_blocked and Input.is_action_just_pressed(&"dodge")
+	if not dodge_down:
+		_sprint_latch_after_dodge = false
 	if rooted_by_enemy:
 		move_active = false
 		direction = Vector2.ZERO
@@ -253,9 +256,12 @@ func _physics_process(delta: float) -> void:
 			if is_damage_authority():
 				_enemy_control_consume_root_pull_attempt()
 			dodge_pressed = false
+		_sprint_latch_after_dodge = false
 	if dash_blocked and dodge_pressed:
 		enemy_control_register_latch_break_input()
 		dodge_pressed = false
+	if dash_blocked:
+		_sprint_latch_after_dodge = false
 
 	_update_facing_planar(
 		direction, true, _resolve_facing_aim_for_move_step(aim_planar_sp, direction, defend_down)
@@ -271,11 +277,16 @@ func _physics_process(delta: float) -> void:
 	if _dodge_time_remaining > 0.0:
 		_dodge_time_remaining = maxf(0.0, _dodge_time_remaining - delta)
 	elif dodge_pressed and _dodge_cooldown_remaining <= 0.0 and not _is_defending:
-		_dodge_direction = _resolve_dodge_direction(direction)
-		_dodge_time_remaining = dodge_duration
-		_dodge_cooldown_remaining = dodge_cooldown
-		if is_damage_authority():
-			_phase_try_dash_trail_burst(global_position, _dodge_direction)
+		if _can_spend_stamina(_dash_stamina_cost_value()):
+			_spend_stamina(_dash_stamina_cost_value())
+			_dodge_direction = _resolve_dodge_direction(direction)
+			_dodge_time_remaining = dodge_duration
+			_dodge_cooldown_remaining = dodge_cooldown
+			_sprint_latch_after_dodge = dodge_down
+			if is_damage_authority():
+				_phase_try_dash_trail_burst(global_position, _dodge_direction)
+		else:
+			_sprint_latch_after_dodge = false
 
 	var planar_speed := 0.0
 	if _dodge_time_remaining > 0.0:
@@ -290,6 +301,9 @@ func _physics_process(delta: float) -> void:
 			resolved_speed *= InfusionSurgeRef.overdrive_player_move_speed_mult()
 		if _is_defending:
 			resolved_speed *= clampf(defend_move_speed_multiplier, 0.0, 1.0)
+		if _sprint_latch_after_dodge and dodge_down and stamina > 0.0:
+			resolved_speed *= maxf(1.0, sprint_move_speed_multiplier)
+			_spend_stamina(maxf(0.0, sprint_stamina_per_second) * maxf(0.0, delta))
 		resolved_speed *= _external_move_speed_factor()
 		velocity = direction * resolved_speed
 		planar_speed = resolved_speed
@@ -349,6 +363,7 @@ func reset_for_retry(world_pos: Vector2) -> void:
 	_stamina_regen_cooldown_remaining = 0.0
 	_dodge_time_remaining = 0.0
 	_dodge_cooldown_remaining = 0.0
+	_sprint_latch_after_dodge = false
 	_facing_lock_time_remaining = 0.0
 	_rmb_down = false
 	_lmb_down = false

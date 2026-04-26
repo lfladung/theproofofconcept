@@ -12,11 +12,16 @@ const InfusionConstantsRef = preload("res://scripts/infusion/infusion_constants.
 const MassCombatVfxScript = preload("res://scripts/vfx/mass_combat_vfx.gd")
 const DAMAGE_TEXT_STYLE_HP := &"hp"
 const DAMAGE_TEXT_STYLE_BLOCK := &"block"
+const DAMAGE_TEXT_STYLE_ARMOR := &"armor"
+const DAMAGE_TEXT_STYLE_STAGGER := &"stagger"
 const DAMAGE_TEXT_HP_COLOR := Color(1.0, 0.15, 0.15, 1.0)
 const DAMAGE_TEXT_BLOCK_COLOR := Color(0.25, 0.62, 1.0, 1.0)
+const DAMAGE_TEXT_ARMOR_COLOR := Color(1.0, 0.86, 0.14, 1.0)
+const DAMAGE_TEXT_STAGGER_COLOR := Color(1.0, 0.95, 0.25, 1.0)
 const DAMAGE_TEXT_OUTLINE_COLOR := Color(0.0, 0.0, 0.0, 1.0)
 const _PLAYER_ROSTER_CACHE_INTERVAL_USEC := 100000
 const _MOB_ROSTER_CACHE_INTERVAL_USEC := 100000
+const DEFAULT_ARMOR_HEALTH_MULTIPLIER := 1.5
 
 static var _cached_player_nodes: Array = []
 static var _cached_player_tree_id := 0
@@ -58,6 +63,11 @@ static func step_planar_facing_toward(
 @export var damage_text_rise := 1.6
 @export var damage_text_duration := 0.7
 @export var damage_text_font_size := 220
+@export var universal_stagger_duration := 0.3
+@export var armor_health_multiplier := DEFAULT_ARMOR_HEALTH_MULTIPLIER
+@export var armor_glow_center_y := 1.15
+@export var armor_glow_sphere_radius := 1.65
+@export var armor_glow_pulse_hz := 0.85
 ## Edge Sever mark: pulsing red glow in VisualWorld3D (body center height in 3D, xz from 2D pos).
 @export var edge_mark_glow_center_y := 1.05
 @export var edge_mark_glow_sphere_radius := 1.45
@@ -120,6 +130,10 @@ var _surge_field_cooldown_expire_msec: int = 0
 var _hit_knockback_vel := Vector2.ZERO
 var _hit_knockback_time_rem := 0.0
 var _mass_wall_carrier_cooldown_until_msec: int = 0
+var _stagger_time_rem := 0.0
+var _armor_spawn_config_enabled := false
+var _armor_glow_mi: MeshInstance3D
+var _armor_glow_mat: StandardMaterial3D
 
 
 func get_combat_hurtbox() -> Hurtbox2D:
@@ -144,6 +158,9 @@ func _ready() -> void:
 		_health_component.starting_health = max_health
 		_health_component.set_current_health(max_health)
 		_health_component.health_changed.connect(_on_health_component_changed)
+		_health_component.armor_changed.connect(_on_health_component_armor_changed)
+		_health_component.armor_damaged.connect(_on_health_component_armor_damaged)
+		_health_component.armor_depleted.connect(_on_health_component_armor_depleted)
 		_health_component.depleted.connect(_on_health_component_depleted)
 		_health = _health_component.current_health
 	if _damage_receiver != null:
@@ -166,10 +183,12 @@ func _ready() -> void:
 
 func _exit_tree() -> void:
 	_edge_mark_glow_free()
+	_armor_glow_free()
 
 
 func _process(_delta: float) -> void:
 	_edge_mark_update_glow()
+	_armor_update_glow()
 
 
 func is_damage_authority() -> bool:
@@ -207,11 +226,13 @@ func _can_broadcast_world_replication() -> bool:
 
 
 func _enemy_network_compact_state() -> Dictionary:
-	return {}
+	var state := {}
+	_armor_network_merge_into(state)
+	return state
 
 
-func _enemy_network_apply_remote_state(_state: Dictionary) -> void:
-	pass
+func _enemy_network_apply_remote_state(state: Dictionary) -> void:
+	_armor_network_read_from(state)
 
 
 func _enemy_network_server_broadcast(delta: float) -> void:
@@ -276,7 +297,38 @@ func configure_spawn(start_position: Vector2, _player_position: Vector2) -> void
 	global_position = start_position
 
 
+func apply_enemy_spawn_config(spawn_config: Dictionary) -> void:
+	if spawn_config.is_empty():
+		return
+	if not bool(spawn_config.get("armored", false)):
+		return
+	var max_armor := int(spawn_config.get("max_armor", 0))
+	var current_armor := int(spawn_config.get("armor", max_armor))
+	if max_armor <= 0:
+		var multiplier := float(spawn_config.get("armor_multiplier", armor_health_multiplier))
+		max_armor = _default_armor_amount(multiplier)
+	if current_armor < 0 or not spawn_config.has("armor"):
+		current_armor = max_armor
+	_set_armor_amount(max_armor)
+	if _health_component != null:
+		_health_component.current_armor = clampi(current_armor, 0, max_armor)
+		if _health_component.is_inside_tree():
+			_health_component.set_current_armor(current_armor)
+	_update_process_enabled()
+
+
+func get_enemy_spawn_config() -> Dictionary:
+	var config := {}
+	if _is_armor_configured():
+		config["armored"] = true
+		config["armor"] = _current_armor_value()
+		config["max_armor"] = _max_armor_value()
+		config["armor_multiplier"] = armor_health_multiplier
+	return config
+
+
 func move_and_slide_with_mob_separation() -> bool:
+	apply_universal_stagger_stop(get_physics_process_delta_time(), false)
 	_apply_mob_separation_to_velocity()
 	var collided := move_and_slide()
 	_apply_mob_contact_squeeze()
@@ -533,7 +585,7 @@ func _on_receiver_damage_applied(packet: DamagePacket, hp_damage: int, _hurtbox_
 		_edge_after_damage_applied(packet)
 		_edge_apply_sever_mark_after_crit(packet)
 		_mass_after_melee_damage_applied(packet, hp_damage)
-	if _health > 0:
+	if _health > 0 and not has_active_armor():
 		_on_nonlethal_hit(packet.direction, packet.knockback)
 	if is_damage_authority():
 		_mass_stun_mult_this_hit = 1.0
@@ -556,6 +608,30 @@ func _on_health_component_changed(current: int, _maximum: int) -> void:
 	_health = current
 
 
+func _on_health_component_armor_changed(current: int, maximum: int) -> void:
+	_broadcast_armor_state(current, maximum)
+	_update_process_enabled()
+
+
+func _on_health_component_armor_damaged(
+	packet: DamagePacket, armor_damage: int, current: int, _maximum: int
+) -> void:
+	if armor_damage <= 0 or packet == null:
+		return
+	if show_damage_text:
+		var armor_text := "-%s ARMOR" % [armor_damage]
+		_show_floating_combat_text_at(armor_text, DAMAGE_TEXT_ARMOR_COLOR, global_position)
+		_broadcast_combat_text(armor_text, DAMAGE_TEXT_STYLE_ARMOR)
+	if current <= 0 and show_damage_text:
+		_show_floating_combat_text_at("ARMOR BREAK", DAMAGE_TEXT_ARMOR_COLOR, global_position)
+		_broadcast_combat_text("ARMOR BREAK", DAMAGE_TEXT_STYLE_ARMOR)
+	_update_process_enabled()
+
+
+func _on_health_component_armor_depleted(_packet: DamagePacket) -> void:
+	_update_process_enabled()
+
+
 func _on_health_component_depleted(packet: DamagePacket) -> void:
 	_health = 0
 	if is_damage_authority():
@@ -568,7 +644,106 @@ func _on_health_component_depleted(packet: DamagePacket) -> void:
 
 
 func _on_nonlethal_hit(knockback_dir: Vector2, knockback_strength: float) -> void:
+	_begin_universal_stagger()
 	_apply_hit_knockback_impulse(knockback_dir, knockback_strength)
+
+
+func has_active_armor() -> bool:
+	return _health_component != null and _health_component.current_armor > 0
+
+
+func is_universally_staggered() -> bool:
+	return _stagger_time_rem > 0.0
+
+
+func tick_universal_stagger(delta: float) -> void:
+	if _stagger_time_rem <= 0.0:
+		return
+	_stagger_time_rem = maxf(0.0, _stagger_time_rem - delta)
+
+
+func apply_universal_stagger_stop(delta: float, use_knockback: bool = true) -> bool:
+	tick_universal_stagger(delta)
+	if not is_universally_staggered():
+		return false
+	if use_knockback:
+		tick_hit_knockback_timer(delta)
+		if apply_hit_knockback_to_body_velocity():
+			return true
+	velocity = Vector2.ZERO
+	return true
+
+
+func cancel_active_attack_for_stagger() -> void:
+	pass
+
+
+func _begin_universal_stagger() -> void:
+	if has_active_armor():
+		return
+	cancel_active_attack_for_stagger()
+	_stagger_time_rem = maxf(_stagger_time_rem, universal_stagger_duration * _mass_stun_mult_this_hit)
+	if show_damage_text:
+		_show_floating_combat_text_at("STAGGER", DAMAGE_TEXT_STAGGER_COLOR, global_position)
+		_broadcast_combat_text("STAGGER", DAMAGE_TEXT_STYLE_STAGGER)
+
+
+func _default_armor_amount(multiplier: float = DEFAULT_ARMOR_HEALTH_MULTIPLIER) -> int:
+	return maxi(1, int(roundf(float(maxi(1, max_health)) * maxf(0.0, multiplier))))
+
+
+func _set_armor_amount(amount: int) -> void:
+	if _health_component == null:
+		_health_component = get_node_or_null("HealthComponent") as HealthComponent
+	if _health_component == null:
+		return
+	var armor_amount := maxi(0, amount)
+	_armor_spawn_config_enabled = armor_amount > 0
+	_health_component.max_armor = armor_amount
+	_health_component.starting_armor = armor_amount
+	_health_component.current_armor = armor_amount
+	if _health_component.is_inside_tree():
+		_health_component.set_max_armor_value(armor_amount, false)
+	_update_process_enabled()
+
+
+func _is_armor_configured() -> bool:
+	return _armor_spawn_config_enabled or _max_armor_value() > 0
+
+
+func _current_armor_value() -> int:
+	return _health_component.current_armor if _health_component != null else 0
+
+
+func _max_armor_value() -> int:
+	return _health_component.max_armor if _health_component != null else 0
+
+
+func _armor_network_merge_into(state: Dictionary) -> void:
+	if not _is_armor_configured():
+		return
+	state["ar"] = _current_armor_value()
+	state["am"] = _max_armor_value()
+
+
+func _armor_network_read_from(state: Dictionary) -> void:
+	if not state.has("am"):
+		return
+	var max_armor := maxi(0, int(state.get("am", 0)))
+	var current_armor := clampi(int(state.get("ar", max_armor)), 0, max_armor)
+	if max_armor <= 0:
+		return
+	_set_armor_amount(max_armor)
+	if _health_component != null:
+		_health_component.current_armor = current_armor
+		if _health_component.is_inside_tree():
+			_health_component.set_current_armor(current_armor)
+	_update_process_enabled()
+
+
+func _update_process_enabled() -> void:
+	if has_active_armor() or _edge_mark_active() or _edge_primed_active():
+		set_process(true)
 
 
 func mass_infusion_receives_knockback() -> bool:
@@ -783,7 +958,8 @@ func _edge_mark_update_glow() -> void:
 	if not _edge_mark_active() and not _edge_primed_active():
 		if _edge_mark_glow_mi != null and is_instance_valid(_edge_mark_glow_mi):
 			_edge_mark_glow_mi.visible = false
-		set_process(false)
+		if not has_active_armor():
+			set_process(false)
 		return
 	_edge_mark_glow_ensure()
 	if _edge_mark_glow_mi == null or _edge_mark_glow_mat == null:
@@ -800,6 +976,70 @@ func _edge_mark_update_glow() -> void:
 	var prim_scale := 2.0 if _edge_primed_active() else 1.0
 	var s := edge_mark_glow_sphere_radius * lerpf(0.9, 1.12, breathe) * prim_scale
 	_edge_mark_glow_mi.scale = Vector3(s, s, s)
+
+
+func _armor_glow_free() -> void:
+	if _armor_glow_mi != null and is_instance_valid(_armor_glow_mi):
+		_armor_glow_mi.queue_free()
+	_armor_glow_mi = null
+	_armor_glow_mat = null
+
+
+func _armor_glow_ensure() -> void:
+	if _armor_glow_mi != null and is_instance_valid(_armor_glow_mi):
+		return
+	var vw := _resolve_visual_world_3d()
+	if vw == null:
+		return
+	var mi := MeshInstance3D.new()
+	mi.name = &"ArmorDebugGlow"
+	var sphere := SphereMesh.new()
+	sphere.radius = 1.0
+	sphere.height = 2.0
+	mi.mesh = sphere
+	var mat := StandardMaterial3D.new()
+	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	mat.cull_mode = BaseMaterial3D.CULL_DISABLED
+	mat.no_depth_test = false
+	mat.albedo_color = Color(1.0, 0.82, 0.05, 0.18)
+	mat.emission_enabled = true
+	mat.emission = Color(1.0, 0.82, 0.05, 1.0)
+	mat.emission_energy_multiplier = 1.0
+	mi.material_override = mat
+	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	mi.gi_mode = GeometryInstance3D.GI_MODE_DISABLED
+	vw.add_child(mi)
+	_armor_glow_mi = mi
+	_armor_glow_mat = mat
+
+
+func _armor_update_glow() -> void:
+	if not has_active_armor():
+		if _armor_glow_mi != null and is_instance_valid(_armor_glow_mi):
+			_armor_glow_mi.visible = false
+		if not _edge_mark_active() and not _edge_primed_active():
+			set_process(false)
+		return
+	_armor_glow_ensure()
+	if _armor_glow_mi == null or _armor_glow_mat == null:
+		return
+	_armor_glow_mi.visible = true
+	var p2 := global_position
+	_armor_glow_mi.global_position = Vector3(p2.x, armor_glow_center_y, p2.y)
+	var t := float(Time.get_ticks_msec()) / 1000.0
+	var breathe := 0.5 + 0.5 * sin(t * TAU * armor_glow_pulse_hz)
+	_armor_glow_mat.emission_energy_multiplier = 0.75 + breathe * 1.35
+	_armor_glow_mat.albedo_color = Color(1.0, 0.72 + breathe * 0.18, 0.05, 0.13 + breathe * 0.18)
+	var armor_ratio := 1.0
+	if _health_component != null and _health_component.max_armor > 0:
+		armor_ratio = clampf(
+			float(_health_component.current_armor) / float(_health_component.max_armor),
+			0.0,
+			1.0
+		)
+	var s := armor_glow_sphere_radius * lerpf(0.92, 1.08, breathe) * lerpf(0.82, 1.0, armor_ratio)
+	_armor_glow_mi.scale = Vector3(s, s, s)
 
 
 func _edge_snap_hp_before_hit() -> void:
@@ -1153,6 +1393,22 @@ func _broadcast_damage_text(
 	)
 
 
+func _broadcast_combat_text(text_value: String, style_id: StringName = DAMAGE_TEXT_STYLE_HP) -> void:
+	if not _multiplayer_active() or not _is_server_peer():
+		return
+	if not _can_broadcast_world_replication():
+		return
+	_rpc_show_combat_text.rpc(text_value, global_position, style_id)
+
+
+func _broadcast_armor_state(current: int, maximum: int) -> void:
+	if not _multiplayer_active() or not _is_server_peer():
+		return
+	if not _can_broadcast_world_replication():
+		return
+	_rpc_apply_armor_state.rpc(current, maximum)
+
+
 @rpc("any_peer", "call_remote", "unreliable_ordered")
 func _rpc_show_damage_text(
 	damage: int,
@@ -1170,6 +1426,42 @@ func _rpc_show_damage_text(
 	_show_floating_damage_text_at(
 		damage, world_pos, style_id, from_backstab, is_critical, from_splash
 	)
+
+
+@rpc("any_peer", "call_remote", "unreliable_ordered")
+func _rpc_show_combat_text(
+	text_value: String, world_pos: Vector2, style_id: StringName = DAMAGE_TEXT_STYLE_HP
+) -> void:
+	if _is_server_peer():
+		return
+	var mp := _multiplayer_api_safe()
+	if mp == null or mp.get_remote_sender_id() != 1:
+		return
+	var color := DAMAGE_TEXT_HP_COLOR
+	if style_id == DAMAGE_TEXT_STYLE_ARMOR:
+		color = DAMAGE_TEXT_ARMOR_COLOR
+	elif style_id == DAMAGE_TEXT_STYLE_STAGGER:
+		color = DAMAGE_TEXT_STAGGER_COLOR
+	elif style_id == DAMAGE_TEXT_STYLE_BLOCK:
+		color = DAMAGE_TEXT_BLOCK_COLOR
+	_show_floating_combat_text_at(text_value, color, world_pos)
+
+
+@rpc("any_peer", "call_remote", "reliable")
+func _rpc_apply_armor_state(current: int, maximum: int) -> void:
+	if _is_server_peer():
+		return
+	var mp := _multiplayer_api_safe()
+	if mp == null or mp.get_remote_sender_id() != 1:
+		return
+	if maximum <= 0:
+		return
+	_set_armor_amount(maximum)
+	if _health_component != null:
+		_health_component.current_armor = clampi(current, 0, maximum)
+		if _health_component.is_inside_tree():
+			_health_component.set_current_armor(current)
+	_update_process_enabled()
 
 
 func _is_player_downed_node(candidate: Variant) -> bool:

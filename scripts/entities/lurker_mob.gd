@@ -129,6 +129,11 @@ func _build_visual_state_config() -> Dictionary:
 
 func _tick_server_state(delta: float) -> void:
 	_phase_time_remaining = maxf(0.0, _phase_time_remaining - delta)
+	if apply_universal_stagger_stop(delta, true):
+		if _attack_hitbox != null:
+			_attack_hitbox.deactivate()
+		move_and_slide_with_mob_separation()
+		return
 	match _phase:
 		PhaseState.PHASED_IDLE:
 			_tick_phased_idle(delta)
@@ -143,6 +148,17 @@ func _tick_server_state(delta: float) -> void:
 		PhaseState.RECOVER:
 			_tick_recover(delta)
 	move_and_slide_with_mob_separation()
+
+
+func cancel_active_attack_for_stagger() -> void:
+	if _attack_hitbox != null:
+		_attack_hitbox.deactivate()
+	if _phase == PhaseState.TELEGRAPHING or _phase == PhaseState.ATTACK:
+		_phase = PhaseState.RECOVER
+		_phase_time_remaining = universal_stagger_duration
+		_is_materialized = true
+		_apply_phase_collision_state()
+	velocity = Vector2.ZERO
 
 
 func _tick_phased_idle(_delta: float) -> void:

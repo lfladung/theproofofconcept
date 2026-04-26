@@ -147,6 +147,10 @@ func _physics_process(delta: float) -> void:
 		_enemy_network_server_broadcast(delta)
 		_sync_visual()
 		return
+	if apply_universal_stagger_stop(delta, true):
+		_enemy_network_server_broadcast(delta)
+		_sync_visual()
+		return
 	if not _aggro_enabled:
 		velocity = Vector2.ZERO
 		move_and_slide_with_mob_separation()
@@ -265,8 +269,15 @@ func _begin_deferred_death(_packet: DamagePacket) -> void:
 	explode()
 
 
-func _on_nonlethal_hit(_knockback_dir: Vector2, _knockback_strength: float) -> void:
-	pass
+func _on_nonlethal_hit(knockback_dir: Vector2, knockback_strength: float) -> void:
+	super._on_nonlethal_hit(knockback_dir, knockback_strength)
+
+
+func cancel_active_attack_for_stagger() -> void:
+	if _state == State.VENT_WINDOW:
+		_state = State.ADVANCE
+		_vent_time_remaining = 0.0
+		_vent_cooldown_remaining = vent_interval
 
 
 func _refresh_target_player(delta: float) -> void:

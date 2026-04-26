@@ -102,8 +102,6 @@ func _begin_deferred_death(_packet: DamagePacket) -> void:
 func _on_nonlethal_hit(knockback_dir: Vector2, knockback_strength: float) -> void:
 	if _death_skid_active:
 		return
-	if _is_dashing():
-		return
 	super._on_nonlethal_hit(knockback_dir, knockback_strength)
 
 

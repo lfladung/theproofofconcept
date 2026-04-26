@@ -117,6 +117,10 @@ func _physics_process(delta: float) -> void:
 		_enemy_network_server_broadcast(delta)
 		_sync_visual()
 		return
+	if apply_universal_stagger_stop(delta, true):
+		_enemy_network_server_broadcast(delta)
+		_sync_visual()
+		return
 	if not _aggro_enabled:
 		velocity = Vector2.ZERO
 		move_and_slide_with_mob_separation()
@@ -193,6 +197,14 @@ func reset_charge() -> void:
 	_reset_flash_time_remaining = reset_flash_duration
 	if _state != State.DETONATE:
 		_state = State.RESET
+
+
+func cancel_active_attack_for_stagger() -> void:
+	if _state == State.DETONATE:
+		return
+	_charge_progress = 0.0
+	_reset_flash_time_remaining = 0.0
+	_state = State.CHASE
 
 
 func _should_defer_death(_packet: DamagePacket) -> bool:

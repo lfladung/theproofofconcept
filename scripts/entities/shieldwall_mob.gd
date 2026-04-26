@@ -204,6 +204,10 @@ func _physics_process(delta: float) -> void:
 	surge_infusion_tick_server_field_decay()
 	var cd_tick := surge_infusion_field_cooldown_tick_factor()
 	_bash_cooldown_rem = maxf(0.0, _bash_cooldown_rem - delta * cd_tick)
+	if apply_universal_stagger_stop(delta, true):
+		_enemy_network_server_broadcast(delta)
+		_sync_visual()
+		return
 	if not _aggro_enabled:
 		velocity = Vector2.ZERO
 		_enemy_network_server_broadcast(delta)
@@ -333,6 +337,16 @@ func _activate_bash_hitbox() -> void:
 	packet.debug_label = &"shieldwall_bash"
 	_refresh_bash_hitbox_layout()
 	_bash_hitbox.activate(packet, bash_lunge_sec + 0.05)
+
+
+func cancel_active_attack_for_stagger() -> void:
+	if _bash_phase != BashPhase.IDLE:
+		_bash_phase = BashPhase.IDLE
+		_bash_elapsed = 0.0
+		_bash_cooldown_rem = maxf(_bash_cooldown_rem, universal_stagger_duration)
+	if _bash_hitbox != null:
+		_bash_hitbox.deactivate()
+	velocity = Vector2.ZERO
 
 
 func _enemy_network_compact_state() -> Dictionary:

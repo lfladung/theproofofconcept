@@ -17,7 +17,7 @@ The next phase should turn those foundations into a more complete game loop:
 - Upgrade, gem, and gear progression UI.
 - Authored encounter composition and better reward drops.
 - Layer/biome progression, boss mastery tests, and enemy-family readability.
-- Resonance spending, gear evolution, inscriptions, attunement, and slot identity.
+- Resonance spending, gear evolution, gems, and slot identity.
 - Presentation and naming cleanup so the project reads as "The Proof of Concept".
 - Story/lore framing for the Pit, concept-creatures, and material degradation.
 - Screen mode and resolution polish for reliable playtesting.
@@ -41,7 +41,7 @@ The next phase should turn those foundations into a more complete game loop:
 4. Floor Structure And Mini-Hubs
 5. Authored Encounter Composition
 6. Reward Drop Replacement And Resonance Spending
-7. Gear Evolution, Inscriptions, And Attunement
+7. Gear Evolution And Gems
 8. Layer/Biome Progression
 9. Bosses, Elites, And Mastery Tests
 10. Enemy Family Completion And Visual Readability
@@ -105,7 +105,7 @@ Deliverables:
 - Upgrade screen opened from the hub.
 - Gear detail panel for equipped items.
 - Material counters by pillar/resource type.
-- Upgrade actions for the first vertical slice, such as tier upgrade, inscription, or attunement.
+- Upgrade actions for the first vertical slice, such as tier upgrade or gem crafting/refreshing.
 - Server-authoritative validation for multiplayer upgrade requests.
 - Clear unavailable-state messaging for missing materials or locked upgrade tiers.
 
@@ -254,24 +254,22 @@ Likely files:
 - `scripts/meta_progression/`
 - `ideas/PROGRESSION.md`
 
-## Milestone 9 - Gear Evolution, Inscriptions, And Attunement
+## Milestone 9 - Gear Evolution And Gems
 
 Goal:
-- Turn the upgrade UI into the full permanent progression loop: gear tiers, inscriptions, attunement, and bounded stat growth.
+- Turn the upgrade UI into the full permanent progression loop: gear tiers, promotion, gems, and bounded stat growth.
 
 Deliverables:
 - Gear tier upgrade path: Tier 1 base -> Tier 2 aligned -> Tier 3 specialized.
-- Promotion progress bridge from deep runs / boss clears / tempering achievements into permanent tier unlocks.
-- Inscriptions by gear slot and pillar, active only when matching infusions are present.
-- Attunement path that specializes gear toward a pillar.
+- Promotion progress bridge from deep runs, boss clears, strong infusion states, and mission accomplishments into permanent tier unlocks.
+- Gem crafting, refreshing, fatigue, and socket management as the flexible customization layer.
 - Material costs by pillar and tier.
 - Bounded stat scaling and familiarity display.
 - Server-authoritative validation plan for multiplayer meta progression.
 
 Done criteria:
 - A gear item can evolve at least one tier through the upgrade UI.
-- An inscription can be purchased and only activates under the correct infusion condition.
-- Attunement can be shown and applied for at least one gear slot.
+- A gem can be crafted/refreshed and socketed as the only flexible gear modifier layer.
 - Materials are spent as abstract counters, not inventory objects.
 - The system follows `ideas/META_PROGRESSION.md`: qualitative upgrades first, small/capped stat growth second.
 

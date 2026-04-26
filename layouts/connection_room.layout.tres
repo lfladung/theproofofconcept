@@ -1,0 +1,222 @@
+[gd_resource type="Resource" script_class="RoomLayoutData" format=3 uid="uid://bivjh2ggfmmjv"]
+
+[ext_resource type="Script" uid="uid://bin4dksyxldc0" path="res://addons/dungeon_room_editor/resources/room_placed_item_data.gd" id="1_e1cjo"]
+[ext_resource type="Script" uid="uid://dpj57sp322t4g" path="res://addons/dungeon_room_editor/resources/room_layout_data.gd" id="2_xx0pj"]
+
+[sub_resource type="Resource" id="Resource_s6go4"]
+script = ExtResource("1_e1cjo")
+item_id = "wall_straight_003"
+piece_id = &"wall_straight"
+category = &"wall"
+grid_position = Vector2i(2, -1)
+rotation_steps = 1
+tags = PackedStringArray("wall")
+placement_layer = &"overlay"
+blocks_movement = true
+blocks_projectiles = true
+
+[sub_resource type="Resource" id="Resource_bhbsk"]
+script = ExtResource("1_e1cjo")
+item_id = "wall_straight_004"
+piece_id = &"wall_straight"
+category = &"wall"
+grid_position = Vector2i(2, 0)
+rotation_steps = 1
+tags = PackedStringArray("wall")
+placement_layer = &"overlay"
+blocks_movement = true
+blocks_projectiles = true
+
+[sub_resource type="Resource" id="Resource_x34xy"]
+script = ExtResource("1_e1cjo")
+item_id = "wall_straight_005"
+piece_id = &"wall_straight"
+category = &"wall"
+grid_position = Vector2i(2, 1)
+rotation_steps = 1
+tags = PackedStringArray("wall")
+placement_layer = &"overlay"
+blocks_movement = true
+blocks_projectiles = true
+
+[sub_resource type="Resource" id="Resource_l174x"]
+script = ExtResource("1_e1cjo")
+item_id = "wall_straight_006"
+piece_id = &"wall_straight"
+category = &"wall"
+grid_position = Vector2i(2, 2)
+rotation_steps = 1
+tags = PackedStringArray("wall")
+placement_layer = &"overlay"
+blocks_movement = true
+blocks_projectiles = true
+
+[sub_resource type="Resource" id="Resource_t1l0x"]
+script = ExtResource("1_e1cjo")
+item_id = "wall_straight_007"
+piece_id = &"wall_straight"
+category = &"wall"
+grid_position = Vector2i(2, -2)
+rotation_steps = 1
+tags = PackedStringArray("wall")
+placement_layer = &"overlay"
+blocks_movement = true
+blocks_projectiles = true
+
+[sub_resource type="Resource" id="Resource_3ded6"]
+script = ExtResource("1_e1cjo")
+item_id = "wall_straight_008"
+piece_id = &"wall_straight"
+category = &"wall"
+grid_position = Vector2i(-2, -2)
+rotation_steps = 1
+tags = PackedStringArray("wall")
+placement_layer = &"overlay"
+blocks_movement = true
+blocks_projectiles = true
+
+[sub_resource type="Resource" id="Resource_0ey10"]
+script = ExtResource("1_e1cjo")
+item_id = "wall_straight_009"
+piece_id = &"wall_straight"
+category = &"wall"
+grid_position = Vector2i(-2, 2)
+rotation_steps = 1
+tags = PackedStringArray("wall")
+placement_layer = &"overlay"
+blocks_movement = true
+blocks_projectiles = true
+
+[sub_resource type="Resource" id="Resource_ddyjj"]
+script = ExtResource("1_e1cjo")
+item_id = "wall_straight_010"
+piece_id = &"wall_straight"
+category = &"wall"
+grid_position = Vector2i(-2, 1)
+rotation_steps = 1
+tags = PackedStringArray("wall")
+placement_layer = &"overlay"
+blocks_movement = true
+blocks_projectiles = true
+
+[sub_resource type="Resource" id="Resource_ks4mh"]
+script = ExtResource("1_e1cjo")
+item_id = "wall_straight_011"
+piece_id = &"wall_straight"
+category = &"wall"
+grid_position = Vector2i(-2, 0)
+rotation_steps = 1
+tags = PackedStringArray("wall")
+placement_layer = &"overlay"
+blocks_movement = true
+blocks_projectiles = true
+
+[sub_resource type="Resource" id="Resource_dujub"]
+script = ExtResource("1_e1cjo")
+item_id = "wall_straight_012"
+piece_id = &"wall_straight"
+category = &"wall"
+grid_position = Vector2i(-2, -1)
+rotation_steps = 1
+tags = PackedStringArray("wall")
+placement_layer = &"overlay"
+blocks_movement = true
+blocks_projectiles = true
+
+[sub_resource type="Resource" id="Resource_bfnve"]
+script = ExtResource("1_e1cjo")
+item_id = "entrance_marker_001"
+piece_id = &"entrance_marker"
+category = &"entrance"
+grid_position = Vector2i(-1, -2)
+tags = PackedStringArray("entrance")
+placement_layer = &"overlay"
+
+[sub_resource type="Resource" id="Resource_04dvo"]
+script = ExtResource("1_e1cjo")
+item_id = "exit_marker_001"
+piece_id = &"exit_marker"
+category = &"exit"
+grid_position = Vector2i(-1, 2)
+rotation_steps = 2
+tags = PackedStringArray("exit")
+placement_layer = &"overlay"
+
+[sub_resource type="Resource" id="Resource_lqrj7"]
+script = ExtResource("1_e1cjo")
+item_id = "floor_mask_extra_large_001"
+piece_id = &"floor_mask_extra_large"
+category = &"floor"
+grid_position = Vector2i(-2, -2)
+tags = PackedStringArray("floor", "runtime_mask")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_vfum7"]
+script = ExtResource("1_e1cjo")
+item_id = "floor_mask_large_002"
+piece_id = &"floor_mask_large"
+category = &"floor"
+grid_position = Vector2i(1, -2)
+tags = PackedStringArray("floor", "runtime_mask")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_i3rw7"]
+script = ExtResource("1_e1cjo")
+item_id = "floor_mask_large_003"
+piece_id = &"floor_mask_large"
+category = &"floor"
+grid_position = Vector2i(1, 0)
+tags = PackedStringArray("floor", "runtime_mask")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_7kaeu"]
+script = ExtResource("1_e1cjo")
+item_id = "floor_mask_large_004"
+piece_id = &"floor_mask_large"
+category = &"floor"
+grid_position = Vector2i(-2, 1)
+tags = PackedStringArray("floor", "runtime_mask")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_4886x"]
+script = ExtResource("1_e1cjo")
+item_id = "floor_mask_small_005"
+piece_id = &"floor_mask_small"
+category = &"floor"
+grid_position = Vector2i(0, 1)
+tags = PackedStringArray("floor", "runtime_mask")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_mji8c"]
+script = ExtResource("1_e1cjo")
+item_id = "floor_mask_small_006"
+piece_id = &"floor_mask_small"
+category = &"floor"
+grid_position = Vector2i(0, 2)
+tags = PackedStringArray("floor", "runtime_mask")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_c5dy3"]
+script = ExtResource("1_e1cjo")
+item_id = "floor_mask_small_007"
+piece_id = &"floor_mask_small"
+category = &"floor"
+grid_position = Vector2i(1, 2)
+tags = PackedStringArray("floor", "runtime_mask")
+placement_layer = &"ground"
+
+[sub_resource type="Resource" id="Resource_7v621"]
+script = ExtResource("1_e1cjo")
+item_id = "floor_mask_small_008"
+piece_id = &"floor_mask_small"
+category = &"floor"
+grid_position = Vector2i(2, 2)
+tags = PackedStringArray("floor", "runtime_mask")
+placement_layer = &"ground"
+
+[resource]
+script = ExtResource("2_xx0pj")
+room_id = "room_base_template"
+room_tags = PackedStringArray("arena")
+recommended_enemy_groups = PackedStringArray()
+items = Array[Resource]([SubResource("Resource_s6go4"), SubResource("Resource_bhbsk"), SubResource("Resource_x34xy"), SubResource("Resource_l174x"), SubResource("Resource_t1l0x"), SubResource("Resource_3ded6"), SubResource("Resource_0ey10"), SubResource("Resource_ddyjj"), SubResource("Resource_ks4mh"), SubResource("Resource_dujub"), SubResource("Resource_bfnve"), SubResource("Resource_04dvo"), SubResource("Resource_lqrj7"), SubResource("Resource_vfum7"), SubResource("Resource_i3rw7"), SubResource("Resource_7kaeu"), SubResource("Resource_4886x"), SubResource("Resource_mji8c"), SubResource("Resource_c5dy3"), SubResource("Resource_7v621")])

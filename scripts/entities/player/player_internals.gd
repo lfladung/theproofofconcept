@@ -80,6 +80,9 @@ enum WeaponMode { SWORD, GUN, BOMB }
 @export var dodge_speed := 50.0
 @export var dodge_duration := 0.3
 @export var dodge_cooldown := 1
+@export var dash_stamina_cost := 5.0
+@export var sprint_stamina_per_second := 1.0
+@export var sprint_move_speed_multiplier := 1.35
 @export var defend_move_speed_multiplier := 0.42
 @export var defend_damage_multiplier := 1.0
 @export var max_stamina := 100.0
@@ -143,6 +146,7 @@ var _last_invulnerability_flash_state := -1
 var _dodge_time_remaining := 0.0
 var _dodge_cooldown_remaining := 0.0
 var _dodge_direction := Vector2.ZERO
+var _sprint_latch_after_dodge := false
 var _is_dead := false
 var _is_defending := false
 var _attack_hitbox_visual_time_remaining := 0.0
@@ -212,6 +216,7 @@ var _reconcile_target_facing := Vector2(0.0, -1.0)
 var _reconcile_target_dodge_time_remaining := 0.0
 var _reconcile_target_dodge_cooldown_remaining := 0.0
 var _reconcile_target_dodge_direction := Vector2.ZERO
+var _reconcile_target_sprint_latch_after_dodge := false
 var _reconcile_target_facing_lock_time_remaining := 0.0
 var _reconcile_target_facing_lock_planar := Vector2(0.0, -1.0)
 var _reconcile_target_external_dash_blocked := false
@@ -984,6 +989,8 @@ func _set_defending_state(next_defending: bool) -> void:
 	if _is_defending == resolved_defending:
 		return
 	_is_defending = resolved_defending
+	if _is_defending:
+		_sprint_latch_after_dodge = false
 	_apply_visual_defending_state()
 
 
@@ -1000,6 +1007,7 @@ func _set_downed_state(next_downed: bool, emit_hit_signal: bool = false) -> void
 		height = 0.0
 		_dodge_time_remaining = 0.0
 		_dodge_cooldown_remaining = 0.0
+		_sprint_latch_after_dodge = false
 		_facing_lock_time_remaining = 0.0
 		_invuln_time_remaining = 0.0
 		_attack_hitbox_visual_time_remaining = 0.0
@@ -1095,6 +1103,8 @@ func _set_stamina_value(next_stamina: float) -> void:
 	var changed := not is_equal_approx(stamina, resolved)
 	stamina = resolved
 	_stamina_broken = stamina <= 0.001
+	if _stamina_broken:
+		_sprint_latch_after_dodge = false
 	if not _multiplayer_active() or _is_server_peer():
 		_authoritative_stamina = stamina
 		_authoritative_stamina_broken = _stamina_broken
@@ -1105,6 +1115,29 @@ func _set_stamina_value(next_stamina: float) -> void:
 func _restore_stamina_to_full() -> void:
 	_stamina_regen_cooldown_remaining = 0.0
 	_set_stamina_value(_max_stamina_value())
+
+
+func _dash_stamina_cost_value() -> float:
+	return maxf(0.0, dash_stamina_cost)
+
+
+func _can_spend_stamina(amount: float) -> bool:
+	var cost := maxf(0.0, amount)
+	return cost <= 0.0 or stamina + 0.001 >= cost
+
+
+func _spend_stamina(amount: float, regen_delay: float = -1.0) -> void:
+	var cost := maxf(0.0, amount)
+	if cost <= 0.0:
+		return
+	_set_stamina_value(stamina - cost)
+	var delay := regen_delay
+	if delay < 0.0:
+		delay = stamina_regen_delay
+	_stamina_regen_cooldown_remaining = maxf(
+		_stamina_regen_cooldown_remaining,
+		maxf(0.0, delay)
+	)
 
 
 func _resolve_attack_origin_direction(
@@ -1215,7 +1248,8 @@ func _broadcast_server_state(delta: float) -> void:
 		_external_root_origin_position,
 		1 if _external_root_pull_used else 0,
 		_external_leecher_escape_progress,
-		_external_latched_enemy_id
+		_external_latched_enemy_id,
+		1 if _sprint_latch_after_dodge else 0
 	)
 
 
@@ -1277,7 +1311,8 @@ func _rpc_receive_server_state(
 	external_root_origin: Vector2 = Vector2.ZERO,
 	external_root_pull_used_i: int = 0,
 	leecher_escape_progress: float = 0.0,
-	latched_enemy_id: int = 0
+	latched_enemy_id: int = 0,
+	sprint_latch_after_dodge_i: int = 0
 ) -> void:
 	if _is_server_peer():
 		return
@@ -1303,6 +1338,7 @@ func _rpc_receive_server_state(
 	_external_root_pull_used = external_root_pull_used_i != 0
 	_external_leecher_escape_progress = clampf(leecher_escape_progress, 0.0, 1.0)
 	_external_latched_enemy_id = maxi(0, latched_enemy_id)
+	_sprint_latch_after_dodge = sprint_latch_after_dodge_i != 0
 	var normalized_health := clampi(health_value, 0, max_health)
 	if health != normalized_health:
 		health = normalized_health
@@ -1341,6 +1377,7 @@ func _rpc_receive_server_state(
 		_reconcile_target_dodge_time_remaining = maxf(0.0, dodge_time_remaining_value)
 		_reconcile_target_dodge_cooldown_remaining = maxf(0.0, dodge_cooldown_remaining_value)
 		_reconcile_target_dodge_direction = dodge_direction_value.normalized()
+		_reconcile_target_sprint_latch_after_dodge = _sprint_latch_after_dodge
 		_reconcile_target_facing_lock_time_remaining = _facing_lock_time_remaining
 		_reconcile_target_facing_lock_planar = _facing_lock_planar
 		_reconcile_target_external_dash_blocked = _external_dash_blocked
@@ -1387,6 +1424,7 @@ func _apply_local_reconciliation(_delta: float) -> void:
 	_dodge_time_remaining = _reconcile_target_dodge_time_remaining
 	_dodge_cooldown_remaining = _reconcile_target_dodge_cooldown_remaining
 	_dodge_direction = _reconcile_target_dodge_direction
+	_sprint_latch_after_dodge = _reconcile_target_sprint_latch_after_dodge
 	_facing_lock_time_remaining = _reconcile_target_facing_lock_time_remaining
 	_facing_lock_planar = _reconcile_target_facing_lock_planar
 	_external_dash_blocked = _reconcile_target_external_dash_blocked
@@ -1404,9 +1442,10 @@ func _apply_local_reconciliation(_delta: float) -> void:
 		var aim_v: Variant = command.get("aim_planar", Vector2.ZERO)
 		var aim_planar: Vector2 = aim_v as Vector2 if aim_v is Vector2 else Vector2.ZERO
 		var dodge_pressed := bool(command.get("dodge_pressed", false))
+		var dodge_down := bool(command.get("dodge_down", false))
 		var defend_down := bool(command.get("defend_down", false))
 		var command_delta := float(command.get("delta", 1.0 / maxf(1.0, float(Engine.physics_ticks_per_second))))
-		_apply_movement_step(command_delta, move_active, target_world, dodge_pressed, defend_down, aim_planar)
+		_apply_movement_step(command_delta, move_active, target_world, dodge_pressed, dodge_down, defend_down, aim_planar)
 	_reconcile_has_target = false
 
 
@@ -1415,12 +1454,15 @@ func _apply_movement_step(
 	move_active: bool,
 	target_world: Vector2,
 	dodge_pressed: bool,
+	dodge_down: bool,
 	defend_down: bool,
 	aim_planar: Vector2 = Vector2.ZERO,
 ) -> float:
 	if (_is_server_peer() or not _multiplayer_active()) and is_damage_authority():
 		if _anchor_rooted and (move_active or dodge_pressed):
 			_anchor_release_bastion()
+	if not dodge_down:
+		_sprint_latch_after_dodge = false
 	var rooted_by_enemy := _external_movement_rooted
 	var dash_blocked := _external_dash_blocked
 	if rooted_by_enemy and move_active:
@@ -1429,9 +1471,13 @@ func _apply_movement_step(
 		if is_damage_authority():
 			_enemy_control_consume_root_pull_attempt()
 		dodge_pressed = false
+	if rooted_by_enemy:
+		_sprint_latch_after_dodge = false
 	if dash_blocked and dodge_pressed:
 		enemy_control_register_latch_break_input()
 		dodge_pressed = false
+	if dash_blocked:
+		_sprint_latch_after_dodge = false
 	var direction := Vector2.ZERO
 	if move_active:
 		var to_target := target_world - global_position
@@ -1448,11 +1494,16 @@ func _apply_movement_step(
 	if _dodge_time_remaining > 0.0:
 		_dodge_time_remaining = maxf(0.0, _dodge_time_remaining - delta)
 	elif dodge_pressed and _dodge_cooldown_remaining <= 0.0 and not _is_defending:
-		_dodge_direction = _resolve_dodge_direction(direction)
-		_dodge_time_remaining = dodge_duration
-		_dodge_cooldown_remaining = dodge_cooldown
-		if is_damage_authority():
-			_phase_try_dash_trail_burst(global_position, _dodge_direction)
+		if _can_spend_stamina(_dash_stamina_cost_value()):
+			_spend_stamina(_dash_stamina_cost_value())
+			_dodge_direction = _resolve_dodge_direction(direction)
+			_dodge_time_remaining = dodge_duration
+			_dodge_cooldown_remaining = dodge_cooldown
+			_sprint_latch_after_dodge = dodge_down
+			if is_damage_authority():
+				_phase_try_dash_trail_burst(global_position, _dodge_direction)
+		else:
+			_sprint_latch_after_dodge = false
 	var planar_speed := 0.0
 	if _dodge_time_remaining > 0.0:
 		velocity = _dodge_direction * dodge_speed
@@ -1466,6 +1517,9 @@ func _apply_movement_step(
 			resolved_speed *= InfusionSurgeRef.overdrive_player_move_speed_mult()
 		if _is_defending:
 			resolved_speed *= clampf(defend_move_speed_multiplier, 0.0, 1.0)
+		if _sprint_latch_after_dodge and dodge_down and stamina > 0.0:
+			resolved_speed *= maxf(1.0, sprint_move_speed_multiplier)
+			_spend_stamina(maxf(0.0, sprint_stamina_per_second) * maxf(0.0, delta))
 		resolved_speed *= _external_move_speed_factor()
 		velocity = direction * resolved_speed
 		planar_speed = resolved_speed
@@ -1666,7 +1720,7 @@ func _server_authoritative_step(delta: float) -> void:
 		defend_down = _server_input_defend_down
 	var dodge_pressed := dodge_down and not _server_prev_dodge_down
 	_server_prev_dodge_down = dodge_down
-	_apply_movement_step(delta, move_active, target_world, dodge_pressed, defend_down, aim_planar)
+	_apply_movement_step(delta, move_active, target_world, dodge_pressed, dodge_down, defend_down, aim_planar)
 	_tick_stamina_regen(delta)
 	_broadcast_server_state(delta)
 
@@ -1701,7 +1755,7 @@ func _client_predicted_step(delta: float) -> void:
 		"delta": delta,
 	}
 	_pending_input_commands.append(command)
-	_apply_movement_step(delta, move_active, target_world, dodge_pressed, defend_down, aim_planar)
+	_apply_movement_step(delta, move_active, target_world, dodge_pressed, dodge_down, defend_down, aim_planar)
 	if _can_broadcast_world_replication():
 		_rpc_submit_movement_input.rpc(sequence, move_active, target_world, dodge_down, defend_down, aim_planar)
 	_apply_local_reconciliation(delta)

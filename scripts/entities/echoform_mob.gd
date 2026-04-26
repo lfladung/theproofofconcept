@@ -132,6 +132,12 @@ func _physics_process(delta: float) -> void:
 		_enemy_network_server_broadcast(delta)
 		_sync_visual()
 		return
+	if apply_universal_stagger_stop(delta, true):
+		move_and_slide_with_mob_separation()
+		mass_server_post_slide()
+		_enemy_network_server_broadcast(delta)
+		_sync_visual()
+		return
 	_refresh_target_player(delta)
 	ignore_player_body_collisions()
 	match _state:
@@ -329,6 +335,17 @@ func _fire_ranged_volley(direction: Vector2) -> void:
 		if projectile.has_method(&"set_authoritative_damage"):
 			projectile.call(&"set_authoritative_damage", is_damage_authority())
 		projectile.configure(spawn_position, dir, _vw, false, &"purple")
+
+
+func cancel_active_attack_for_stagger() -> void:
+	match _state:
+		EchoformState.RUSH_TELEGRAPH, EchoformState.RUSH_RECOVERY:
+			_state = EchoformState.RUSH
+		EchoformState.RANGED_CHARGE:
+			_state = EchoformState.RANGED
+	_state_time_remaining = 0.0
+	_cooldown_remaining = maxf(_cooldown_remaining, universal_stagger_duration)
+	velocity = Vector2.ZERO
 
 
 func _volley_direction_for(base_direction: Vector2, projectile_index: int, count: int, total_spread_degrees: float) -> Vector2:

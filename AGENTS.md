@@ -34,7 +34,7 @@ Read the smallest relevant set before editing:
 
 ## Current Project Snapshot
 
-As of 2026-04-15 (bump this date when you materially change this section):
+As of 2026-04-19 (bump this date when you materially change this section):
 
 - `ideas/MILESTONES_v2.md` is the active roadmap for hub, mission select, upgrade UI, gems/socketing, mini-hubs, authored encounter composition, reward-drop replacement, naming, and display polish.
 - Project identity metadata and the lobby title now use `The Proof of Concept`.
@@ -46,6 +46,7 @@ As of 2026-04-15 (bump this date when you materially change this section):
 - `dungeon_orchestrator.gd` is session-aware and manages roster, encounter state, doors, coins, camera, and replication helpers.
 - A dedicated `Room Editor` main-screen plugin now exists for authoring handcrafted `RoomBase` scenes with sidecar layout resources, generated sockets/zones/gameplay markers, a live 3D preview, and a room playtest harness.
 - Stat pillars (`dungeon/modules/gameplay/stat_pillar_2d.gd`) grant server-authoritative runtime bonuses merged in `player.gd`; several new stat keys exist in `scripts/loadout/loadout_constants.gd` but are not necessarily consumed by combat math yet (affix items / full wiring: see `ideas/EQUIPMENT_UPGRADES.md`).
+- Meta-progression design now cleanly splits in-run and between-run power: Infusions own in-run build shaping; Gear Tiers + Promotion own permanent identity; Gems own flexible between-run customization. Tempering is no longer a player-facing planned concept, while Attunement and Inscriptions are no longer standalone systems.
 - A reusable authored outline library lives under `dungeon/rooms/authored/outlines/` with generator/validator helpers in `tools/room_editor/generate_outline_rooms.gd` and `tools/room_editor/validate_outline_rooms.gd`.
 - Enemy families now share more of their common target-refresh and single-model visual-state wiring through `scripts/entities/enemy_base.gd`; when adding a new Flow/Mass/Edge variant, prefer family or base helpers over copy-pasting per-enemy plumbing.
 - Turret-style ranged enemies now use one configurable volley-family chassis (`scripts/entities/arrow_tower.gd`) with `spitter` / `volley` / `barrage` archetypes plus 7 family packages, resolved by explicit authored IDs such as `spitter_flow`, `volley_edge`, and `barrage_mass`; `arrow_tower` remains a legacy alias.
@@ -146,8 +147,8 @@ Vector2(pos3d.x, pos3d.z)
 ### Meta-Progression And Inventory
 
 - `MetaProgressionStore` is an autoload Node — all gear/gem/material reads and writes go through it. Never mutate `GearItemData` fields directly outside of `MetaProgressionStore` methods.
-- Gear tiers (1–3), pillar alignment, familiarity XP, and promotion progress live on `GearItemData` instances, not on item definitions. The base item definition (`LoadoutItemDefinition`) stays tier-agnostic; stats scale at runtime via `tier_stat_multiplier * (1 + familiarity_bonus) * tempering_multiplier`.
-- `TemperingManager` is run-scoped (`RefCounted`, not an autoload). The orchestrator creates it at run start, passes it to `LoadoutRepository` via `set_tempering_manager`, and all calls on it use `.call(&"method")` because the variable is typed as `RefCounted`.
+- Gear tiers (1–3), pillar alignment, familiarity XP, and promotion progress live on `GearItemData` instances, not on item definitions. The base item definition (`LoadoutItemDefinition`) stays tier-agnostic; planned player-facing progression keeps gear upgrades between runs and in-run power in the Infusion model. Existing tempering code should be treated as legacy/current implementation until renamed or removed.
+- `TemperingManager` currently exists as run-scoped implementation scaffolding (`RefCounted`, not an autoload). The planned design no longer treats tempering as a player-facing concept; future meta-progression work should either retire it or fold any useful reward accounting into Infusions/Promotion.
 - `LoadoutRepository.ensure_owner_initialized` checks `MetaProgressionStore.is_initialized` first — if meta data exists, only owned gear appears in the in-run panel. Equipping during a run calls `_sync_equip_to_meta_store` so the choice persists.
 - Item display names: single source of truth is `LoadoutConstants.ITEM_DISPLAY_NAMES` dict + `item_display_name(item_id)` helper. When adding new items, update both `ITEM_DISPLAY_NAMES` and `LoadoutRepository._build_default_definitions`.
 - Persistence: `user://meta_progression_{player_id}.json`. Delete this file to regenerate starter state (T1 + T2 + T3 per slot). `apply_server_state()` is the future server-authority deserialization entry point.
@@ -267,7 +268,7 @@ Use these file groups as shortcuts:
   - `scripts/meta_progression/meta_progression_store.gd` — autoload; all gear/gem/material mutations
   - `scripts/meta_progression/gear_item_data.gd` — owned gear instance (tier, pillar, familiarity, promotion)
   - `scripts/meta_progression/gem_item_data.gd` — gem instance (pillar, effect, durability)
-  - `scripts/meta_progression/tempering_manager.gd` — run-scoped RefCounted; tempering XP tracking
+  - `scripts/meta_progression/tempering_manager.gd` — legacy/current run-scoped RefCounted; planned design should retire or fold this into Infusions/Promotion
   - `scripts/ui/inventory/inventory_screen.gd` — full-screen lobby inventory overlay
   - `scripts/ui/lobby_menu.gd` — hosts inventory screen, visibility toggling
   - `scripts/loadout/loadout_repository.gd` — also owns meta-store sync on equip
@@ -291,7 +292,7 @@ Update this list when something materially ships; prefer pointers to docs and sc
 - Enemy-family cleanup: `enemy_base.gd` now owns shared target-refresh cadence and single-scene visual-state helpers used by Flow/Edge/Mass enemy variants; keep future family work layered there first.
 - Volley-family turrets: `arrow_tower.gd` is now a shared ranged chassis with `spitter` / `volley` / `barrage` archetypes and Flow/Edge/Echo/Surge/Phase/Mass/Anchor packages; authored spawn IDs are resolved in `dungeon/game/enemy_spawn_by_id.gd`, and orchestrator enemy spawn replication carries optional spawn config for clients/late snapshots.
 - Edge family: `edge_family_base.gd` now owns committed line-attack facing, thin floor telegraphs, and precision line damage; `skewer_mob.gd`, `glaiver_mob.gd`, and `razorform_mob.gd` layer Skewer/Glaiver/Razorform behavior on top, with Razorform cut telegraphs managed by `edge_cut_line_hazard.gd`.
-- Meta-progression system: `MetaProgressionStore` autoload (gear instances, gems, materials, local JSON persistence); `GearItemData` / `GemItemData` resources; `TemperingManager` run-scoped RefCounted; `MetaProgressionConstants` (`class_name`). All stat multipliers flow through `LoadoutRepository._aggregate_stats_for_slots`. Item display names centralised in `LoadoutConstants.ITEM_DISPLAY_NAMES`. Design reference: `ideas/META_PROGRESSION.md`, `ideas/INVENTORY.md`.
+- Meta-progression system: `MetaProgressionStore` autoload (gear instances, gems, materials, local JSON persistence); `GearItemData` / `GemItemData` resources; `TemperingManager` exists as legacy/current run-scoped scaffolding; `MetaProgressionConstants` (`class_name`). Refined design split is Infusions for in-run power, Gear Tiers + Promotion for permanent identity, and Gems for flexible between-run customization. Tempering is no longer planned as a player-facing concept; Attunement and Inscriptions were removed as standalone planned systems. All stat multipliers flow through `LoadoutRepository._aggregate_stats_for_slots`. Item display names centralised in `LoadoutConstants.ITEM_DISPLAY_NAMES`. Design reference: `ideas/META_PROGRESSION.md`, `ideas/INVENTORY.md`.
 - Inventory UI: full-screen lobby overlay at `scripts/ui/inventory/inventory_screen.gd`; 3 sub-screens (Loadout with collapsible slot categories + equip/detail, Gear Detail, Gem Management). In-run loadout overlay (`loadout_overlay.gd`) tooltips also show tier/pillar/familiarity. `LoadoutRepository` initialises from `MetaProgressionStore` and syncs equip changes back to it.
 - Starter gear: T1 equipped + T2 Aligned + T3 Specialized per slot (varied pillars), seeded materials. Delete `user://meta_progression_local.json` to regenerate.
 - Mini-hub floor transition: `dungeon/game/dungeon_orchestrator_internals.gd` uses `layout_phase=mini_hub` for a single no-enemy safe room between floors. The boss elevator enters the mini-hub; once all players arrive, loadout becomes available and the central elevator requires full-party boarding before `_floor_index` increments and the next combat floor generates.

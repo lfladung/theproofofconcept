@@ -1,7 +1,7 @@
 extends "res://scripts/entities/edge_family_base.gd"
 class_name SkewerMob
 
-enum AttackState { APPROACH, WINDUP, LUNGE, RECOVER }
+enum AttackState { APPROACH, WINDUP, LUNGE, RECOVER, STUN }
 
 @export var move_speed := 7.0
 @export var attack_trigger_distance := 3.2
@@ -56,6 +56,8 @@ func _physics_process(delta: float) -> void:
 			_tick_lunge_pre(delta)
 		AttackState.RECOVER:
 			_tick_recover(delta)
+		AttackState.STUN:
+			_tick_stun(delta)
 	if is_hit_knockback_active():
 		apply_hit_knockback_to_body_velocity()
 	move_and_slide_with_mob_separation()
@@ -179,6 +181,25 @@ func _tick_recover(delta: float) -> void:
 	if _state_time >= lunge_recovery_duration:
 		_attack_state = AttackState.APPROACH
 		_state_time = 0.0
+
+
+func _tick_stun(delta: float) -> void:
+	_state_time += delta
+	velocity = Vector2.ZERO
+	if _state_time >= universal_stagger_duration and not is_hit_knockback_active():
+		_attack_state = AttackState.APPROACH
+		_state_time = 0.0
+
+
+func _on_nonlethal_hit(knockback_dir: Vector2, knockback_strength: float) -> void:
+	super._on_nonlethal_hit(knockback_dir, knockback_strength)
+	cancel_active_attack_for_stagger()
+
+
+func cancel_active_attack_for_stagger() -> void:
+	_attack_state = AttackState.STUN
+	_state_time = 0.0
+	velocity = Vector2.ZERO
 
 
 func _start_windup(direction: Vector2) -> void:

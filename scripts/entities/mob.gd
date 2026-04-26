@@ -28,7 +28,7 @@ enum AttackPhase { CHASE, TELEGRAPH, DASH, RECOVERY, STUN }
 @export var arrow_length := 7.8
 @export var arrow_head_length := 0.8
 @export var arrow_half_width := 0.32
-@export var hit_stun_duration := 1.0
+@export var hit_stun_duration := 0.3
 @export var target_refresh_interval := 0.3
 @export var mesh_ground_y := 0.24
 @export var mesh_scale := Vector3(2.0, 2.0, 2.0)

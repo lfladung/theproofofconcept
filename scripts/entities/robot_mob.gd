@@ -114,6 +114,11 @@ func _physics_process(delta: float) -> void:
 	surge_infusion_tick_server_field_decay()
 	var cd_tick := surge_infusion_field_cooldown_tick_factor()
 	_cooldown_remaining = maxf(0.0, _cooldown_remaining - delta * cd_tick)
+	if apply_universal_stagger_stop(delta, true):
+		_cancel_charge()
+		_enemy_network_server_broadcast(delta)
+		_sync_visual()
+		return
 	if not _aggro_enabled:
 		velocity = Vector2.ZERO
 		_update_charge_telegraph_visual(false, Vector2.ZERO, 0.0)
@@ -235,6 +240,10 @@ func _cancel_charge() -> void:
 	_charge_elapsed = 0.0
 	_charge_fired = false
 	_update_charge_telegraph_visual(false, Vector2.ZERO, 0.0)
+
+
+func cancel_active_attack_for_stagger() -> void:
+	_cancel_charge()
 
 
 func _charge_progress() -> float:

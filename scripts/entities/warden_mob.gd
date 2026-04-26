@@ -194,6 +194,11 @@ func _physics_process(delta: float) -> void:
 	_slam_cooldown_rem = maxf(0.0, _slam_cooldown_rem - cooldown_tick)
 	if _phase != Phase.IMMUNE_PHASE and _phase != Phase.COLLAPSE:
 		_immunity_interval_rem = maxf(0.0, _immunity_interval_rem - delta)
+	if _phase != Phase.COLLAPSE and apply_universal_stagger_stop(delta, true):
+		_enemy_network_server_broadcast(delta)
+		_update_slam_telegraph_visual()
+		_sync_visual()
+		return
 	if not _aggro_enabled and _phase != Phase.COLLAPSE:
 		velocity = Vector2.ZERO
 		_enemy_network_server_broadcast(delta)
@@ -406,6 +411,17 @@ func _activate_slam_hitbox(
 	packet.blockable = false
 	packet.debug_label = debug_label
 	_slam_hitbox.activate(packet, duration)
+
+
+func cancel_active_attack_for_stagger() -> void:
+	if _phase == Phase.SLAM_WINDUP or _phase == Phase.SLAM_HIT or _phase == Phase.RECOVER:
+		_phase = Phase.CHASE
+		_phase_elapsed = 0.0
+		_slam_cooldown_rem = maxf(_slam_cooldown_rem, universal_stagger_duration)
+		if _slam_hitbox != null:
+			_slam_hitbox.deactivate()
+		_update_slam_telegraph_visual()
+	velocity = Vector2.ZERO
 
 
 func _enemy_network_compact_state() -> Dictionary:

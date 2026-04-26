@@ -114,6 +114,11 @@ func _physics_process(delta: float) -> void:
 		return
 	_tether_cooldown_remaining = maxf(0.0, _tether_cooldown_remaining - delta)
 	_post_shot_materialize_time_remaining = maxf(0.0, _post_shot_materialize_time_remaining - delta)
+	if apply_universal_stagger_stop(delta, true):
+		move_and_slide_with_mob_separation()
+		_enemy_network_server_broadcast(delta)
+		_update_visuals()
+		return
 	_tick_server_state(delta)
 	move_and_slide_with_mob_separation()
 	_enemy_network_server_broadcast(delta)
@@ -172,6 +177,16 @@ func _tick_server_state(delta: float) -> void:
 			_tick_rooted_target()
 		PhaseState.FOLLOW_UP:
 			_tick_follow_up()
+
+
+func cancel_active_attack_for_stagger() -> void:
+	if _phase != PhaseState.POSITION:
+		_clear_rooted_player_control()
+		_phase = PhaseState.POSITION
+		_phase_time_remaining = 0.0
+		_tether_cooldown_remaining = maxf(_tether_cooldown_remaining, universal_stagger_duration)
+		_apply_phase_collision_state()
+	velocity = Vector2.ZERO
 
 
 func _tick_position(delta: float) -> void:

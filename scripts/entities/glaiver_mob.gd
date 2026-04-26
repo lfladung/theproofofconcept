@@ -18,7 +18,7 @@ enum AttackState { POSITION, TELEGRAPH, DASH_SLASH, CHAIN_CHECK, RECOVER, STUN }
 @export var slash_peripheral_half_width := 0.6
 @export var slash_peripheral_damage := 16
 @export var recover_duration := 0.3
-@export var interrupt_stun_duration := 0.6
+@export var interrupt_stun_duration := 0.3
 @export var chain_angle_degrees := 30.0
 @export_range(-1.0, 1.0, 0.05) var attack_alignment_dot := 0.72
 
@@ -131,10 +131,16 @@ func _current_attack_shake_progress() -> float:
 
 func _on_nonlethal_hit(knockback_dir: Vector2, knockback_strength: float) -> void:
 	super._on_nonlethal_hit(knockback_dir, knockback_strength)
-	if _attack_state == AttackState.TELEGRAPH and not _is_chain_attack:
-		_attack_state = AttackState.STUN
-		_state_time = 0.0
-		velocity = Vector2.ZERO
+	_attack_state = AttackState.STUN
+	_state_time = 0.0
+	velocity = Vector2.ZERO
+
+
+func cancel_active_attack_for_stagger() -> void:
+	_attack_state = AttackState.STUN
+	_state_time = 0.0
+	_slash_hit_registered = false
+	velocity = Vector2.ZERO
 
 
 func _tick_position(delta: float) -> void:
