@@ -60,11 +60,18 @@ enum RecoveryState {
 @export var guard_debug_ground_y := 0.08
 @export var guard_debug_radius := 8.5
 
+const _TELEGRAPH_PROGRESS_STEPS := 12
+
 var _visual
 var _vw: Node3D
 var _telegraph_mesh: MeshInstance3D
 var _outline_mat: StandardMaterial3D
-var _fill_mat: StandardMaterial3D
+var _stomp_fill_mat: StandardMaterial3D
+var _punch_fill_mat: StandardMaterial3D
+var _stomp_telegraph_meshes: Array[Mesh] = []
+var _punch_telegraph_meshes: Array[Mesh] = []
+var _telegraph_progress_step := -1
+var _telegraph_last_attack_state := AttackState.NONE
 var _guard_debug_mesh: MeshInstance3D
 var _guard_debug_outline_mat: StandardMaterial3D
 var _guard_debug_fill_mat: StandardMaterial3D
@@ -646,14 +653,84 @@ func _create_telegraph_mesh(parent: Node3D) -> void:
 	_outline_mat.albedo_color = Color(0.0, 0.0, 0.0, 1.0)
 	_outline_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 	_outline_mat.cull_mode = BaseMaterial3D.CULL_DISABLED
-	_fill_mat = StandardMaterial3D.new()
-	_fill_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	_fill_mat.albedo_color = Color(0.95, 0.32, 0.18, 0.72)
-	_fill_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	_fill_mat.cull_mode = BaseMaterial3D.CULL_DISABLED
+	_stomp_fill_mat = StandardMaterial3D.new()
+	_stomp_fill_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	_stomp_fill_mat.albedo_color = Color(0.95, 0.55, 0.18, 0.68)
+	_stomp_fill_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	_stomp_fill_mat.cull_mode = BaseMaterial3D.CULL_DISABLED
+	_punch_fill_mat = StandardMaterial3D.new()
+	_punch_fill_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	_punch_fill_mat.albedo_color = Color(0.95, 0.18, 0.18, 0.72)
+	_punch_fill_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	_punch_fill_mat.cull_mode = BaseMaterial3D.CULL_DISABLED
 	_telegraph_mesh.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	_telegraph_mesh.visible = false
 	parent.add_child(_telegraph_mesh)
+	_precompute_telegraph_meshes()
+
+
+func _precompute_telegraph_meshes() -> void:
+	_stomp_telegraph_meshes.clear()
+	_punch_telegraph_meshes.clear()
+	for step in range(_TELEGRAPH_PROGRESS_STEPS + 1):
+		_stomp_telegraph_meshes.append(_build_stomp_telegraph_mesh_for_step(step))
+		_punch_telegraph_meshes.append(_build_punch_telegraph_mesh_for_step(step))
+
+
+func _build_stomp_telegraph_mesh_for_step(progress_step: int) -> Mesh:
+	var p := float(progress_step) / float(_TELEGRAPH_PROGRESS_STEPS)
+	var radius := stomp_radius * p
+	var outer_radius := maxf(stomp_radius, 0.1)
+	var segments := 24
+	var imm := ImmediateMesh.new()
+	imm.surface_begin(Mesh.PRIMITIVE_LINES, _outline_mat)
+	for segment_index in range(segments):
+		var t0 := float(segment_index) / float(segments)
+		var t1 := float(segment_index + 1) / float(segments)
+		var a0 := lerpf(0.0, TAU, t0)
+		var a1 := lerpf(0.0, TAU, t1)
+		var p0 := Vector3(sin(a0) * outer_radius, 0.0, cos(a0) * outer_radius)
+		var p1 := Vector3(sin(a1) * outer_radius, 0.0, cos(a1) * outer_radius)
+		imm.surface_add_vertex(p0)
+		imm.surface_add_vertex(p1)
+	imm.surface_end()
+	imm.surface_begin(Mesh.PRIMITIVE_TRIANGLES, _stomp_fill_mat)
+	for segment_index in range(segments):
+		var t0 := float(segment_index) / float(segments)
+		var t1 := float(segment_index + 1) / float(segments)
+		var a0 := lerpf(0.0, TAU, t0)
+		var a1 := lerpf(0.0, TAU, t1)
+		var p0 := Vector3(sin(a0) * radius, 0.001, cos(a0) * radius)
+		var p1 := Vector3(sin(a1) * radius, 0.001, cos(a1) * radius)
+		imm.surface_add_vertex(Vector3(0.0, 0.001, 0.0))
+		imm.surface_add_vertex(p0)
+		imm.surface_add_vertex(p1)
+	imm.surface_end()
+	return imm
+
+
+func _build_punch_telegraph_mesh_for_step(progress_step: int) -> Mesh:
+	var p := float(progress_step) / float(_TELEGRAPH_PROGRESS_STEPS)
+	var half_width := punch_width * 0.5
+	var fill_depth := punch_reach * p
+	var l0 := Vector3(half_width, 0.0, 0.0)
+	var r0 := Vector3(-half_width, 0.0, 0.0)
+	var l1 := Vector3(half_width, 0.0, punch_reach)
+	var r1 := Vector3(-half_width, 0.0, punch_reach)
+	var lf := Vector3(half_width, 0.001, fill_depth)
+	var rf := Vector3(-half_width, 0.001, fill_depth)
+	var imm := ImmediateMesh.new()
+	imm.surface_begin(Mesh.PRIMITIVE_LINES, _outline_mat)
+	for pair in [[l0, l1], [l1, r1], [r1, r0], [r0, l0]]:
+		imm.surface_add_vertex(pair[0] as Vector3)
+		imm.surface_add_vertex(pair[1] as Vector3)
+	imm.surface_end()
+	imm.surface_begin(Mesh.PRIMITIVE_TRIANGLES, _punch_fill_mat)
+	for tri in [[l0, r0, rf], [l0, rf, lf]]:
+		for v in tri:
+			imm.surface_add_vertex(v as Vector3)
+	imm.surface_end()
+	return imm
 
 
 func _create_guard_debug_mesh(parent: Node3D) -> void:
@@ -740,6 +817,8 @@ func _update_attack_telegraph_visual(
 		return
 	if not active or attack_state == AttackState.NONE:
 		_telegraph_mesh.visible = false
+		_telegraph_progress_step = -1
+		_telegraph_last_attack_state = AttackState.NONE
 		return
 	_telegraph_mesh.visible = true
 	var p := clampf(progress, 0.0, 1.0)
@@ -750,56 +829,16 @@ func _update_attack_telegraph_visual(
 	else:
 		_telegraph_mesh.global_position = Vector3(global_position.x, telegraph_ground_y, global_position.y)
 		_telegraph_mesh.rotation = Vector3.ZERO
-	var imm := ImmediateMesh.new()
-	if attack_state == AttackState.STOMP:
-		_fill_mat.albedo_color = Color(0.95, 0.55, 0.18, 0.68)
-		var radius := stomp_radius * p
-		var outer_radius := maxf(stomp_radius, 0.1)
-		var segments := 24
-		imm.surface_begin(Mesh.PRIMITIVE_LINES, _outline_mat)
-		for segment_index in range(segments):
-			var t0 := float(segment_index) / float(segments)
-			var t1 := float(segment_index + 1) / float(segments)
-			var a0 := lerpf(0.0, TAU, t0)
-			var a1 := lerpf(0.0, TAU, t1)
-			var p0 := Vector3(sin(a0) * outer_radius, 0.0, cos(a0) * outer_radius)
-			var p1 := Vector3(sin(a1) * outer_radius, 0.0, cos(a1) * outer_radius)
-			imm.surface_add_vertex(p0)
-			imm.surface_add_vertex(p1)
-		imm.surface_end()
-		imm.surface_begin(Mesh.PRIMITIVE_TRIANGLES, _fill_mat)
-		for segment_index in range(segments):
-			var t0 := float(segment_index) / float(segments)
-			var t1 := float(segment_index + 1) / float(segments)
-			var a0 := lerpf(0.0, TAU, t0)
-			var a1 := lerpf(0.0, TAU, t1)
-			var p0 := Vector3(sin(a0) * radius, 0.001, cos(a0) * radius)
-			var p1 := Vector3(sin(a1) * radius, 0.001, cos(a1) * radius)
-			imm.surface_add_vertex(Vector3(0.0, 0.001, 0.0))
-			imm.surface_add_vertex(p0)
-			imm.surface_add_vertex(p1)
-		imm.surface_end()
-	else:
-		_fill_mat.albedo_color = Color(0.95, 0.18, 0.18, 0.72)
-		var half_width := punch_width * 0.5
-		var fill_depth := punch_reach * p
-		var l0 := Vector3(half_width, 0.0, 0.0)
-		var r0 := Vector3(-half_width, 0.0, 0.0)
-		var l1 := Vector3(half_width, 0.0, punch_reach)
-		var r1 := Vector3(-half_width, 0.0, punch_reach)
-		var lf := Vector3(half_width, 0.001, fill_depth)
-		var rf := Vector3(-half_width, 0.001, fill_depth)
-		imm.surface_begin(Mesh.PRIMITIVE_LINES, _outline_mat)
-		for pair in [[l0, l1], [l1, r1], [r1, r0], [r0, l0]]:
-			imm.surface_add_vertex(pair[0] as Vector3)
-			imm.surface_add_vertex(pair[1] as Vector3)
-		imm.surface_end()
-		imm.surface_begin(Mesh.PRIMITIVE_TRIANGLES, _fill_mat)
-		for tri in [[l0, r0, rf], [l0, rf, lf]]:
-			for v in tri:
-				imm.surface_add_vertex(v as Vector3)
-		imm.surface_end()
-	_telegraph_mesh.mesh = imm
+	var progress_step := int(round(p * float(_TELEGRAPH_PROGRESS_STEPS)))
+	if progress_step == _telegraph_progress_step and attack_state == _telegraph_last_attack_state:
+		return
+	_telegraph_progress_step = progress_step
+	_telegraph_last_attack_state = attack_state
+	var meshes: Array[Mesh] = (
+		_stomp_telegraph_meshes if attack_state == AttackState.STOMP else _punch_telegraph_meshes
+	)
+	if progress_step >= 0 and progress_step < meshes.size():
+		_telegraph_mesh.mesh = meshes[progress_step]
 
 
 func _pick_target_player() -> Node2D:

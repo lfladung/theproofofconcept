@@ -110,6 +110,8 @@ func _ready() -> void:
 	_set_showing_options_menu(false)
 	_sync_control_scheme_option()
 	_sync_display_options()
+	if "--autostart-singleplayer" in OS.get_cmdline_user_args():
+		NetworkSession.start_offline_run.call_deferred()
 
 
 func open_as_mission_staging() -> void:
@@ -479,3 +481,4 @@ func _rebuild_peer_list(slot_map: Dictionary) -> void:
 			tag = " (you)"
 		var ready_text := "READY" if bool(ready_map.get(peer_id_int, false)) else "NOT READY"
 		_peers_list.add_item("Player %s | %s%s" % [slot + 1, ready_text, tag])
+

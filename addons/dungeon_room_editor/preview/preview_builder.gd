@@ -241,9 +241,13 @@ func _build_runtime_floor_rect_preview(piece, origin: Vector2i, size: Vector2i, 
 		instance = _build_fallback_runtime_floor_preview(size, layout, room)
 	if instance == null:
 		return null
-	var detail_overlay := _build_runtime_floor_detail_overlay(piece)
-	if detail_overlay != null:
-		instance.add_child(detail_overlay)
+	for mesh in _mesh_instances_in_root(instance):
+		mesh.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	# Skip detail overlay for pieces larger than 1x1 — at 2x+ scale they look wrong and cost extra draw calls.
+	if size.x <= 1 and size.y <= 1:
+		var detail_overlay := _build_runtime_floor_detail_overlay(piece)
+		if detail_overlay != null:
+			instance.add_child(detail_overlay)
 	_apply_runtime_floor_piece_transform(instance, origin, size, piece, layout, room, render_scene)
 	return instance
 
@@ -261,6 +265,7 @@ func _build_fallback_runtime_floor_preview(size: Vector2i, layout, room: RoomBas
 	mesh_instance.mesh = box
 	mesh_instance.material_override = _fallback_material(FLOOR_COLOR)
 	mesh_instance.position.y = -box.size.y * 0.5
+	mesh_instance.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	root.add_child(mesh_instance)
 	return root
 

@@ -107,6 +107,15 @@ func _refresh_fps_counter(delta: float) -> void:
 	var fps := Engine.get_frames_per_second()
 	var ms := 1000.0 / float(fps) if fps > 0 else 0.0
 	var text := "FPS: %d  |  %.1f ms" % [fps, ms]
+	if "--autostart-singleplayer" in OS.get_cmdline_user_args():
+		var draw_calls := RenderingServer.get_rendering_info(RenderingServer.RENDERING_INFO_TOTAL_DRAW_CALLS_IN_FRAME)
+		var objects := RenderingServer.get_rendering_info(RenderingServer.RENDERING_INFO_TOTAL_OBJECTS_IN_FRAME)
+		var primitives := RenderingServer.get_rendering_info(RenderingServer.RENDERING_INFO_TOTAL_PRIMITIVES_IN_FRAME)
+		var rooms_loaded := _authored_room_visual_nodes.size()
+		var room_names := ",".join(_authored_room_visual_nodes.keys())
+		print("FPS_LOG t=%.1f fps=%d ms=%.1f dc=%d obj=%d prim=%d rooms=%d [%s]" % [
+			Time.get_ticks_msec() / 1000.0, fps, ms, draw_calls, objects, primitives, rooms_loaded, room_names
+		])
 	if text == _fps_counter_last_text:
 		return
 	_fps_counter_last_text = text
@@ -206,3 +215,4 @@ func _physics_process(_delta: float) -> void:
 	_apply_hard_door_clamps()
 	if _is_authoritative_world():
 		_flush_enemy_transform_batch()
+

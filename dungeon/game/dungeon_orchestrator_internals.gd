@@ -162,6 +162,7 @@ const _BACK_HALF_MIN_RATIO := 0.22
 const _AUTHORED_VISUAL_STREAM_MARGIN := 18.0
 const _AUTHORED_VISUAL_STREAM_UNLOAD_MARGIN := 36.0
 const _AUTHORED_VISUAL_STREAM_BUCKET_SIZE := 96.0
+const _AUTHORED_VISUAL_MAX_BUILDS_PER_TICK := 2
 const _ENEMY_PREWARM_POSITION := Vector2(1000000.0, 1000000.0)
 const _ELEVATOR_PLAYER_SIZE_MULT := 4.0
 const _ELEVATOR_VISUAL_CLEARANCE_Y := 0.12
@@ -350,6 +351,7 @@ var _fps_counter_label: Label
 var _fps_counter_last_text := ""
 var _fps_counter_refresh_time_remaining := 0.0
 var _authored_room_visual_stream_time_remaining := 0.0
+var _authored_room_visual_build_queue: Array[RoomBase] = []
 var _authoritative_maintenance_time_remaining := 0.0
 var _info_label_refresh_time_remaining := 0.0
 var _info_label_last_room_name := ""
@@ -2689,8 +2691,9 @@ func _build_room_debug_visuals() -> void:
 
 func _rebuild_authored_room_visuals() -> void:
 	_authored_room_visual_stream_time_remaining = 0.0
+	_authored_room_visual_build_queue.clear()
 	if authored_room_visual_streaming_enabled:
-		_refresh_authored_room_visual_streaming(true)
+		_refresh_authored_room_visual_streaming(false)
 		return
 	for room_node in _rooms_root.get_children():
 		if room_node is not RoomBase:
@@ -2706,9 +2709,20 @@ func _tick_authored_room_visual_streaming(delta: float) -> void:
 		return
 	_authored_room_visual_stream_time_remaining -= delta
 	if _authored_room_visual_stream_time_remaining > 0.0:
+		# Drain build queue between full streaming ticks so rooms load incrementally.
+		if not _authored_room_visual_build_queue.is_empty():
+			var room := _authored_room_visual_build_queue.pop_front() as RoomBase
+			if room != null and is_instance_valid(room):
+				_ensure_authored_room_visual_loaded(room)
 		return
 	_authored_room_visual_stream_time_remaining = maxf(authored_room_visual_stream_update_interval, 0.05)
 	_refresh_authored_room_visual_streaming(false)
+	var built := 0
+	while not _authored_room_visual_build_queue.is_empty() and built < _AUTHORED_VISUAL_MAX_BUILDS_PER_TICK:
+		var room := _authored_room_visual_build_queue.pop_front() as RoomBase
+		if room != null and is_instance_valid(room):
+			_ensure_authored_room_visual_loaded(room)
+		built += 1
 
 
 func _refresh_authored_room_visual_streaming(force: bool) -> void:
@@ -2722,7 +2736,7 @@ func _refresh_authored_room_visual_streaming(force: bool) -> void:
 		var room_bounds := _room_queries.room_bounds_rect(room)
 		var should_load := force or load_rect.intersects(room_bounds)
 		if should_load:
-			_ensure_authored_room_visual_loaded(room)
+			_queue_authored_room_visual_load(room)
 	for room_key in _authored_room_visual_nodes.keys():
 		var room := _authored_room_stream_rooms_by_name.get(room_key, null) as RoomBase
 		if room == null or not is_instance_valid(room):
@@ -2731,6 +2745,18 @@ func _refresh_authored_room_visual_streaming(force: bool) -> void:
 		var room_bounds := _room_queries.room_bounds_rect(room)
 		if not unload_rect.intersects(room_bounds):
 			_unload_authored_room_visual(String(room_key))
+
+
+func _queue_authored_room_visual_load(room: RoomBase) -> void:
+	if room == null:
+		return
+	var room_key := String(room.name)
+	var existing = _authored_room_visual_nodes.get(room_key, null)
+	if existing is Node3D and is_instance_valid(existing):
+		return
+	if _authored_room_visual_build_queue.has(room):
+		return
+	_authored_room_visual_build_queue.append(room)
 
 
 func _ensure_authored_room_visual_loaded(room: RoomBase) -> void:
@@ -2780,6 +2806,7 @@ func _clear_authored_room_visuals() -> void:
 	for child in _room_visuals.get_children():
 		child.queue_free()
 	_authored_room_visual_nodes.clear()
+	_authored_room_visual_build_queue.clear()
 
 
 func _authored_visual_focus_position() -> Vector2:

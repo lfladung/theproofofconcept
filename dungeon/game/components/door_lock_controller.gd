@@ -146,7 +146,7 @@ func _clamp_encounter_doors(body: CharacterBody2D, radius: float, encounter_id: 
 
 
 func _clamp_named_locks(body: CharacterBody2D, radius: float) -> void:
-	if body == null:
+	if body == null or _named_locked_sockets.is_empty():
 		return
 	var body_room_name := _resolve_body_room_name(body)
 	for lock_key in _named_locked_sockets.keys():
